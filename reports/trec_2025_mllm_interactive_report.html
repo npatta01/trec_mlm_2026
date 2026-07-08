@@ -1,0 +1,2262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TREC 2025 Million LLMs Track - Interactive Literature Review</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #17212b;
+      --muted: #5d6875;
+      --soft: #e5ebf2;
+      --soft-2: #f0f4f8;
+      --teal: #0f766e;
+      --teal-dark: #0b5e58;
+      --indigo: #4f46e5;
+      --amber: #b45309;
+      --rose: #be123c;
+      --green: #15803d;
+      --blue: #2563eb;
+      --slate: #334155;
+      --shadow: 0 12px 30px rgba(18, 27, 38, 0.08);
+      --radius: 8px;
+      --max: 1180px;
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.62;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: var(--teal-dark);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .site-header {
+      background: #101923;
+      color: #f9fbfd;
+      border-bottom: 5px solid var(--teal);
+    }
+
+    .header-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 42px 24px 28px;
+    }
+
+    .eyeline {
+      color: #99f6e4;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 0 0 12px;
+    }
+
+    h1 {
+      max-width: 930px;
+      font-size: clamp(2rem, 4vw, 4.3rem);
+      line-height: 1.03;
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      max-width: 850px;
+      color: #d6dee8;
+      font-size: clamp(1rem, 1.7vw, 1.22rem);
+      margin: 18px 0 0;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
+    }
+
+    .control-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 9px 13px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.09);
+      color: #f9fbfd;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .control-button:hover,
+    .control-button:focus-visible {
+      background: rgba(255, 255, 255, 0.17);
+      outline: 2px solid #99f6e4;
+      outline-offset: 2px;
+    }
+
+    .icon {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+    }
+
+    .sticky-nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(246, 248, 251, 0.96);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--soft);
+    }
+
+    .nav-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .nav-links a,
+    .chip-button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      border: 1px solid var(--soft);
+      background: var(--paper);
+      color: var(--slate);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .chip-button[aria-pressed="true"],
+    .nav-links a:hover,
+    .nav-links a:focus-visible,
+    .chip-button:hover,
+    .chip-button:focus-visible {
+      border-color: var(--teal);
+      color: var(--teal-dark);
+      outline: none;
+    }
+
+    .nav-search {
+      width: min(320px, 34vw);
+      min-width: 190px;
+      padding: 9px 11px;
+      border: 1px solid var(--soft);
+      border-radius: 7px;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    main {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 38px 24px 76px;
+    }
+
+    section {
+      scroll-margin-top: 76px;
+      margin-top: 54px;
+    }
+
+    .band {
+      background: var(--paper);
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: clamp(24px, 4vw, 42px);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 26px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: clamp(1.45rem, 2.4vw, 2.2rem);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .section-title p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+    }
+
+    .fact-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .fact {
+      background: #f8fafc;
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      padding: 14px;
+      min-height: 104px;
+    }
+
+    .fact strong {
+      display: block;
+      font-size: clamp(1.35rem, 2.2vw, 2.1rem);
+      line-height: 1;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+
+    .fact span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.3;
+    }
+
+    .callout {
+      border-left: 5px solid var(--amber);
+      background: #fff7ed;
+      padding: 14px 16px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      color: #713f12;
+      margin-top: 18px;
+    }
+
+    .callout strong {
+      color: #5f3308;
+    }
+
+    .plain-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.55fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .definition-list {
+      display: grid;
+      gap: 11px;
+      margin: 0;
+    }
+
+    .definition-list div {
+      border-top: 1px solid var(--soft);
+      padding-top: 11px;
+    }
+
+    .definition-list dt {
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .definition-list dd {
+      margin: 3px 0 0;
+      color: var(--muted);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .flow-step {
+      position: relative;
+      background: var(--soft-2);
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      padding: 12px;
+      min-height: 118px;
+    }
+
+    .flow-step::after {
+      content: "";
+      position: absolute;
+      right: -8px;
+      top: calc(50% - 8px);
+      width: 0;
+      height: 0;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      border-left: 8px solid var(--soft);
+    }
+
+    .flow-step:last-child::after {
+      display: none;
+    }
+
+    .flow-step b {
+      display: block;
+      font-size: 0.91rem;
+      margin-bottom: 6px;
+    }
+
+    .flow-step span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      background: var(--paper);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--soft);
+      vertical-align: top;
+      font-size: 0.91rem;
+    }
+
+    th {
+      background: #eef3f8;
+      color: #263340;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody tr:hover {
+      background: #f8fafc;
+    }
+
+    .sortable th[data-sort] {
+      cursor: pointer;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 7px;
+      border-radius: 6px;
+      border: 1px solid var(--soft);
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.76rem;
+      font-weight: 800;
+      margin: 2px 4px 2px 0;
+      white-space: nowrap;
+    }
+
+    .tag.teal {
+      color: var(--teal-dark);
+      border-color: #99f6e4;
+      background: #ecfeff;
+    }
+
+    .tag.amber {
+      color: #92400e;
+      border-color: #fed7aa;
+      background: #fff7ed;
+    }
+
+    .tag.indigo {
+      color: #3730a3;
+      border-color: #c7d2fe;
+      background: #eef2ff;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 0.72fr) minmax(310px, 0.28fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+    }
+
+    .metric-select {
+      min-height: 36px;
+      border: 1px solid var(--soft);
+      border-radius: 7px;
+      padding: 6px 9px;
+      color: var(--ink);
+      background: var(--paper);
+      font-weight: 700;
+    }
+
+    .chart-panel,
+    .detail-panel {
+      background: #f8fafc;
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+
+    .chart-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .chart-title h3,
+    .detail-panel h3,
+    .method-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.2;
+    }
+
+    .chart-title span,
+    .small-note {
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    #runsChart {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 450px;
+    }
+
+    .bar-row text {
+      font-size: 12px;
+      fill: #243242;
+    }
+
+    .bar-value {
+      font-weight: 800;
+    }
+
+    .bar-bg {
+      fill: #e9eff5;
+    }
+
+    .bar {
+      transition: opacity 150ms ease, filter 150ms ease;
+    }
+
+    .bar-row {
+      cursor: pointer;
+    }
+
+    .bar-row:hover .bar,
+    .bar-row:focus .bar {
+      filter: brightness(0.9);
+    }
+
+    .detail-panel {
+      position: sticky;
+      top: 74px;
+    }
+
+    .detail-panel p {
+      margin: 8px 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .metric-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .metric-list div {
+      border: 1px solid var(--soft);
+      border-radius: 7px;
+      background: var(--paper);
+      padding: 9px;
+    }
+
+    .metric-list b {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .metric-list span {
+      display: block;
+      font-weight: 900;
+      font-size: 1.13rem;
+      color: var(--ink);
+      margin-top: 2px;
+    }
+
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .method-card {
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      background: #f8fafc;
+      padding: 14px;
+      min-height: 188px;
+    }
+
+    .method-card p {
+      color: var(--muted);
+      margin: 8px 0 0;
+      font-size: 0.92rem;
+    }
+
+    .approach-intro-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.62fr) minmax(300px, 0.38fr);
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .visual-panel {
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      background: #f8fafc;
+      padding: 14px;
+    }
+
+    .visual-panel h3,
+    .playbook h3,
+    .ladder-step h3,
+    .team-map-title {
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.25;
+    }
+
+    .visual-panel p,
+    .playbook p,
+    .ladder-step p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      min-height: 68px;
+      border: 1px solid #dbe3ec;
+      border-radius: 7px;
+      background: var(--paper);
+      padding: 9px;
+      border-left: 4px solid var(--team-color, var(--teal));
+    }
+
+    .legend-item b,
+    .playbook-step b,
+    .team-stage b {
+      display: block;
+      color: var(--ink);
+      font-size: 0.82rem;
+      line-height: 1.2;
+      margin-bottom: 5px;
+    }
+
+    .legend-item span,
+    .playbook-step span,
+    .team-stage span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.38;
+    }
+
+    .playbook-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 22px;
+      margin-top: 24px;
+    }
+
+    .playbook {
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      background: #f8fafc;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .playbook-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px 22px;
+      border-bottom: 1px solid transparent;
+      list-style: none;
+    }
+
+    .playbook-head p {
+      max-width: 760px;
+    }
+
+    .playbook-head::-webkit-details-marker {
+      display: none;
+    }
+
+    .playbook-head::marker {
+      content: "";
+    }
+
+    .playbook-head::after {
+      content: "Show details";
+      flex: 0 0 auto;
+      align-self: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: var(--paper);
+      color: var(--teal-dark);
+      font-size: 0.82rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .playbook[open] .playbook-head {
+      border-bottom-color: var(--soft);
+    }
+
+    .playbook[open] .playbook-head::after {
+      content: "Hide details";
+    }
+
+    .approach-meta {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .playbook-flow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      padding: 18px 22px 0;
+    }
+
+    .playbook-step {
+      position: relative;
+      min-height: 126px;
+      border: 1px solid #dbe3ec;
+      border-radius: 7px;
+      background: var(--paper);
+      padding: 14px;
+      border-left: 4px solid var(--team-color, var(--teal));
+    }
+
+    .playbook-step:not(:nth-child(3n))::after {
+      content: "";
+      position: absolute;
+      right: -8px;
+      top: calc(50% - 7px);
+      width: 0;
+      height: 0;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-left: 8px solid var(--team-color, var(--teal));
+    }
+
+    .playbook-details {
+      display: grid;
+      grid-template-columns: minmax(0, 0.58fr) minmax(280px, 0.42fr);
+      gap: 16px;
+      padding: 18px 22px 22px;
+    }
+
+    .detail-list {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 0.91rem;
+    }
+
+    .detail-list li + li {
+      margin-top: 6px;
+    }
+
+    .playbook-aside {
+      border: 1px solid #dbe3ec;
+      border-radius: 7px;
+      background: var(--paper);
+      padding: 14px;
+    }
+
+    .playbook-aside p:first-child {
+      margin-top: 0;
+    }
+
+    .build-first {
+      margin-top: 0;
+      padding-top: 9px;
+      border-top: 1px solid var(--soft);
+    }
+
+    .comparison-note {
+      margin: 18px 0 8px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .matrix-table td:first-child {
+      font-weight: 850;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+
+    .decision-ladder {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .ladder-step {
+      border: 1px solid var(--soft);
+      border-top: 5px solid var(--team-color, var(--teal));
+      border-radius: var(--radius);
+      background: #f8fafc;
+      padding: 16px;
+      min-height: 160px;
+    }
+
+    .rung-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--team-color, var(--teal));
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.82rem;
+      margin-bottom: 8px;
+    }
+
+    .team-map {
+      margin: 18px 0 24px;
+      border: 1px dashed #cbd5e1;
+      border-radius: var(--radius);
+      background: var(--paper);
+      padding: 16px;
+    }
+
+    .team-flow {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .team-stage {
+      min-height: 116px;
+      border: 1px solid #dbe3ec;
+      border-radius: 7px;
+      background: #f8fafc;
+      padding: 14px;
+      border-left: 4px solid var(--team-color, var(--teal));
+    }
+
+    details {
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      background: #f8fafc;
+      padding: 15px 18px;
+    }
+
+    details + details {
+      margin-top: 14px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 850;
+      color: var(--ink);
+    }
+
+    details p,
+    details li {
+      color: var(--muted);
+    }
+
+    .recipe-block {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--soft);
+    }
+
+    .recipe-block h3 {
+      margin: 0 0 7px;
+      font-size: 0.96rem;
+      color: var(--ink);
+    }
+
+    .recipe-block ul,
+    .recipe-block ol {
+      margin: 7px 0 0;
+      padding-left: 22px;
+    }
+
+    .recipe-block code {
+      background: #eef2f7;
+      border: 1px solid #dbe3ec;
+      border-radius: 5px;
+      padding: 1px 5px;
+      color: #0f172a;
+    }
+
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .source-link {
+      display: block;
+      padding: 13px;
+      border: 1px solid var(--soft);
+      border-radius: var(--radius);
+      background: #f8fafc;
+      text-decoration: none;
+      color: var(--ink);
+      min-height: 96px;
+    }
+
+    .source-link b {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .source-link span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .source-link:hover,
+    .source-link:focus-visible {
+      border-color: var(--teal);
+      outline: none;
+    }
+
+    .site-footer {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 24px 46px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .detail-only {
+      display: block;
+    }
+
+    body[data-detail="overview"] .detail-only,
+    body[data-detail="beginner"] .detail-only {
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .fact-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .plain-grid,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step::after {
+        display: none;
+      }
+
+      .method-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .approach-intro-grid,
+      .playbook-details {
+        grid-template-columns: 1fr;
+      }
+
+      .team-flow,
+      .decision-ladder {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .playbook-flow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .playbook-step::after {
+        display: none;
+      }
+
+      .detail-panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .header-inner {
+        padding: 32px 18px 22px;
+      }
+
+      .nav-inner {
+        padding: 9px 18px;
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .nav-search {
+        width: 100%;
+      }
+
+      main {
+        padding: 28px 18px 56px;
+      }
+
+      .section-title {
+        display: block;
+      }
+
+      section {
+        margin-top: 42px;
+      }
+
+      .fact-grid,
+      .method-grid,
+      .source-grid,
+      .legend-row,
+      .playbook-flow,
+      .team-flow,
+      .decision-ladder {
+        grid-template-columns: 1fr;
+      }
+
+      .fact {
+        min-height: auto;
+      }
+
+      #runsChart {
+        min-height: 620px;
+      }
+
+      .playbook-head {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .playbook-head::after {
+        justify-self: start;
+      }
+    }
+
+    @media print {
+      .sticky-nav,
+      .header-actions,
+      .controls,
+      .detail-panel {
+        display: none;
+      }
+
+      body {
+        background: #fff;
+      }
+
+      .band {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body data-detail="overview">
+  <header class="site-header">
+    <div class="header-inner">
+      <p class="eyeline">Interactive literature review</p>
+      <h1>TREC 2025 Million LLMs Track</h1>
+      <p class="lede">A plain-English, source-backed guide to the task, data, features, submissions, results, and evaluation caveats for the Million LLMs Track at the 2025 Text REtrieval Conference.</p>
+      <div class="header-actions" aria-label="Report actions">
+        <button class="control-button" id="detailToggle" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v3H4zM4 11h16v3H4zM4 17h10v3H4z" fill="currentColor"/></svg>
+          Overview mode
+        </button>
+        <button class="control-button" id="expandAllButton" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l5 5h-4v6h-2V9H7zm-7 13h14v3H5z" fill="currentColor"/></svg>
+          Expand all
+        </button>
+        <button class="control-button" id="collapseAllButton" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8l5-5 5 5h-4v5h-2V8zM5 16h14v3H5z" fill="currentColor"/></svg>
+          Collapse all
+        </button>
+        <button class="control-button" id="printButton" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v5H7zM6 17H4a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2v4H6zm2 2h8v-5H8z" fill="currentColor"/></svg>
+          Print
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="sticky-nav" aria-label="Report navigation">
+    <div class="nav-inner">
+      <div class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#data">Data</a>
+        <a href="#features">Features</a>
+        <a href="#approach-maps">Approach Maps</a>
+        <a href="#submissions">Submissions</a>
+        <a href="#participants">Teams</a>
+        <a href="#caveats">Caveats</a>
+        <a href="#sources">Sources</a>
+      </div>
+      <input class="nav-search" id="globalSearch" type="search" placeholder="Search runs, teams, methods" aria-label="Search runs, teams, and methods">
+    </div>
+  </nav>
+
+  <main>
+    <section id="overview" class="band">
+      <div class="section-title">
+        <div>
+          <h2>What This Track Asked</h2>
+          <p>The track tested whether a system can route a user question to the LLM ID that is most likely to be an expert for that question. The submitted system ranked model IDs, not web pages and not generated answers.</p>
+        </div>
+      </div>
+
+      <div class="fact-grid" aria-label="Key facts">
+        <div class="fact"><strong>1,131</strong><span>candidate LLM IDs in the official pool</span></div>
+        <div class="fact"><strong>14,950</strong><span>discovery queries reported by the overview paper</span></div>
+        <div class="fact"><strong>342</strong><span>development queries with relevance labels</span></div>
+        <div class="fact"><strong>50</strong><span>NIST-authored test questions described in the overview</span></div>
+        <div class="fact"><strong>19</strong><span>official automatic submitted runs</span></div>
+        <div class="fact"><strong>6</strong><span>participating groups in the official run list</span></div>
+      </div>
+
+      <div class="callout">
+        <strong>Big caveat:</strong> the final official evaluation was much smaller and noisier than the original design. The overview reports ground-truth answers for 37 of 50 test questions, but only 16 questions had at least one relevant model answer. Relevance was judged by GPT-5-as-judge rather than the originally planned pooled human assessment.
+      </div>
+
+      <div class="plain-grid" style="margin-top: 24px;">
+        <div>
+          <h3>Plain-English Problem</h3>
+          <p>Imagine a company has many specialized assistants. One is good at law, another at local history, another at chemistry, and so on. A user asks a question. Before spending money asking every assistant, the system must predict which assistant should answer. TREC 2025 made this a benchmark: rank the best model IDs for each query using only the released data.</p>
+          <p>The word "million" is aspirational. In 2025 the benchmark used 1,131 simulated expert LLM IDs. They were not 1,131 separately trained foundation models. They were shared LLM-based systems whose apparent expertise came from different retrieval collections.</p>
+          <p class="detail-only">This matters because the task is closer to expert retrieval or model routing than to ordinary document retrieval. Systems exploit evidence from previous query-answer behavior, response confidence, embeddings, metadata, and topic/domain profiles.</p>
+
+          <div class="flow" aria-label="Task flow">
+            <div class="flow-step"><b>1. User query</b><span>A natural-language or keyword-like information need.</span></div>
+            <div class="flow-step"><b>2. Candidate LLM IDs</b><span>Each ID behaves like a specialist backed by a document cluster.</span></div>
+            <div class="flow-step"><b>3. Submitted ranking</b><span>Teams return a TREC run file ranking model IDs.</span></div>
+            <div class="flow-step"><b>4. Hidden answers</b><span>Model answers are compared to reference answers.</span></div>
+            <div class="flow-step"><b>5. Metrics</b><span>nDCG@10 and MRR reward putting good experts near the top.</span></div>
+          </div>
+        </div>
+
+        <div>
+          <h3>Glossary</h3>
+          <dl class="definition-list">
+            <div><dt>TREC</dt><dd>The Text REtrieval Conference, a long-running evaluation forum run by NIST.</dd></div>
+            <div><dt>Run</dt><dd>One official submission: a ranked list of LLM IDs for each test query.</dd></div>
+            <div><dt>qrels</dt><dd>Relevance labels. Here they say how expert a model answer appears for a query.</dd></div>
+            <div><dt>nDCG@10</dt><dd>A top-10 ranking metric. Higher is better when highly relevant items appear near the top.</dd></div>
+            <div><dt>MRR</dt><dd>Mean Reciprocal Rank. It focuses on how early the first relevant result appears.</dd></div>
+            <div><dt>BM25 / RM3</dt><dd>Classic search methods. BM25 matches query terms; RM3 expands the query using pseudo-relevance feedback.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="data" class="band">
+      <div class="section-title">
+        <div>
+          <h2>Data: What Was Released and What It Meant</h2>
+          <p>The data combined a large document collection, simulated expert LLM IDs, precomputed model responses, metadata, a development set with qrels, and held-out test questions.</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Dataset / object</th>
+              <th>Size reported</th>
+              <th>Purpose</th>
+              <th>What participants could do with it</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Base web corpus</td>
+              <td>69,947,610 English ClueWeb22-A documents plus 332,874 Researchy Questions documents</td>
+              <td>Source material for the simulated expert systems</td>
+              <td>Understand why different model IDs had different domains of expertise.</td>
+            </tr>
+            <tr>
+              <td>Tagged/cleaned corpus</td>
+              <td>26,566,121 documents</td>
+              <td>Documents with usable semantic category tags after filtering</td>
+              <td>Basis for topic clustering and expert-model simulation.</td>
+            </tr>
+            <tr>
+              <td>Candidate LLM IDs</td>
+              <td>1,131</td>
+              <td>Entities to rank for every query</td>
+              <td>Build profiles, embeddings, scores, or learned rankers for each ID.</td>
+            </tr>
+            <tr>
+              <td>Discovery data</td>
+              <td>14,950 queries in the overview; some participant papers say 14,940</td>
+              <td>Precomputed query-response behavior for candidate LLMs</td>
+              <td>Index responses, train weak models, compute confidence/logprob features, create profiles.</td>
+            </tr>
+            <tr>
+              <td>Development set</td>
+              <td>342 queries with qrels</td>
+              <td>Training/tuning and validation</td>
+              <td>Optimize rankers and compare methods before final submission.</td>
+            </tr>
+            <tr>
+              <td>Test set</td>
+              <td>50 questions described; public final topic files currently contain 48 records</td>
+              <td>Official held-out evaluation</td>
+              <td>Submit rankings only. Teams could not query candidate models at test time.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details class="detail-only" style="margin-top: 14px;">
+        <summary>How the simulated expert LLMs were created</summary>
+        <p>The overview describes a large document collection being clustered into topical groups. Each LLM ID corresponds to a cluster-backed expert RAG-style behavior. A single global BM25 index retrieved up to 2,000 documents per query; for each cluster, up to the top three documents found in that global pool could condition the shared LLM's answer. If a cluster had no documents in the global pool, a default template was used.</p>
+        <p>This construction gives each ID a different evidence environment, so the benchmark can ask which ID is likely to answer a new question well. It also means the track evaluates routing among simulated experts, not comparisons among unrelated commercial LLMs.</p>
+      </details>
+
+      <details style="margin-top: 10px;">
+        <summary>Example test questions from the public topic file</summary>
+        <p>Examples include local-history and long-tail factual questions such as "What is the history of the Rumsey Mansion in Joppatowne?", "What famous woman allegedly visited Mount Athos?", and a detailed question about a first-edition scientific mistake in Larry Niven's <i>Ringworld</i>. These are intentionally difficult for general LLMs and often require niche source grounding.</p>
+      </details>
+    </section>
+
+    <section id="features" class="band">
+      <div class="section-title">
+        <div>
+          <h2>Features and Modeling Ideas</h2>
+          <p>Most systems tried to infer expertise from past behavior: responses, response confidence, model profiles, embeddings, weak relevance labels, or ensembles of those signals.</p>
+        </div>
+      </div>
+
+      <div class="method-grid" id="featureCards" aria-label="Feature families"></div>
+
+      <details class="detail-only" style="margin-top: 16px;">
+        <summary>Why response-level evidence mattered</summary>
+        <p>GenAIus found that indexing individual historical responses and aggregating scores back to LLM IDs was stronger than treating each LLM as one giant profile document. That makes intuitive sense: a single model profile can blur many domains together, while a response-level index can match a new query to similar past query-answer behavior.</p>
+      </details>
+    </section>
+
+    <section id="approach-maps" class="band">
+      <div class="section-title">
+        <div>
+          <h2>Approach Maps: How the Systems Worked</h2>
+          <p>Use this section as the visual shortcut. Each team is now shown as a full implementation playbook: what data it consumes, how labels or features are built, what model scores the candidates, how inference works, and where the approach can fail.</p>
+        </div>
+      </div>
+
+      <div class="approach-intro-grid">
+        <div class="visual-panel">
+          <h3>Legend for the playbooks</h3>
+          <p>The diagrams are schematic, but every box corresponds to an implementable part of the system.</p>
+          <div class="legend-row" aria-label="Pipeline legend">
+            <div class="legend-item" style="--team-color: var(--slate);"><b>1. Data</b><span>Released queries, answers, qrels, metadata, or profiles.</span></div>
+            <div class="legend-item" style="--team-color: var(--amber);"><b>2. Signal</b><span>Weak labels, retrieval hits, embeddings, logprobs, or heuristics.</span></div>
+            <div class="legend-item" style="--team-color: var(--indigo);"><b>3. Ranker</b><span>BM25/RM3, FAISS scoring, LightGBM, neural towers, or ensembles.</span></div>
+            <div class="legend-item" style="--team-color: var(--green);"><b>4. Output</b><span>One score per candidate LLM ID, sorted into a TREC run.</span></div>
+          </div>
+        </div>
+
+        <div class="visual-panel">
+          <h3>Fast reading path</h3>
+          <p>For implementation, read the map first, then jump to the matching team detail. The strongest practical starting points are GenAIus for a retrieval baseline, UDInfo for weak-label routing, and SRCB for a high-performing neural ranker.</p>
+          <p><span class="tag teal">easy baseline</span><span class="tag indigo">best official run</span><span class="tag amber">needs careful validation</span></p>
+        </div>
+      </div>
+
+      <div class="playbook-grid" aria-label="Team implementation playbooks">
+        <details class="playbook" style="--team-color: #0f766e;">
+          <summary class="playbook-head">
+            <div>
+              <h3>SRCB: pseudo-label the answer matrix, then train a neural scorer</h3>
+              <p>SRCB's system is easiest to understand as synthetic supervision. It first creates labels for unlabeled discovery answers, then trains a model that scores every LLM ID for a new query.</p>
+            </div>
+            <div class="approach-meta"><span class="tag indigo">rank 1</span><span class="tag">neural</span><span class="tag amber">label-risk</span></div>
+          </summary>
+          <div class="playbook-flow">
+            <div class="playbook-step"><b>1. Training rows</b><span>Create query-response rows for the discovery matrix: about 15k queries by 1,131 candidate LLM answers.</span></div>
+            <div class="playbook-step"><b>2. Judge labels</b><span>Use Quicksort pairwise judging: compare candidate answers to anchors, recursively split better/equal/worse groups, and form a per-query ranking.</span></div>
+            <div class="playbook-step"><b>3. Backup labels</b><span>Add Qwen3-Reranker-8B query-response scores and embedding similarity to either a generated reference answer or the query.</span></div>
+            <div class="playbook-step"><b>4. Encoder</b><span>Freeze a strong pretrained encoder. The practical winner reported was Qwen3-Embedding-8B; DeBERTa-v3 was another baseline.</span></div>
+            <div class="playbook-step"><b>5. Prediction head</b><span>Train ranking, classification, or regression heads. Reported losses included BCE, ListNet, cross entropy, focal loss, and BCE-style regression.</span></div>
+            <div class="playbook-step"><b>6. Test-time ranking</b><span>Encode the test query, produce one score for each of the 1,131 LLM IDs, optionally ensemble variants, then sort by score.</span></div>
+          </div>
+          <div class="playbook-details">
+            <ol class="detail-list">
+              <li><b>Implementation recipe:</b> begin with one label source, preferably reranker or embedding similarity, before implementing expensive Quicksort judging.</li>
+              <li><b>Data shape:</b> a supervised table of query, LLM ID, answer text, pseudo-label, and optional label-source metadata.</li>
+              <li><b>Validation:</b> use the 342 development queries to choose label source, head type, top-percentile threshold, and ensemble weights.</li>
+            </ol>
+            <div class="playbook-aside">
+              <p><b>Why it worked:</b> it turned a routing problem with sparse human labels into a large supervised ranking problem.</p>
+              <p><b>Main failure mode:</b> the model may learn the judge's style preferences instead of real expertise.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="playbook" style="--team-color: #4f46e5;">
+          <summary class="playbook-head">
+            <div>
+              <h3>UDInfo: estimate quality near similar past queries</h3>
+              <p>UDInfo's best method is a hybrid router. It asks: for queries similar to this one, which LLMs were judged good, and which LLMs are strong in this query's domain cluster?</p>
+            </div>
+            <div class="approach-meta"><span class="tag indigo">rank 2</span><span class="tag">hybrid router</span><span class="tag teal">debuggable</span></div>
+          </summary>
+          <div class="playbook-flow">
+            <div class="playbook-step"><b>1. Embed queries</b><span>Encode discovery and test queries with BAAI/bge-large-en, then L2-normalize so cosine similarity can be computed efficiently.</span></div>
+            <div class="playbook-step"><b>2. Weak labels</b><span>Use an external judge, reported as olmo2-13b, to grade each discovery query-LLM answer as 0, 1, or 2.</span></div>
+            <div class="playbook-step"><b>3. Local evidence</b><span>Build a FAISS index over discovery query embeddings. For a test query, retrieve K = 100 nearest discovery queries.</span></div>
+            <div class="playbook-step"><b>4. Local score</b><span>For each LLM, compute a similarity-weighted average of its weak labels over those neighbors, then smooth with its global prior using alpha = 0.9.</span></div>
+            <div class="playbook-step"><b>5. Domain score</b><span>Cluster discovery queries into Kc = 40 groups. Precompute each LLM's average judged quality in each cluster.</span></div>
+            <div class="playbook-step"><b>6. Final score</b><span>Assign the test query to the closest cluster and mix local and domain scores with lambda = 0.5.</span></div>
+          </div>
+          <div class="playbook-details">
+            <ol class="detail-list">
+              <li><b>Implementation recipe:</b> build the query FAISS index first, then add cluster priors once local-neighbor scoring works.</li>
+              <li><b>Useful baseline:</b> Method 1 stores K_m = 10 answer centroids per LLM and combines broad centroid similarity with per-LLM FAISS refinement.</li>
+              <li><b>Debug handle:</b> inspect nearest training queries and the assigned cluster when a routed LLM looks surprising.</li>
+            </ol>
+            <div class="playbook-aside">
+              <p><b>Why it worked:</b> it keeps three interpretable quantities separate: nearby examples, global model quality, and domain quality.</p>
+              <p><b>Main failure mode:</b> bad weak labels poison both local and cluster estimates.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="playbook" style="--team-color: #b45309;">
+          <summary class="playbook-head">
+            <div>
+              <h3>GenAIus: retrieve historical answers and aggregate back to LLM IDs</h3>
+              <p>GenAIus is the most reproducible strong baseline. It treats each past answer as retrievable evidence, then gives credit to the LLM that produced the matched answer.</p>
+            </div>
+            <div class="approach-meta"><span class="tag indigo">rank 3</span><span class="tag teal">easy baseline</span><span class="tag">BM25/RM3</span></div>
+          </summary>
+          <div class="playbook-flow">
+            <div class="playbook-step"><b>1. Start corpus</b><span>Begin with roughly 16.9M discovery responses, each tied to a query and producing LLM ID.</span></div>
+            <div class="playbook-step"><b>2. Filter failures</b><span>Remove exact and patterned failures such as "No result found"; the first filter left about 2.83M responses.</span></div>
+            <div class="playbook-step"><b>3. Filter refusals</b><span>Remove low-information refusal phrases; the stricter response set was about 1.24M responses.</span></div>
+            <div class="playbook-step"><b>4. Build indexes</b><span>Compare profile, question, and response indexes. The response index was strongest: one document per historical answer.</span></div>
+            <div class="playbook-step"><b>5. Retrieve</b><span>Run BM25 with RM3 pseudo-relevance feedback. For response runs, retrieve up to 1,000 response documents.</span></div>
+            <div class="playbook-step"><b>6. Aggregate</b><span>Use SumScore: add each retrieved document's score to its producing LLM, then sort LLM totals.</span></div>
+          </div>
+          <div class="playbook-details">
+            <ol class="detail-list">
+              <li><b>Implementation recipe:</b> store fields for query text, response text, LLM ID, and filter reason; keep filtered and extra-filtered indexes separate.</li>
+              <li><b>Scoring choice:</b> SumScore outperformed simple Vote because Vote creates more ties and ignores retrieval confidence.</li>
+              <li><b>Optional rerank:</b> rerank retrieved response documents with naver-splade-v3 before aggregating back to LLM IDs.</li>
+            </ol>
+            <div class="playbook-aside">
+              <p><b>Why it worked:</b> matching a new query to individual past answers is more precise than matching it to one giant LLM profile.</p>
+              <p><b>Main failure mode:</b> lexical retrieval misses semantic matches unless RM3/reranking or embeddings are added.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="playbook" style="--team-color: #be123c;">
+          <summary class="playbook-head">
+            <div>
+              <h3>indelab: compare neural routing with engineered ensembles</h3>
+              <p>indelab submitted both a neural dual-encoder idea and a stronger non-neural ensemble. The useful lesson is how to represent both the query and the model as scoring features.</p>
+            </div>
+            <div class="approach-meta"><span class="tag">rank 12</span><span class="tag">ensemble</span><span class="tag">dual encoder</span></div>
+          </summary>
+          <div class="playbook-flow">
+            <div class="playbook-step"><b>1. Weak examples</b><span>Combine dev qrels with weak discovery labels based on response length: over 50 characters becomes relevant, otherwise non-relevant.</span></div>
+            <div class="playbook-step"><b>2. Neural query tower</b><span>Process 384-d query embeddings with 4-head attention, reshape 384 to 96 x 4 to 384, then dense layers to 128-d.</span></div>
+            <div class="playbook-step"><b>3. Neural LLM tower</b><span>Learn LLM embeddings with a 1,131 to 256 lookup, then dense layers 256 to 512 to 384 to 256 to 128.</span></div>
+            <div class="playbook-step"><b>4. Neural score</b><span>Compute cosine similarity between 128-d query and LLM representations; ensemble the five best folds by dev nDCG@10.</span></div>
+            <div class="playbook-step"><b>5. Feature ensemble</b><span>Fit Bradley-Terry skill, random forest with query/model/profile features, and a LightGBM meta-ranker over about 17 features.</span></div>
+            <div class="playbook-step"><b>6. Final ranking</b><span>Use the ensemble/meta-ranker scores to rank all LLM IDs for each test query.</span></div>
+          </div>
+          <div class="playbook-details">
+            <ol class="detail-list">
+              <li><b>Implementation recipe:</b> reproduce the non-neural ensemble first; it is easier to inspect than the dual encoder.</li>
+              <li><b>Neural gap:</b> the official appendix does not specify the exact training loss, so choose and document pairwise, contrastive, or regression loss.</li>
+              <li><b>Validation:</b> use 10-fold dev-query validation and avoid letting weak length labels dominate real qrels.</li>
+            </ol>
+            <div class="playbook-aside">
+              <p><b>Why it helped:</b> it explores whether LLM IDs can be embedded like retrievable experts.</p>
+              <p><b>Main failure mode:</b> response length is a crude label and can reward verbosity instead of correctness.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="playbook" style="--team-color: #2563eb;">
+          <summary class="playbook-head">
+            <div>
+              <h3>uvairlab: use confidence metadata as learning-to-rank features</h3>
+              <p>UvA IRLab used token log probabilities as a compact model-behavior signal. The final feature row is small: query vector, LLM ID, and two confidence statistics.</p>
+            </div>
+            <div class="approach-meta"><span class="tag">rank 13</span><span class="tag">LightGBM</span><span class="tag amber">confidence risk</span></div>
+          </summary>
+          <div class="playbook-flow">
+            <div class="playbook-step"><b>1. Query vector</b><span>Encode each query with Sentence-BERT all-MiniLM-L6-v2, yielding a 384-dimensional vector.</span></div>
+            <div class="playbook-step"><b>2. LLM ID feature</b><span>Convert each LLM ID to a scalar integer, such as llm_0032 to 32, so LightGBM can split on it.</span></div>
+            <div class="playbook-step"><b>3. Logprob summary</b><span>For each discovery response, compute average token log-likelihood as a confidence score.</span></div>
+            <div class="playbook-step"><b>4. Model stats</b><span>For each LLM, keep its top 1% confidence responses and compute mean and standard deviation.</span></div>
+            <div class="playbook-step"><b>5. Train ranker</b><span>Train LightGBM LambdaRank with learning rate 0.05, max leaves 31, early stopping 50, and about 1,130 rounds.</span></div>
+            <div class="playbook-step"><b>6. Build 387-d rows</b><span>For each test query, create 1,131 feature rows: 384 query dims plus LLM ID, mean, and std; sort predictions.</span></div>
+          </div>
+          <div class="playbook-details">
+            <ol class="detail-list">
+              <li><b>Implementation recipe:</b> precompute per-LLM confidence summaries once; inference only embeds the query and joins the two stats.</li>
+              <li><b>Labels:</b> convert average log-likelihood into grades: below -2.0 is 0, -2.0 to -1.0 is 1, above -1.0 is 2.</li>
+              <li><b>Extension:</b> add 100 query clusters and per-cluster confidence/refusal/length features to make the model domain-aware.</li>
+            </ol>
+            <div class="playbook-aside">
+              <p><b>Why it is attractive:</b> the feature table is small, fast, and easy to train.</p>
+              <p><b>Main failure mode:</b> confident answers can still be wrong, especially for hallucinated or over-general responses.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="playbook" style="--team-color: #15803d;">
+          <summary class="playbook-head">
+            <div>
+              <h3>paulphys: build behavioral profiles for each LLM</h3>
+              <p>paulphys tried to summarize each LLM's behavior in a 64-dimensional profile, then match query descriptors to those profiles with LambdaMART.</p>
+            </div>
+            <div class="approach-meta"><span class="tag">rank 19</span><span class="tag">profiles</span><span class="tag">diagnostic</span></div>
+          </summary>
+          <div class="playbook-flow">
+            <div class="playbook-step"><b>1. Sample responses</b><span>Use 50% of discovery responses; the paper reports that sampling more did not improve profile quality.</span></div>
+            <div class="playbook-step"><b>2. Embed behavior</b><span>Encode sampled responses with Qwen3-Embedding-8B and compute semantic centroids, dispersion, and similarity statistics.</span></div>
+            <div class="playbook-step"><b>3. Handcraft categories</b><span>Assign domain labels such as science, medicine, law, history, and task labels such as explanation, comparison, and factual.</span></div>
+            <div class="playbook-step"><b>4. Build 64-d profile</b><span>Combine domain/task expertise, response metrics, lexical diversity, structure, semantic descriptors, and query-response overlap.</span></div>
+            <div class="playbook-step"><b>5. Pair features</b><span>For each query-LLM pair, concatenate query descriptors, the LLM profile, domain/task matches, and interaction products.</span></div>
+            <div class="playbook-step"><b>6. LambdaMART</b><span>Train LightGBM LambdaMART with rank_xendcg; train on top 200 LLMs per dev query and rank all 1,131 at inference.</span></div>
+          </div>
+          <div class="playbook-details">
+            <ol class="detail-list">
+              <li><b>Implementation recipe:</b> use this to make interpretable diagnostics alongside a stronger router, not as the first production ranker.</li>
+              <li><b>Feature audit:</b> check which profile dimensions dominate; handcrafted domain labels can overfit the dev distribution.</li>
+              <li><b>Debug handle:</b> show profile-domain matches to explain why a model was routed to a query.</li>
+            </ol>
+            <div class="playbook-aside">
+              <p><b>Why it is useful:</b> behavioral profiles expose what the router believes each LLM is good at.</p>
+              <p><b>Main failure mode:</b> profile summaries can be too coarse for long-tail questions, which likely contributed to the weak official score.</p>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <p class="comparison-note"><b>Comparison matrix:</b> this is the quickest way to see which implementation ingredients each team relied on.</p>
+      <div class="table-wrap">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th>Mental model</th>
+              <th>Weak labels</th>
+              <th>Retrieval index</th>
+              <th>Embeddings/profiles</th>
+              <th>Logprobs/confidence</th>
+              <th>Learned ranker</th>
+              <th>Start here if...</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SRCB</td>
+              <td>Learn a scorer from synthetic preference labels</td>
+              <td>yes</td>
+              <td>no</td>
+              <td>yes</td>
+              <td>no</td>
+              <td>yes, neural heads</td>
+              <td>You can afford LLM/reranker labeling and want peak official performance.</td>
+            </tr>
+            <tr>
+              <td>UDInfo</td>
+              <td>Estimate model quality near similar past queries</td>
+              <td>yes</td>
+              <td>yes, FAISS kNN</td>
+              <td>yes</td>
+              <td>no</td>
+              <td>some MLP baselines</td>
+              <td>You want a debuggable hybrid of neighbors, clusters, and priors.</td>
+            </tr>
+            <tr>
+              <td>GenAIus</td>
+              <td>Search historical answers, then vote back to models</td>
+              <td>no</td>
+              <td>yes, BM25/RM3</td>
+              <td>profile baseline only</td>
+              <td>no</td>
+              <td>optional reranker</td>
+              <td>You need the most reproducible strong baseline.</td>
+            </tr>
+            <tr>
+              <td>indelab</td>
+              <td>Blend representation learning with engineered model skill</td>
+              <td>yes, heuristic</td>
+              <td>no</td>
+              <td>yes</td>
+              <td>some metadata</td>
+              <td>yes, dual encoder and LightGBM</td>
+              <td>You want to compare neural routing against feature engineering.</td>
+            </tr>
+            <tr>
+              <td>uvairlab</td>
+              <td>Use model confidence as a capability signal</td>
+              <td>yes, logprob-derived</td>
+              <td>no</td>
+              <td>query embedding</td>
+              <td>yes</td>
+              <td>yes, LightGBM LambdaRank</td>
+              <td>You have logprob metadata and want a compact LTR model.</td>
+            </tr>
+            <tr>
+              <td>paulphys</td>
+              <td>Match query descriptors to behavioral model profiles</td>
+              <td>no direct answer labels</td>
+              <td>no</td>
+              <td>yes, 64-d profiles</td>
+              <td>yes</td>
+              <td>yes, LambdaMART</td>
+              <td>You need interpretable features for analysis and diagnostics.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="decision-ladder" aria-label="Implementation decision guide">
+        <div class="ladder-step" style="--team-color: #b45309;">
+          <span class="rung-number">1</span>
+          <h3>Need a baseline fast?</h3>
+          <p>Implement GenAIus response retrieval: filter bad answers, index response documents, retrieve with BM25/RM3, and SumScore by LLM ID.</p>
+        </div>
+        <div class="ladder-step" style="--team-color: #4f46e5;">
+          <span class="rung-number">2</span>
+          <h3>Want explainable supervision?</h3>
+          <p>Implement UDInfo Method 2: weak labels plus kNN query neighbors, global priors, and cluster-level domain scores.</p>
+        </div>
+        <div class="ladder-step" style="--team-color: #2563eb;">
+          <span class="rung-number">3</span>
+          <h3>Have confidence metadata?</h3>
+          <p>Implement uvairlab's LightGBM features: SBERT query vector, LLM ID, and per-LLM top-confidence mean/std.</p>
+        </div>
+        <div class="ladder-step" style="--team-color: #0f766e;">
+          <span class="rung-number">4</span>
+          <h3>Chasing leaderboard quality?</h3>
+          <p>Implement SRCB-style pseudo-labeling and neural scoring, then spend most effort validating the label source.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="submissions" class="band">
+      <div class="section-title">
+        <div>
+          <h2>Official Submissions and Results</h2>
+          <p>All 19 official submissions were automatic. The chart and table below use official aggregate values from the saved TREC evaluation files.</p>
+        </div>
+      </div>
+
+      <div class="controls" aria-label="Submission filters">
+        <label for="metricSelect"><b>Metric</b></label>
+        <select class="metric-select" id="metricSelect">
+          <option value="ndcg10">nDCG@10</option>
+          <option value="mrr">MRR</option>
+          <option value="p5">P@5</option>
+          <option value="recall1000">Recall@1000</option>
+        </select>
+        <button class="chip-button" type="button" data-participant="all" aria-pressed="true">All teams</button>
+        <button class="chip-button" type="button" data-participant="SRCB" aria-pressed="false">SRCB</button>
+        <button class="chip-button" type="button" data-participant="UDInfo" aria-pressed="false">UDInfo</button>
+        <button class="chip-button" type="button" data-participant="GenAIus" aria-pressed="false">GenAIus</button>
+        <button class="chip-button" type="button" data-participant="indelab" aria-pressed="false">indelab</button>
+        <button class="chip-button" type="button" data-participant="uvairlab" aria-pressed="false">uvairlab</button>
+        <button class="chip-button" type="button" data-participant="paulphys" aria-pressed="false">paulphys</button>
+      </div>
+
+      <div class="split">
+        <div class="chart-panel">
+          <div class="chart-title">
+            <div>
+              <h3 id="chartHeading">Run ranking by nDCG@10</h3>
+              <span id="chartSubheading">Higher is better. Bars are colored by participant.</span>
+            </div>
+            <span id="resultCount"></span>
+          </div>
+          <svg id="runsChart" role="img" aria-labelledby="chartHeading chartSubheading"></svg>
+        </div>
+        <aside class="detail-panel" id="runDetail" aria-live="polite"></aside>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 18px;">
+        <table class="sortable" id="runsTable">
+          <thead>
+            <tr>
+              <th data-sort="rank">Rank</th>
+              <th data-sort="run">Run</th>
+              <th data-sort="participant">Team</th>
+              <th data-sort="ndcg10">nDCG@10</th>
+              <th data-sort="mrr">MRR</th>
+              <th data-sort="p5">P@5</th>
+              <th data-sort="recall1000">Recall@1000</th>
+              <th data-sort="methodFamily">Method family</th>
+              <th>Signals</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <strong>Result pattern:</strong> the best official run was SRCB's <code>submission_4</code>, but several different ideas were competitive: LLM-judge/embedding labels, hierarchical answer profiles, and classic response-level BM25/RM3. High recall did not guarantee good top-10 ranking quality.
+      </div>
+    </section>
+
+    <section id="participants" class="band">
+      <div class="section-title">
+        <div>
+          <h2>What Each Team Submitted</h2>
+          <p>These summaries combine the official run descriptions, the track overview, and participant papers.</p>
+        </div>
+      </div>
+
+      <details>
+        <summary>SRCB: LLM-assisted label construction and neural ranking</summary>
+        <p>SRCB treated the track as a supervised ranking problem with no real labels for the discovery set. Their implementation recipe is: manufacture pseudo-labels for every query-model answer, train an efficient per-query model scorer, then ensemble the best variants.</p>
+        <div class="team-map" style="--team-color: #0f766e;" aria-label="SRCB implementation flow">
+          <h3 class="team-map-title">SRCB implementation flow</h3>
+          <div class="team-flow">
+            <div class="team-stage"><b>1. Materialize examples</b><span>For every discovery query, keep one row per LLM answer: query text, LLM ID, answer text, and any existing metadata. This creates a large pseudo-supervised table even before true labels exist.</span></div>
+            <div class="team-stage"><b>2. Generate label variants</b><span>Create several target columns: Quicksort pairwise-judge rank, Qwen3-Reranker-8B score, embedding similarity to a generated answer, embedding similarity to the query, and a combined label.</span></div>
+            <div class="team-stage"><b>3. Train small heads</b><span>Freeze the encoder and swap lightweight heads: one score per LLM for ranking, 3-way classification for top groups, or sigmoid regression for continuous pseudo-labels.</span></div>
+            <div class="team-stage"><b>4. Validate label source</b><span>Use dev qrels to choose the label source, top-percentile threshold, loss function, and ensemble rule. The key check is whether labels predict expertise, not just polished answer style.</span></div>
+          </div>
+        </div>
+        <div class="recipe-block">
+          <h3>Inputs and preprocessing</h3>
+          <ul>
+            <li>Use the discovery matrix: roughly 15k queries by 1,131 candidate LLM responses.</li>
+            <li>For each query, keep the candidate response text for every LLM. The labels are constructed over responses, but the submitted ranker ultimately returns LLM IDs.</li>
+            <li>Use the development qrels only for model selection and hyperparameter tuning.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Pseudo-label construction</h3>
+          <ol>
+            <li><b>Quicksort labels:</b> for each query, pick an anchor response, ask a strong LLM whether each other response is better or worse than the anchor, split into good/anchor/bad groups, and recurse until a full ranking is produced. Assign ties when responses are identical or judged equivalent.</li>
+            <li><b>Reranker labels:</b> score each query-response pair with Qwen3-Reranker-8B and convert the scores into a ranking.</li>
+            <li><b>Embedding-similarity labels:</b> either generate a strong reference answer and compare each candidate response to it, or compare the response directly to the query. Use a strong embedding model for cosine similarity.</li>
+            <li><b>Combination labels:</b> ensemble the above label sources. Their paper reports Quicksort and Combination as the strongest label-construction families.</li>
+          </ol>
+        </div>
+        <div class="recipe-block">
+          <h3>Ranking model</h3>
+          <ul>
+            <li>Freeze a pretrained encoder for efficiency, then train lightweight task heads. They compared DeBERTa-v3-base, Qwen3-Embedding-8B, and Qwen3-32B; Qwen3-Embedding-8B was the practical winner.</li>
+            <li>Try three formulations: ranking with one output score per LLM, classification with a 3-class head per LLM, and regression with a sigmoid score per LLM.</li>
+            <li>Losses tested included BCE and ListNet for ranking, cross entropy and focal loss for classification, and BCE-style regression.</li>
+            <li>Convert continuous pseudo-labels into top-percentile categories when using classification; for regression, zeroing labels outside the top x% improved reported development performance.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Inference flow</h3>
+          <ol>
+            <li>Encode the test query.</li>
+            <li>Produce 1,131 scores, one per candidate LLM ID.</li>
+            <li>Optionally ensemble several trained variants by voting or score aggregation.</li>
+            <li>Sort LLM IDs by final score and emit the TREC run.</li>
+          </ol>
+        </div>
+        <p><b>Implement first:</b> start with Qwen3-Embedding-8B plus Combination or Quicksort labels and a regression/ranking head. <b>Avoid:</b> trusting pseudo-labels without validation; this system can learn the judge model's style preferences as much as true expertise.</p>
+      </details>
+
+      <details>
+        <summary>UDInfo: profile embeddings, weak LLM labels, and neural routers</summary>
+        <p>UDInfo is the cleanest source for implementation recipes because the paper describes five concrete routing methods. Their best official run was Method 2, a hybrid query-space model with weak LLM labels, kNN evidence, and domain clusters.</p>
+        <div class="team-map" style="--team-color: #4f46e5;" aria-label="UDInfo implementation flow">
+          <h3 class="team-map-title">UDInfo Method 2 implementation flow</h3>
+          <div class="team-flow">
+            <div class="team-stage"><b>1. Build query space</b><span>Embed all discovery queries with BAAI/bge-large-en, L2-normalize, and build a FAISS index. At inference retrieve the nearest K = 100 discovery queries.</span></div>
+            <div class="team-stage"><b>2. Build weak-label table</b><span>Use olmo2-13b-style judging to assign each query-LLM answer a grade in {0, 1, 2}. Also compute each LLM's global average grade as a prior.</span></div>
+            <div class="team-stage"><b>3. Score local neighbors</b><span>For each candidate LLM, take a similarity-weighted average of its grades over the 100 neighbor queries, then smooth that local score with the global prior using alpha = 0.9.</span></div>
+            <div class="team-stage"><b>4. Add domain cluster score</b><span>Cluster discovery queries into Kc = 40 groups, store each LLM's average grade per cluster, assign the test query to the closest cluster, and mix local/domain scores with lambda = 0.5.</span></div>
+          </div>
+        </div>
+        <div class="recipe-block">
+          <h3>Method 1: hierarchical answer-profile router</h3>
+          <ol>
+            <li>Embed all discovery answers with <code>BAAI/bge-large-en</code>; L2-normalize vectors so cosine similarity is a dot product.</li>
+            <li>For each LLM, run k-means over its answer embeddings with <code>K_m = 10</code>. Store centroids as that model's broad expertise profile.</li>
+            <li>Build one FAISS index per LLM over its normalized answer embeddings.</li>
+            <li>At inference, embed the query. Compute broad score as max similarity to the LLM's centroids.</li>
+            <li>For refinement, retrieve <code>K = 10</code> nearest answer embeddings from each LLM's FAISS index and average their similarities.</li>
+            <li>Combine broad and refined scores with a mixing parameter. UDInfo reports <code>alpha = 0.2</code>, chosen on development data.</li>
+          </ol>
+        </div>
+        <div class="recipe-block">
+          <h3>Method 2: hybrid weak-label query router</h3>
+          <ol>
+            <li>Use an external LLM judge, reported as <code>olmo2-13b</code>, to assign each discovery query-LLM answer a grade in <code>{0, 1, 2}</code>.</li>
+            <li>Embed discovery queries with <code>BAAI/bge-large-en</code> and L2-normalize.</li>
+            <li>Build a FAISS index over query embeddings. At inference, retrieve the top <code>K = 100</code> nearest discovery queries.</li>
+            <li>For each LLM, compute a similarity-weighted average of its weak labels over those neighbors.</li>
+            <li>Smooth that local estimate with the LLM's global prior using <code>alpha = 0.9</code>.</li>
+            <li>Cluster discovery queries into <code>K_c = 40</code> k-means clusters. Precompute each LLM's average judged quality in each cluster and smooth with the global prior.</li>
+            <li>Assign the test query to its closest cluster and combine local and domain scores with <code>lambda = 0.5</code>.</li>
+          </ol>
+        </div>
+        <div class="recipe-block">
+          <h3>Other UDInfo baselines</h3>
+          <ul>
+            <li><b>Method 3:</b> answer-centroid profile only. For each LLM, store 10 answer centroids and score a query by max centroid similarity. This is Method 1 without the FAISS refinement stage.</li>
+            <li><b>Method 4:</b> shallow MLP classifier. Weak-label each query, select the best judged LLM as the class label, embed the query, and train a PyTorch MLP with hidden sizes 512 and 256, ReLU activations, Adam at <code>1e-3</code>, and 20 epochs.</li>
+            <li><b>Method 5:</b> deeper MLP router, same basic target as Method 4 but with higher capacity.</li>
+          </ul>
+        </div>
+        <p><b>Implement first:</b> Method 2. It has the best official UDInfo score and directly separates local evidence, global prior, and domain cluster expertise. <b>Avoid:</b> a pure MLP router as the first implementation; it is less interpretable and underperformed the hybrid method.</p>
+      </details>
+
+      <details>
+        <summary>GenAIus: classic retrieval over profiles, questions, and responses</summary>
+        <p>GenAIus is the most reproducible starting point if you want a strong non-neural baseline. They reframe model routing as expert search: retrieve historical evidence, then aggregate evidence back to LLM IDs.</p>
+        <div class="team-map" style="--team-color: #b45309;" aria-label="GenAIus implementation flow">
+          <h3 class="team-map-title">GenAIus response-retrieval flow</h3>
+          <div class="team-flow">
+            <div class="team-stage"><b>1. Filter response corpus</b><span>Start from about 16.9M query-response pairs. Remove no-result strings, then remove refusal/low-information patterns; the strict set reported about 1.24M responses.</span></div>
+            <div class="team-stage"><b>2. Choose index grain</b><span>Build three candidates: one giant profile document per LLM, one document per discovery question, and one document per historical response. The response index was strongest.</span></div>
+            <div class="team-stage"><b>3. Retrieve evidence</b><span>Run BM25 with RM3 query expansion against the response index. Retrieve the top 1,000 response documents for each test query, optionally reranking with naver-splade-v3.</span></div>
+            <div class="team-stage"><b>4. Aggregate to LLM IDs</b><span>For SumScore, add each retrieved document's retrieval score to the accumulator for the LLM that produced it. Sort accumulators; fill missing LLMs with a low default score if needed.</span></div>
+          </div>
+        </div>
+        <div class="recipe-block">
+          <h3>Filtering</h3>
+          <ul>
+            <li>Start with all discovery query-response pairs: about 16.9M responses.</li>
+            <li>Initial filter: remove responses equal to or containing obvious failure strings such as <code>No result found</code>. This left about 2.83M responses.</li>
+            <li>Additional filter: remove refusal/low-information patterns such as <code>I don't have knowledge about</code> or <code>I don't have enough information</code>. This left about 1.24M responses.</li>
+            <li>Keep the mapping from every indexed document to the LLM ID that produced it.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Three indexes to build</h3>
+          <ol>
+            <li><b>LLM profile index:</b> one document per LLM, created by concatenating that LLM's historical query-response pairs. Rank profiles with BM25/RM3. Submit top 100 LLMs.</li>
+            <li><b>Question index:</b> one document per discovery query. Associate each query document with the LLMs that survived filtering for that query. Retrieve top 100 query documents, then vote or sum scores into LLM IDs.</li>
+            <li><b>Response index:</b> one document per historical response, usually query plus response text. Retrieve top 1,000 response documents, then aggregate by LLM ID. This was their strongest family.</li>
+          </ol>
+        </div>
+        <div class="recipe-block">
+          <h3>Scoring and aggregation</h3>
+          <ul>
+            <li>Use BM25 for first-stage retrieval and RM3 for pseudo-relevance feedback query expansion.</li>
+            <li>Use <b>Vote</b> if each retrieved document should count equally for its LLM.</li>
+            <li>Use <b>SumScore</b> if each retrieved document contributes its retrieval score. GenAIus preferred SumScore because Vote created more ties.</li>
+            <li>Optional: rerank the top response documents with <code>naver-splade-v3</code>, then aggregate reranked scores.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Inference flow</h3>
+          <ol>
+            <li>Run the test query against the response index with BM25/RM3.</li>
+            <li>Retrieve top 1,000 response documents.</li>
+            <li>For each document, add its score to the producing LLM's accumulator.</li>
+            <li>Sort LLM IDs by accumulated score. Fill missing IDs with a default low score if a full ranking is required.</li>
+          </ol>
+        </div>
+        <p><b>Implement first:</b> response-level BM25/RM3 with SumScore over extra-filtered responses. <b>Avoid:</b> starting with one giant profile document per LLM; it is simple but loses query-specific evidence.</p>
+      </details>
+
+      <details>
+        <summary>indelab: neural dual encoder and non-neural ensemble</summary>
+        <p>indelab has two implementation tracks in the official appendices. The non-neural ensemble was stronger officially; the neural dual encoder is useful as a blueprint for query-model representation learning.</p>
+        <div class="team-map" style="--team-color: #be123c;" aria-label="indelab implementation flow">
+          <h3 class="team-map-title">indelab two-track flow</h3>
+          <div class="team-flow">
+            <div class="team-stage"><b>1. Build weak supervision</b><span>Combine dev qrels with discovery examples labeled by a response-length heuristic: answers longer than 50 characters become positive, shorter answers become negative.</span></div>
+            <div class="team-stage"><b>2. Neural scorer</b><span>Map 384-d query embeddings through attention and dense layers to 128-d. Map learned LLM IDs through dense layers to 128-d. Score by cosine similarity.</span></div>
+            <div class="team-stage"><b>3. Non-neural scorer</b><span>Fit Bradley-Terry global skill from pairwise response-quality wins, then train a 150-tree random forest and a LightGBM meta-ranker over about 17 engineered features.</span></div>
+            <div class="team-stage"><b>4. Ensemble selection</b><span>Use 10-fold dev-query validation, keep the five best neural folds by nDCG@10, and compare them against the feature ensemble before final ranking.</span></div>
+          </div>
+        </div>
+        <div class="recipe-block">
+          <h3>Neural dual-encoder run</h3>
+          <ul>
+            <li>Training data: about 4.45M examples, combining development qrels and weakly labeled discovery examples.</li>
+            <li>Weak discovery labels: if a response length is greater than 50 characters, assign relevance 1.0; otherwise assign 0.0. This is crude but cheap.</li>
+            <li>Use 10-fold cross-validation over development queries. Train with 90% of dev queries plus all weak discovery examples, validate on the held-out 10%, and ensemble the five best folds by validation nDCG@10.</li>
+            <li>Query tower: process 384-dimensional query embeddings with 4-head attention, reshape through <code>384 -> 96 x 4 -> 384</code>, then dense layers <code>384 -> 256 -> 192 -> 128</code>.</li>
+            <li>LLM tower: learned LLM embeddings <code>1131 -> 256</code>, then dense layers <code>256 -> 512 -> 384 -> 256 -> 128</code>.</li>
+            <li>Score each query-LLM pair by cosine similarity between the 128-dimensional query and LLM representations. Average scores across the five fold models.</li>
+          </ul>
+          <p>The official description does not specify the exact training loss, so an implementation should make that choice explicit: pairwise ranking loss, contrastive loss, or regression to qrels are all plausible, but not documented as indelab's exact choice.</p>
+        </div>
+        <div class="recipe-block">
+          <h3>Non-neural ensemble run</h3>
+          <ol>
+            <li><b>Bradley-Terry skill model:</b> create pairwise wins/losses between LLMs using heuristic response quality signals such as length, structure, reasoning markers, and examples. Fit a global skill value per LLM.</li>
+            <li><b>Enhanced random forest:</b> train roughly 150 trees on about 250k examples. Features include TF-IDF query vectors, LLM embeddings, query-complexity metrics, and discovery-profile features.</li>
+            <li><b>LightGBM meta-ranker:</b> combine about 17 meta-features, including judge-like scores, Bradley-Terry skill, query characteristics, and cross-component interactions.</li>
+          </ol>
+        </div>
+        <p><b>Implement first:</b> the non-neural ensemble if you want robustness and interpretability. <b>Avoid:</b> relying on response length as a strong quality label; it is a weak bootstrap signal and can reward verbosity.</p>
+      </details>
+
+      <details>
+        <summary>uvairlab: LightGBM over confidence and query features</summary>
+        <p>UvA IRLab built a compact learning-to-rank system around response confidence. The key idea is to use token-level log probabilities as cheap pseudo-supervision and as model-level capability features.</p>
+        <div class="team-map" style="--team-color: #2563eb;" aria-label="uvairlab implementation flow">
+          <h3 class="team-map-title">uvairlab confidence-ranking flow</h3>
+          <div class="team-flow">
+            <div class="team-stage"><b>1. Precompute confidence</b><span>For every discovery response, average token log-likelihood. Convert those values into pseudo labels: below -2 is 0, -2 to -1 is 1, above -1 is 2.</span></div>
+            <div class="team-stage"><b>2. Summarize each LLM</b><span>For each LLM, keep the top 1% highest-confidence responses. Compute the mean and standard deviation of that subset as global capability and consistency features.</span></div>
+            <div class="team-stage"><b>3. Build 387-d rows</b><span>Concatenate the 384-d all-MiniLM-L6-v2 query embedding, scalar LLM ID, top-1% confidence mean, and top-1% confidence standard deviation.</span></div>
+            <div class="team-stage"><b>4. Train LambdaRank</b><span>Train LightGBM LambdaRank for NDCG@1/5/10 with learning rate 0.05, max leaves 31, early stopping 50, and about 1,130 rounds.</span></div>
+          </div>
+        </div>
+        <div class="recipe-block">
+          <h3>Official LightGBM feature vector</h3>
+          <ul>
+            <li>Encode the query with Sentence-BERT <code>all-MiniLM-L6-v2</code>, producing a 384-dimensional query vector.</li>
+            <li>Convert each LLM ID to a scalar integer, such as <code>llm_0032 -> 32</code>. LightGBM can split on this feature even though the numeric order is arbitrary.</li>
+            <li>For each discovery query-LLM response, compute average token log-likelihood.</li>
+            <li>For each LLM, take its top 1% highest average-loglikelihood responses. Compute the mean and standard deviation over that subset as global capability and consistency features.</li>
+            <li>Concatenate <code>[query_embedding_384, llm_id, global_mean, global_std]</code> for a 387-dimensional feature vector.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Labels and training</h3>
+          <ul>
+            <li>Convert average log-likelihood into pseudo-relevance grades: below <code>-2.0</code> is 0, between <code>-2.0</code> and <code>-1.0</code> is 1, and above <code>-1.0</code> is 2.</li>
+            <li>Train LightGBM LambdaRank to optimize NDCG at 1, 5, and 10.</li>
+            <li>Reported configuration: learning rate <code>0.05</code>, maximum leaves <code>31</code>, early stopping after 50 rounds, final rounds <code>1130</code>.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Inference flow</h3>
+          <ol>
+            <li>Embed the incoming query once with SBERT.</li>
+            <li>For every candidate LLM, join the query vector with that LLM's ID and precomputed global confidence statistics.</li>
+            <li>Score all 1,131 feature rows with LightGBM.</li>
+            <li>Sort LLM IDs by predicted score.</li>
+          </ol>
+        </div>
+        <div class="recipe-block">
+          <h3>Useful extension</h3>
+          <p>The paper reports a post-submission topic-aware extension: cluster discovery queries into 100 SBERT k-means clusters, compute per-cluster LLM confidence mean/std, refusal rate, mean response length, cluster size, and distances to the three nearest centroids. This expands the vector to about 408 dimensions and makes the router more domain-sensitive.</p>
+        </div>
+        <p><b>Implement first:</b> LightGBM with query embedding, LLM ID, and top-1% logprob mean/std. <b>Avoid:</b> interpreting confidence as correctness; the paper explicitly warns that confident hallucinations remain possible.</p>
+      </details>
+
+      <details>
+        <summary>paulphys: behavioral profiles and LambdaMART</summary>
+        <p>The paulphys run is a compact behavioral-profile design: build one feature vector per LLM summarizing how it behaves, then train LambdaMART to match query descriptors to those profiles.</p>
+        <div class="team-map" style="--team-color: #15803d;" aria-label="paulphys implementation flow">
+          <h3 class="team-map-title">paulphys behavioral-profile flow</h3>
+          <div class="team-flow">
+            <div class="team-stage"><b>1. Sample and embed</b><span>Sample 50% of discovery responses and embed with Qwen3-Embedding-8B. Compute semantic centroids, dispersion, and response similarity statistics per LLM.</span></div>
+            <div class="team-stage"><b>2. Build behavioral profile</b><span>Create a 64-d vector covering handcrafted domains/tasks, response length/logprob metrics, lexical diversity, structure, query-response overlap, and semantic summaries.</span></div>
+            <div class="team-stage"><b>3. Create pair features</b><span>For each query-LLM pair, concatenate query descriptors, the LLM profile, domain/task match indicators, and elementwise interaction products.</span></div>
+            <div class="team-stage"><b>4. Rank with LambdaMART</b><span>Train LightGBM LambdaMART using rank_xendcg on the top 200 LLMs per dev query, then score all 1,131 LLMs during inference.</span></div>
+          </div>
+        </div>
+        <div class="recipe-block">
+          <h3>Profile construction</h3>
+          <ul>
+            <li>Sample 50% of discovery responses; the paper reports that using more than half did not improve profile quality.</li>
+            <li>Embed responses with Qwen3-Embedding-8B.</li>
+            <li>For each LLM, compute a 64-dimensional behavioral profile covering domain expertise, task strengths, quality indicators, semantic descriptors, and statistical summaries.</li>
+            <li>Domain labels are handcrafted: technology, science, medicine, law, business, education, arts, sports, politics, history.</li>
+            <li>Task labels are handcrafted: explanation, comparison, analysis, instruction, creative, technical, factual.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Feature groups</h3>
+          <ul>
+            <li><b>Response metrics:</b> token and character counts, log probabilities, punctuation ratios.</li>
+            <li><b>Lexical diversity:</b> type-token ratio and repetition rates.</li>
+            <li><b>Structure:</b> sentence counts, code/list usage, formatting, uppercase and digit frequency.</li>
+            <li><b>Query-response interaction:</b> Jaccard similarity and keyword overlap.</li>
+            <li><b>Semantic embedding features:</b> centroids, dispersion, and similarity statistics from Qwen3-Embedding-8B.</li>
+          </ul>
+        </div>
+        <div class="recipe-block">
+          <h3>Ranking setup</h3>
+          <ol>
+            <li>For each incoming query, compute query descriptors such as length and type-token ratio.</li>
+            <li>Infer query domain and task category with keyword matching.</li>
+            <li>For every query-LLM pair, concatenate query descriptors, the LLM behavioral profile, domain/task match features, and elementwise products between query labels and profile scores.</li>
+            <li>Aggregate domain/task interactions with simple statistics such as mean, standard deviation, and maximum.</li>
+            <li>Train LightGBM LambdaMART with the <code>rank_xendcg</code> objective. The paper trained on the top 200 LLMs per development query and ranked all 1,131 at inference.</li>
+          </ol>
+        </div>
+        <p><b>Implement first:</b> use this as an interpretable feature baseline, not as your only production router. <b>Avoid:</b> relying on handcrafted domain/task categories alone; the official run ranked last, likely from overfitting and test distribution shift.</p>
+      </details>
+    </section>
+
+    <section id="caveats" class="band">
+      <div class="section-title">
+        <div>
+          <h2>How to Interpret the Findings</h2>
+          <p>The 2025 track is valuable as a first benchmark and literature snapshot, but it should not be read as a settled leaderboard for production model routing.</p>
+        </div>
+      </div>
+
+      <div class="method-grid">
+        <div class="method-card">
+          <h3>Evaluation was small</h3>
+          <p>Only 16 test questions had at least one relevant answer, so official scores are high-variance and hard to generalize.</p>
+        </div>
+        <div class="method-card">
+          <h3>Judging changed</h3>
+          <p>The original plan involved pooled human assessment. The actual evaluation used GPT-5-as-judge against reference answers.</p>
+        </div>
+        <div class="method-card">
+          <h3>Experts were simulated</h3>
+          <p>The candidate LLM IDs were shared-model RAG-style experts with different retrieval clusters, not independently trained models.</p>
+        </div>
+        <div class="method-card">
+          <h3>Counts differ across sources</h3>
+          <p>The overview says 14,950 discovery queries, while some participant papers report 14,940. The public final topic files have 48 rows, though the overview discusses 50 test questions.</p>
+        </div>
+        <div class="method-card">
+          <h3>Development gains did not always transfer</h3>
+          <p>Several papers report strong development results that did not translate into official test scores, suggesting distribution shift and overfitting risk.</p>
+        </div>
+        <div class="method-card">
+          <h3>Weak labels can encode bias</h3>
+          <p>LLM-as-judge or reranker-generated labels can help, but they may reward answer style or judge-model preferences rather than true expertise.</p>
+        </div>
+      </div>
+
+      <details style="margin-top: 16px;">
+        <summary>Practical recommendations for a 2026-style system</summary>
+        <ol>
+          <li>Start with response-level retrieval over historical query-answer pairs, then aggregate to model IDs.</li>
+          <li>Add answer filtering for refusals, empty responses, and low-evidence answers.</li>
+          <li>Use embeddings and topic/domain profiles as complementary signals, not replacements for historical evidence.</li>
+          <li>Treat log probabilities as confidence features, not as proof of correctness.</li>
+          <li>If using LLM judges for weak labels, keep judge identity, prompt, and calibration visible in the methodology.</li>
+          <li>Validate on held-out long-tail queries and report uncertainty, because leaderboard order is fragile when the judged set is small.</li>
+        </ol>
+      </details>
+    </section>
+
+    <section id="sources" class="band">
+      <div class="section-title">
+        <div>
+          <h2>Primary Sources Reviewed</h2>
+          <p>The report emphasizes official NIST/TREC materials first, then participant papers and run appendices.</p>
+        </div>
+      </div>
+
+      <div class="source-grid">
+        <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/Overview_mllm.pdf">
+          <b>Official overview paper</b>
+          <span>Task design, data construction, evaluation procedure, and official result interpretation.</span>
+        </a>
+        <a class="source-link" href="https://trec-mllm.github.io/2025.html">
+          <b>Archived 2025 track page</b>
+          <span>Rules, data links, submission format, timeline, metrics, and run constraints.</span>
+        </a>
+        <a class="source-link" href="https://pages.nist.gov/trec-browser/trec34/mllm/proceedings/">
+          <b>TREC Browser proceedings</b>
+          <span>Participant papers and official track proceedings index.</span>
+        </a>
+        <a class="source-link" href="https://trec.nist.gov/pubs/trec34/appendices/trec2025-mllm-main.html">
+          <b>Official run appendix</b>
+          <span>Official run list, organizations, appendix links, and evaluation files.</span>
+        </a>
+        <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/UDInfo.mllm.pdf">
+          <b>UDInfo participant paper</b>
+          <span>Hierarchical profiles, hybrid weak-label ranking, MLP classifier, and MLP router runs.</span>
+        </a>
+        <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/GenAIus.mllm.pdf">
+          <b>GenAIus participant paper</b>
+          <span>BM25/RM3 profile, question, and response-level retrieval baselines.</span>
+        </a>
+        <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/SRCB.mllm.tot.pdf">
+          <b>SRCB participant paper</b>
+          <span>LLM-assisted label construction, reranking, embeddings, and official winning run.</span>
+        </a>
+        <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/uvairlab.mllm.pdf">
+          <b>UvA IRLab participant paper</b>
+          <span>LightGBM ranking with query embeddings and response-confidence features.</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Prepared from official TREC 2025 Million LLMs Track materials and participant reports. This standalone HTML file contains embedded data and works offline after loading.</p>
+  </footer>
+
+  <script>
+    const metrics = {
+      ndcg10: { label: "nDCG@10", max: 0.18, help: "Top-10 graded ranking quality" },
+      mrr: { label: "MRR", max: 0.32, help: "How early the first relevant LLM appears" },
+      p5: { label: "P@5", max: 0.20, help: "Relevant answers among the top five" },
+      recall1000: { label: "Recall@1000", max: 1.00, help: "How much relevant material appears anywhere in top 1000" }
+    };
+
+    const colors = {
+      SRCB: "#0f766e",
+      UDInfo: "#4f46e5",
+      GenAIus: "#b45309",
+      indelab: "#be123c",
+      uvairlab: "#2563eb",
+      paulphys: "#15803d"
+    };
+
+    const runs = [
+      { rank: 1, run: "submission_4", participant: "SRCB", ndcg10: 0.1745, mrr: 0.3126, p5: 0.1875, recall1000: 0.9826, methodFamily: "Weak labels + embeddings", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["weak-labels", "embeddings", "reranker"], approach: "Qwen3-Embedding-8B replaced DeBERTa in SRCB's label/ranking pipeline. Official top nDCG@10 run." },
+      { rank: 2, run: "infolab_UD_run2", participant: "UDInfo", ndcg10: 0.1691, mrr: 0.2725, p5: 0.1625, recall1000: 0.9980, methodFamily: "Hybrid weak-label ranker", automatic: true, metadata: false, external: true, dev: true, trainedDev: false, features: ["weak-labels", "embeddings", "clusters", "knn"], approach: "External LLM judge weak labels, query embeddings, kNN over similar training queries, and domain clusters." },
+      { rank: 3, run: "r-ef-rm3-1000-ss", participant: "GenAIus", ndcg10: 0.1680, mrr: 0.1980, p5: 0.1500, recall1000: 0.7371, methodFamily: "Response retrieval", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["bm25", "rm3", "response-index", "filtering"], approach: "Extra-filtered response-level BM25/RM3, top 1000 documents, sum-score aggregation to LLM IDs." },
+      { rank: 4, run: "r-f-rm3-1000-rr-ss", participant: "GenAIus", ndcg10: 0.1608, mrr: 0.2066, p5: 0.1375, recall1000: 0.8022, methodFamily: "Response retrieval + rerank", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["bm25", "rm3", "response-index", "reranker"], approach: "Filtered response-level BM25/RM3, top 1000 documents, reranked with naver-splade-v3, sum-score aggregation." },
+      { rank: 5, run: "r-f-rm3-1000-ss", participant: "GenAIus", ndcg10: 0.1545, mrr: 0.1843, p5: 0.1250, recall1000: 0.8022, methodFamily: "Response retrieval", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["bm25", "rm3", "response-index"], approach: "Filtered response-level BM25/RM3, top 1000 documents, sum-score aggregation." },
+      { rank: 6, run: "infolab_UD_run4", participant: "UDInfo", ndcg10: 0.1534, mrr: 0.2579, p5: 0.1375, recall1000: 0.9660, methodFamily: "MLP classifier", automatic: true, metadata: false, external: true, dev: true, trainedDev: true, features: ["weak-labels", "embeddings", "mlp"], approach: "LLM-judge weak labels, query/answer encodings, and an MLP classifier trained to rank LLMs." },
+      { rank: 7, run: "ensemble_v1", participant: "SRCB", ndcg10: 0.1522, mrr: 0.2605, p5: 0.1500, recall1000: 0.9900, methodFamily: "Ensemble", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["ensemble", "weak-labels", "embeddings"], approach: "SRCB ensemble based on its label construction and ranking methods, selected on development data." },
+      { rank: 8, run: "infolab_UD_run1", participant: "UDInfo", ndcg10: 0.1517, mrr: 0.2760, p5: 0.1625, recall1000: 0.9993, methodFamily: "Hierarchical profile", automatic: true, metadata: false, external: false, dev: true, trainedDev: true, features: ["embeddings", "clusters", "profiles"], approach: "Hierarchical single-index ranking with answer embeddings, per-LLM answer clusters, FAISS retrieval, and weighted broad/refined scores." },
+      { rank: 9, run: "ensemble_v3", participant: "SRCB", ndcg10: 0.1485, mrr: 0.2510, p5: 0.1625, recall1000: 0.9816, methodFamily: "Ensemble", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["ensemble", "weak-labels", "embeddings"], approach: "SRCB ensemble based on the team's label construction and ranking methods." },
+      { rank: 10, run: "ensemble_v2", participant: "SRCB", ndcg10: 0.1477, mrr: 0.2541, p5: 0.1375, recall1000: 0.9864, methodFamily: "Ensemble", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["ensemble", "weak-labels", "embeddings"], approach: "SRCB ensemble based on the team's label construction and ranking methods." },
+      { rank: 11, run: "submission_5", participant: "SRCB", ndcg10: 0.1339, mrr: 0.1971, p5: 0.1375, recall1000: 0.9593, methodFamily: "Weak labels + encoder", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["weak-labels", "encoder"], approach: "Qwen3-14B annotation, DeBERTa-v3 encoder, fully connected decoder, and BCE loss." },
+      { rank: 12, run: "non-neural", participant: "indelab", ndcg10: 0.1309, mrr: 0.2130, p5: 0.1500, recall1000: 0.9860, methodFamily: "Non-neural ensemble", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["ensemble", "bradley-terry", "random-forest", "lightgbm"], approach: "Bradley-Terry global skill, enhanced random forest, and LightGBM meta-ranker using engineered query/model/profile features." },
+      { rank: 13, run: "lightgbm_job266431", participant: "uvairlab", ndcg10: 0.1233, mrr: 0.1433, p5: 0.1125, recall1000: 0.9888, methodFamily: "LTR with confidence", automatic: true, metadata: true, external: false, dev: true, trainedDev: false, features: ["logprobs", "lightgbm", "embeddings"], approach: "LightGBM ranking with SBERT query embeddings, LLM ID, and global response-confidence statistics from top 1 percent confidence scores." },
+      { rank: 14, run: "q-f-rm3-100-ss", participant: "GenAIus", ndcg10: 0.1203, mrr: 0.1966, p5: 0.1000, recall1000: 0.9860, methodFamily: "Question retrieval", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["bm25", "rm3", "question-index"], approach: "Question-based filtered BM25/RM3, top 100 documents, sum-score aggregation." },
+      { rank: 15, run: "llm-f-100", participant: "GenAIus", ndcg10: 0.1060, mrr: 0.1890, p5: 0.0875, recall1000: 0.3788, methodFamily: "LLM profile retrieval", automatic: true, metadata: false, external: false, dev: true, trainedDev: false, features: ["bm25", "profiles", "filtering"], approach: "Filtered data, one profile document per LLM, BM25 top 100." },
+      { rank: 16, run: "infolab_UD_run5", participant: "UDInfo", ndcg10: 0.1021, mrr: 0.2114, p5: 0.1000, recall1000: 0.9990, methodFamily: "MLP router", automatic: true, metadata: false, external: true, dev: true, trainedDev: true, features: ["weak-labels", "embeddings", "mlp"], approach: "MLP router with weak labels from an external LLM judge and query/answer encodings." },
+      { rank: 17, run: "infolab_UD_run3", participant: "UDInfo", ndcg10: 0.1018, mrr: 0.1832, p5: 0.1000, recall1000: 0.9992, methodFamily: "Clustered profile", automatic: true, metadata: false, external: false, dev: true, trainedDev: true, features: ["embeddings", "clusters", "profiles"], approach: "Clustered LLM profile model based on embedded answers." },
+      { rank: 18, run: "mllm-indelab-09-17", participant: "indelab", ndcg10: 0.0814, mrr: 0.1479, p5: 0.1000, recall1000: 0.9972, methodFamily: "Neural dual encoder", automatic: true, metadata: true, external: false, dev: true, trainedDev: true, features: ["logprobs", "dual-encoder", "weak-labels"], approach: "Five dual-encoder neural ranking models with query attention, learned LLM embeddings, cosine similarity, and weak labels from response length metadata." },
+      { rank: 19, run: "lambdamart_profiles", participant: "paulphys", ndcg10: 0.0549, mrr: 0.0704, p5: 0.0625, recall1000: 0.8540, methodFamily: "Behavioral profiles", automatic: true, metadata: true, external: true, dev: true, trainedDev: true, features: ["behavioral-profiles", "logprobs", "lambdaMART", "embeddings"], approach: "LambdaMART over 64-dimensional behavioral profiles with Qwen3-Embedding-8B, domain/task expertise, response metrics, refusal behavior, and query-response features." }
+    ];
+
+    const featureFamilies = [
+      { key: "response-index", title: "Response-Level Retrieval", tags: ["BM25", "RM3", "aggregation"], text: "Index each historical answer, retrieve similar past answers for a new query, then aggregate back to LLM IDs. This was the clearest strong baseline." },
+      { key: "profiles", title: "LLM Profiles", tags: ["centroids", "profile docs"], text: "Represent each LLM ID through a profile built from prior answers, clusters, or summary behavior. Compact, but can blur mixed expertise." },
+      { key: "weak-labels", title: "Weak LLM Labels", tags: ["judge models", "rerankers"], text: "Use stronger LLMs or rerankers to label discovery answers, creating training data where human labels are absent." },
+      { key: "logprobs", title: "Response Metadata", tags: ["logprobs", "confidence"], text: "Use token probabilities, response length, or confidence statistics as model behavior signals. Useful, but confidence is not correctness." },
+      { key: "embeddings", title: "Embeddings", tags: ["SBERT", "BGE", "Qwen"], text: "Encode queries, answers, profiles, or reference answers so models can match semantic similarity beyond exact words." },
+      { key: "ensemble", title: "Ensembles and Meta-Rankers", tags: ["LightGBM", "LambdaMART"], text: "Combine many weaker signals into a learned ranker or ensemble. Powerful, but prone to development-set overfitting." }
+    ];
+
+    const state = {
+      metric: "ndcg10",
+      participant: "all",
+      search: "",
+      sortKey: "rank",
+      sortDir: "asc",
+      selectedRun: "submission_4"
+    };
+
+    const fmt = (value) => Number(value).toFixed(4);
+
+    function filteredRuns() {
+      const q = state.search.trim().toLowerCase();
+      return runs.filter((run) => {
+        const participantOk = state.participant === "all" || run.participant === state.participant;
+        const haystack = [
+          run.run,
+          run.participant,
+          run.methodFamily,
+          run.approach,
+          run.features.join(" ")
+        ].join(" ").toLowerCase();
+        return participantOk && (!q || haystack.includes(q));
+      });
+    }
+
+    function sortedRuns(list) {
+      const key = state.sortKey;
+      const dir = state.sortDir === "asc" ? 1 : -1;
+      return [...list].sort((a, b) => {
+        const av = a[key];
+        const bv = b[key];
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    }
+
+    function renderFeatureCards() {
+      const container = document.getElementById("featureCards");
+      container.innerHTML = featureFamilies.map((feature) => {
+        const matches = runs.filter((run) => run.features.includes(feature.key)).length;
+        return `
+          <article class="method-card">
+            <h3>${feature.title}</h3>
+            <div>${feature.tags.map((tag) => `<span class="tag teal">${tag}</span>`).join("")}</div>
+            <p>${feature.text}</p>
+            <p><b>${matches}</b> official runs used this signal family.</p>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderChart() {
+      const svg = document.getElementById("runsChart");
+      const list = filteredRuns().sort((a, b) => b[state.metric] - a[state.metric]);
+      const metric = metrics[state.metric];
+      const width = 980;
+      const rowHeight = 34;
+      const top = 18;
+      const left = 178;
+      const right = 72;
+      const height = Math.max(150, top + list.length * rowHeight + 24);
+      const barWidth = width - left - right;
+      const maxValue = Math.max(metric.max, ...list.map((run) => run[state.metric]));
+      const selected = state.selectedRun;
+
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" rx="8" fill="#f8fafc"></rect>
+        ${list.map((run, i) => {
+          const y = top + i * rowHeight;
+          const value = run[state.metric];
+          const w = Math.max(2, (value / maxValue) * barWidth);
+          const opacity = selected && selected !== run.run ? 0.72 : 1;
+          return `
+            <g class="bar-row" tabindex="0" role="button" aria-label="${run.run}, ${metric.label} ${fmt(value)}" data-run="${run.run}">
+              <title>${run.run} | ${run.participant} | ${metric.label}: ${fmt(value)}</title>
+              <text x="0" y="${y + 19}" font-weight="${selected === run.run ? 900 : 650}">${run.rank}. ${run.run}</text>
+              <rect class="bar-bg" x="${left}" y="${y + 4}" width="${barWidth}" height="20" rx="5"></rect>
+              <rect class="bar" x="${left}" y="${y + 4}" width="${w}" height="20" rx="5" fill="${colors[run.participant]}" opacity="${opacity}"></rect>
+              <text class="bar-value" x="${left + w + 8}" y="${y + 19}">${fmt(value)}</text>
+            </g>
+          `;
+        }).join("")}
+      `;
+
+      document.getElementById("chartHeading").textContent = `Run ranking by ${metric.label}`;
+      document.getElementById("chartSubheading").textContent = `${metric.help}. Bars are colored by participant.`;
+      document.getElementById("resultCount").textContent = `${list.length} runs`;
+
+      svg.querySelectorAll(".bar-row").forEach((row) => {
+        row.addEventListener("click", () => selectRun(row.dataset.run));
+        row.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectRun(row.dataset.run);
+          }
+        });
+      });
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector("#runsTable tbody");
+      const list = sortedRuns(filteredRuns());
+      tbody.innerHTML = list.map((run) => `
+        <tr data-run="${run.run}">
+          <td>${run.rank}</td>
+          <td><button class="chip-button" type="button" data-select-run="${run.run}">${run.run}</button></td>
+          <td><span class="tag" style="border-color:${colors[run.participant]}; color:${colors[run.participant]};">${run.participant}</span></td>
+          <td>${fmt(run.ndcg10)}</td>
+          <td>${fmt(run.mrr)}</td>
+          <td>${fmt(run.p5)}</td>
+          <td>${fmt(run.recall1000)}</td>
+          <td>${run.methodFamily}</td>
+          <td>${run.features.map((feature) => `<span class="tag">${feature}</span>`).join("")}</td>
+        </tr>
+      `).join("");
+
+      tbody.querySelectorAll("[data-select-run]").forEach((button) => {
+        button.addEventListener("click", () => selectRun(button.dataset.selectRun));
+      });
+    }
+
+    function renderDetail() {
+      const run = runs.find((item) => item.run === state.selectedRun) || filteredRuns()[0] || runs[0];
+      if (!run) return;
+      state.selectedRun = run.run;
+      const panel = document.getElementById("runDetail");
+      panel.innerHTML = `
+        <h3>${run.run}</h3>
+        <p><span class="tag" style="border-color:${colors[run.participant]}; color:${colors[run.participant]};">${run.participant}</span> <span class="tag indigo">${run.methodFamily}</span></p>
+        <div class="metric-list">
+          <div><b>nDCG@10</b><span>${fmt(run.ndcg10)}</span></div>
+          <div><b>MRR</b><span>${fmt(run.mrr)}</span></div>
+          <div><b>P@5</b><span>${fmt(run.p5)}</span></div>
+          <div><b>Recall@1000</b><span>${fmt(run.recall1000)}</span></div>
+        </div>
+        <p>${run.approach}</p>
+        <p>${run.metadata ? '<span class="tag amber">used metadata</span>' : '<span class="tag">no metadata</span>'} ${run.external ? '<span class="tag amber">external knowledge</span>' : '<span class="tag">internal</span>'} ${run.trainedDev ? '<span class="tag teal">trained on dev</span>' : '<span class="tag">dev used</span>'}</p>
+      `;
+    }
+
+    function selectRun(runId) {
+      state.selectedRun = runId;
+      renderDetail();
+      renderChart();
+    }
+
+    function renderAll() {
+      renderChart();
+      renderTable();
+      renderDetail();
+    }
+
+    document.getElementById("metricSelect").addEventListener("change", (event) => {
+      state.metric = event.target.value;
+      if (state.metric === "rank") state.metric = "ndcg10";
+      renderChart();
+    });
+
+    document.querySelectorAll("[data-participant]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.participant = button.dataset.participant;
+        document.querySelectorAll("[data-participant]").forEach((item) => {
+          item.setAttribute("aria-pressed", String(item === button));
+        });
+        const first = filteredRuns().sort((a, b) => b[state.metric] - a[state.metric])[0];
+        if (first) state.selectedRun = first.run;
+        renderAll();
+      });
+    });
+
+    document.getElementById("globalSearch").addEventListener("input", (event) => {
+      state.search = event.target.value;
+      const first = filteredRuns().sort((a, b) => b[state.metric] - a[state.metric])[0];
+      if (first) state.selectedRun = first.run;
+      renderAll();
+    });
+
+    document.querySelectorAll("#runsTable th[data-sort]").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.sort;
+        if (state.sortKey === key) {
+          state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+        } else {
+          state.sortKey = key;
+          state.sortDir = typeof runs[0][key] === "number" ? "desc" : "asc";
+          if (key === "rank") state.sortDir = "asc";
+        }
+        renderTable();
+      });
+    });
+
+    function setAllDetails(open) {
+      document.querySelectorAll("main details").forEach((detail) => {
+        detail.open = open;
+      });
+    }
+
+    function updateReadingMode(mode) {
+      const normalized = mode === "detailed" ? "detailed" : "overview";
+      document.body.dataset.detail = normalized;
+      const toggle = document.getElementById("detailToggle");
+      toggle.setAttribute("aria-pressed", String(normalized === "detailed"));
+      toggle.lastChild.textContent = normalized === "detailed" ? " Deep dive mode" : " Overview mode";
+    }
+
+    document.getElementById("detailToggle").addEventListener("click", () => {
+      const next = document.body.dataset.detail === "detailed" ? "overview" : "detailed";
+      updateReadingMode(next);
+      setAllDetails(next === "detailed");
+    });
+
+    document.getElementById("expandAllButton").addEventListener("click", () => {
+      updateReadingMode("detailed");
+      setAllDetails(true);
+    });
+
+    document.getElementById("collapseAllButton").addEventListener("click", () => {
+      updateReadingMode("overview");
+      setAllDetails(false);
+    });
+
+    document.getElementById("printButton").addEventListener("click", () => window.print());
+
+    renderFeatureCards();
+    renderAll();
+    updateReadingMode(document.body.dataset.detail);
+  </script>
+</body>
+</html>

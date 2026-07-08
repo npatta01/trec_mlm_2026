@@ -1,0 +1,6 @@
+# Official TREC data files can be large. Keep them local unless explicitly force-added.
+/llm_discovery_data.json
+/llm_discovery_metadata.json
+/llm_dev_data.tsv
+/llm_dev_qrels.txt
+/llm_test_data.tsv

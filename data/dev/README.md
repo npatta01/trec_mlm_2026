@@ -24,7 +24,8 @@ test queries.
 | `llm_dev_qrels.txt` | Development | Expertise labels for development query-LLM pairs. Use for validation, model selection, and metric checks. |
 | Test query file | Test | Not released on the official page as of capture date. The page lists 2026-09-05 as the test query release date. |
 
-The exact official links and Google Drive file IDs are in `file_manifest.tsv`.
+The exact official links, Google Drive file IDs, and byte sizes are in
+`file_manifest.tsv`.
 
 ## Suggested Local Layout
 
@@ -41,7 +42,9 @@ data/dev/
   llm_test_data.tsv      # add when released
 ```
 
-The raw data files may be large, so this commit only tracks the manifest and notes.
+The development query file and qrels are tracked because they are about 40 KB and
+2.2 MB, respectively. The discovery files remain local because they are about 137 MB
+and 1.46 GB. The unreleased test file is ignored until its size can be reviewed.
 
 ## Important 2026 Constraint
 

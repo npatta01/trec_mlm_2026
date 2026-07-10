@@ -35,15 +35,16 @@ names, release status, Google Drive IDs, source URLs, expected local paths, and 
 uses. See [`data/dev/README.md`](data/dev/README.md) for the task definition, submission
 format, metrics, and release timeline.
 
-Raw TREC files are intentionally ignored because the discovery data may be large.
-Download released files from the manifest into their `expected_local_path` locations
-under `data/dev/`. The notebook reports which expected files are present locally.
+The released development query file and qrels are tracked in the repository. The two
+large discovery JSON files remain ignored; download them from the manifest into their
+`expected_local_path` locations under `data/dev/` when needed. The notebook reports
+which expected files are present locally.
 
 ## Repository Layout
 
 | Path | Purpose |
 |---|---|
-| `data/dev/` | TREC 2026 source notes, file manifest, and ignored local data files |
+| `data/dev/` | Source notes, manifest, tracked development files, and ignored large files |
 | `notebooks/` | Executable exploration and validation notebooks |
 | `reports/` | 2025 track literature review and interactive background report |
 | `pyproject.toml` | Default Python and notebook dependencies for `uv` |

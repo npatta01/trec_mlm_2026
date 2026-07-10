@@ -36,9 +36,10 @@ uses. See [`data/dev/README.md`](data/dev/README.md) for the task definition, su
 format, metrics, and release timeline.
 
 The released development query file and qrels are tracked in the repository. The two
-large discovery JSON files remain ignored; download them from the manifest into their
-`expected_local_path` locations under `data/dev/` when needed. The notebook reports
-which expected files are present locally.
+large discovery JSON files remain ignored. The official source currently distributes
+them through Google Drive; follow the resumable commands in
+[`data/dev/README.md`](data/dev/README.md#download-discovery-files). The notebook reports
+which expected files are present locally and whether their byte sizes match the manifest.
 
 ## Repository Layout
 

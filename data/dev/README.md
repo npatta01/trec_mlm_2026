@@ -46,6 +46,36 @@ The development query file and qrels are tracked because they are about 40 KB an
 2.2 MB, respectively. The discovery files remain local because they are about 137 MB
 and 1.46 GB. The unreleased test file is ignored until its size can be reviewed.
 
+## Download Discovery Files
+
+As of 2026-07-10, the [official track page](https://trec-mllm.github.io/) distributes
+the 2026 files through Google Drive. The
+[organizers' GitHub repository](https://github.com/trec-mllm/trec-mllm.github.io)
+contains the website source but no dataset release, and no official TREC 2026 Million
+LLMs dataset was found on the Hugging Face Hub. Use the official Drive links below
+rather than an unverified mirror.
+
+Budget at least 2 GB of free disk space, then run these commands from the repository
+root. `--continue` allows an interrupted large download to resume:
+
+```bash
+uv run gdown --continue \
+  "https://drive.google.com/file/d/1H22vfnxsAQ7x4rox8QwSBUBhypOvz10U/view?usp=sharing" \
+  -O data/dev/llm_discovery_data.json
+
+uv run gdown --continue \
+  "https://drive.google.com/file/d/1USvhIQZ8eMR5YNGt0VfIgNcisbneGBpO/view?usp=sharing" \
+  -O data/dev/llm_discovery_metadata.json
+```
+
+After downloading, execute the manifest notebook to verify that both files exist and
+match the official byte sizes:
+
+```bash
+uv run jupyter nbconvert --execute --to notebook --inplace \
+  notebooks/trec_2026_file_manifest.ipynb
+```
+
 ## Important 2026 Constraint
 
 The official page notes that the 2026 LLM set is different from the 2025 LLM set. Do not

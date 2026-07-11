@@ -91,6 +91,33 @@ The self-contained, mobile-responsive technical report is
 [`reports/trec_2026_dense_query_knn_baseline.html`](reports/trec_2026_dense_query_knn_baseline.html).
 Its reviewed result snapshot and canonical report source are kept beside it for audit.
 
+## Baseline 3: Discovery-Response Retrieval
+
+Download the smaller official discovery-response file using the command in
+[`data/dev/README.md`](data/dev/README.md#download-discovery-files), then install the
+lightweight response-retrieval extra and run:
+
+```bash
+uv sync --extra response
+uv run --extra response trec-mlm response-retrieval \
+  --output-dir artifacts/response_retrieval_baseline
+```
+
+This CPU-only baseline treats each historical query/model response as a searchable
+document. It evaluates BM25 and explicit RM3 feedback over response-only and
+query-plus-response fields, two frozen filters, and retrieval depths 100, 500, and
+1,000. SumScore aggregates retrieved evidence back to the 150 model IDs. The complete
+24-configuration protocol—including analyzer hashes, refusal rules, exact-query
+exclusion, nested selection, and tie handling—was locked before scoring in
+[`protocols/trec_2026_response_retrieval.md`](protocols/trec_2026_response_retrieval.md).
+
+Every outer query uses only the other 321 queries to select a configuration. Inner tie
+priors exclude both the outer and inner qrels, and exact discovery-query matches are
+masked before RM3 feedback and final retrieval. The experiment compares the stitched
+response ranking directly with the tracked dense per-query reference, the rerun fixed
+TF-IDF baseline, and the identical fold-local global prior. It does not use logprobs,
+pretrained encoders, or external data, so it is an **internal automatic run**.
+
 ## Data
 
 [`data/dev/file_manifest.tsv`](data/dev/file_manifest.tsv) records the official file

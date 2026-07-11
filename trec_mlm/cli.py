@@ -5,6 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 
+from trec_mlm.dense_query_knn import (
+    DEFAULT_ENCODERS,
+    EncoderSpec,
+    encoder_specs_by_key,
+)
 from trec_mlm.experiment import (
     ExperimentConfig,
     run_leave_one_out_experiment,
@@ -25,6 +30,21 @@ def _neighbor_grid(value: str) -> tuple[int, ...]:
     if not parsed or any(item < 1 for item in parsed):
         raise argparse.ArgumentTypeError("neighbor grid values must be positive")
     return parsed
+
+
+def _encoder_grid(value: str) -> tuple[EncoderSpec, ...]:
+    available = encoder_specs_by_key()
+    keys = tuple(item.strip() for item in value.split(",") if item.strip())
+    if not keys:
+        raise argparse.ArgumentTypeError("encoder grid cannot be empty")
+    invalid = sorted(set(keys) - set(available))
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"unknown encoders {invalid!r}; choose from {sorted(available)!r}"
+        )
+    if len(set(keys)) != len(keys):
+        raise argparse.ArgumentTypeError("encoder grid values must be unique")
+    return tuple(available[key] for key in keys)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,6 +75,45 @@ def build_parser() -> argparse.ArgumentParser:
     )
     experiment.add_argument("--output-dir", default="artifacts/query_knn_baseline")
 
+    dense = commands.add_parser(
+        "dense-query-knn",
+        help="run exact nested-LOO frozen dense query-kNN",
+    )
+    dense.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    dense.add_argument("--qrels", default="data/dev/llm_dev_qrels.txt")
+    dense.add_argument(
+        "--encoders",
+        type=_encoder_grid,
+        default=DEFAULT_ENCODERS,
+        help=(
+            "comma-separated pinned encoder keys: "
+            + ",".join(spec.key for spec in DEFAULT_ENCODERS)
+        ),
+    )
+    dense.add_argument(
+        "--neighbors-grid",
+        type=_neighbor_grid,
+        default=(1, 3, 5, 10, 20, 50, 100),
+    )
+    dense.add_argument(
+        "--device",
+        default="cpu",
+        help="cpu by default; another backend requires an external compatible torch build",
+    )
+    dense.add_argument("--batch-size", type=int, default=32)
+    dense.add_argument("--torch-threads", type=int, default=16)
+    dense.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    dense.add_argument("--seed", type=int, default=2026)
+    dense.add_argument("--show-progress", action="store_true")
+    dense.add_argument(
+        "--grid-selection-provenance",
+        default="advisor_grid_locked_before_dense_results",
+    )
+    dense.add_argument(
+        "--output-dir",
+        default="artifacts/dense_query_knn_baseline",
+    )
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -82,6 +141,31 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = run_leave_one_out_experiment(config)
         paths = write_experiment_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "dense-query-knn":
+        from trec_mlm.dense_experiment import (
+            DenseExperimentConfig,
+            run_nested_dense_experiment,
+            write_dense_experiment_artifacts,
+        )
+
+        config = DenseExperimentConfig(
+            query_path=args.queries,
+            qrels_path=args.qrels,
+            encoder_specs=args.encoders,
+            neighbor_counts=args.neighbors_grid,
+            bootstrap_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+            device=args.device,
+            batch_size=args.batch_size,
+            torch_threads=args.torch_threads,
+            show_progress_bar=args.show_progress,
+            grid_selection_provenance=args.grid_selection_provenance,
+        )
+        result = run_nested_dense_experiment(config)
+        paths = write_dense_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
         return 0
 

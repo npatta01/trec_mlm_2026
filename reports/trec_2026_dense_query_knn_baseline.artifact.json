@@ -1,0 +1,366 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "TREC 2026 Frozen Dense Query Retrieval",
+    "description": "Exact nested leave-one-out evaluation of four frozen dense query encoders against the merged TF-IDF baseline and global-prior control.",
+    "generatedAt": "2026-07-10T00:00:00Z",
+    "cards": [
+      {
+        "id": "dense_ndcg",
+        "description": "Macro nDCG@10 over all outer predictions; the chip is the paired mean difference from fixed TF-IDF k=10.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Nested dense nDCG@10",
+            "field": "dense_ndcg",
+            "format": "number"
+          },
+          {
+            "label": "vs TF-IDF",
+            "field": "ndcg_delta_vs_tfidf",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "dense_mrr",
+        "description": "Mean reciprocal rank over all outer predictions; the chip is the paired mean difference from fixed TF-IDF k=10.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Nested dense MRR",
+            "field": "dense_mrr",
+            "format": "number"
+          },
+          {
+            "label": "vs TF-IDF",
+            "field": "mrr_delta_vs_tfidf",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "system_metric_comparison",
+        "title": "Development retrieval metrics by system",
+        "subtitle": "322 outer leave-one-query-out predictions; both metrics use the same 0-to-1 scale and higher is better.",
+        "type": "bar",
+        "dataset": "system_metrics",
+        "sourceId": "system_metrics_sql",
+        "intent": "comparison",
+        "question": "How does nested dense retrieval compare with TF-IDF and the global prior on the two official development metrics?",
+        "rationale": "Grouped bars make the same-scale two-metric comparison across three intentionally retained systems directly scannable.",
+        "comparisonContext": {
+          "query_count": 322,
+          "score_domain": [
+            0,
+            1
+          ],
+          "zero_baseline": true,
+          "higher_is_better": true
+        },
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "System"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "label": "Metric value",
+            "format": "number"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "query_count",
+              "type": "quantitative",
+              "label": "Queries"
+            },
+            {
+              "field": "evaluation_protocol",
+              "type": "text",
+              "label": "Protocol"
+            }
+          ]
+        },
+        "yAxisTitle": "Score",
+        "valueFormat": "number",
+        "options": {
+          "orientation": "vertical",
+          "grouping": "grouped"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 6
+      }
+    ],
+    "tables": [],
+    "sources": [
+      {
+        "id": "dense_results",
+        "label": "Reviewed nested dense evaluation snapshot",
+        "path": "reports/trec_2026_dense_query_knn_results.json"
+      },
+      {
+        "id": "headline_sql",
+        "label": "Headline metric extraction",
+        "path": "reports/trec_2026_dense_query_knn_results.json"
+      },
+      {
+        "id": "system_metrics_sql",
+        "label": "Three-system metric comparison",
+        "path": "reports/trec_2026_dense_query_knn_results.json"
+      },
+      {
+        "id": "dense_pipeline",
+        "label": "Exact nested-LOO implementation",
+        "path": "trec_mlm/dense_experiment.py"
+      },
+      {
+        "id": "development_qrels",
+        "label": "Official TREC development qrels",
+        "path": "data/dev/llm_dev_qrels.txt"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# TREC 2026 Frozen Dense Query Retrieval"
+      },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "sourceId": "dense_results",
+        "body": "## Frozen dense retrieval clears both controls\n\n- **Primary result:** exact nested selection reached **0.3599 nDCG@10** and **0.4041 MRR** across 322 outer queries.\n- **Versus merged TF-IDF:** gains were **+0.1422 nDCG@10** and **+0.1264 MRR**; both 95% paired bootstrap intervals exclude zero.\n- **Selection was stable:** `mpnet_base_v2@50` won 320/322 outer folds, with `mpnet_base_v2@20` chosen in the remainder.\n- **Operational fit:** the cached experiment through the 10k-resample bootstrap summary finished in 24.9 seconds; artifact writes are timed separately and no query was truncated."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "dense_ndcg",
+          "dense_mrr"
+        ]
+      },
+      {
+        "id": "comparison_interpretation",
+        "type": "markdown",
+        "sourceId": "dense_results",
+        "body": "## Dense semantics improve both ranking objectives\n\nThe chart compares the stitched nested result directly with TF-IDF (0.2177 / 0.2777) and the global prior (0.1385 / 0.2067). The dense advantage is not a trade between objectives: it raises both top-10 graded utility and first-relevant-model rank."
+      },
+      {
+        "id": "comparison_chart",
+        "type": "chart",
+        "chartId": "system_metric_comparison",
+        "layout": "full"
+      },
+      {
+        "id": "scope_definitions",
+        "type": "markdown",
+        "sourceId": "dense_results",
+        "body": "## Scope and metric definitions\n\nThe source matrix contains **322 queries \u00d7 150 models = 48,300 complete qrels**. nDCG@10 uses the released 0/1/2 grade as linear gain; MRR treats grades 1 or 2 as relevant. All systems rank the same 150 candidates for every query. TF-IDF remains the merged fixed unigram/bigram `k=10` baseline, and the control prior is recomputed from only the training qrels in each outer fold."
+      },
+      {
+        "id": "nested_methodology",
+        "type": "markdown",
+        "sourceId": "dense_pipeline",
+        "body": "## Exact nesting keeps outer labels sealed\n\nFor outer target `o`, every encoder and neighbor count is scored by an inner leave-one-out loop over the other 321 queries. Inner target `i` is ranked from `all \u2212 {o, i}`; its label is used only to score that validation prediction. Inner macro nDCG@10 chooses the configuration, with declared encoder order then smaller `k` as the exact-tie rule. The selected rule then ranks `o` from all 321 outer-training rows.\n\nFrozen encoders never consume qrels or fit corpus statistics, so their normalized float32 embeddings are safely computed once. Fold-specific qrel evidence, priors, neighbor exclusions, and tie breaks are still recomputed inside the correct split. A mutation test verifies that changing an outer qrel cannot change that outer fold's selection or prediction."
+      },
+      {
+        "id": "model_specification",
+        "type": "markdown",
+        "sourceId": "dense_results",
+        "body": "## Four pinned encoders cover speed and capacity\n\n- **bge_small_en_v1_5:** `BAAI/bge-small-en-v1.5` at revision `5c38ec7c405e\u2026`; cls pooling, 384 dimensions, MIT.\n- **e5_small_v2:** `intfloat/e5-small-v2` at revision `ffb93f3bd404\u2026`; mean pooling, 384 dimensions, MIT.\n- **minilm_l6:** `sentence-transformers/all-MiniLM-L6-v2` at revision `1110a243fdf4\u2026`; mean pooling, 384 dimensions, Apache-2.0.\n- **mpnet_base_v2:** `sentence-transformers/all-mpnet-base-v2` at revision `e8c3b32edf54\u2026`; mean pooling, 768 dimensions, Apache-2.0.\n\nThe preregistered grid fixed weighted-mean aggregation and searched `k={1,3,5,10,20,50,100}`. E5 applies `query: ` to both sides of this symmetric query-to-query task; BGE uses raw text. All models run in evaluation/inference mode with remote code disabled."
+      },
+      {
+        "id": "fixed_encoder_evidence",
+        "type": "markdown",
+        "sourceId": "dense_results",
+        "body": "## MPNet supplies the strongest fixed configuration\n\n- **BGE-small-v1.5:** `bge_small_en_v1_5@50` reached 0.3131 nDCG@10 and 0.3624 MRR.\n- **E5-small-v2:** `e5_small_v2@50` reached 0.2958 nDCG@10 and 0.3348 MRR.\n- **MiniLM-L6:** `minilm_l6@20` reached 0.3330 nDCG@10 and 0.3734 MRR.\n- **MPNet-base-v2:** `mpnet_base_v2@50` reached 0.3605 nDCG@10 and 0.4040 MRR.\n\n`mpnet_base_v2@50` is the full-development choice for future test queries. Its same-development fixed score is selection evidence, not the unbiased headline; the stitched nested score remains the primary estimate."
+      },
+      {
+        "id": "robustness",
+        "type": "markdown",
+        "sourceId": "dense_results",
+        "body": "## The gain is broad, with uncertainty still visible\n\nAgainst TF-IDF, the 95% paired-query intervals are **[+0.1093, +0.1754]** for nDCG@10 and **[+0.0897, +0.1637]** for MRR. Dense wins/ties/losses on nDCG are **163/114/45**. Against the prior, the nDCG gain is +0.2213 with interval [+0.1866, +0.2582]. Control regression checks exactly reproduce the merged scores."
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "body": "## What this result does not establish\n\n- The estimate is development-set cross-validation, not hidden test performance.\n- The four-model grid was fixed before dense outer results were inspected; adding encoders after seeing this result would require a new untouched outer evaluation.\n- Paired bootstrap intervals summarize query variation in the stitched predictions; they do not include future distribution shift or model-download changes.\n- Pretrained encoders contain outside data, so this is an external automatic run under the track taxonomy."
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "body": "## Recommended next steps\n\n1. Use **`mpnet_base_v2@50`** as the frozen deployment rule for future test queries; do not reselect it after seeing test labels.\n2. Retain TF-IDF and the fold-local prior as mandatory regression controls in every later feature experiment.\n3. Treat any new encoder, prompting variant, or hybrid sparse\u2013dense method as a new preregistered experiment rather than extending this evaluated grid post hoc."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Does a preregistered sparse\u2013dense neighbor union improve the queries where TF-IDF still beats dense?\n- Are gains consistent across official query categories once category labels are available?\n- Can a smaller MiniLM deployment recover most of MPNet's gain under a tighter latency or memory budget?"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-10T00:00:00Z",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "dense_ndcg": 0.35985474409504775,
+          "dense_mrr": 0.40406330811168817,
+          "ndcg_delta_vs_tfidf": 0.14220049793324485,
+          "mrr_delta_vs_tfidf": 0.12636763875151608
+        }
+      ],
+      "system_metrics": [
+        {
+          "system_order": 1,
+          "metric_order": 1,
+          "system": "Dense nested",
+          "metric": "nDCG@10",
+          "value": 0.35985474409504775,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "external_run": 1
+        },
+        {
+          "system_order": 1,
+          "metric_order": 2,
+          "system": "Dense nested",
+          "metric": "MRR",
+          "value": 0.40406330811168817,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "external_run": 1
+        },
+        {
+          "system_order": 2,
+          "metric_order": 1,
+          "system": "TF-IDF k=10",
+          "metric": "nDCG@10",
+          "value": 0.2176542461618029,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "external_run": 0
+        },
+        {
+          "system_order": 2,
+          "metric_order": 2,
+          "system": "TF-IDF k=10",
+          "metric": "MRR",
+          "value": 0.2776956693601721,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "external_run": 0
+        },
+        {
+          "system_order": 3,
+          "metric_order": 1,
+          "system": "Global prior",
+          "metric": "nDCG@10",
+          "value": 0.1385241823188521,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "external_run": 0
+        },
+        {
+          "system_order": 3,
+          "metric_order": 2,
+          "system": "Global prior",
+          "metric": "MRR",
+          "value": 0.20665310801034087,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "external_run": 0
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "dense_results",
+      "label": "Reviewed nested dense evaluation snapshot",
+      "path": "reports/trec_2026_dense_query_knn_results.json"
+    },
+    {
+      "id": "headline_sql",
+      "label": "Headline metric extraction",
+      "path": "reports/trec_2026_dense_query_knn_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT dense_ndcg, dense_mrr, ndcg_delta_vs_tfidf, mrr_delta_vs_tfidf\nFROM headline_metrics",
+        "description": "Selects the two nested dense metrics and their paired deltas from an in-memory table loaded from the reviewed result snapshot.",
+        "executed_at": "2026-07-10T00:00:00Z",
+        "tables_used": [
+          "headline_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "outer strict LOO"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro mean over 322 queries with linear positive 0/1/2 qrel gain and log2 rank discount through rank 10.",
+          "MRR: macro mean reciprocal rank of the first candidate with qrel grade greater than zero.",
+          "Dense nested: one stitched outer prediction per query after encoder and k are chosen only by inner macro nDCG@10."
+        ]
+      }
+    },
+    {
+      "id": "system_metrics_sql",
+      "label": "Three-system metric comparison",
+      "path": "reports/trec_2026_dense_query_knn_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT system_order, metric_order, system, metric, value, query_count,\n       evaluation_protocol, external_run\nFROM system_metrics\nORDER BY system_order, metric_order",
+        "description": "Selects long-form nDCG@10 and MRR rows for the nested dense system and the two identically evaluated controls.",
+        "executed_at": "2026-07-10T00:00:00Z",
+        "tables_used": [
+          "system_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "outer strict LOO"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro mean over 322 queries with linear positive 0/1/2 qrel gain and log2 rank discount through rank 10.",
+          "MRR: macro mean reciprocal rank of the first candidate with qrel grade greater than zero.",
+          "Dense nested: one stitched outer prediction per query after encoder and k are chosen only by inner macro nDCG@10."
+        ]
+      }
+    },
+    {
+      "id": "dense_pipeline",
+      "label": "Exact nested-LOO implementation",
+      "path": "trec_mlm/dense_experiment.py"
+    },
+    {
+      "id": "development_qrels",
+      "label": "Official TREC development qrels",
+      "path": "data/dev/llm_dev_qrels.txt"
+    }
+  ]
+}

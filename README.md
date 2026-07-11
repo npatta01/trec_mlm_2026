@@ -1,7 +1,7 @@
 # TREC Million LLMs 2026
 
 This repository collects the official TREC 2026 Million LLMs file inventory,
-reproducible notebook tooling, a leakage-safe query-neighbor baseline, and background
+reproducible notebook tooling, leakage-safe sparse and dense query-neighbor baselines, and background
 research from the 2025 track.
 
 Official track page: https://trec-mllm.github.io/
@@ -53,6 +53,43 @@ The executed, mobile-friendly analysis is in
 [`notebooks/trec_2026_query_knn_baseline.ipynb`](notebooks/trec_2026_query_knn_baseline.ipynb).
 For a phone-friendly, read-only view, open
 [`reports/trec_2026_query_knn_baseline.html`](reports/trec_2026_query_knn_baseline.html).
+
+## Baseline 2: Frozen Dense Query Retrieval
+
+Install the optional CPU-only embedding stack and run the preregistered nested grid:
+
+```bash
+uv sync --extra dense
+uv run --extra dense trec-mlm dense-query-knn \
+  --output-dir artifacts/dense_query_knn_baseline
+```
+
+The default run evaluates four immutable encoder revisions—MiniLM-L6, E5-small-v2,
+BGE-small-v1.5, and MPNet-base-v2—across `k={1,3,5,10,20,50,100}`. For every outer
+leave-one-query-out prediction, a complete inner leave-one-query-out loop selects the
+encoder and `k` using nDCG@10. The held-out outer qrel never enters configuration
+selection, neighbor evidence, priors, or tie breaks. Frozen embeddings are qrel-free and
+computed once; qrel aggregation and global priors remain fold-local.
+
+On the 322-query development set, the stitched nested prediction achieved:
+
+| System | nDCG@10 | MRR |
+|---|---:|---:|
+| Frozen dense, nested encoder + `k` | **0.3599** | **0.4041** |
+| TF-IDF query-kNN, fixed `k=10` | 0.2177 | 0.2777 |
+| Training-only global prior | 0.1385 | 0.2067 |
+
+MPNet with `k=50` was selected in 320 of 322 outer folds; `k=20` was selected in the
+other two. On a Ryzen AI MAX+ 395 CPU with 16 PyTorch threads, the cached model
+inference, nested selection, predictions, and fixed-grid scoring take about 23 seconds;
+the artifact records bootstrap-summary time separately. None of the 322 queries were
+truncated. Because pretrained
+encoders contain outside training data, this is an **external automatic run** under the
+track taxonomy.
+
+The self-contained, mobile-responsive technical report is
+[`reports/trec_2026_dense_query_knn_baseline.html`](reports/trec_2026_dense_query_knn_baseline.html).
+Its reviewed result snapshot and canonical report source are kept beside it for audit.
 
 ## Data
 

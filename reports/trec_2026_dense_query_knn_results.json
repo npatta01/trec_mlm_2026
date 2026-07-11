@@ -1,0 +1,406 @@
+{
+  "comparisons": {
+    "global_prior": {
+      "baseline": "global_prior",
+      "candidate": "dense_nested",
+      "mrr_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.15600116109537104,
+        "mean_difference": 0.1974102001013473,
+        "n_resamples": 10000,
+        "upper": 0.2396768829033558
+      },
+      "mrr_win_tie_loss": {
+        "losses": 80,
+        "ties": 41,
+        "wins": 201
+      },
+      "ndcg_at_10_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.18658987011390102,
+        "mean_difference": 0.22133056177619564,
+        "n_resamples": 10000,
+        "upper": 0.25823759335936186
+      },
+      "ndcg_at_10_win_tie_loss": {
+        "losses": 35,
+        "ties": 119,
+        "wins": 168
+      }
+    },
+    "tfidf_fixed_k10": {
+      "baseline": "tfidf_fixed_k10",
+      "candidate": "dense_nested",
+      "mrr_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.08972481920371764,
+        "mean_difference": 0.1263676387515161,
+        "n_resamples": 10000,
+        "upper": 0.16368186430798773
+      },
+      "mrr_win_tie_loss": {
+        "losses": 87,
+        "ties": 51,
+        "wins": 184
+      },
+      "ndcg_at_10_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.10931495870278471,
+        "mean_difference": 0.14220049793324482,
+        "n_resamples": 10000,
+        "upper": 0.17535192427488516
+      },
+      "ndcg_at_10_win_tie_loss": {
+        "losses": 45,
+        "ties": 114,
+        "wins": 163
+      }
+    }
+  },
+  "data": {
+    "candidate_count": 150,
+    "grade_counts": {
+      "0.0": 43922,
+      "1.0": 730,
+      "2.0": 3648
+    },
+    "qrel_count": 48300,
+    "query_count": 322
+  },
+  "deployment_selection": {
+    "configuration": "mpnet_base_v2@50",
+    "criterion": "full_development_leave_one_out_ndcg_at_10",
+    "purpose": "future_test_queries_only",
+    "same_development_metrics_are_not_an_unbiased_evaluation": true
+  },
+  "encoder_metadata": {
+    "bge_small_en_v1_5": {
+      "batch_size": 32,
+      "deterministic_algorithms": true,
+      "device": "cpu",
+      "dtype": "float32",
+      "embedding_dimension": 384,
+      "embedding_sha256": "13a53fbcdeae0c7bd835862b459e256c033ecadf215e32285e56e1f7a6a18ba5",
+      "encoding_seconds": 1.1823853609967045,
+      "eval_mode": true,
+      "input_sha256": "98faa04f979e428933c3d8e67dac43cf4dded112bd2c16969b3482a1d52886d9",
+      "key": "bge_small_en_v1_5",
+      "license": "MIT",
+      "max_sequence_length": 512,
+      "maximum_observed_tokens": 100,
+      "model_id": "BAAI/bge-small-en-v1.5",
+      "normalized": true,
+      "numpy_version": "2.5.1",
+      "parameter_count": 33360000,
+      "pooling": "cls",
+      "query_count": 322,
+      "query_prefix": "",
+      "requested_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "resolved_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "sentence_transformers_version": "5.6.0",
+      "similarity_sha256": "f8c16a5497097c21c8cd48cd726c7b57053c280f4ab259692dd6546ce5210f2d",
+      "torch_threads": 16,
+      "torch_version": "2.13.0+cpu",
+      "transformers_version": "5.13.0",
+      "truncated_query_count": 0,
+      "trust_remote_code": false,
+      "zero_embedding_count": 0
+    },
+    "e5_small_v2": {
+      "batch_size": 32,
+      "deterministic_algorithms": true,
+      "device": "cpu",
+      "dtype": "float32",
+      "embedding_dimension": 384,
+      "embedding_sha256": "c548d570d89d5a5ea81e370f48819f37611571c3e46599a4ce5ef815b3bf84b6",
+      "encoding_seconds": 1.1926156670087948,
+      "eval_mode": true,
+      "input_sha256": "a5b5c7d33147668a5a633e6caed89ef9ed9252c527e275f8a91128254d00acbb",
+      "key": "e5_small_v2",
+      "license": "MIT",
+      "max_sequence_length": 512,
+      "maximum_observed_tokens": 102,
+      "model_id": "intfloat/e5-small-v2",
+      "normalized": true,
+      "numpy_version": "2.5.1",
+      "parameter_count": 33360000,
+      "pooling": "mean",
+      "query_count": 322,
+      "query_prefix": "query: ",
+      "requested_revision": "ffb93f3bd4047442299a41ebb6fa998a38507c52",
+      "resolved_revision": "ffb93f3bd4047442299a41ebb6fa998a38507c52",
+      "sentence_transformers_version": "5.6.0",
+      "similarity_sha256": "2316e89deee69e37286bda66b56bc3869fa247d1283ad5e19327039bebecdad3",
+      "torch_threads": 16,
+      "torch_version": "2.13.0+cpu",
+      "transformers_version": "5.13.0",
+      "truncated_query_count": 0,
+      "trust_remote_code": false,
+      "zero_embedding_count": 0
+    },
+    "minilm_l6": {
+      "batch_size": 32,
+      "deterministic_algorithms": true,
+      "device": "cpu",
+      "dtype": "float32",
+      "embedding_dimension": 384,
+      "embedding_sha256": "aab5d52df6ffb48685ab8240e13f1718b20451102d1d0283de5de7ad8ebb36d9",
+      "encoding_seconds": 1.0204082359850872,
+      "eval_mode": true,
+      "input_sha256": "98faa04f979e428933c3d8e67dac43cf4dded112bd2c16969b3482a1d52886d9",
+      "key": "minilm_l6",
+      "license": "Apache-2.0",
+      "max_sequence_length": 256,
+      "maximum_observed_tokens": 100,
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "normalized": true,
+      "numpy_version": "2.5.1",
+      "parameter_count": 22713216,
+      "pooling": "mean",
+      "query_count": 322,
+      "query_prefix": "",
+      "requested_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+      "resolved_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+      "sentence_transformers_version": "5.6.0",
+      "similarity_sha256": "9874924b8d6e39c8fdb7385ed0da01f3d673a0cd531bca39b6bacbd0b589dd74",
+      "torch_threads": 16,
+      "torch_version": "2.13.0+cpu",
+      "transformers_version": "5.13.0",
+      "truncated_query_count": 0,
+      "trust_remote_code": false,
+      "zero_embedding_count": 0
+    },
+    "mpnet_base_v2": {
+      "batch_size": 32,
+      "deterministic_algorithms": true,
+      "device": "cpu",
+      "dtype": "float32",
+      "embedding_dimension": 768,
+      "embedding_sha256": "6d197055eb62ab9809ae321b0f60072e20f17524861e6a989b49cd35c389055b",
+      "encoding_seconds": 2.288287589995889,
+      "eval_mode": true,
+      "input_sha256": "98faa04f979e428933c3d8e67dac43cf4dded112bd2c16969b3482a1d52886d9",
+      "key": "mpnet_base_v2",
+      "license": "Apache-2.0",
+      "max_sequence_length": 384,
+      "maximum_observed_tokens": 100,
+      "model_id": "sentence-transformers/all-mpnet-base-v2",
+      "normalized": true,
+      "numpy_version": "2.5.1",
+      "parameter_count": 109486464,
+      "pooling": "mean",
+      "query_count": 322,
+      "query_prefix": "",
+      "requested_revision": "e8c3b32edf5434bc2275fc9bab85f82640a19130",
+      "resolved_revision": "e8c3b32edf5434bc2275fc9bab85f82640a19130",
+      "sentence_transformers_version": "5.6.0",
+      "similarity_sha256": "80c69a8dca29cd5e9a4de08dc4e44553fabf813428dd4956f7ecbeb2852968ed",
+      "torch_threads": 16,
+      "torch_version": "2.13.0+cpu",
+      "transformers_version": "5.13.0",
+      "truncated_query_count": 0,
+      "trust_remote_code": false,
+      "zero_embedding_count": 0
+    }
+  },
+  "fixed_config_development_metrics": {
+    "bge_small_en_v1_5@1": {
+      "mrr": 0.26833533522870257,
+      "ndcg_at_10": 0.1976363368071522
+    },
+    "bge_small_en_v1_5@10": {
+      "mrr": 0.35266292096223295,
+      "ndcg_at_10": 0.2961453742267418
+    },
+    "bge_small_en_v1_5@100": {
+      "mrr": 0.33779425790560774,
+      "ndcg_at_10": 0.29686796442590074
+    },
+    "bge_small_en_v1_5@20": {
+      "mrr": 0.3493556053632325,
+      "ndcg_at_10": 0.3028680969064748
+    },
+    "bge_small_en_v1_5@3": {
+      "mrr": 0.31050095013682916,
+      "ndcg_at_10": 0.24626335437321104
+    },
+    "bge_small_en_v1_5@5": {
+      "mrr": 0.327756175422551,
+      "ndcg_at_10": 0.26660854138975737
+    },
+    "bge_small_en_v1_5@50": {
+      "mrr": 0.3623837369930722,
+      "ndcg_at_10": 0.3130983871515143
+    },
+    "e5_small_v2@1": {
+      "mrr": 0.2655516232891892,
+      "ndcg_at_10": 0.20282871193188576
+    },
+    "e5_small_v2@10": {
+      "mrr": 0.31103125497811246,
+      "ndcg_at_10": 0.2642742660352636
+    },
+    "e5_small_v2@100": {
+      "mrr": 0.3283591204356489,
+      "ndcg_at_10": 0.2710217763491251
+    },
+    "e5_small_v2@20": {
+      "mrr": 0.340097163132098,
+      "ndcg_at_10": 0.29098309017585666
+    },
+    "e5_small_v2@3": {
+      "mrr": 0.28922190407236625,
+      "ndcg_at_10": 0.2264254329209099
+    },
+    "e5_small_v2@5": {
+      "mrr": 0.3099130544741041,
+      "ndcg_at_10": 0.25589973019274254
+    },
+    "e5_small_v2@50": {
+      "mrr": 0.3348298573027342,
+      "ndcg_at_10": 0.29582469969221264
+    },
+    "minilm_l6@1": {
+      "mrr": 0.2940531751999094,
+      "ndcg_at_10": 0.24050228691206943
+    },
+    "minilm_l6@10": {
+      "mrr": 0.3665617281376367,
+      "ndcg_at_10": 0.325415525123615
+    },
+    "minilm_l6@100": {
+      "mrr": 0.3763745461591218,
+      "ndcg_at_10": 0.32872520177590675
+    },
+    "minilm_l6@20": {
+      "mrr": 0.3733700219105877,
+      "ndcg_at_10": 0.3330244526958285
+    },
+    "minilm_l6@3": {
+      "mrr": 0.323659355660531,
+      "ndcg_at_10": 0.2775316564667206
+    },
+    "minilm_l6@5": {
+      "mrr": 0.33207533052918425,
+      "ndcg_at_10": 0.2936590597435951
+    },
+    "minilm_l6@50": {
+      "mrr": 0.36848884452877134,
+      "ndcg_at_10": 0.3306420962405783
+    },
+    "mpnet_base_v2@1": {
+      "mrr": 0.2928527085803129,
+      "ndcg_at_10": 0.2246241260354176
+    },
+    "mpnet_base_v2@10": {
+      "mrr": 0.37179342308642654,
+      "ndcg_at_10": 0.3291940929392034
+    },
+    "mpnet_base_v2@100": {
+      "mrr": 0.3805149744731786,
+      "ndcg_at_10": 0.33680294909033076
+    },
+    "mpnet_base_v2@20": {
+      "mrr": 0.3914538105284786,
+      "ndcg_at_10": 0.3551283151448231
+    },
+    "mpnet_base_v2@3": {
+      "mrr": 0.31221913899077597,
+      "ndcg_at_10": 0.2668632399138633
+    },
+    "mpnet_base_v2@5": {
+      "mrr": 0.33871145335447933,
+      "ndcg_at_10": 0.2914776012648034
+    },
+    "mpnet_base_v2@50": {
+      "mrr": 0.4039893654911617,
+      "ndcg_at_10": 0.36045807293576454
+    }
+  },
+  "generated_at": "2026-07-10T00:00:00Z",
+  "metrics": {
+    "dense_nested": {
+      "mrr": 0.40406330811168817,
+      "ndcg_at_10": 0.35985474409504775
+    },
+    "global_prior": {
+      "mrr": 0.20665310801034087,
+      "ndcg_at_10": 0.1385241823188521
+    },
+    "tfidf_fixed_k10": {
+      "mrr": 0.2776956693601721,
+      "ndcg_at_10": 0.2176542461618029
+    }
+  },
+  "protocol": {
+    "aggregation": "similarity_weighted_mean",
+    "authoritative_device": "cpu",
+    "embedding_normalization": "l2_float32",
+    "embeddings_are_qrel_free_and_not_corpus_fitted": true,
+    "external_run": true,
+    "external_run_reason": "pretrained encoders contain outside training data",
+    "grid_selection_provenance": "advisor_grid_locked_before_dense_results",
+    "inner_split": "strict_leave_one_query_out_within_outer_training_rows",
+    "inner_validation_query_count_per_outer": 321,
+    "metric_gain": "linear_qrel_grade",
+    "outer_query_count": 322,
+    "outer_split": "strict_leave_one_query_out",
+    "positive_neighbor_rule": "similarity_strictly_greater_than_zero",
+    "representation": "frozen_pretrained_dense_sentence_embedding",
+    "selection_metric": "inner_macro_ndcg_at_10",
+    "selection_tie_break": "declared_encoder_order_then_smaller_k",
+    "similarity": "cosine_dot_product",
+    "tie_break": "training_global_prior_then_model_id"
+  },
+  "report_notes": {
+    "audience": "technical",
+    "delivery_mode": "portable_html",
+    "required_structure": [
+      "title",
+      "technical summary",
+      "key findings with visual evidence",
+      "scope, data, and metric definitions",
+      "methodology and model specification",
+      "limitations, uncertainty, and robustness checks",
+      "recommended next steps",
+      "further questions"
+    ],
+    "table_omission": "Exact fixed-grid values remain in this result snapshot; the visible report uses bullets and one chart to avoid a scan-heavy mobile table.",
+    "visual": {
+      "category_count": 3,
+      "family": "comparison",
+      "metric_count": 2,
+      "mobile_qa": "full-width chart in the responsive portable reader; the delivery receipt records whether a compatible headless browser was available",
+      "palette_policy": "hard two-root cap with a visible metric legend",
+      "question": "How does nested dense retrieval compare with both controls?",
+      "rows": 6,
+      "scale": "shared zero-based 0-to-1 metric scale",
+      "takeaway": "Dense retrieval leads both controls on nDCG@10 and MRR.",
+      "three_category_exception": "All three systems are intentional controls and individually labeled; a grouped bar remains clearer than a scan-heavy exact-value table.",
+      "type": "grouped vertical bar"
+    }
+  },
+  "runtime": {
+    "experiment_core_seconds_excluding_summary_and_artifact_writes": 22.68328632300836,
+    "experiment_seconds_through_summary": 24.871367654006463,
+    "summary_seconds_including_bootstrap": 2.188080339023145
+  },
+  "selection": {
+    "configuration_frequency": {
+      "mpnet_base_v2@20": 2,
+      "mpnet_base_v2@50": 320
+    },
+    "encoder_frequency": {
+      "mpnet_base_v2": 322
+    },
+    "neighbor_count_frequency": {
+      "20": 2,
+      "50": 320
+    },
+    "selected_inner_mrr_mean": 0.40317585374410936,
+    "selected_inner_ndcg_max": 0.3634045559476235,
+    "selected_inner_ndcg_mean": 0.35996942326085646,
+    "selected_inner_ndcg_min": 0.3525153251300953
+  },
+  "source_summary_sha256": "24bd77db2eb14fafe55cb0f28b6a41eb2d5c6b04e59a91d6106d737934f08602"
+}

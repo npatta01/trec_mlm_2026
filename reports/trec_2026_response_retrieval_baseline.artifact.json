@@ -1,0 +1,432 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "TREC 2026 Response Retrieval Baseline",
+    "description": "Nested evaluation of response-level BM25 and RM3 retrieval against dense query retrieval, TF-IDF, and a fold-local global prior.",
+    "generatedAt": "2026-07-11T11:38:05Z",
+    "cards": [
+      {
+        "id": "response_ndcg",
+        "description": "Macro nDCG@10 over stitched outer predictions; the chip is the paired mean difference from fixed TF-IDF k=10.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Response nested nDCG@10",
+            "field": "response_ndcg",
+            "format": "number"
+          },
+          {
+            "label": "vs TF-IDF",
+            "field": "ndcg_delta_vs_tfidf",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "response_mrr",
+        "description": "Mean reciprocal rank over stitched outer predictions; its paired TF-IDF interval includes zero.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Response nested MRR",
+            "field": "response_mrr",
+            "format": "number"
+          },
+          {
+            "label": "vs TF-IDF",
+            "field": "mrr_delta_vs_tfidf",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "system_metric_comparison",
+        "title": "Development retrieval metrics by system",
+        "subtitle": "322 strict outer leave-one-query-out predictions; both metrics use a 0-to-1 scale and higher is better.",
+        "type": "bar",
+        "dataset": "system_metrics",
+        "sourceId": "system_metrics_sql",
+        "intent": "comparison",
+        "question": "How does response retrieval compare with dense, TF-IDF, and the global prior on both official development metrics?",
+        "rationale": "Grouped bars support direct same-scale comparison of two metrics across four intentionally retained systems.",
+        "comparisonContext": {
+          "query_count": 322,
+          "score_domain": [
+            0,
+            1
+          ],
+          "zero_baseline": true,
+          "higher_is_better": true
+        },
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "System"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "label": "Metric value",
+            "format": "number"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "query_count",
+              "type": "quantitative",
+              "label": "Queries"
+            },
+            {
+              "field": "evaluation_protocol",
+              "type": "text",
+              "label": "Protocol"
+            },
+            {
+              "field": "run_classification",
+              "type": "text",
+              "label": "Run class"
+            }
+          ]
+        },
+        "yAxisTitle": "Score",
+        "valueFormat": "number",
+        "options": {
+          "orientation": "vertical",
+          "grouping": "grouped"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 8
+      }
+    ],
+    "tables": [],
+    "sources": [
+      {
+        "id": "response_results",
+        "label": "Tracked reviewed response-retrieval result snapshot",
+        "path": "reports/trec_2026_response_retrieval_results.json"
+      },
+      {
+        "id": "headline_sql",
+        "label": "Headline response metric extraction",
+        "path": "reports/trec_2026_response_retrieval_results.json"
+      },
+      {
+        "id": "system_metrics_sql",
+        "label": "Four-system metric comparison",
+        "path": "reports/trec_2026_response_retrieval_results.json"
+      },
+      {
+        "id": "experiment_summary",
+        "label": "Ignored raw experiment summary copied into the tracked snapshot",
+        "path": "artifacts/response_retrieval_baseline/summary.json"
+      },
+      {
+        "id": "validation_receipt",
+        "label": "Ignored run and tensor validation receipt",
+        "path": "artifacts/response_retrieval_baseline/validation.json"
+      },
+      {
+        "id": "response_pipeline",
+        "label": "Tracked exact nested-LOO experiment implementation",
+        "path": "trec_mlm/response_experiment.py"
+      },
+      {
+        "id": "response_retriever",
+        "label": "Tracked pinned BM25/RM3 response retriever",
+        "path": "trec_mlm/response_retrieval.py"
+      },
+      {
+        "id": "development_qrels",
+        "label": "Official TREC development qrels",
+        "path": "data/dev/llm_dev_qrels.txt"
+      },
+      {
+        "id": "discovery_responses",
+        "label": "Official TREC discovery responses",
+        "path": "data/dev/llm_discovery_data.json"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# TREC 2026 Response Retrieval Baseline"
+      },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## Response evidence helps, but dense retrieval still leads\n\n- **Primary result:** nested response retrieval reached **0.2774 nDCG@10** and **0.3175 MRR** across 322 queries.\n- **Versus TF-IDF:** nDCG@10 improved by **+0.0597**, with a 95% paired interval of [+0.0193, +0.1003]. The MRR change was +0.0398, but its interval [-0.0030, +0.0819] crosses zero.\n- **Dense remains stronger:** response retrieval trails it by 0.0825 nDCG@10 and 0.0865 MRR; both paired intervals remain below zero.\n- **Practical reading:** `bm25_rm3__response_only__basic__d500` was selected in 314/322 folds (97.5%). This is a useful internal automatic baseline, not the new best system."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "response_ndcg",
+          "response_mrr"
+        ]
+      },
+      {
+        "id": "comparison_interpretation",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## The gain over TF-IDF is objective-dependent\n\nResponse retrieval improves graded top-10 utility over TF-IDF (0.2177) and clearly exceeds the prior (0.1385). Its MRR advantage over TF-IDF is not statistically resolved by the paired interval. Dense retrieval leads at 0.3599 nDCG@10 and 0.4041 MRR, so response text adds signal without displacing the semantic-query baseline."
+      },
+      {
+        "id": "comparison_chart",
+        "type": "chart",
+        "chartId": "system_metric_comparison",
+        "layout": "full"
+      },
+      {
+        "id": "scope_definitions",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## Scope, corpus, and metric definitions\n\nThis snapshot is as of **July 11, 2026 at 11:38 UTC**. Evaluation covers 322 development queries, 150 candidate models, and 48,300 complete qrels. nDCG@10 uses linear positive 0/1/2 gains through rank 10; MRR uses the reciprocal rank of the first model with grade above zero. All four systems rank the same candidates.\n\nThe organizer discovery corpus contains 1,163,850 responses. Exact normalized \u201cI don't know\u201d answers account for 84.3%; removing them leaves 182,800 documents. The aggressive filter leaves 173,162 after also removing very short or refusal-like responses. Exact development-query overlap is masked before both RM3 feedback and final retrieval; the audit found zero overlapping documents."
+      },
+      {
+        "id": "retrieval_method",
+        "type": "markdown",
+        "sourceId": "response_retriever",
+        "body": "## BM25 and RM3 search prior model responses\n\nFor each target query, BM25 retrieves response documents using a pinned English analyzer and Lucene-style scoring (`k1=0.9`, `b=0.4`). RM3 is a second pass: it mixes the original query equally with 10 expansion terms estimated from the top 10 first-pass documents. Each model's **SumScore** is the reproducible floating-point sum of its positive retrieved-document scores.\n\nThe preregistered 24 candidates cross two methods (BM25 or RM3), two indexed fields (response only or discovery query plus response), two filters, and depths 100/500/1,000. No model is trained, and neither external data nor logprob metadata is used."
+      },
+      {
+        "id": "nested_selection",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## Nested selection keeps every outer label sealed\n\nFor outer query `o`, each of the 24 candidates is evaluated by leave-one-query-out validation across the other 321 queries. Inner query `i` uses a prior excluding both `o` and `i`; macro inner nDCG@10 selects the candidate, and MRR is never used for selection. The chosen candidate then ranks `o`, with score ties resolved by the outer fold's qrel prior and model ID.\n\n`bm25_rm3__response_only__basic__d500` won 314 folds. The eight alternative selections beat it internally by only 0.0000117 to 0.001569 nDCG@10, revealing high-leverage near-tie instability. The full-development fixed score (0.2930 nDCG@10, 0.3359 MRR) is therefore optimistic; the nested 0.2774/0.3175 result is the leakage-safe headline."
+      },
+      {
+        "id": "uncertainty",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## Paired intervals support one clear TF-IDF gain\n\nAgainst TF-IDF, response retrieval wins/ties/loses **127/124/71** queries on nDCG@10 and **165/42/115** on reciprocal rank. Against the global prior, both intervals are positive: nDCG [+0.1032, +0.1756] and MRR [+0.0727, +0.1503]. Written runs and the 24\u00d7322\u00d7150 score tensor passed the validation receipt."
+      },
+      {
+        "id": "volume_bias",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## SumScore has strong inventory-volume dependence\n\nFor the deployment candidate, retained response inventory correlates 0.839 with total SumScore, -0.925 with mean rank, and 0.651 with top-10 frequency (Spearman). The largest inventory quartile receives 46.6% of top-10 appearances despite containing 24.7% of models.\n\nThis is strong volume dependence and a plausible aggregation bias\u2014not proof of a pure artifact. Inventory also correlates 0.411 with the full-development qrel prior, so response volume partly tracks model quality or coverage."
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## What the estimate does not establish\n\n- This is development-set cross-validation, not hidden-test performance.\n- The fixed deployment score reuses development labels for configuration choice and must not replace the nested estimate.\n- The 10k paired-query bootstrap conditions on the stitched outer predictions. It does not repeat configuration selection or account for dependence among overlapping training folds.\n- Between 13 and 55 models have zero selected retrieval score per query, making fold-local prior tie breaking material.\n- SumScore's volume dependence may not transfer unchanged to hidden data with a different response inventory."
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "body": "## Recommended next experiment\n\n1. Preregister a **volume-normalized response aggregation** grid\u2014such as capped top-response sums and top-response means\u2014while keeping the same retrieval documents and nested protocol.\n2. Compare it directly with frozen SumScore, dense retrieval, TF-IDF, and the fold-local prior; include inventory-dependence diagnostics as a success guardrail.\n3. Only after isolating aggregation effects, add logprobs as a separate feature ablation so confidence and text evidence remain distinguishable."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Does volume normalization preserve the nDCG gain over TF-IDF while reducing inventory correlation?\n- Can a preregistered dense\u2013response fusion improve the queries where the two retrievers make different errors?\n- Does the selected RM3 configuration remain stable on hidden test queries with different response coverage?"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-11T11:38:05Z",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "response_ndcg": 0.2773577839029814,
+          "response_mrr": 0.31753289707886323,
+          "ndcg_delta_vs_tfidf": 0.05970353774117848,
+          "mrr_delta_vs_tfidf": 0.03983722771869114
+        }
+      ],
+      "system_metrics": [
+        {
+          "system_order": 1,
+          "metric_order": 1,
+          "system": "Response nested",
+          "metric": "nDCG@10",
+          "value": 0.2773577839029814,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "internal automatic"
+        },
+        {
+          "system_order": 1,
+          "metric_order": 2,
+          "system": "Response nested",
+          "metric": "MRR",
+          "value": 0.31753289707886323,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "internal automatic"
+        },
+        {
+          "system_order": 2,
+          "metric_order": 1,
+          "system": "Dense nested",
+          "metric": "nDCG@10",
+          "value": 0.359854744095009,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "external automatic"
+        },
+        {
+          "system_order": 2,
+          "metric_order": 2,
+          "system": "Dense nested",
+          "metric": "MRR",
+          "value": 0.4040633081116639,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "external automatic"
+        },
+        {
+          "system_order": 3,
+          "metric_order": 1,
+          "system": "TF-IDF k=10",
+          "metric": "nDCG@10",
+          "value": 0.2176542461618029,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "internal automatic"
+        },
+        {
+          "system_order": 3,
+          "metric_order": 2,
+          "system": "TF-IDF k=10",
+          "metric": "MRR",
+          "value": 0.2776956693601721,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "internal automatic"
+        },
+        {
+          "system_order": 4,
+          "metric_order": 1,
+          "system": "Global prior",
+          "metric": "nDCG@10",
+          "value": 0.1385241823188521,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "internal control"
+        },
+        {
+          "system_order": 4,
+          "metric_order": 2,
+          "system": "Global prior",
+          "metric": "MRR",
+          "value": 0.20665310801034087,
+          "query_count": 322,
+          "evaluation_protocol": "strict outer LOO",
+          "run_classification": "internal control"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "response_results",
+      "label": "Tracked reviewed response-retrieval result snapshot",
+      "path": "reports/trec_2026_response_retrieval_results.json"
+    },
+    {
+      "id": "headline_sql",
+      "label": "Headline response metric extraction",
+      "path": "reports/trec_2026_response_retrieval_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT response_ndcg, response_mrr, ndcg_delta_vs_tfidf, mrr_delta_vs_tfidf\nFROM headline_metrics",
+        "description": "Selects the nested response metrics and paired TF-IDF deltas from an in-memory table loaded from the reviewed result snapshot.",
+        "executed_at": "2026-07-11T11:38:05Z",
+        "tables_used": [
+          "headline_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "strict outer LOO"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro mean over 322 queries with linear positive 0/1/2 qrel gain and log2 rank discount through rank 10.",
+          "MRR: macro mean reciprocal rank of the first candidate with qrel grade greater than zero.",
+          "Response nested: one stitched outer prediction per query after the response candidate is selected only by inner macro nDCG@10."
+        ]
+      }
+    },
+    {
+      "id": "system_metrics_sql",
+      "label": "Four-system metric comparison",
+      "path": "reports/trec_2026_response_retrieval_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT system_order, metric_order, system, metric, value, query_count,\n       evaluation_protocol, run_classification\nFROM system_metrics\nORDER BY system_order, metric_order",
+        "description": "Selects long-form nDCG@10 and MRR rows for response retrieval, dense retrieval, TF-IDF, and the global-prior control.",
+        "executed_at": "2026-07-11T11:38:05Z",
+        "tables_used": [
+          "system_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "strict outer LOO"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro mean over 322 queries with linear positive 0/1/2 qrel gain and log2 rank discount through rank 10.",
+          "MRR: macro mean reciprocal rank of the first candidate with qrel grade greater than zero.",
+          "Response nested: one stitched outer prediction per query after the response candidate is selected only by inner macro nDCG@10."
+        ]
+      }
+    },
+    {
+      "id": "experiment_summary",
+      "label": "Ignored raw experiment summary copied into the tracked snapshot",
+      "path": "artifacts/response_retrieval_baseline/summary.json"
+    },
+    {
+      "id": "validation_receipt",
+      "label": "Ignored run and tensor validation receipt",
+      "path": "artifacts/response_retrieval_baseline/validation.json"
+    },
+    {
+      "id": "response_pipeline",
+      "label": "Tracked exact nested-LOO experiment implementation",
+      "path": "trec_mlm/response_experiment.py"
+    },
+    {
+      "id": "response_retriever",
+      "label": "Tracked pinned BM25/RM3 response retriever",
+      "path": "trec_mlm/response_retrieval.py"
+    },
+    {
+      "id": "development_qrels",
+      "label": "Official TREC development qrels",
+      "path": "data/dev/llm_dev_qrels.txt"
+    },
+    {
+      "id": "discovery_responses",
+      "label": "Official TREC discovery responses",
+      "path": "data/dev/llm_discovery_data.json"
+    }
+  ]
+}

@@ -118,6 +118,26 @@ response ranking directly with the tracked dense per-query reference, the rerun 
 TF-IDF baseline, and the identical fold-local global prior. It does not use logprobs,
 pretrained encoders, or external data, so it is an **internal automatic run**.
 
+On the 322-query development set, the leakage-safe stitched prediction achieved:
+
+| System | nDCG@10 | MRR |
+|---|---:|---:|
+| Frozen dense query-kNN | **0.3599** | **0.4041** |
+| Nested response retrieval | 0.2774 | 0.3175 |
+| TF-IDF query-kNN, fixed `k=10` | 0.2177 | 0.2777 |
+| Training-only global prior | 0.1385 | 0.2067 |
+
+Against TF-IDF, response retrieval improved nDCG@10 by 0.0597 (paired bootstrap 95%
+CI 0.0193 to 0.1003). Its MRR point estimate improved by 0.0398, but that interval
+crossed zero (-0.0030 to 0.0819). Dense query retrieval therefore remains the strongest
+evaluated baseline. Nested selection chose response-only BM25+RM3 with the basic filter
+and depth 500 in 314 of 322 folds. The deployment configuration showed strong response-
+inventory dependence, so the report treats possible volume bias as a material caveat.
+
+The full CPU run took about 63 seconds and peaked at 1.49 GB RSS on a Ryzen AI MAX+
+395. The self-contained, mobile-responsive report is
+[`reports/trec_2026_response_retrieval_baseline.html`](reports/trec_2026_response_retrieval_baseline.html).
+
 ## Data
 
 [`data/dev/file_manifest.tsv`](data/dev/file_manifest.tsv) records the official file

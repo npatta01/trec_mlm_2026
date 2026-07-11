@@ -141,6 +141,38 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/response_retrieval_baseline",
     )
 
+    normalization = commands.add_parser(
+        "response-volume-normalization",
+        help=(
+            "run the nested 144-candidate volume-normalized response retriever "
+            "and independent 24-candidate SumScore control"
+        ),
+    )
+    normalization.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    normalization.add_argument("--qrels", default="data/dev/llm_dev_qrels.txt")
+    normalization.add_argument(
+        "--discovery",
+        default="data/dev/llm_discovery_data.json",
+    )
+    normalization.add_argument(
+        "--dense-per-query",
+        default="reports/trec_2026_dense_query_knn_per_query.tsv",
+        help="validated Baseline 2 per-query metrics used for paired comparisons",
+    )
+    normalization.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    normalization.add_argument("--seed", type=int, default=2026)
+    normalization.add_argument("--show-progress", action="store_true")
+    normalization.add_argument(
+        "--grid-selection-provenance",
+        default=(
+            "advisor_approved_protocol_b6cfa6c_locked_before_effectiveness_scores"
+        ),
+    )
+    normalization.add_argument(
+        "--output-dir",
+        default="artifacts/response_volume_normalization",
+    )
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -215,6 +247,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = run_nested_response_experiment(config)
         paths = write_response_experiment_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "response-volume-normalization":
+        from trec_mlm.response_normalization import (
+            ResponseNormalizationConfig,
+            run_response_normalization_experiment,
+            write_response_normalization_artifacts,
+        )
+
+        config = ResponseNormalizationConfig(
+            query_path=args.queries,
+            qrels_path=args.qrels,
+            discovery_path=args.discovery,
+            dense_per_query_path=args.dense_per_query,
+            bootstrap_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+            show_progress=args.show_progress,
+            grid_selection_provenance=args.grid_selection_provenance,
+        )
+        result = run_response_normalization_experiment(config)
+        paths = write_response_normalization_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
         return 0
 

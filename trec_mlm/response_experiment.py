@@ -645,7 +645,7 @@ def write_response_experiment_artifacts(
                 "target_query_id",
                 "configuration",
                 "model_id",
-                "sum_score",
+                "aggregation_score",
                 "global_prior",
                 "hit_count",
                 "mean_hit_score",
@@ -884,7 +884,7 @@ def _coerce_score_result(
     if not np.isfinite(scores).all():
         raise ValueError("model score tensor must contain only finite values")
     if np.any(scores < 0.0):
-        raise ValueError("SumScore values must be non-negative")
+        raise ValueError("response aggregation scores must be non-negative")
 
     hit_counts = _optional_tensor(
         score_result,
@@ -926,8 +926,8 @@ def _coerce_score_result(
         if hasattr(score_result, name)
     }
     # The retrieval-layer score hash intentionally covers scores *and* the
-    # associated hit/overlap diagnostic arrays.  Record a separate hash for
-    # the C×Q×M SumScore tensor instead of incorrectly comparing the two.
+    # associated hit/overlap diagnostic arrays. Record a separate hash for
+    # the C×Q×M aggregation tensor instead of incorrectly comparing the two.
     metadata["model_score_tensor_sha256"] = _array_sha256(scores)
     return {
         "candidates": actual_candidates,
@@ -1110,11 +1110,12 @@ def _build_diagnostics(
                 if rank <= 10:
                     top10_counts[position] += 1
         mean_ranks = rank_sums / len(query_ids)
-        diagnostics["volume_bias_by_candidate"][key] = {
+        score_spearman = _spearman(inventory, score_totals)
+        candidate_diagnostics = {
             "filter": filter_name,
             "spearman": {
                 "inventory_vs_hit_count": _spearman(inventory, hit_totals),
-                "inventory_vs_sum_score": _spearman(inventory, score_totals),
+                "inventory_vs_aggregation_score": score_spearman,
                 "inventory_vs_mean_rank": _spearman(inventory, mean_ranks),
                 "inventory_vs_top10_frequency": _spearman(
                     inventory,
@@ -1127,6 +1128,12 @@ def _build_diagnostics(
                 model_ids,
             ),
         }
+        if getattr(candidate, "aggregation", "sum_all") == "sum_all":
+            # Backward-compatible alias for the frozen Baseline 3 report.
+            candidate_diagnostics["spearman"][
+                "inventory_vs_sum_score"
+            ] = score_spearman
+        diagnostics["volume_bias_by_candidate"][key] = candidate_diagnostics
     return diagnostics
 
 
@@ -1183,7 +1190,7 @@ def _build_summary(
             "retrieval_representation": "response_level_bm25_or_explicit_rm3",
             "retrieval_scores_are_qrel_free": True,
             "selection_metric": "inner_macro_ndcg_at_10",
-            "selection_tie_break": "declared_24_candidate_order",
+            "selection_tie_break": f"declared_{len(candidates)}_candidate_order",
             "mrr_used_for_selection": False,
             "ranking_tie_break": "fold_local_global_prior_then_model_id",
             "inner_prior_exclusions": "outer_and_inner_query",
@@ -1226,7 +1233,7 @@ def _build_summary(
         "deployment_selection": {
             "configuration": deployment_config,
             "criterion": "full_development_fixed_candidate_ndcg_at_10",
-            "tie_break": "declared_24_candidate_order",
+            "tie_break": f"declared_{len(candidates)}_candidate_order",
             "purpose": "future_hidden_test_queries_only",
             "development_score_is_non_nested_and_optimistic": True,
         },

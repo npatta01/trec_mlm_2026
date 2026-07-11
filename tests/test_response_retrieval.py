@@ -6,15 +6,23 @@ import math
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
+import trec_mlm.response_retrieval as response_retrieval
 from trec_mlm.response_retrieval import (
+    ALL_RESPONSE_AGGREGATIONS,
+    ALL_RESPONSE_CANDIDATES,
     DEFAULT_RESPONSE_CANDIDATES,
     DiscoveryRecord,
     FrozenAnalyzer,
+    NORMALIZED_RESPONSE_AGGREGATIONS,
+    NORMALIZED_RESPONSE_CANDIDATES,
     ResponseCandidate,
+    _aggregate_scores_by_model,
     _build_index,
+    _sumscore_by_model,
     audit_response_filters,
     build_index_text,
     load_discovery_records,
@@ -57,6 +65,72 @@ class CandidateGridTest(unittest.TestCase):
             DEFAULT_RESPONSE_CANDIDATES[0].key,
         )
         self.assertEqual(len({item.key for item in DEFAULT_RESPONSE_CANDIDATES}), 24)
+        self.assertTrue(
+            all(item.aggregation == "sum_all" for item in DEFAULT_RESPONSE_CANDIDATES)
+        )
+
+    def test_normalized_grid_is_aggregation_major_and_combined_grid_is_exact(
+        self,
+    ) -> None:
+        expected = [
+            (aggregation, method, field, filter_name, depth)
+            for aggregation in (
+                "best_hit",
+                "top3_sum",
+                "top10_sum",
+                "top3_mean",
+                "top10_mean",
+                "mean_all",
+            )
+            for method in ("bm25", "bm25_rm3")
+            for field in ("response_only", "query_response")
+            for filter_name in ("basic", "aggressive")
+            for depth in (100, 500, 1000)
+        ]
+        actual = [
+            (
+                item.aggregation,
+                item.method,
+                item.field,
+                item.filter_name,
+                item.depth,
+            )
+            for item in NORMALIZED_RESPONSE_CANDIDATES
+        ]
+
+        self.assertEqual(expected, actual)
+        self.assertEqual(6, len(NORMALIZED_RESPONSE_AGGREGATIONS))
+        self.assertEqual(144, len(NORMALIZED_RESPONSE_CANDIDATES))
+        self.assertEqual(
+            "bm25__response_only__basic__d100__agg_best_hit",
+            NORMALIZED_RESPONSE_CANDIDATES[0].key,
+        )
+        self.assertEqual(
+            "bm25_rm3__query_response__aggressive__d1000__agg_mean_all",
+            NORMALIZED_RESPONSE_CANDIDATES[-1].key,
+        )
+        self.assertEqual(
+            (*DEFAULT_RESPONSE_CANDIDATES, *NORMALIZED_RESPONSE_CANDIDATES),
+            ALL_RESPONSE_CANDIDATES,
+        )
+        self.assertEqual(168, len(ALL_RESPONSE_CANDIDATES))
+        self.assertEqual(168, len({item.key for item in ALL_RESPONSE_CANDIDATES}))
+        self.assertEqual(
+            ("sum_all", *NORMALIZED_RESPONSE_AGGREGATIONS),
+            ALL_RESPONSE_AGGREGATIONS,
+        )
+
+    def test_candidate_rejects_unknown_aggregation_and_preserves_legacy_default(
+        self,
+    ) -> None:
+        implicit = ResponseCandidate("bm25", "response_only", "basic", 100)
+        explicit = ResponseCandidate("bm25", "response_only", "basic", 100, "sum_all")
+
+        self.assertEqual(explicit, implicit)
+        self.assertEqual("sum_all", implicit.aggregation)
+        self.assertEqual("bm25__response_only__basic__d100", implicit.key)
+        with self.assertRaisesRegex(ValueError, "unsupported response aggregation"):
+            ResponseCandidate("bm25", "response_only", "basic", 100, "median")  # type: ignore[arg-type]
 
 
 class DiscoveryLoadingTest(unittest.TestCase):
@@ -195,6 +269,73 @@ class AnalyzerAndFieldTest(unittest.TestCase):
         )
 
 
+class ResponseAggregationTest(unittest.TestCase):
+    def test_every_frozen_formula_matches_hand_calculation(self) -> None:
+        # The ranked documents interleave models while preserving each model's
+        # descending score order.  m0 has >10 hits, m1 has fewer than every
+        # cap, m2 has one hit, and m3 has none.
+        scores = np.asarray(
+            [10, 9, 8, 7, 6, 5, 4, 4, 3, 2, 2, 1, 0.5, 0.5],
+            dtype=np.float64,
+        )
+        document_indices = np.arange(len(scores), dtype=np.int32)
+        document_model_indices = np.asarray(
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 1],
+            dtype=np.int32,
+        )
+
+        aggregates, counts, means = _aggregate_scores_by_model(
+            document_indices,
+            scores,
+            document_model_indices,
+            model_count=4,
+        )
+
+        m0 = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0.5]
+        expected = {
+            "sum_all": [math.fsum(m0), 4.5, 2.0, 0.0],
+            "best_hit": [10.0, 4.0, 2.0, 0.0],
+            "top3_sum": [27.0, 4.5, 2.0, 0.0],
+            "top10_sum": [55.0, 4.5, 2.0, 0.0],
+            "top3_mean": [9.0, 2.25, 2.0, 0.0],
+            "top10_mean": [5.5, 2.25, 2.0, 0.0],
+            "mean_all": [math.fsum(m0) / 11, 2.25, 2.0, 0.0],
+        }
+        self.assertEqual(set(ALL_RESPONSE_AGGREGATIONS), set(aggregates))
+        for aggregation, expected_scores in expected.items():
+            self.assertEqual(np.dtype(np.float64), aggregates[aggregation].dtype)
+            np.testing.assert_array_equal(
+                aggregates[aggregation],
+                np.asarray(expected_scores, dtype=np.float64),
+            )
+        self.assertEqual(np.dtype(np.int32), counts.dtype)
+        np.testing.assert_array_equal(counts, [11, 2, 1, 0])
+        np.testing.assert_array_equal(means, aggregates["mean_all"])
+
+        legacy_sums, legacy_counts, legacy_means = _sumscore_by_model(
+            document_indices,
+            scores,
+            document_model_indices,
+            model_count=4,
+        )
+        np.testing.assert_array_equal(legacy_sums, aggregates["sum_all"])
+        np.testing.assert_array_equal(legacy_counts, counts)
+        np.testing.assert_array_equal(legacy_means, means)
+
+    def test_empty_hit_list_returns_complete_zero_outputs(self) -> None:
+        aggregates, counts, means = _aggregate_scores_by_model(
+            np.asarray([], dtype=np.int32),
+            np.asarray([], dtype=np.float64),
+            np.asarray([], dtype=np.int32),
+            model_count=2,
+        )
+
+        for aggregation in ALL_RESPONSE_AGGREGATIONS:
+            np.testing.assert_array_equal(aggregates[aggregation], np.zeros(2))
+        np.testing.assert_array_equal(counts, np.zeros(2, dtype=np.int32))
+        np.testing.assert_array_equal(means, np.zeros(2))
+
+
 class RetrievalScoringTest(unittest.TestCase):
     def test_bm25_matches_hand_calculation_and_returns_all_models(self) -> None:
         records = _records(
@@ -303,6 +444,81 @@ class RetrievalScoringTest(unittest.TestCase):
             math.fsum([result.mean_hit_scores[1, 0, 0]] * 2),
         )
 
+    def test_aggregation_duplicates_share_one_ranked_retrieval_and_diagnostics(
+        self,
+    ) -> None:
+        records = _records(
+            [
+                ("q1", "source one", "mA", "alpha alpha"),
+                ("q1", "source one", "mB", "alpha"),
+                ("q2", "source two", "mA", "alpha"),
+                ("q2", "source two", "mB", "alpha alpha"),
+            ]
+        )
+        candidates = tuple(
+            ResponseCandidate("bm25", "response_only", "basic", 100, aggregation)
+            for aggregation in ALL_RESPONSE_AGGREGATIONS
+        )
+
+        with (
+            mock.patch.object(
+                response_retrieval,
+                "_score_unweighted_query",
+                wraps=response_retrieval._score_unweighted_query,
+            ) as retrieval_mock,
+            mock.patch.object(
+                response_retrieval,
+                "_aggregate_scores_by_model",
+                wraps=response_retrieval._aggregate_scores_by_model,
+            ) as aggregation_mock,
+        ):
+            result = score_response_candidates(
+                records,
+                query_ids=("target",),
+                query_texts=("alpha",),
+                expected_model_ids=("mA", "mB"),
+                candidates=candidates,
+            )
+
+        repeated = score_response_candidates(
+            records,
+            query_ids=("target",),
+            query_texts=("alpha",),
+            expected_model_ids=("mA", "mB"),
+            candidates=candidates,
+        )
+        self.assertEqual(1, retrieval_mock.call_count)
+        self.assertEqual(1, aggregation_mock.call_count)
+        self.assertEqual(1, len(result.index_diagnostics))
+        np.testing.assert_array_equal(result.model_scores, repeated.model_scores)
+        np.testing.assert_array_equal(result.hit_counts, repeated.hit_counts)
+        np.testing.assert_array_equal(result.mean_hit_scores, repeated.mean_hit_scores)
+        self.assertEqual(result.score_tensor_sha256, repeated.score_tensor_sha256)
+        self.assertEqual(result.configuration_sha256, repeated.configuration_sha256)
+        for candidate_index in range(1, len(candidates)):
+            np.testing.assert_array_equal(
+                result.hit_counts[candidate_index], result.hit_counts[0]
+            )
+            np.testing.assert_array_equal(
+                result.mean_hit_scores[candidate_index],
+                result.mean_hit_scores[0],
+            )
+            np.testing.assert_array_equal(
+                result.overlap_document_counts[candidate_index],
+                result.overlap_document_counts[0],
+            )
+        np.testing.assert_array_equal(result.model_scores[6], result.mean_hit_scores[0])
+        for array in (
+            result.model_scores,
+            result.hit_counts,
+            result.mean_hit_scores,
+            result.overlap_document_counts,
+            result.retained_document_counts,
+            result.retained_character_counts,
+            result.retained_token_counts,
+        ):
+            self.assertFalse(array.flags.writeable)
+
     def test_exact_query_guard_masks_feedback_and_final_retrieval(self) -> None:
         records = _records(
             [
@@ -315,6 +531,8 @@ class RetrievalScoringTest(unittest.TestCase):
         candidates = (
             ResponseCandidate("bm25", "response_only", "basic", 100),
             ResponseCandidate("bm25_rm3", "response_only", "basic", 100),
+            ResponseCandidate("bm25", "response_only", "basic", 100, "top3_mean"),
+            ResponseCandidate("bm25_rm3", "response_only", "basic", 100, "mean_all"),
         )
 
         result = score_response_candidates(
@@ -325,13 +543,18 @@ class RetrievalScoringTest(unittest.TestCase):
             candidates=candidates,
         )
 
-        np.testing.assert_array_equal(result.overlap_document_counts[:, 0], [2, 2])
+        np.testing.assert_array_equal(
+            result.overlap_document_counts[:, 0], [2, 2, 2, 2]
+        )
         # The two overlap documents never reach SumScore (final guard).
         np.testing.assert_array_equal(result.hit_counts[0, 0], [1, 0])
+        np.testing.assert_array_equal(result.hit_counts[2, 0], [1, 0])
         # Their poison terms also never enter feedback, so the poison-only
         # non-overlap document remains ineligible (feedback guard).
         np.testing.assert_array_equal(result.hit_counts[1, 0], [1, 0])
+        np.testing.assert_array_equal(result.hit_counts[3, 0], [1, 0])
         self.assertEqual(0.0, result.model_scores[1, 0, 1])
+        self.assertEqual(0.0, result.model_scores[3, 0, 1])
 
     def test_score_order_hashes_inventory_and_zero_vectors_are_deterministic(
         self,
@@ -364,6 +587,63 @@ class RetrievalScoringTest(unittest.TestCase):
         self.assertEqual(first.index_diagnostics, second.index_diagnostics)
         np.testing.assert_array_equal(first.retained_document_counts[0], [1, 0, 1])
         self.assertFalse(first.model_scores.flags.writeable)
+
+    def test_explicit_sum_all_has_exact_backward_parity_and_formula_hashing(
+        self,
+    ) -> None:
+        records = _records(
+            [
+                ("q1", "source one", "mA", "alpha alpha"),
+                ("q1", "source one", "mB", "alpha"),
+                ("q2", "source two", "mA", "alpha"),
+                ("q2", "source two", "mB", "other"),
+            ]
+        )
+        kwargs = dict(
+            query_ids=("target",),
+            query_texts=("alpha",),
+            expected_model_ids=("mA", "mB"),
+        )
+        implicit = score_response_candidates(
+            records,
+            candidates=(ResponseCandidate("bm25", "response_only", "basic", 100),),
+            **kwargs,
+        )
+        explicit = score_response_candidates(
+            records,
+            candidates=(
+                ResponseCandidate("bm25", "response_only", "basic", 100, "sum_all"),
+            ),
+            **kwargs,
+        )
+
+        self.assertEqual("bm25__response_only__basic__d100", implicit.candidates[0].key)
+        self.assertEqual(implicit.candidates, explicit.candidates)
+        np.testing.assert_array_equal(implicit.model_scores, explicit.model_scores)
+        np.testing.assert_array_equal(implicit.hit_counts, explicit.hit_counts)
+        np.testing.assert_array_equal(
+            implicit.mean_hit_scores, explicit.mean_hit_scores
+        )
+        self.assertEqual(implicit.score_tensor_sha256, explicit.score_tensor_sha256)
+        self.assertEqual(implicit.configuration_sha256, explicit.configuration_sha256)
+
+        altered_definitions = tuple(
+            (name, formula + " [hash-test]") if name == "sum_all" else (name, formula)
+            for name, formula in response_retrieval.RESPONSE_AGGREGATION_DEFINITIONS
+        )
+        with mock.patch.object(
+            response_retrieval,
+            "RESPONSE_AGGREGATION_DEFINITIONS",
+            altered_definitions,
+        ):
+            altered = score_response_candidates(
+                records,
+                candidates=(ResponseCandidate("bm25", "response_only", "basic", 100),),
+                **kwargs,
+            )
+        np.testing.assert_array_equal(implicit.model_scores, altered.model_scores)
+        self.assertEqual(implicit.score_tensor_sha256, altered.score_tensor_sha256)
+        self.assertNotEqual(implicit.configuration_sha256, altered.configuration_sha256)
 
 
 if __name__ == "__main__":

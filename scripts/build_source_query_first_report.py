@@ -277,8 +277,11 @@ def _validate_shape(
         raise ValueError("candidate K values differ from the locked grid")
     if set(summary["comparisons"]) != set(BASELINE_ORDER):
         raise ValueError("summary does not contain the five frozen paired comparisons")
-    if tuple(summary["decision"]["gates"]) != GATE_KEYS:
-        raise ValueError("decision gates or declaration order differ from the lock")
+    # Canonical JSON is written with sorted keys, so mapping insertion order is not
+    # preserved on disk.  The report restores the locked presentation order from
+    # GATE_KEYS below; validation therefore checks exact membership here.
+    if set(summary["decision"]["gates"]) != set(GATE_KEYS):
+        raise ValueError("decision gates differ from the lock")
     if set(summary["selection"]["configuration_frequency"]) - set(CANDIDATE_ORDER):
         raise ValueError("selection contains an undeclared configuration")
     if sum(summary["selection"]["configuration_frequency"].values()) != 322:

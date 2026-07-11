@@ -181,6 +181,62 @@ and decisions. It uses no GPU, log probabilities, or score fusion. The self-cont
 plain-language report is
 [`reports/trec_2026_response_volume_normalization.html`](reports/trec_2026_response_volume_normalization.html).
 
+### Follow-up: source-query-first answer alignment
+
+This follow-up asks a different question: after finding older queries related to the
+new target, can each model be scored by how well its stored answer addresses its own
+older source query? Every selected source query retains all 150 model slots. Missing,
+blank, exact `I don't know`, and frozen-prefix refusal responses remain in the local
+BM25 corpus and score zero, so models with more stored usable answers do not receive
+extra source-query opportunities.
+
+The leakage-safe, CPU-only protocol was advisor-approved and committed before
+effectiveness scoring in
+[`protocols/trec_2026_source_query_first.md`](protocols/trec_2026_source_query_first.md).
+A qrel-free feasibility stop found that one target had only 85 positive source-query
+matches, so the original `K={10,50,100}` grid could not be evaluated. No effectiveness
+artifact was written. The advisor-approved amendment changed only the grid to
+`K={10,20,40}` before scoring; target-to-response relevance remained a diagnostic and
+could not select `K`, gate the result, or enter the primary score.
+
+Run the official experiment twice and build the independently checked report source
+with:
+
+```bash
+uv run --extra response trec-mlm source-query-first \
+  --output-dir artifacts/source_query_first
+uv run --extra response trec-mlm source-query-first \
+  --output-dir artifacts/source_query_first_rerun
+uv run python scripts/build_source_query_first_report.py
+```
+
+Nested validation selected `K=40` in all 322 held-out folds. The primary result was
+weaker than SumScore, Top10Sum, TF-IDF, and dense query retrieval, but stronger than the
+fold-local global prior:
+
+| System | nDCG@10 | MRR |
+|---|---:|---:|
+| Frozen dense query-kNN | **0.3599** | **0.4041** |
+| Top10Sum response retrieval | 0.2892 | 0.3283 |
+| SumScore response control | 0.2774 | 0.3175 |
+| TF-IDF query-kNN, fixed `k=10` | 0.2177 | 0.2777 |
+| Source-query-first alignment | 0.2033 | 0.2482 |
+| Training-only global prior | 0.1385 | 0.2067 |
+
+Source-query-first minus SumScore was -0.0741 nDCG@10, with paired 95% CI -0.1040
+to -0.0449. It passed none of the four locked gates: it was not clearly above TF-IDF,
+was not within 0.010 nDCG@10 of SumScore, had absolute response-inventory correlation
+0.8019 against a 0.7388 maximum, and gave the largest inventory quartile 50.4% of
+top-10 placements against a 41.1% maximum. The locked recommendation is therefore to
+retain SumScore and stop the source-query-first branch, subject to the explicit owner
+decision required by the protocol.
+
+Both official runs reproduced the decision receipt and the merged PR #8 SumScore and
+Top10Sum run files byte-for-byte. The first run took about 142 CPU seconds and peaked at
+1.63 GB RSS. The self-contained report explains the task, leakage controls, metrics,
+uncertainty, and volume diagnostics in phone-friendly language:
+[`reports/trec_2026_source_query_first.html`](reports/trec_2026_source_query_first.html).
+
 ## Data
 
 [`data/dev/file_manifest.tsv`](data/dev/file_manifest.tsv) records the official file

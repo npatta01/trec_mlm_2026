@@ -173,6 +173,36 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/response_volume_normalization",
     )
 
+    source_first = commands.add_parser(
+        "source-query-first",
+        help=(
+            "run the advisor-locked source-query-first answer-alignment "
+            "experiment and frozen response controls"
+        ),
+    )
+    source_first.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    source_first.add_argument("--qrels", default="data/dev/llm_dev_qrels.txt")
+    source_first.add_argument(
+        "--discovery",
+        default="data/dev/llm_discovery_data.json",
+    )
+    source_first.add_argument(
+        "--dense-per-query",
+        default="reports/trec_2026_dense_query_knn_per_query.tsv",
+        help="validated Baseline 2 per-query metrics used for paired comparisons",
+    )
+    source_first.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    source_first.add_argument("--seed", type=int, default=2026)
+    source_first.add_argument("--show-progress", action="store_true")
+    source_first.add_argument(
+        "--grid-selection-provenance",
+        default="advisor_approved_source_query_first_protocol_locked_at_459e545",
+    )
+    source_first.add_argument(
+        "--output-dir",
+        default="artifacts/source_query_first",
+    )
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -269,6 +299,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = run_response_normalization_experiment(config)
         paths = write_response_normalization_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "source-query-first":
+        from trec_mlm.source_query_experiment import (
+            SourceQueryExperimentConfig,
+            run_source_query_experiment,
+            write_source_query_experiment_artifacts,
+        )
+
+        config = SourceQueryExperimentConfig(
+            query_path=args.queries,
+            qrels_path=args.qrels,
+            discovery_path=args.discovery,
+            dense_per_query_path=args.dense_per_query,
+            bootstrap_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+            show_progress=args.show_progress,
+            grid_selection_provenance=args.grid_selection_provenance,
+        )
+        result = run_source_query_experiment(config)
+        paths = write_source_query_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
         return 0
 

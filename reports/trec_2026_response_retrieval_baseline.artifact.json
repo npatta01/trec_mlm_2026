@@ -5,7 +5,7 @@
     "surface": "report",
     "title": "TREC 2026 Response Retrieval Baseline",
     "description": "Nested evaluation of response-level BM25 and RM3 retrieval against dense query retrieval, TF-IDF, and a fold-local global prior.",
-    "generatedAt": "2026-07-11T11:55:17Z",
+    "generatedAt": "2026-07-11T11:57:25Z",
     "cards": [
       {
         "id": "response_ndcg",
@@ -203,7 +203,7 @@
         "id": "scope_definitions",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## Scope, corpus, and metric definitions\n\nThis snapshot is as of **July 11, 2026 at 11:55 UTC**. Evaluation covers 322 development queries, 150 candidate models, and 48,300 complete qrels. nDCG@10 uses linear positive 0/1/2 gains through rank 10; MRR uses the reciprocal rank of the first model with grade above zero. All four systems rank the same candidates.\n\nThe organizer discovery corpus contains 1,163,850 responses. Exact normalized \u201cI don't know\u201d answers account for 84.3%; removing them leaves 182,800 documents. The aggressive filter leaves 173,162 after also removing very short or refusal-like responses. Exact development-query overlap is masked before both RM3 feedback and final retrieval; the audit found zero overlapping documents."
+        "body": "## Scope, corpus, and metric definitions\n\nThis snapshot is as of **July 11, 2026 at 11:57 UTC**. Evaluation covers 322 development queries, 150 candidate models, and 48,300 complete qrels. nDCG@10 uses linear positive 0/1/2 gains through rank 10; MRR uses the reciprocal rank of the first model with grade above zero. All four systems rank the same candidates.\n\nThe organizer discovery corpus contains 1,163,850 responses. Exact normalized \u201cI don't know\u201d answers account for 84.3%; removing them leaves 182,800 documents. The aggressive filter leaves 173,162 after also removing very short or refusal-like responses. Exact development-query overlap is masked before both RM3 feedback and final retrieval; the audit found zero overlapping documents."
       },
       {
         "id": "retrieval_method",
@@ -249,7 +249,7 @@
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-07-11T11:55:17Z",
+    "generatedAt": "2026-07-11T11:57:25Z",
     "status": "ready",
     "datasets": {
       "headline": [
@@ -359,7 +359,7 @@
         "language": "sql",
         "sql": "SELECT response_ndcg, response_mrr, ndcg_delta_vs_tfidf, mrr_delta_vs_tfidf\nFROM headline_metrics",
         "description": "Selects the nested response metrics and paired TF-IDF deltas from an in-memory table loaded from the reviewed result snapshot.",
-        "executed_at": "2026-07-11T11:55:17Z",
+        "executed_at": "2026-07-11T11:57:25Z",
         "tables_used": [
           "headline_metrics"
         ],
@@ -383,7 +383,7 @@
         "language": "sql",
         "sql": "SELECT system_order, metric_order, system, metric, value, query_count,\n       evaluation_protocol, run_classification\nFROM system_metrics\nORDER BY system_order, metric_order",
         "description": "Selects long-form nDCG@10 and MRR rows for response retrieval, dense retrieval, TF-IDF, and the global-prior control.",
-        "executed_at": "2026-07-11T11:55:17Z",
+        "executed_at": "2026-07-11T11:57:25Z",
         "tables_used": [
           "system_metrics"
         ],

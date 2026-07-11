@@ -256,7 +256,7 @@
     }
   },
   "configuration": {
-    "code_revision": "8b597e630c8acda0466a813359b176f255b9b3fc",
+    "code_revision": "cfb21e145aaaa8df05affb677f3fc3eec1deb8f0",
     "code_sha256": {
       "experiment.py": "f42888e62cc12d53d3edcf645852c1a0cdcce36a383a0f4ee84c9c92495da915",
       "metrics.py": "cdb7d320aeb4a953f5771cc69f1c6cc10cebc08727a577ed1954934feda60e0d",
@@ -315,17 +315,17 @@
   "evidence_inputs": [
     {
       "path": "artifacts/response_retrieval_baseline/summary.json",
-      "sha256": "2a3c370b5d9a6495361513ed370ecbd178e7bd0b12841c20ea5d29521f183047",
+      "sha256": "9a462bbce588ab2680be79d9abe50271032c91131d0803a98765ab672b52f8ec",
       "tracked": false
     },
     {
       "path": "artifacts/response_retrieval_baseline/validation.json",
-      "sha256": "d1589c9346db98a50326285bd44314f518bffc80f4d3165d1f8b7ff41acbf1a4",
+      "sha256": "1a57116c3173921cfccb1dbd833cc042f657c7c78ad35ac1643f26ca22140e10",
       "tracked": false
     },
     {
       "path": "artifacts/response_retrieval_baseline/config.json",
-      "sha256": "6f4a0246cdc36a17f83ba440150758d054c764ff7289dd0105b507e6b8ea1106",
+      "sha256": "d118024328c3b9ab4d62c6f05864b622fd6d1138c9a1b77d4c2a367605251455",
       "tracked": false
     },
     {
@@ -659,9 +659,9 @@
     }
   },
   "runtime": {
-    "experiment_core_seconds_excluding_summary_and_artifact_writes": 60.80989950499497,
-    "experiment_seconds_through_summary": 64.06051122298231,
-    "summary_seconds_including_bootstrap": 3.2506110570102464
+    "experiment_core_seconds_excluding_summary_and_artifact_writes": 58.98390405200189,
+    "experiment_seconds_through_summary": 62.19094495198806,
+    "summary_seconds_including_bootstrap": 3.2070398879877757
   },
   "selection": {
     "configuration_frequency": {
@@ -682,7 +682,7 @@
     "deployment_fold_count": 314,
     "deployment_fold_share": 0.9751552795031055
   },
-  "snapshot_as_of": "2026-07-11T11:55:17Z",
+  "snapshot_as_of": "2026-07-11T11:57:25Z",
   "validation": {
     "inputs": {
       "candidate_model_count": 150,

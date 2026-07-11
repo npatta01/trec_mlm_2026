@@ -65,7 +65,9 @@ expected counts must not change after effectiveness scores are inspected.
 - Backend: `bm25s==0.3.9`, NumPy scorer and CSC backend, `auto_compile=False`.
 - Numeric types: float64 scores and int32 term/document indices.
 - Analyzer: Unicode NFKC; lowercase; regex `(?u)\b\w\w+\b`; the 33-word
-  `bm25s.stopwords.STOPWORDS_EN` list; `PyStemmer==3.1.0` English stemming.
+  `bm25s.stopwords.STOPWORDS_EN` list (sorted-JSON SHA-256
+  `fa4d8d14ba2c243e3f1b72e6124bd46141e6ea1bfadef22c5b0bb70bd602c9c8`);
+  `PyStemmer==3.1.0` English stemming.
 - Vocabulary: analyzed terms sorted lexicographically before IDs are assigned. The
   backend must not construct its set-derived vocabulary.
 - BM25: Lucene method and IDF, `k1=0.9`, `b=0.4`.

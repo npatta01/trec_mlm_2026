@@ -1,0 +1,4 @@
+# Large or unreleased official TREC data files stay local.
+/llm_discovery_data.json
+/llm_discovery_metadata.json
+/llm_test_data.tsv

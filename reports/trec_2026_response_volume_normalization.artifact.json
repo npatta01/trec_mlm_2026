@@ -1,0 +1,1308 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Capping past-answer evidence improved ranking\u2014but not volume risk",
+    "description": "A general-audience, leakage-safe evaluation of capped and averaged historical-response aggregation for TREC Million LLMs 2026.",
+    "generatedAt": "2026-07-11T17:40:34Z",
+    "cards": [
+      {
+        "id": "ranking_quality",
+        "description": "Nested top-10 ranking quality. The comparison is Top10Sum minus the independently nested SumScore control.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Top10Sum nDCG@10",
+            "field": "normalized_ndcg",
+            "format": "number"
+          },
+          {
+            "label": "vs SumScore",
+            "field": "ndcg_delta_vs_sumscore",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "inventory_rho",
+        "description": "Absolute inventory-score association for the full-development deployment configuration. Lower is better; this gate failed.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Inventory correlation",
+            "field": "inventory_rho",
+            "format": "number"
+          },
+          {
+            "label": "Maximum allowed",
+            "field": "inventory_rho_gate",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "largest_quartile",
+        "description": "Share of all 3,220 top-10 placements received by the 37 models with the most usable historical answers. Lower is better; this gate failed.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Largest-quartile share",
+            "field": "largest_quartile_share",
+            "format": "percent"
+          },
+          {
+            "label": "Maximum allowed",
+            "field": "largest_quartile_gate",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "gate_result",
+        "description": "The protocol required all four effectiveness and bias gates to pass.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Gates passed",
+            "field": "passed_gate_count",
+            "format": "number"
+          },
+          {
+            "label": "Gates required",
+            "field": "gate_count",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "system_metric_comparison",
+        "title": "Model-ranking scores by approach",
+        "subtitle": "Same 322 held-out queries and 150 candidate models; both metrics range from 0 to 1 and higher is better.",
+        "type": "horizontalBar",
+        "dataset": "system_metrics",
+        "sourceId": "system_metrics_sql",
+        "intent": "comparison",
+        "question": "Which approach ranks useful models earliest?",
+        "rationale": "Grouped bars compare both official ranking metrics on one common scale.",
+        "comparisonContext": {
+          "denominator": "322 development queries",
+          "grain": "one held-out model ranking per query",
+          "normalization": "macro average from 0 to 1",
+          "unit": "score"
+        },
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "Approach"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "label": "Score",
+            "format": "number"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "query_count",
+              "type": "quantitative",
+              "label": "Queries"
+            },
+            {
+              "field": "evaluation_protocol",
+              "type": "text",
+              "label": "Evaluation"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Metric"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 10
+      },
+      {
+        "id": "query_outcomes_chart",
+        "title": "Per-query nDCG@10 outcomes",
+        "subtitle": "Share of 322 paired queries; better and worse refer to Top10Sum relative to each named baseline.",
+        "type": "horizontalStackedBar100",
+        "dataset": "query_outcomes",
+        "sourceId": "query_outcomes_sql",
+        "intent": "composition",
+        "question": "How often did Top10Sum beat, tie, or lose to each baseline?",
+        "rationale": "Normalized stacks show query-level composition while tooltips retain the paired mean difference and interval.",
+        "comparisonContext": {
+          "denominator": "322 paired queries per baseline",
+          "grain": "one held-out query",
+          "normalization": "each bar sums to 100%",
+          "unit": "share of queries"
+        },
+        "encodings": {
+          "x": {
+            "field": "baseline",
+            "type": "nominal",
+            "label": "Baseline"
+          },
+          "y": {
+            "field": "outcome_count",
+            "type": "quantitative",
+            "label": "Queries"
+          },
+          "color": {
+            "field": "outcome",
+            "type": "nominal",
+            "label": "Top10Sum outcome"
+          },
+          "tooltip": [
+            {
+              "field": "outcome_share",
+              "type": "quantitative",
+              "label": "Query share",
+              "format": "percent"
+            },
+            {
+              "field": "mean_ndcg_difference",
+              "type": "quantitative",
+              "label": "Average nDCG difference"
+            },
+            {
+              "field": "ci_lower",
+              "type": "quantitative",
+              "label": "95% interval lower"
+            },
+            {
+              "field": "ci_upper",
+              "type": "quantitative",
+              "label": "95% interval upper"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "groupMode": "stacked100"
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Top10Sum outcome"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "layout": "full",
+        "maxRows": 9
+      },
+      {
+        "id": "bias_gate_comparison",
+        "title": "Volume-dependence checks",
+        "subtitle": "Deployment behavior on all development queries; lower is better and Top10Sum had to be at or below each maximum.",
+        "type": "bar",
+        "dataset": "bias_gates",
+        "sourceId": "bias_gates_sql",
+        "intent": "comparison",
+        "question": "Did Top10Sum reduce either preregistered volume signal?",
+        "rationale": "Grouped bars put each observed value beside its baseline and locked maximum.",
+        "comparisonContext": {
+          "denominator": "150 models and 3,220 top-10 placements",
+          "grain": "one deployment behavior diagnostic",
+          "normalization": "unitless values from 0 to 1",
+          "unit": "value"
+        },
+        "encodings": {
+          "x": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Diagnostic"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "label": "Value",
+            "format": "number"
+          },
+          "color": {
+            "field": "series",
+            "type": "nominal",
+            "label": "Series"
+          },
+          "tooltip": [
+            {
+              "field": "lower_is_better",
+              "type": "text",
+              "label": "Lower is better"
+            },
+            {
+              "field": "model_count",
+              "type": "quantitative",
+              "label": "Models"
+            },
+            {
+              "field": "top10_position_count",
+              "type": "quantitative",
+              "label": "Top-10 positions"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "vertical",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Series"
+        },
+        "labels": {
+          "values": "all"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 6
+      },
+      {
+        "id": "inventory_quartile_comparison",
+        "title": "Top-10 placement share by response inventory",
+        "subtitle": "Models split into four deterministic groups by usable historical-answer count; balanced exposure would roughly follow each group's model share.",
+        "type": "bar",
+        "dataset": "inventory_quartiles",
+        "sourceId": "inventory_quartiles_sql",
+        "intent": "comparison",
+        "question": "Where did the extra Top10Sum concentration occur?",
+        "rationale": "Grouped shares compare representation under both response systems with the number of models available in each group.",
+        "comparisonContext": {
+          "denominator": "150 models and 3,220 top-10 placements",
+          "grain": "response-inventory quartile",
+          "normalization": "shares sum to 100% within each series",
+          "unit": "share"
+        },
+        "encodings": {
+          "x": {
+            "field": "inventory_group",
+            "type": "ordinal",
+            "label": "Usable historical answers"
+          },
+          "y": {
+            "field": "share",
+            "type": "quantitative",
+            "label": "Share",
+            "format": "percent"
+          },
+          "color": {
+            "field": "series",
+            "type": "nominal",
+            "label": "Share type"
+          },
+          "tooltip": [
+            {
+              "field": "model_count",
+              "type": "quantitative",
+              "label": "Models in group"
+            },
+            {
+              "field": "inventory_min",
+              "type": "quantitative",
+              "label": "Fewest retained answers"
+            },
+            {
+              "field": "inventory_max",
+              "type": "quantitative",
+              "label": "Most retained answers"
+            },
+            {
+              "field": "sumscore_top10_appearances",
+              "type": "quantitative",
+              "label": "SumScore placements"
+            },
+            {
+              "field": "top10sum_top10_appearances",
+              "type": "quantitative",
+              "label": "Top10Sum placements"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "vertical",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "What is being shared"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0.25,
+            "label": "Roughly even share",
+            "color": "neutral",
+            "lineStyle": "dashed"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 12
+      }
+    ],
+    "tables": [],
+    "sources": [
+      {
+        "id": "reviewed_results",
+        "label": "Reviewed response-volume normalization result snapshot",
+        "path": "reports/trec_2026_response_volume_normalization_results.json"
+      },
+      {
+        "id": "headline_sql",
+        "label": "Headline normalization metrics",
+        "path": "reports/trec_2026_response_volume_normalization_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT normalized_ndcg, ndcg_delta_vs_sumscore, normalized_mrr, mrr_delta_vs_sumscore, inventory_rho, inventory_rho_gate, largest_quartile_share, largest_quartile_gate, passed_gate_count, gate_count FROM headline_metrics",
+          "description": "Selects the headline effectiveness, volume, and gate values from an in-memory table loaded from the reviewed result snapshot.",
+          "executed_at": "2026-07-11T17:40:34Z",
+          "tables_used": [
+            "headline_metrics"
+          ],
+          "filters": [
+            "322 official development queries",
+            "150 candidate models",
+            "strict nested leave-one-query-out",
+            "advisor-approved grid locked before effectiveness scoring"
+          ],
+          "metric_definitions": [
+            "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+            "MRR: macro reciprocal rank of the first positively judged model.",
+            "Inventory correlation: Spearman association between retained response count and aggregate retrieval score.",
+            "Largest-quartile share: share of 3,220 deployment top-10 placements received by the 37 models with the largest basic-filter response inventories."
+          ]
+        }
+      },
+      {
+        "id": "system_metrics_sql",
+        "label": "Five-system effectiveness comparison",
+        "path": "reports/trec_2026_response_volume_normalization_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT system_order, metric_order, system, metric, value, query_count, evaluation_protocol, higher_is_better FROM system_metrics ORDER BY system_order, metric_order",
+          "description": "Selects held-out nDCG@10 and MRR for the five retained systems.",
+          "executed_at": "2026-07-11T17:40:34Z",
+          "tables_used": [
+            "system_metrics"
+          ],
+          "filters": [
+            "322 official development queries",
+            "strict nested LOO"
+          ],
+          "metric_definitions": [
+            "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+            "MRR: macro reciprocal rank of the first positively judged model."
+          ]
+        }
+      },
+      {
+        "id": "query_outcomes_sql",
+        "label": "Paired per-query nDCG outcomes",
+        "path": "reports/trec_2026_response_volume_normalization_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT comparison_order, outcome_order, baseline, outcome, outcome_count, outcome_share, query_count, mean_ndcg_difference, ci_lower, ci_upper FROM query_outcomes ORDER BY comparison_order, outcome_order",
+          "description": "Selects paired Top10Sum win, tie, and loss counts with bootstrap context.",
+          "executed_at": "2026-07-11T17:40:34Z",
+          "tables_used": [
+            "query_outcomes"
+          ],
+          "filters": [
+            "322 paired queries",
+            "nDCG@10",
+            "10,000 resamples"
+          ],
+          "metric_definitions": [
+            "Mean difference and confidence bounds are Top10Sum minus the named baseline."
+          ]
+        }
+      },
+      {
+        "id": "bias_gates_sql",
+        "label": "Deployment volume-gate comparison",
+        "path": "reports/trec_2026_response_volume_normalization_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT metric_order, series_order, metric, series, value, role, lower_is_better, top10_position_count, model_count FROM bias_gates ORDER BY metric_order, series_order",
+          "description": "Selects SumScore, Top10Sum, and maximum-allowed values for both preregistered deployment-volume diagnostics.",
+          "executed_at": "2026-07-11T17:40:34Z",
+          "tables_used": [
+            "bias_gates"
+          ],
+          "filters": [
+            "150 models",
+            "3,220 deployment top-10 placements"
+          ],
+          "metric_definitions": [
+            "Inventory-score correlation is Spearman rho; lower absolute magnitude is better.",
+            "Largest-quartile share is the placement share received by the 37 models with most retained responses."
+          ]
+        }
+      },
+      {
+        "id": "inventory_quartiles_sql",
+        "label": "Response-inventory quartile representation",
+        "path": "reports/trec_2026_response_volume_normalization_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT quartile_order, series_order, inventory_group, series, share, model_count, inventory_min, inventory_max, sumscore_top10_appearances, top10sum_top10_appearances FROM inventory_quartiles ORDER BY quartile_order, series_order",
+          "description": "Selects model and top-10 placement shares for deterministic response-inventory quartiles.",
+          "executed_at": "2026-07-11T17:40:34Z",
+          "tables_used": [
+            "inventory_quartiles"
+          ],
+          "filters": [
+            "basic response filter",
+            "150 models",
+            "3,220 placements"
+          ],
+          "metric_definitions": [
+            "Each placement series sums to 100%; model shares sum to 100%."
+          ]
+        }
+      },
+      {
+        "id": "locked_protocol",
+        "label": "Advisor-approved normalization preregistration",
+        "path": "protocols/trec_2026_response_volume_normalization.md"
+      },
+      {
+        "id": "primary_summary",
+        "label": "Primary official experiment summary",
+        "path": "artifacts/response_volume_normalization/summary.json"
+      },
+      {
+        "id": "primary_validation",
+        "label": "Complete-run and provenance validation receipt",
+        "path": "artifacts/response_volume_normalization/validation.json"
+      },
+      {
+        "id": "deterministic_rerun",
+        "label": "Independent full deterministic rerun",
+        "path": "artifacts/response_volume_normalization_rerun/summary.json"
+      },
+      {
+        "id": "normalization_pipeline",
+        "label": "Tracked nested normalization implementation",
+        "path": "trec_mlm/response_normalization.py"
+      },
+      {
+        "id": "response_retriever",
+        "label": "Tracked shared BM25/RM3 response retriever",
+        "path": "trec_mlm/response_retrieval.py"
+      },
+      {
+        "id": "development_qrels",
+        "label": "Official TREC development relevance judgments",
+        "path": "data/dev/llm_dev_qrels.txt"
+      },
+      {
+        "id": "discovery_responses",
+        "label": "Official TREC historical discovery responses",
+        "path": "data/dev/llm_discovery_data.json"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Capping past-answer evidence improved ranking\u2014but not volume risk"
+      },
+      {
+        "id": "executive_summary",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Executive Summary\n\n- **Keep SumScore as the response-search control.** Top10Sum raised nested nDCG@10 from **0.2774** to **0.2892**, but the locked rule required all four effectiveness and volume-bias gates to pass; only two passed.\n\n- **The ranking signal is real enough to study, but not decisive versus SumScore.** The nDCG point difference was **+0.0119** with a paired 95% interval of **[-0.0031, 0.0265]**. The interval includes zero.\n\n- **Both preregistered deployment-volume checks worsened.** Inventory-score correlation rose from **0.839** to **0.889**, and the largest inventory group received **48.3%** of top-10 placements instead of falling to 41.1% or less.\n\n- **Dense query search remains the best tested baseline.** It scored **0.3599 nDCG@10 / 0.4041 MRR**, versus Top10Sum's **0.2892 / 0.3283**."
+      },
+      {
+        "id": "task_primer",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## What is this experiment trying to do?\n\nFor each new question, the system must rank the same **150 candidate language models**. A good ranking puts models judged useful for that question near the top. The evaluation contains **322 development queries**.\n\nA **historical response** here means one organizer-provided answer from one model for an earlier discovery query. It does **not** mean the last assistant message in a chat. Response search finds earlier answers related to the new question, then credits the models that produced them.\n\nThe comparison chart also includes **dense semantic query search**, **TF-IDF keyword query search**, and a **query-blind global prior** that ranks models only by their other development grades."
+      },
+      {
+        "id": "metric_guide",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## How to read the scores\n\n- **nDCG@10** measures the quality and order of the first ten models. Higher is better; 1 is ideal. This is the primary metric.\n- **MRR** measures how early the first useful model appears. First place scores 1, second 0.5, and fifth 0.2. Higher is better.\n- A **paired 95% interval** describes uncertainty in the average difference over the same queries. If it crosses zero, the observed direction is not decisive at that interval level."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "ranking_quality",
+          "inventory_rho",
+          "largest_quartile",
+          "gate_result"
+        ]
+      },
+      {
+        "id": "effectiveness_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Top10Sum clearly beat TF-IDF, while its advantage over SumScore remains uncertain\n\nTop10Sum reached **0.2892 nDCG@10** and **0.3283 MRR**. It was clearly above TF-IDF: the paired nDCG difference was **+0.0716**, with a 95% interval of **[0.0323, 0.1114]**. Dense query search remained higher by about **0.0706 nDCG**."
+      },
+      {
+        "id": "system_chart",
+        "type": "chart",
+        "chartId": "system_metric_comparison",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "aggregation_explainer",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## What changed from SumScore?\n\n**SumScore** adds every positive retrieved answer score for a model. A model with many searchable answers has more chances to accumulate points.\n\nBefore looking at these results, the experiment locked six alternatives:\n\n1. **BestHit:** keep only the strongest matching answer.\n2. **Top3Sum / Top10Sum:** add only each model's own strongest 3 or 10 matches, using every available match when fewer than the cap exist.\n3. **Top3Mean / Top10Mean:** average those strongest matches.\n4. **MeanAll:** average every retrieved match.\n\nNested validation selected **Top10Sum in all 322 outer folds**. That cap limits how many answers directly contribute to one model's score, but it does not equalize each model's chance of having ten strong matches."
+      },
+      {
+        "id": "pipeline_explainer",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## How leakage was prevented\n\nEach outer query was hidden. The system tested the 144 normalized setups only on the other 321 queries, selected the highest inner nDCG@10, and then ranked the hidden query once. The hidden query's grades never chose its own setup. SumScore repeated the same process separately across its 24 setups.\n\n`Seal 1 query \u2192 choose on the other 321 \u2192 rank 150 models \u2192 reveal grades \u2192 repeat 322 times`\n\nThe selected search used **BM25+RM3** over query-plus-response text. BM25 is lexical term matching. **RM3 is a query-expansion step**: an initial search suggests related terms and the search is rerun. RM3 is not a language model."
+      },
+      {
+        "id": "paired_outcomes_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## The average lift over SumScore came from a minority of changed queries\n\nTop10Sum beat SumScore on **77** queries, tied on **181**, and lost on **64** for nDCG@10. The point estimate favored Top10Sum, but the paired interval **[-0.0031, 0.0265]** still includes no difference."
+      },
+      {
+        "id": "query_outcomes",
+        "type": "chart",
+        "chartId": "query_outcomes_chart",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "bias_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## The cap did not solve response-volume dependence\n\nThe locked inventory-correlation maximum was **0.7388**. Top10Sum measured **0.8894**, worse than SumScore's **0.8388**. The largest inventory quartile also received **48.3%** of placements, above SumScore's **46.6%** and the 41.1% maximum.\n\nA plausible interpretation is that models with larger inventories still have more opportunities to supply ten strong matches. This is an inference, not proof of causation."
+      },
+      {
+        "id": "bias_gate_chart",
+        "type": "chart",
+        "chartId": "bias_gate_comparison",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "inventory_chart",
+        "type": "chart",
+        "chartId": "inventory_quartile_comparison",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "decision_table",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## The preregistered decision\n\n| Required gate | Result | Observed |\n|---|---:|---:|\n| Inventory correlation \u2264 0.7388 | Fail | 0.8894 |\n| Largest-quartile share \u2264 41.1% | Fail | 48.3% |\n| Clearly better than TF-IDF | Pass | CI lower bound +0.0323 |\n| Within 0.010 nDCG of SumScore | Pass | nDCG difference +0.0119 |\n\nThe rule required **all four gates**. Because the two volume gates failed, the correct decision is to retain SumScore as the response-retrieval control and stop this aggregation branch\u2014even though Top10Sum's point effectiveness was higher."
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## What should happen next?\n\n1. **Do not promote Top10Sum as the new response baseline.** Keep SumScore as the stable response-search control.\n2. **Keep dense query retrieval as the strongest overall baseline.** It still leads both ranking metrics by a material margin.\n3. **Do not add log probabilities or fusion as a post-hoc continuation of this branch.** The locked stop rule says to stop here. Any future response-retrieval approach needs a new question, a newly reviewed protocol, and a mechanism aimed at equalizing retrieval opportunity\u2014not merely score totals."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Does the inventory relationship reflect response quantity, model quality, or both? The current association cannot separate them.\n- Would a future model-balanced retrieval design reduce opportunity differences without discarding useful semantic evidence? This would require a new preregistration, not a tweak to the finished run.\n- Why does dense query search remain substantially stronger, and can its errors be characterized without tuning on the held-out answers?"
+      },
+      {
+        "id": "technical_details",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Reproducibility and caveats\n\n- The CPU-only experiment used one shared BM25/RM3 retrieval pass for all seven aggregations; no GPU and no log probabilities were used.\n- A full second run reproduced every decision-relevant file and all score-tensor hashes exactly; only elapsed time differed.\n- The SumScore control reproduced Baseline 3 exactly, including rankings, metrics, selection counts, and deployment configuration.\n- Inventory diagnostics measure association, not causal unfairness. Stronger models may legitimately have more historical answers.\n- Full-development deployment diagnostics are intentionally optimistic and serve only as behavior gates; nested outer-fold metrics support effectiveness claims.\n- Secondary fold-by-fold evidence was mixed: mean inventory correlation fell slightly from 0.5559 to 0.5464, while largest-quartile placement share rose from 46.8% to 48.3%. Both preregistered deployment-volume gates still worsened.\n- Neither system's stitched top ten used zero-score models or score ties resolved by the qrel prior; both fractions were 0%."
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-11T17:40:34Z",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "normalized_ndcg": 0.2892254323622026,
+          "ndcg_delta_vs_sumscore": 0.011867648459221225,
+          "normalized_mrr": 0.3282546454493165,
+          "mrr_delta_vs_sumscore": 0.010721748370453255,
+          "inventory_rho": 0.8894471379126866,
+          "inventory_rho_gate": 0.7388,
+          "largest_quartile_share": 0.4832298136645963,
+          "largest_quartile_gate": 0.411,
+          "passed_gate_count": 2,
+          "gate_count": 4
+        }
+      ],
+      "system_metrics": [
+        {
+          "system_order": 1,
+          "metric_order": 1,
+          "system": "Top10Sum response search",
+          "metric": "nDCG@10",
+          "value": 0.2892254323622026,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 1,
+          "metric_order": 2,
+          "system": "Top10Sum response search",
+          "metric": "MRR",
+          "value": 0.3282546454493165,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 2,
+          "metric_order": 1,
+          "system": "SumScore response search",
+          "metric": "nDCG@10",
+          "value": 0.2773577839029814,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 2,
+          "metric_order": 2,
+          "system": "SumScore response search",
+          "metric": "MRR",
+          "value": 0.31753289707886323,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 3,
+          "metric_order": 1,
+          "system": "Dense query search",
+          "metric": "nDCG@10",
+          "value": 0.359854744095009,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 3,
+          "metric_order": 2,
+          "system": "Dense query search",
+          "metric": "MRR",
+          "value": 0.4040633081116639,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 4,
+          "metric_order": 1,
+          "system": "TF-IDF query search",
+          "metric": "nDCG@10",
+          "value": 0.2176542461618029,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 4,
+          "metric_order": 2,
+          "system": "TF-IDF query search",
+          "metric": "MRR",
+          "value": 0.2776956693601721,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 5,
+          "metric_order": 1,
+          "system": "Global prior",
+          "metric": "nDCG@10",
+          "value": 0.1385241823188521,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 5,
+          "metric_order": 2,
+          "system": "Global prior",
+          "metric": "MRR",
+          "value": 0.20665310801034087,
+          "query_count": 322,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        }
+      ],
+      "query_outcomes": [
+        {
+          "comparison_order": 1,
+          "outcome_order": 1,
+          "baseline": "SumScore",
+          "outcome": "Top10Sum better",
+          "outcome_count": 77,
+          "outcome_share": 0.2391304347826087,
+          "query_count": 322,
+          "mean_ndcg_difference": 0.011867648459221216,
+          "ci_lower": -0.0030847973807279477,
+          "ci_upper": 0.026519571432877424
+        },
+        {
+          "comparison_order": 1,
+          "outcome_order": 2,
+          "baseline": "SumScore",
+          "outcome": "Tie",
+          "outcome_count": 181,
+          "outcome_share": 0.562111801242236,
+          "query_count": 322,
+          "mean_ndcg_difference": 0.011867648459221216,
+          "ci_lower": -0.0030847973807279477,
+          "ci_upper": 0.026519571432877424
+        },
+        {
+          "comparison_order": 1,
+          "outcome_order": 3,
+          "baseline": "SumScore",
+          "outcome": "Top10Sum worse",
+          "outcome_count": 64,
+          "outcome_share": 0.19875776397515527,
+          "query_count": 322,
+          "mean_ndcg_difference": 0.011867648459221216,
+          "ci_lower": -0.0030847973807279477,
+          "ci_upper": 0.026519571432877424
+        },
+        {
+          "comparison_order": 2,
+          "outcome_order": 1,
+          "baseline": "TF-IDF",
+          "outcome": "Top10Sum better",
+          "outcome_count": 129,
+          "outcome_share": 0.40062111801242234,
+          "query_count": 322,
+          "mean_ndcg_difference": 0.07157118620039968,
+          "ci_lower": 0.03225498930710094,
+          "ci_upper": 0.11139748665709319
+        },
+        {
+          "comparison_order": 2,
+          "outcome_order": 2,
+          "baseline": "TF-IDF",
+          "outcome": "Tie",
+          "outcome_count": 120,
+          "outcome_share": 0.37267080745341613,
+          "query_count": 322,
+          "mean_ndcg_difference": 0.07157118620039968,
+          "ci_lower": 0.03225498930710094,
+          "ci_upper": 0.11139748665709319
+        },
+        {
+          "comparison_order": 2,
+          "outcome_order": 3,
+          "baseline": "TF-IDF",
+          "outcome": "Top10Sum worse",
+          "outcome_count": 73,
+          "outcome_share": 0.2267080745341615,
+          "query_count": 322,
+          "mean_ndcg_difference": 0.07157118620039968,
+          "ci_lower": 0.03225498930710094,
+          "ci_upper": 0.11139748665709319
+        },
+        {
+          "comparison_order": 3,
+          "outcome_order": 1,
+          "baseline": "Dense",
+          "outcome": "Top10Sum better",
+          "outcome_count": 100,
+          "outcome_share": 0.3105590062111801,
+          "query_count": 322,
+          "mean_ndcg_difference": -0.07062931173280643,
+          "ci_lower": -0.11009040975594586,
+          "ci_upper": -0.031779030241317945
+        },
+        {
+          "comparison_order": 3,
+          "outcome_order": 2,
+          "baseline": "Dense",
+          "outcome": "Tie",
+          "outcome_count": 97,
+          "outcome_share": 0.30124223602484473,
+          "query_count": 322,
+          "mean_ndcg_difference": -0.07062931173280643,
+          "ci_lower": -0.11009040975594586,
+          "ci_upper": -0.031779030241317945
+        },
+        {
+          "comparison_order": 3,
+          "outcome_order": 3,
+          "baseline": "Dense",
+          "outcome": "Top10Sum worse",
+          "outcome_count": 125,
+          "outcome_share": 0.38819875776397517,
+          "query_count": 322,
+          "mean_ndcg_difference": -0.07062931173280643,
+          "ci_lower": -0.11009040975594586,
+          "ci_upper": -0.031779030241317945
+        }
+      ],
+      "bias_gates": [
+        {
+          "metric_order": 1,
+          "series_order": 1,
+          "metric": "Inventory-score correlation",
+          "series": "SumScore",
+          "value": 0.8388064849388015,
+          "role": "baseline",
+          "lower_is_better": true,
+          "top10_position_count": 3220,
+          "model_count": 150
+        },
+        {
+          "metric_order": 1,
+          "series_order": 2,
+          "metric": "Inventory-score correlation",
+          "series": "Top10Sum",
+          "value": 0.8894471379126866,
+          "role": "actual",
+          "lower_is_better": true,
+          "top10_position_count": 3220,
+          "model_count": 150
+        },
+        {
+          "metric_order": 1,
+          "series_order": 3,
+          "metric": "Inventory-score correlation",
+          "series": "Maximum allowed",
+          "value": 0.7388,
+          "role": "target",
+          "lower_is_better": true,
+          "top10_position_count": 3220,
+          "model_count": 150
+        },
+        {
+          "metric_order": 2,
+          "series_order": 1,
+          "metric": "Largest-quartile placement share",
+          "series": "SumScore",
+          "value": 0.46614906832298136,
+          "role": "baseline",
+          "lower_is_better": true,
+          "top10_position_count": 3220,
+          "model_count": 150
+        },
+        {
+          "metric_order": 2,
+          "series_order": 2,
+          "metric": "Largest-quartile placement share",
+          "series": "Top10Sum",
+          "value": 0.4832298136645963,
+          "role": "actual",
+          "lower_is_better": true,
+          "top10_position_count": 3220,
+          "model_count": 150
+        },
+        {
+          "metric_order": 2,
+          "series_order": 3,
+          "metric": "Largest-quartile placement share",
+          "series": "Maximum allowed",
+          "value": 0.411,
+          "role": "target",
+          "lower_is_better": true,
+          "top10_position_count": 3220,
+          "model_count": 150
+        }
+      ],
+      "inventory_quartiles": [
+        {
+          "quartile_order": 1,
+          "series_order": 1,
+          "inventory_group": "Fewest answers",
+          "series": "Models in group",
+          "share": 0.25333333333333335,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "sumscore_top10_appearances": 352,
+          "top10sum_top10_appearances": 343
+        },
+        {
+          "quartile_order": 1,
+          "series_order": 2,
+          "inventory_group": "Fewest answers",
+          "series": "SumScore placements",
+          "share": 0.1093167701863354,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "sumscore_top10_appearances": 352,
+          "top10sum_top10_appearances": 343
+        },
+        {
+          "quartile_order": 1,
+          "series_order": 3,
+          "inventory_group": "Fewest answers",
+          "series": "Top10Sum placements",
+          "share": 0.10652173913043478,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "sumscore_top10_appearances": 352,
+          "top10sum_top10_appearances": 343
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 1,
+          "inventory_group": "Lower-middle",
+          "series": "Models in group",
+          "share": 0.25333333333333335,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "sumscore_top10_appearances": 559,
+          "top10sum_top10_appearances": 544
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 2,
+          "inventory_group": "Lower-middle",
+          "series": "SumScore placements",
+          "share": 0.17360248447204968,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "sumscore_top10_appearances": 559,
+          "top10sum_top10_appearances": 544
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 3,
+          "inventory_group": "Lower-middle",
+          "series": "Top10Sum placements",
+          "share": 0.168944099378882,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "sumscore_top10_appearances": 559,
+          "top10sum_top10_appearances": 544
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 1,
+          "inventory_group": "Upper-middle",
+          "series": "Models in group",
+          "share": 0.24666666666666667,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "sumscore_top10_appearances": 808,
+          "top10sum_top10_appearances": 777
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 2,
+          "inventory_group": "Upper-middle",
+          "series": "SumScore placements",
+          "share": 0.25093167701863356,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "sumscore_top10_appearances": 808,
+          "top10sum_top10_appearances": 777
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 3,
+          "inventory_group": "Upper-middle",
+          "series": "Top10Sum placements",
+          "share": 0.24130434782608695,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "sumscore_top10_appearances": 808,
+          "top10sum_top10_appearances": 777
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 1,
+          "inventory_group": "Most answers",
+          "series": "Models in group",
+          "share": 0.24666666666666667,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "sumscore_top10_appearances": 1501,
+          "top10sum_top10_appearances": 1556
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 2,
+          "inventory_group": "Most answers",
+          "series": "SumScore placements",
+          "share": 0.46614906832298136,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "sumscore_top10_appearances": 1501,
+          "top10sum_top10_appearances": 1556
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 3,
+          "inventory_group": "Most answers",
+          "series": "Top10Sum placements",
+          "share": 0.4832298136645963,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "sumscore_top10_appearances": 1501,
+          "top10sum_top10_appearances": 1556
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "reviewed_results",
+      "label": "Reviewed response-volume normalization result snapshot",
+      "path": "reports/trec_2026_response_volume_normalization_results.json"
+    },
+    {
+      "id": "headline_sql",
+      "label": "Headline normalization metrics",
+      "path": "reports/trec_2026_response_volume_normalization_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT normalized_ndcg, ndcg_delta_vs_sumscore, normalized_mrr, mrr_delta_vs_sumscore, inventory_rho, inventory_rho_gate, largest_quartile_share, largest_quartile_gate, passed_gate_count, gate_count FROM headline_metrics",
+        "description": "Selects the headline effectiveness, volume, and gate values from an in-memory table loaded from the reviewed result snapshot.",
+        "executed_at": "2026-07-11T17:40:34Z",
+        "tables_used": [
+          "headline_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "150 candidate models",
+          "strict nested leave-one-query-out",
+          "advisor-approved grid locked before effectiveness scoring"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+          "MRR: macro reciprocal rank of the first positively judged model.",
+          "Inventory correlation: Spearman association between retained response count and aggregate retrieval score.",
+          "Largest-quartile share: share of 3,220 deployment top-10 placements received by the 37 models with the largest basic-filter response inventories."
+        ]
+      }
+    },
+    {
+      "id": "system_metrics_sql",
+      "label": "Five-system effectiveness comparison",
+      "path": "reports/trec_2026_response_volume_normalization_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT system_order, metric_order, system, metric, value, query_count, evaluation_protocol, higher_is_better FROM system_metrics ORDER BY system_order, metric_order",
+        "description": "Selects held-out nDCG@10 and MRR for the five retained systems.",
+        "executed_at": "2026-07-11T17:40:34Z",
+        "tables_used": [
+          "system_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "strict nested LOO"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+          "MRR: macro reciprocal rank of the first positively judged model."
+        ]
+      }
+    },
+    {
+      "id": "query_outcomes_sql",
+      "label": "Paired per-query nDCG outcomes",
+      "path": "reports/trec_2026_response_volume_normalization_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT comparison_order, outcome_order, baseline, outcome, outcome_count, outcome_share, query_count, mean_ndcg_difference, ci_lower, ci_upper FROM query_outcomes ORDER BY comparison_order, outcome_order",
+        "description": "Selects paired Top10Sum win, tie, and loss counts with bootstrap context.",
+        "executed_at": "2026-07-11T17:40:34Z",
+        "tables_used": [
+          "query_outcomes"
+        ],
+        "filters": [
+          "322 paired queries",
+          "nDCG@10",
+          "10,000 resamples"
+        ],
+        "metric_definitions": [
+          "Mean difference and confidence bounds are Top10Sum minus the named baseline."
+        ]
+      }
+    },
+    {
+      "id": "bias_gates_sql",
+      "label": "Deployment volume-gate comparison",
+      "path": "reports/trec_2026_response_volume_normalization_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT metric_order, series_order, metric, series, value, role, lower_is_better, top10_position_count, model_count FROM bias_gates ORDER BY metric_order, series_order",
+        "description": "Selects SumScore, Top10Sum, and maximum-allowed values for both preregistered deployment-volume diagnostics.",
+        "executed_at": "2026-07-11T17:40:34Z",
+        "tables_used": [
+          "bias_gates"
+        ],
+        "filters": [
+          "150 models",
+          "3,220 deployment top-10 placements"
+        ],
+        "metric_definitions": [
+          "Inventory-score correlation is Spearman rho; lower absolute magnitude is better.",
+          "Largest-quartile share is the placement share received by the 37 models with most retained responses."
+        ]
+      }
+    },
+    {
+      "id": "inventory_quartiles_sql",
+      "label": "Response-inventory quartile representation",
+      "path": "reports/trec_2026_response_volume_normalization_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT quartile_order, series_order, inventory_group, series, share, model_count, inventory_min, inventory_max, sumscore_top10_appearances, top10sum_top10_appearances FROM inventory_quartiles ORDER BY quartile_order, series_order",
+        "description": "Selects model and top-10 placement shares for deterministic response-inventory quartiles.",
+        "executed_at": "2026-07-11T17:40:34Z",
+        "tables_used": [
+          "inventory_quartiles"
+        ],
+        "filters": [
+          "basic response filter",
+          "150 models",
+          "3,220 placements"
+        ],
+        "metric_definitions": [
+          "Each placement series sums to 100%; model shares sum to 100%."
+        ]
+      }
+    },
+    {
+      "id": "locked_protocol",
+      "label": "Advisor-approved normalization preregistration",
+      "path": "protocols/trec_2026_response_volume_normalization.md"
+    },
+    {
+      "id": "primary_summary",
+      "label": "Primary official experiment summary",
+      "path": "artifacts/response_volume_normalization/summary.json"
+    },
+    {
+      "id": "primary_validation",
+      "label": "Complete-run and provenance validation receipt",
+      "path": "artifacts/response_volume_normalization/validation.json"
+    },
+    {
+      "id": "deterministic_rerun",
+      "label": "Independent full deterministic rerun",
+      "path": "artifacts/response_volume_normalization_rerun/summary.json"
+    },
+    {
+      "id": "normalization_pipeline",
+      "label": "Tracked nested normalization implementation",
+      "path": "trec_mlm/response_normalization.py"
+    },
+    {
+      "id": "response_retriever",
+      "label": "Tracked shared BM25/RM3 response retriever",
+      "path": "trec_mlm/response_retrieval.py"
+    },
+    {
+      "id": "development_qrels",
+      "label": "Official TREC development relevance judgments",
+      "path": "data/dev/llm_dev_qrels.txt"
+    },
+    {
+      "id": "discovery_responses",
+      "label": "Official TREC historical discovery responses",
+      "path": "data/dev/llm_discovery_data.json"
+    }
+  ]
+}

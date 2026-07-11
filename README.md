@@ -138,6 +138,48 @@ The full CPU run took about one minute and peaked at 1.49 GB RSS on a Ryzen AI M
 395. The self-contained, mobile-responsive plain-language report is
 [`reports/trec_2026_response_retrieval_baseline.html`](reports/trec_2026_response_retrieval_baseline.html).
 
+### Follow-up: response-volume normalization
+
+The advisor-approved follow-up tests whether caps or averages can reduce SumScore's
+response-inventory dependence without losing its ranking signal. It retrieves once and
+derives six frozen alternatives from the same positive hits: strongest match, top-3 and
+top-10 sums, top-3 and top-10 means, and the all-hit mean. The primary nested selector
+contains 144 normalized candidates; the original 24 SumScore candidates are evaluated
+by a separate nested control and cannot enter the primary selector. The exact protocol
+was committed before effectiveness scoring in
+[`protocols/trec_2026_response_volume_normalization.md`](protocols/trec_2026_response_volume_normalization.md).
+
+Run the CPU-only experiment with:
+
+```bash
+uv run --extra response trec-mlm response-volume-normalization \
+  --output-dir artifacts/response_volume_normalization
+```
+
+Nested validation selected Top10Sum in all 322 outer folds. Its held-out point estimates
+improved over SumScore, but both preregistered deployment-volume checks worsened:
+
+| System | nDCG@10 | MRR | Inventory rho | Largest-inventory top-10 share |
+|---|---:|---:|---:|---:|
+| Frozen dense query-kNN | **0.3599** | **0.4041** | — | — |
+| Top10Sum response retrieval | 0.2892 | 0.3283 | 0.8894 | 48.3% |
+| SumScore response control | 0.2774 | 0.3175 | 0.8388 | 46.6% |
+| TF-IDF query-kNN, fixed `k=10` | 0.2177 | 0.2777 | — | — |
+| Training-only global prior | 0.1385 | 0.2067 | — | — |
+
+Top10Sum minus SumScore was +0.0119 nDCG@10, with paired 95% CI -0.0031 to
+0.0265, so the point improvement is not decisive. The locked rule required all four
+effectiveness and volume gates; only the two effectiveness gates passed. The resulting
+decision is to retain SumScore as the response-search control and stop this aggregation
+branch. This does not imply that SumScore is unbiased; it means the proposed cap did not
+solve the diagnosed volume problem. Dense query retrieval remains the strongest overall
+baseline.
+
+The full experiment was repeated with identical tensors, selections, runs, diagnostics,
+and decisions. It uses no GPU, log probabilities, or score fusion. The self-contained
+plain-language report is
+[`reports/trec_2026_response_volume_normalization.html`](reports/trec_2026_response_volume_normalization.html).
+
 ## Data
 
 [`data/dev/file_manifest.tsv`](data/dev/file_manifest.tsv) records the official file

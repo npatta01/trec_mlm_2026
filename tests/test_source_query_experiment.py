@@ -55,7 +55,7 @@ def _write_inputs(directory: Path, grades: np.ndarray = GRADES) -> tuple[Path, P
 
 def _source_scores() -> SimpleNamespace:
     candidates = DEFAULT_SOURCE_QUERY_CANDIDATES
-    maximum_k = 100
+    maximum_k = 40
     source_weights = np.zeros((3, len(QUERY_IDS), maximum_k), dtype=np.float64)
     opportunities = np.zeros((3, len(QUERY_IDS), len(MODEL_IDS)), dtype=np.int32)
     for candidate_index, candidate in enumerate(candidates):
@@ -72,10 +72,10 @@ def _source_scores() -> SimpleNamespace:
         aligned = (GRADES[query_index] + 0.1) / float(np.sum(GRADES[query_index] + 0.1))
         direct_values = np.roll(GRADES[query_index], 1) + 0.1
         direct = direct_values / float(np.sum(direct_values))
-        answer_normalized[query_index, :50] = aligned
-        answer_normalized[query_index, 50:] = np.roll(aligned, 1)
-        target_normalized[query_index, :50] = direct
-        target_normalized[query_index, 50:] = np.roll(direct, 1)
+        answer_normalized[query_index, :20] = aligned
+        answer_normalized[query_index, 20:] = np.roll(aligned, 1)
+        target_normalized[query_index, :20] = direct
+        target_normalized[query_index, 20:] = np.roll(direct, 1)
     primary = np.einsum(
         "cqk,qkm->cqm", source_weights, answer_normalized, dtype=np.float64
     )

@@ -57,7 +57,7 @@ from trec_mlm.response_retrieval import (
 from trec_mlm.runio import validate_trec_run, write_trec_run
 
 
-SOURCE_QUERY_K_VALUES = (10, 50, 100)
+SOURCE_QUERY_K_VALUES = (10, 20, 40)
 TOP10SUM_RESPONSE_CANDIDATES = tuple(
     candidate
     for candidate in NORMALIZED_RESPONSE_CANDIDATES
@@ -132,7 +132,7 @@ class SourceQueryExperimentConfig:
     seed: int = 2026
     show_progress: bool = False
     grid_selection_provenance: str = (
-        "advisor_approved_source_query_first_protocol_locked_at_459e545"
+        "advisor_approved_source_query_first_protocol_amended_at_9a91362"
     )
 
 
@@ -688,7 +688,7 @@ def source_candidate_k(candidate: Any) -> int:
 
 def _validate_config(config: SourceQueryExperimentConfig) -> None:
     if tuple(config.source_query_ks) != SOURCE_QUERY_K_VALUES:
-        raise ValueError("source_query_ks must equal the frozen (10, 50, 100) grid")
+        raise ValueError("source_query_ks must equal the frozen (10, 20, 40) grid")
     if config.cutoff != 10:
         raise ValueError("the source-query experiment supports cutoff=10 only")
     if (
@@ -1840,11 +1840,12 @@ def _build_summary(
             "name": "source_query_first_answer_alignment",
             "base_revision": "81d4aa50812864133f7066ee5b698fd48ea20503",
             "preregistration_revision": "459e545",
+            "protocol_amendment_revision": "9a91362",
             "outer_split": "strict_leave_one_query_out",
             "inner_split": "strict_leave_one_query_out_within_outer_training_rows",
             "retrieval_and_signal_tensors_are_qrel_free": True,
             "selection_metric": "inner_macro_ndcg_at_10",
-            "selection_tie_break": "declared_k10_then_k50_then_k100",
+            "selection_tie_break": "declared_k10_then_k20_then_k40",
             "mrr_used_for_selection": False,
             "ranking_tie_break": "fold_local_global_prior_then_model_id",
             "target_response_role": "same_selected_k_diagnostic_only",
@@ -1944,8 +1945,8 @@ def _write_selected_sources(result: SourceQueryExperimentResult, path: Path) -> 
                 "source_query_key",
                 "source_relevance_raw",
                 "weight_k10",
-                "weight_k50",
-                "weight_k100",
+                "weight_k20",
+                "weight_k40",
             )
         )
         for query_index, query_id in enumerate(result.query_ids):

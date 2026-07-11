@@ -44,8 +44,8 @@ HEADLINE_SYSTEMS = (PRIMARY, DENSE, SUMSCORE, TOP10SUM, TFIDF, PRIOR)
 BASELINE_ORDER = (SUMSCORE, TOP10SUM, DENSE, TFIDF, PRIOR)
 CANDIDATE_ORDER = (
     "source_alignment__k10",
-    "source_alignment__k50",
-    "source_alignment__k100",
+    "source_alignment__k20",
+    "source_alignment__k40",
 )
 RUN_FILES = {
     PRIMARY: "source_alignment_run.trec",
@@ -273,7 +273,7 @@ def _validate_shape(
     candidate_grid = summary["candidate_grid"]
     if tuple(row["key"] for row in candidate_grid) != CANDIDATE_ORDER:
         raise ValueError("candidate grid does not match the locked declaration order")
-    if tuple(row["k"] for row in candidate_grid) != (10, 50, 100):
+    if tuple(row["k"] for row in candidate_grid) != (10, 20, 40):
         raise ValueError("candidate K values differ from the locked grid")
     if set(summary["comparisons"]) != set(BASELINE_ORDER):
         raise ValueError("summary does not contain the five frozen paired comparisons")
@@ -288,6 +288,7 @@ def _validate_shape(
     required_protocol = {
         "base_revision": "81d4aa50812864133f7066ee5b698fd48ea20503",
         "preregistration_revision": "459e545",
+        "protocol_amendment_revision": "9a91362",
         "outer_split": "strict_leave_one_query_out",
         "inner_split": "strict_leave_one_query_out_within_outer_training_rows",
         "selection_metric": "inner_macro_ndcg_at_10",
@@ -296,7 +297,7 @@ def _validate_shape(
         "retrieval_and_signal_tensors_are_qrel_free": True,
         "target_response_role": "same_selected_k_diagnostic_only",
         "grid_selection_provenance": (
-            "advisor_approved_source_query_first_protocol_locked_at_459e545"
+            "advisor_approved_source_query_first_protocol_amended_at_9a91362"
         ),
     }
     for key, expected in required_protocol.items():
@@ -452,7 +453,7 @@ def _validate_shape(
 
 
 def _validate_opportunity_diagnostics(opportunities: Mapping[str, Any]) -> None:
-    if opportunities["candidate_k_values"] != [10, 50, 100]:
+    if opportunities["candidate_k_values"] != [10, 20, 40]:
         raise ValueError("opportunity diagnostics have the wrong K grid")
     if opportunities["every_model_receives_same_k"] is not True:
         raise ValueError("not every model received the same source-query opportunities")
@@ -490,9 +491,9 @@ def _validate_opportunity_diagnostics(opportunities: Mapping[str, Any]) -> None:
         raise ValueError(
             "one or more target source-query weight vectors do not sum to one"
         )
-    if opportunities["positive_retrieval_count"]["min"] < 100:
+    if opportunities["positive_retrieval_count"]["min"] < 40:
         raise ValueError(
-            "one or more targets has fewer than 100 positive source queries"
+            "one or more targets has fewer than 40 positive source queries"
         )
     if opportunities["valid_opportunity_count"]["count"] != 3 * 322 * 150:
         raise ValueError("valid-opportunity diagnostics have the wrong tensor size")
@@ -1801,7 +1802,7 @@ def _blocks(results: Mapping[str, Any], title: str) -> list[dict[str, Any]]:
             "sourceId": "reviewed_results",
             "body": (
                 "## How held-out testing prevents answer-key leakage\n\n"
-                "Each outer query is sealed. The system compares K = 10, 50, and 100 only on "
+                "Each outer query is sealed. The system compares K = 10, 20, and 40 only on "
                 "the other 321 queries, chooses the largest inner nDCG@10, and then ranks the "
                 "sealed query once. Its grades never choose its own K or evidence. Exact "
                 "analyzer-equivalent discovery queries are masked before retrieval.\n\n"
@@ -2129,7 +2130,7 @@ def _sources(results_path: Path, generated_at: str) -> list[dict[str, Any]]:
                     "ORDER BY configuration_order"
                 ),
                 "description": (
-                    "Selects how often K=10, 50, or 100 was chosen using inner macro nDCG@10."
+                    "Selects how often K=10, 20, or 40 was chosen using inner macro nDCG@10."
                 ),
                 "executed_at": generated_at,
                 "tables_used": ["selection_counts"],

@@ -196,7 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
     source_first.add_argument("--show-progress", action="store_true")
     source_first.add_argument(
         "--grid-selection-provenance",
-        default="advisor_approved_source_query_first_protocol_locked_at_459e545",
+        default="advisor_approved_source_query_first_protocol_amended_at_9a91362",
     )
     source_first.add_argument(
         "--output-dir",

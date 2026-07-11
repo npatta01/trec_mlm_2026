@@ -114,6 +114,33 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/dense_query_knn_baseline",
     )
 
+    response = commands.add_parser(
+        "response-retrieval",
+        help="run nested-LOO BM25/RM3 retrieval over discovery responses",
+    )
+    response.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    response.add_argument("--qrels", default="data/dev/llm_dev_qrels.txt")
+    response.add_argument(
+        "--discovery",
+        default="data/dev/llm_discovery_data.json",
+    )
+    response.add_argument(
+        "--dense-per-query",
+        default="reports/trec_2026_dense_query_knn_per_query.tsv",
+        help="validated Baseline 2 per-query metrics used for paired comparisons",
+    )
+    response.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    response.add_argument("--seed", type=int, default=2026)
+    response.add_argument("--show-progress", action="store_true")
+    response.add_argument(
+        "--grid-selection-provenance",
+        default="advisor_reviewed_preregistration_locked_before_response_scores",
+    )
+    response.add_argument(
+        "--output-dir",
+        default="artifacts/response_retrieval_baseline",
+    )
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -166,6 +193,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = run_nested_dense_experiment(config)
         paths = write_dense_experiment_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "response-retrieval":
+        from trec_mlm.response_experiment import (
+            ResponseExperimentConfig,
+            run_nested_response_experiment,
+            write_response_experiment_artifacts,
+        )
+
+        config = ResponseExperimentConfig(
+            query_path=args.queries,
+            qrels_path=args.qrels,
+            discovery_path=args.discovery,
+            dense_per_query_path=args.dense_per_query,
+            bootstrap_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+            show_progress=args.show_progress,
+            grid_selection_provenance=args.grid_selection_provenance,
+        )
+        result = run_nested_response_experiment(config)
+        paths = write_response_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
         return 0
 

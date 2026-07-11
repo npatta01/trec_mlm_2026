@@ -134,7 +134,7 @@ evaluated baseline. Nested selection chose response-only BM25+RM3 with the basic
 and depth 500 in 314 of 322 folds. The deployment configuration showed strong response-
 inventory dependence, so the report treats possible volume bias as a material caveat.
 
-The full CPU run took about 63 seconds and peaked at 1.49 GB RSS on a Ryzen AI MAX+
+The full CPU run took about one minute and peaked at 1.49 GB RSS on a Ryzen AI MAX+
 395. The self-contained, mobile-responsive report is
 [`reports/trec_2026_response_retrieval_baseline.html`](reports/trec_2026_response_retrieval_baseline.html).
 

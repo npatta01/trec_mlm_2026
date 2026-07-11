@@ -256,7 +256,7 @@
     }
   },
   "configuration": {
-    "code_revision": "ab9d4ea7132504136d4e49b3d6285d5fc08ce618",
+    "code_revision": "8b597e630c8acda0466a813359b176f255b9b3fc",
     "code_sha256": {
       "experiment.py": "f42888e62cc12d53d3edcf645852c1a0cdcce36a383a0f4ee84c9c92495da915",
       "metrics.py": "cdb7d320aeb4a953f5771cc69f1c6cc10cebc08727a577ed1954934feda60e0d",
@@ -269,7 +269,7 @@
       "data/dev/llm_dev_data.tsv": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
       "data/dev/llm_dev_qrels.txt": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
       "data/dev/llm_discovery_data.json": "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25",
-      "reports/trec_2026_dense_query_knn_per_query.tsv": "623997dca75ff37f17f9fdc18e7b0dedc27307afbd043c7c65dee6d8e72c7ea7"
+      "reports/trec_2026_dense_query_knn_per_query.tsv": "ae4a0cf8bc7eb0642e1c0d315cafa3a56cf60b3d6bfb6ab63e80fb2d0de56437"
     },
     "seed": 2026
   },
@@ -315,17 +315,17 @@
   "evidence_inputs": [
     {
       "path": "artifacts/response_retrieval_baseline/summary.json",
-      "sha256": "c03ca160e25ae85173c9374bb976f27356c7694feb4c111ae07742ef52c97ab4",
+      "sha256": "2a3c370b5d9a6495361513ed370ecbd178e7bd0b12841c20ea5d29521f183047",
       "tracked": false
     },
     {
       "path": "artifacts/response_retrieval_baseline/validation.json",
-      "sha256": "672cc935d616cfb9269ea3de2a563e1f87cbcc50dcad92cccf1f7f7e63e0ef5f",
+      "sha256": "d1589c9346db98a50326285bd44314f518bffc80f4d3165d1f8b7ff41acbf1a4",
       "tracked": false
     },
     {
       "path": "artifacts/response_retrieval_baseline/config.json",
-      "sha256": "e2c839388f12aa74747a2ad73813d27cbf4666160e1655dc7d6ded9ec0b73914",
+      "sha256": "6f4a0246cdc36a17f83ba440150758d054c764ff7289dd0105b507e6b8ea1106",
       "tracked": false
     },
     {
@@ -659,9 +659,9 @@
     }
   },
   "runtime": {
-    "experiment_core_seconds_excluding_summary_and_artifact_writes": 58.866342577006435,
-    "experiment_seconds_through_summary": 62.09996716401656,
-    "summary_seconds_including_bootstrap": 3.233623736014124
+    "experiment_core_seconds_excluding_summary_and_artifact_writes": 60.80989950499497,
+    "experiment_seconds_through_summary": 64.06051122298231,
+    "summary_seconds_including_bootstrap": 3.2506110570102464
   },
   "selection": {
     "configuration_frequency": {
@@ -682,7 +682,7 @@
     "deployment_fold_count": 314,
     "deployment_fold_share": 0.9751552795031055
   },
-  "snapshot_as_of": "2026-07-11T11:38:05Z",
+  "snapshot_as_of": "2026-07-11T11:55:17Z",
   "validation": {
     "inputs": {
       "candidate_model_count": 150,

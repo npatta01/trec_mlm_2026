@@ -31,11 +31,47 @@ from numpy.typing import NDArray
 Method = Literal["bm25", "bm25_rm3"]
 Field = Literal["response_only", "query_response"]
 FilterName = Literal["basic", "aggressive"]
+AggregationName = Literal[
+    "sum_all",
+    "best_hit",
+    "top3_sum",
+    "top10_sum",
+    "top3_mean",
+    "top10_mean",
+    "mean_all",
+]
 
 METHODS: tuple[Method, ...] = ("bm25", "bm25_rm3")
 FIELDS: tuple[Field, ...] = ("response_only", "query_response")
 FILTER_NAMES: tuple[FilterName, ...] = ("basic", "aggressive")
 DEPTHS = (100, 500, 1000)
+
+SUM_ALL_AGGREGATION: AggregationName = "sum_all"
+NORMALIZED_RESPONSE_AGGREGATIONS: tuple[AggregationName, ...] = (
+    "best_hit",
+    "top3_sum",
+    "top10_sum",
+    "top3_mean",
+    "top10_mean",
+    "mean_all",
+)
+ALL_RESPONSE_AGGREGATIONS: tuple[AggregationName, ...] = (
+    SUM_ALL_AGGREGATION,
+    *NORMALIZED_RESPONSE_AGGREGATIONS,
+)
+
+# Immutable, executable-spec-adjacent descriptions included in every
+# configuration hash.  The implementation below follows these definitions
+# with float64 values and ``math.fsum`` exactly.
+RESPONSE_AGGREGATION_DEFINITIONS: tuple[tuple[AggregationName, str], ...] = (
+    ("sum_all", "math.fsum(H) if n > 0 else 0.0"),
+    ("best_hit", "s1 if n > 0 else 0.0"),
+    ("top3_sum", "math.fsum(H[:min(3,n)]) if n > 0 else 0.0"),
+    ("top10_sum", "math.fsum(H[:min(10,n)]) if n > 0 else 0.0"),
+    ("top3_mean", "top3_sum / min(3,n) if n > 0 else 0.0"),
+    ("top10_mean", "top10_sum / min(10,n) if n > 0 else 0.0"),
+    ("mean_all", "sum_all / n if n > 0 else 0.0"),
+)
 
 ANALYZER_REGEX = r"(?u)\b\w\w+\b"
 ANALYZER_STOPWORDS_SHA256 = (
@@ -86,6 +122,7 @@ class ResponseCandidate:
     field: Field
     filter_name: FilterName
     depth: int
+    aggregation: AggregationName = SUM_ALL_AGGREGATION
 
     def __post_init__(self) -> None:
         if self.method not in METHODS:
@@ -100,12 +137,19 @@ class ResponseCandidate:
             or self.depth < 1
         ):
             raise ValueError("retrieval depth must be a positive integer")
+        if self.aggregation not in ALL_RESPONSE_AGGREGATIONS:
+            raise ValueError(f"unsupported response aggregation: {self.aggregation!r}")
 
     @property
     def key(self) -> str:
         """Return a stable, filesystem-safe configuration key."""
 
-        return f"{self.method}__{self.field}__{self.filter_name}__d{self.depth}"
+        retrieval_key = (
+            f"{self.method}__{self.field}__{self.filter_name}__d{self.depth}"
+        )
+        if self.aggregation == SUM_ALL_AGGREGATION:
+            return retrieval_key
+        return f"{retrieval_key}__agg_{self.aggregation}"
 
 
 DEFAULT_RESPONSE_CANDIDATES = tuple(
@@ -114,6 +158,20 @@ DEFAULT_RESPONSE_CANDIDATES = tuple(
     for field in FIELDS
     for filter_name in FILTER_NAMES
     for depth in DEPTHS
+)
+
+NORMALIZED_RESPONSE_CANDIDATES = tuple(
+    ResponseCandidate(method, field, filter_name, depth, aggregation)
+    for aggregation in NORMALIZED_RESPONSE_AGGREGATIONS
+    for method in METHODS
+    for field in FIELDS
+    for filter_name in FILTER_NAMES
+    for depth in DEPTHS
+)
+
+ALL_RESPONSE_CANDIDATES = (
+    *DEFAULT_RESPONSE_CANDIDATES,
+    *NORMALIZED_RESPONSE_CANDIDATES,
 )
 
 
@@ -573,17 +631,32 @@ def score_response_candidates(
                         masked_documents,
                     )
 
+                aggregation_cache: dict[
+                    tuple[Method, int],
+                    tuple[
+                        dict[AggregationName, NDArray[np.float64]],
+                        NDArray[np.int32],
+                        NDArray[np.float64],
+                    ],
+                ] = {}
                 for candidate_index in relevant_candidate_indices:
                     candidate = candidate_tuple[candidate_index]
-                    document_indices, document_scores = rankings[candidate.method]
-                    retained = min(candidate.depth, len(document_indices))
-                    sums, counts, means = _sumscore_by_model(
-                        document_indices[:retained],
-                        document_scores[:retained],
-                        built.document_model_indices,
-                        model_count,
-                    )
-                    model_scores[candidate_index, query_index] = sums
+                    retrieval_key = (candidate.method, candidate.depth)
+                    cached = aggregation_cache.get(retrieval_key)
+                    if cached is None:
+                        document_indices, document_scores = rankings[candidate.method]
+                        retained = min(candidate.depth, len(document_indices))
+                        cached = _aggregate_scores_by_model(
+                            document_indices[:retained],
+                            document_scores[:retained],
+                            built.document_model_indices,
+                            model_count,
+                        )
+                        aggregation_cache[retrieval_key] = cached
+                    aggregate_scores, counts, means = cached
+                    model_scores[candidate_index, query_index] = aggregate_scores[
+                        candidate.aggregation
+                    ]
                     hit_counts[candidate_index, query_index] = counts
                     mean_hit_scores[candidate_index, query_index] = means
                     overlap_document_counts[candidate_index, query_index] = len(
@@ -624,7 +697,12 @@ def score_response_candidates(
                 "positive_score_only": True,
                 "document_tie_break": "stable_document_ordinal",
                 "overlap_mask_before_feedback_and_final": True,
-                "aggregation": "math_fsum_by_model",
+                "aggregation_order": list(ALL_RESPONSE_AGGREGATIONS),
+                "aggregation_definitions": [
+                    {"name": name, "formula": formula}
+                    for name, formula in RESPONSE_AGGREGATION_DEFINITIONS
+                ],
+                "shared_retrieval_for_aggregation_duplicates": True,
             },
         }
     )
@@ -1070,22 +1148,71 @@ def _top_positive_documents(
     )
 
 
-def _sumscore_by_model(
+def _aggregate_scores_by_model(
     document_indices: NDArray[np.int32],
     document_scores: NDArray[np.float64],
     document_model_indices: NDArray[np.int32],
     model_count: int,
-) -> tuple[NDArray[np.float64], NDArray[np.int32], NDArray[np.float64]]:
+) -> tuple[
+    dict[AggregationName, NDArray[np.float64]],
+    NDArray[np.int32],
+    NDArray[np.float64],
+]:
+    """Aggregate one shared ranked hit list by model in float64.
+
+    Each model's score list preserves the input document order, which is the
+    frozen descending-score/stable-ordinal retrieval order.  All seven frozen
+    aggregations are derived together so aggregation candidates cannot trigger
+    independent retrieval passes.
+    """
+
     score_lists: list[list[float]] = [[] for _ in range(model_count)]
     counts = np.zeros(model_count, dtype=np.int32)
     for document_index, score in zip(document_indices, document_scores, strict=True):
         model_index = int(document_model_indices[int(document_index)])
         score_lists[model_index].append(float(score))
         counts[model_index] += 1
-    sums = np.asarray([math.fsum(values) for values in score_lists], dtype=np.float64)
-    means = np.zeros(model_count, dtype=np.float64)
-    np.divide(sums, counts, out=means, where=counts > 0)
-    return sums, counts, means
+
+    aggregate_scores = {
+        aggregation: np.zeros(model_count, dtype=np.float64)
+        for aggregation in ALL_RESPONSE_AGGREGATIONS
+    }
+    for model_index, values in enumerate(score_lists):
+        hit_count = len(values)
+        if hit_count == 0:
+            continue
+        sum_all = math.fsum(values)
+        top3_count = min(3, hit_count)
+        top10_count = min(10, hit_count)
+        top3_sum = math.fsum(values[:top3_count])
+        top10_sum = math.fsum(values[:top10_count])
+        aggregate_scores["sum_all"][model_index] = sum_all
+        aggregate_scores["best_hit"][model_index] = values[0]
+        aggregate_scores["top3_sum"][model_index] = top3_sum
+        aggregate_scores["top10_sum"][model_index] = top10_sum
+        aggregate_scores["top3_mean"][model_index] = top3_sum / top3_count
+        aggregate_scores["top10_mean"][model_index] = top10_sum / top10_count
+        aggregate_scores["mean_all"][model_index] = sum_all / hit_count
+
+    means = aggregate_scores["mean_all"].copy()
+    return aggregate_scores, counts, means
+
+
+def _sumscore_by_model(
+    document_indices: NDArray[np.int32],
+    document_scores: NDArray[np.float64],
+    document_model_indices: NDArray[np.int32],
+    model_count: int,
+) -> tuple[NDArray[np.float64], NDArray[np.int32], NDArray[np.float64]]:
+    """Return the legacy SumScore outputs via the shared aggregator."""
+
+    scores, counts, means = _aggregate_scores_by_model(
+        document_indices,
+        document_scores,
+        document_model_indices,
+        model_count,
+    )
+    return scores[SUM_ALL_AGGREGATION], counts, means
 
 
 def _hash_records(records: Sequence[DiscoveryRecord]) -> str:
@@ -1127,8 +1254,11 @@ def _hash_arrays(*arrays: NDArray[Any]) -> str:
 
 __all__ = [
     "AGGRESSIVE_PREFIXES",
+    "ALL_RESPONSE_AGGREGATIONS",
+    "ALL_RESPONSE_CANDIDATES",
     "ANALYZER_REGEX",
     "ANALYZER_STOPWORDS_SHA256",
+    "AggregationName",
     "AnalyzerDiagnostics",
     "DEFAULT_RESPONSE_CANDIDATES",
     "DiscoveryCorpus",
@@ -1140,8 +1270,12 @@ __all__ = [
     "OFFICIAL_BASIC_DOCUMENT_COUNT",
     "OFFICIAL_DISCOVERY_SHA256",
     "OFFICIAL_RAW_DOCUMENT_COUNT",
+    "NORMALIZED_RESPONSE_AGGREGATIONS",
+    "NORMALIZED_RESPONSE_CANDIDATES",
+    "RESPONSE_AGGREGATION_DEFINITIONS",
     "ResponseCandidate",
     "ResponseScoreResult",
+    "SUM_ALL_AGGREGATION",
     "audit_response_filters",
     "build_index_text",
     "load_discovery_records",

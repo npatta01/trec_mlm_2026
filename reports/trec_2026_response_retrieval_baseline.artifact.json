@@ -3,18 +3,18 @@
   "manifest": {
     "version": 1,
     "surface": "report",
-    "title": "TREC 2026 Response Retrieval Baseline",
-    "description": "Nested evaluation of response-level BM25 and RM3 retrieval against dense query retrieval, TF-IDF, and a fold-local global prior.",
+    "title": "Baseline 3: Ranking LLMs from Past Answers",
+    "description": "A plain-language held-out evaluation of whether historical model answers help choose the best LLM for a new query.",
     "generatedAt": "2026-07-11T11:57:25Z",
     "cards": [
       {
         "id": "response_ndcg",
-        "description": "Macro nDCG@10 over stitched outer predictions; the chip is the paired mean difference from fixed TF-IDF k=10.",
+        "description": "Average quality of the top 10 ranked models, from 0 to 1. The comparison chip shows the gain over TF-IDF query search.",
         "dataset": "headline",
         "sourceId": "headline_sql",
         "metrics": [
           {
-            "label": "Response nested nDCG@10",
+            "label": "Top-10 ranking quality",
             "field": "response_ndcg",
             "format": "number"
           },
@@ -28,12 +28,12 @@
       },
       {
         "id": "response_mrr",
-        "description": "Mean reciprocal rank over stitched outer predictions; its paired TF-IDF interval includes zero.",
+        "description": "How early the first useful model appears, averaged over all queries. The TF-IDF difference remains statistically uncertain.",
         "dataset": "headline",
         "sourceId": "headline_sql",
         "metrics": [
           {
-            "label": "Response nested MRR",
+            "label": "Early useful-model score (MRR)",
             "field": "response_mrr",
             "format": "number"
           },
@@ -44,27 +44,43 @@
             "signed": true
           }
         ]
+      },
+      {
+        "id": "selection_stability",
+        "description": "The same retrieval setup was selected independently for 314 of 322 held-out queries.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Same setup selected",
+            "field": "deployment_fold_share",
+            "format": "percent"
+          },
+          {
+            "label": "Held-out folds",
+            "field": "deployment_fold_count",
+            "format": "number"
+          }
+        ]
       }
     ],
     "charts": [
       {
         "id": "system_metric_comparison",
-        "title": "Development retrieval metrics by system",
-        "subtitle": "322 strict outer leave-one-query-out predictions; both metrics use a 0-to-1 scale and higher is better.",
+        "title": "Model-ranking scores by approach",
+        "subtitle": "All approaches rank the same 150 models for the same 322 development queries; both scores run from 0 to 1.",
         "type": "bar",
         "dataset": "system_metrics",
         "sourceId": "system_metrics_sql",
         "intent": "comparison",
-        "question": "How does response retrieval compare with dense, TF-IDF, and the global prior on both official development metrics?",
+        "question": "Which approach ranks the candidate LLMs best on each official development metric?",
         "rationale": "Grouped bars support direct same-scale comparison of two metrics across four intentionally retained systems.",
         "comparisonContext": {
-          "query_count": 322,
-          "score_domain": [
-            0,
-            1
-          ],
-          "zero_baseline": true,
-          "higher_is_better": true
+          "baseline": "Scores start at zero; higher is better",
+          "denominator": "322 development queries",
+          "grain": "one held-out ranking per query",
+          "normalization": "macro average on a 0-to-1 scale",
+          "unit": "score"
         },
         "encodings": {
           "x": {
@@ -103,9 +119,22 @@
         },
         "yAxisTitle": "Score",
         "valueFormat": "number",
-        "options": {
+        "settings": {
           "orientation": "vertical",
-          "grouping": "grouped"
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "How ranking quality is measured"
+        },
+        "labels": {
+          "values": "auto"
         },
         "referenceLines": [
           {
@@ -113,6 +142,234 @@
             "value": 0,
             "label": "Zero",
             "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 8
+      },
+      {
+        "id": "filter_flow_chart",
+        "title": "Response documents retained after filtering",
+        "subtitle": "Historical model answers in the organizer discovery corpus; bars show absolute searchable-document counts.",
+        "type": "horizontalBar",
+        "dataset": "filter_flow",
+        "sourceId": "filter_flow_sql",
+        "intent": "funnel",
+        "question": "How much searchable answer text remains after each frozen cleaning rule?",
+        "rationale": "Ordered horizontal stage bars preserve absolute magnitude and remain legible on narrow screens.",
+        "comparisonContext": {
+          "baseline": "all organizer-provided discovery responses",
+          "denominator": "1,163,850 documents",
+          "grain": "one discovery-query and model answer pair",
+          "unit": "response documents"
+        },
+        "encodings": {
+          "x": {
+            "field": "stage",
+            "type": "ordinal",
+            "label": "Filtering stage"
+          },
+          "y": {
+            "field": "documents",
+            "type": "quantitative",
+            "label": "Response documents",
+            "format": "compact"
+          },
+          "tooltip": [
+            {
+              "field": "retained_share",
+              "type": "quantitative",
+              "label": "Share retained",
+              "format": "percent"
+            },
+            {
+              "field": "removed_at_step",
+              "type": "quantitative",
+              "label": "Removed at this step"
+            },
+            {
+              "field": "rule",
+              "type": "text",
+              "label": "Rule"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "custom",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "sequential"
+        },
+        "labels": {
+          "values": "all"
+        },
+        "referenceLines": [
+          {
+            "axis": "x",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 3
+      },
+      {
+        "id": "paired_query_outcomes_chart",
+        "title": "Per-query outcomes versus each baseline",
+        "subtitle": "Share of 322 queries; better or worse always refers to the response-search baseline.",
+        "type": "horizontalStackedBar100",
+        "dataset": "query_outcomes",
+        "sourceId": "query_outcomes_sql",
+        "intent": "composition",
+        "question": "On how many queries was response search better, tied, or worse than each comparison approach?",
+        "rationale": "Normalized stacks show query-level outcome composition while the source rows retain exact counts and confidence intervals.",
+        "comparisonContext": {
+          "denominator": "322 paired queries per row",
+          "grain": "one query and metric",
+          "normalization": "each row sums to 100%",
+          "unit": "share of queries"
+        },
+        "encodings": {
+          "x": {
+            "field": "comparison_metric",
+            "type": "nominal",
+            "label": "Baseline and metric"
+          },
+          "y": {
+            "field": "outcome_count",
+            "type": "quantitative",
+            "label": "Queries"
+          },
+          "color": {
+            "field": "outcome",
+            "type": "nominal",
+            "label": "Response search"
+          },
+          "tooltip": [
+            {
+              "field": "outcome_share",
+              "type": "quantitative",
+              "label": "Query share",
+              "format": "percent"
+            },
+            {
+              "field": "mean_difference",
+              "type": "quantitative",
+              "label": "Average score difference"
+            },
+            {
+              "field": "ci_lower",
+              "type": "quantitative",
+              "label": "95% interval lower"
+            },
+            {
+              "field": "ci_upper",
+              "type": "quantitative",
+              "label": "95% interval upper"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "groupMode": "stacked100"
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Response search"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "layout": "full",
+        "maxRows": 18
+      },
+      {
+        "id": "inventory_share_chart",
+        "title": "Model share and top-10 placement share by answer inventory",
+        "subtitle": "Most-selected fixed setup only; models are split into four groups by usable historical-answer count, with even exposure near 25%.",
+        "type": "bar",
+        "dataset": "inventory_shares",
+        "sourceId": "inventory_shares_sql",
+        "intent": "comparison",
+        "question": "Are top-10 placements concentrated among models with more retained historical answers?",
+        "rationale": "Grouped shares make observed placement concentration directly comparable with each inventory group's model share.",
+        "comparisonContext": {
+          "denominator": "150 models and 3,220 top-10 slots",
+          "grain": "answer-inventory quartile",
+          "normalization": "shares sum to 100% within each series",
+          "unit": "share"
+        },
+        "encodings": {
+          "x": {
+            "field": "inventory_group",
+            "type": "ordinal",
+            "label": "Usable historical answers"
+          },
+          "y": {
+            "field": "share",
+            "type": "quantitative",
+            "label": "Share",
+            "format": "percent"
+          },
+          "color": {
+            "field": "series",
+            "type": "nominal",
+            "label": "Share type"
+          },
+          "tooltip": [
+            {
+              "field": "model_count",
+              "type": "quantitative",
+              "label": "Models in group"
+            },
+            {
+              "field": "inventory_min",
+              "type": "quantitative",
+              "label": "Fewest retained answers"
+            },
+            {
+              "field": "inventory_max",
+              "type": "quantitative",
+              "label": "Most retained answers"
+            },
+            {
+              "field": "top10_appearances",
+              "type": "quantitative",
+              "label": "Top-10 placements"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "vertical",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "What is being shared"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0.25,
+            "label": "Roughly even share",
+            "color": "neutral",
+            "lineStyle": "dashed"
           }
         ],
         "layout": "full",
@@ -134,6 +391,21 @@
       {
         "id": "system_metrics_sql",
         "label": "Four-system metric comparison",
+        "path": "reports/trec_2026_response_retrieval_results.json"
+      },
+      {
+        "id": "query_outcomes_sql",
+        "label": "Paired query outcomes and uncertainty context",
+        "path": "reports/trec_2026_response_retrieval_results.json"
+      },
+      {
+        "id": "filter_flow_sql",
+        "label": "Frozen response-filter stage counts",
+        "path": "reports/trec_2026_response_retrieval_results.json"
+      },
+      {
+        "id": "inventory_shares_sql",
+        "label": "Response-inventory quartile representation",
         "path": "reports/trec_2026_response_retrieval_results.json"
       },
       {
@@ -171,27 +443,40 @@
       {
         "id": "title",
         "type": "markdown",
-        "body": "# TREC 2026 Response Retrieval Baseline"
+        "body": "# Baseline 3: Ranking LLMs from Past Answers"
       },
       {
-        "id": "technical_summary",
+        "id": "executive_summary",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## Response retrieval improves nDCG, but dense still leads\n\n- **Primary result:** nested response retrieval reached **0.2774 nDCG@10** and **0.3175 MRR** across 322 queries.\n- **Versus TF-IDF:** nDCG@10 improved by **+0.0597**, with a 95% paired interval of [+0.0193, +0.1003]. The MRR change was +0.0398, but its interval [-0.0030, +0.0819] crosses zero.\n- **Dense remains stronger:** response retrieval trails it by 0.0825 nDCG@10 and 0.0865 MRR; both paired intervals remain below zero.\n- **Practical reading:** `bm25_rm3__response_only__basic__d500` was selected in 314/322 folds (97.5%). This is a useful internal automatic baseline, not the new best system."
+        "body": "## Executive Summary\n\n- **What was tested:** whether answers produced by candidate LLMs for older questions can help rank those LLMs for a new question. The system ranks models; it does not retrieve an answer for the user.\n- **Result:** response search scored **0.2774** for top-10 ranking quality and **0.3175** for how early the first useful model appeared, averaged across 322 held-out queries.\n- **Comparison:** the top-10 score improved over TF-IDF keyword query search by **+0.0597**, with an uncertainty range entirely above zero. The first-useful-model improvement is inconclusive, and dense semantic query search\u2014which compares numerical representations of question meaning\u2014remains the strongest baseline.\n- **Main risk and next action:** adding all matching-answer scores can favor models with more usable historical answers. The next experiment should normalize for that response volume before adding token-confidence features (log probabilities)."
+      },
+      {
+        "id": "task_primer",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## What problem are we solving?\n\nTREC (the Text REtrieval Conference) runs shared evaluation benchmarks. In the 2026 Million LLMs track, a system receives one new question and must rank 150 candidate LLM IDs by how likely each is to answer it well\u2014before seeing any of their answers to that new question.\n\nThe **discovery set** supplies 7,759 older questions and one stored answer from each model: 1,163,850 question\u2013model answer pairs. The **development set** supplies 322 new questions plus organizer quality grades, called **qrels**, for every question\u2013model pair. Discovery answers provide search evidence; development qrels are used inside training folds for setup selection and tie handling, then to score finished held-out rankings. The query being evaluated always stays sealed. This report is about the development set, not the still-hidden final test."
+      },
+      {
+        "id": "metric_guide",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## How to read the two scores\n\n- **nDCG@10\u2014Normalized Discounted Cumulative Gain at 10:** asks whether the ten highest-ranked models are the best ones. It gives more credit to stronger organizer grades and to placing them nearer the top. It ranges from 0 to 1; higher is better.\n- **MRR\u2014Mean Reciprocal Rank:** looks only for the first model with a positive organizer grade. First place scores 1.0, second place 0.5, and fifth place 0.2; those values are then averaged.\n\nEach of the 322 questions has equal weight. nDCG@10 judges the quality of a short list, while MRR judges how quickly the first useful option appears, so the two metrics can reach different conclusions."
       },
       {
         "id": "headline_metrics",
         "type": "metric-strip",
         "cardIds": [
           "response_ndcg",
-          "response_mrr"
+          "response_mrr",
+          "selection_stability"
         ]
       },
       {
         "id": "comparison_interpretation",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## The gain over TF-IDF is objective-dependent\n\nResponse retrieval improves graded top-10 utility over TF-IDF (0.2177) and clearly exceeds the prior (0.1385). Its MRR advantage over TF-IDF is not statistically resolved by the paired interval. Dense retrieval leads at 0.3599 nDCG@10 and 0.4041 MRR, so the observed nDCG gain over TF-IDF does not displace the semantic-query baseline."
+        "body": "## Four ways to rank the same 150 models\n\n- **Response search\u2014this baseline:** searches answers that the models wrote for older discovery questions, then gives evidence back to the models that produced the matching answers.\n- **Dense query search\u2014strongest baseline:** converts each question into a numerical meaning vector with a pretrained encoder that is not changed in this experiment. Nearby vectors can identify paraphrases without the same wording. It searches questions, not old answers.\n- **TF-IDF query search\u2014keyword baseline:** term frequency\u2013inverse document frequency weighting emphasizes words that are distinctive across questions. It finds the 10 development questions with the most distinctive word overlap and uses their model grades.\n- **Global prior\u2014query-blind control:** uses the same general model-quality ordering for every query, calculated without the held-out query's grades.\n\nResponse search improves top-10 quality over TF-IDF (0.2774 versus 0.2177) and clearly exceeds the global prior (0.1385). Dense query search still leads at 0.3599 nDCG@10 and 0.4041 MRR."
       },
       {
         "id": "comparison_chart",
@@ -200,50 +485,74 @@
         "layout": "full"
       },
       {
-        "id": "scope_definitions",
+        "id": "corpus_filtering",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## Scope, corpus, and metric definitions\n\nThis snapshot is as of **July 11, 2026 at 11:57 UTC**. Evaluation covers 322 development queries, 150 candidate models, and 48,300 complete qrels. nDCG@10 uses linear positive 0/1/2 gains through rank 10; MRR uses the reciprocal rank of the first model with grade above zero. All four systems rank the same candidates.\n\nThe organizer discovery corpus contains 1,163,850 responses. Exact normalized \u201cI don't know\u201d answers account for 84.3%; removing them leaves 182,800 documents. The aggressive filter leaves 173,162 after also removing very short or refusal-like responses. Exact development-query overlap is masked before both RM3 feedback and final retrieval; the audit found zero overlapping documents."
+        "body": "## Most stored answers are unusable refusals\n\nA **response document** is one older question\u2013answer pair tagged with the model that wrote the answer. The basic, frozen filter removes 981,050 exact normalized \u201cI don't know\u201d answers\u201484.3% of the corpus\u2014leaving 182,800 searchable responses. A stricter alternative leaves 173,162 after also removing very short or refusal-like text.\n\nThe chart shows why filtering is not a small preprocessing detail: it determines how much evidence each model can contribute. The rules were fixed before effectiveness scores were inspected."
+      },
+      {
+        "id": "filter_flow",
+        "type": "chart",
+        "chartId": "filter_flow_chart",
+        "layout": "full"
       },
       {
         "id": "retrieval_method",
         "type": "markdown",
         "sourceId": "response_retriever",
-        "body": "## BM25 and RM3 search prior model responses\n\nFor each target query, BM25 retrieves response documents using a pinned English analyzer and Lucene-style scoring (`k1=0.9`, `b=0.4`). RM3 is a second pass: it mixes the original query equally with 10 expansion terms estimated from the top 10 first-pass documents. Each model's **SumScore** is the reproducible floating-point sum of its positive retrieved-document scores.\n\nThe preregistered 24 candidates cross two methods (BM25 or RM3), two indexed fields (response only or discovery query plus response), two filters, and depths 100/500/1,000. No model is trained, and neither external data nor logprob metadata is used."
+        "body": "## How BM25 and RM3 turn old answers into a model ranking\n\n**BM25** is a classic keyword-search score. It rewards old answers that share distinctive words with the new question, while adjusting for answer length and how common each word is.\n\n**RM3 (Relevance Model 3) is query expansion, not an LLM.** It uses BM25 once, takes 10 high-weight terms from the 10 best first-pass results, mixes those terms 50/50 with the original question, and searches again. The intuition is that promising old answers may contain useful vocabulary that the short question omitted; a poor first pass can also reinforce noise.\n\n1. **Receive a new question.** No candidate answer to that question is available.\n2. **Search retained historical answers with BM25.**\n3. **Expand the question with RM3 and search again.**\n4. **Group retrieved answers by the model that wrote them.**\n5. **Add each model's positive retrieval scores.** This **SumScore** might be 2.1 + 1.4 + 0.5 = 4.0.\n6. **Rank all 150 models by SumScore.**\n\nNo model is trained. No external data or **log probabilities**\u2014token-level confidence values from the LLM\u2014are used."
       },
       {
         "id": "nested_selection",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## Nested selection keeps every outer label sealed\n\nFor outer query `o`, each of the 24 candidates is evaluated by leave-one-query-out validation across the other 321 queries. Inner query `i` uses a prior excluding both `o` and `i`; macro inner nDCG@10 selects the candidate, and MRR is never used for selection. The chosen candidate then ranks `o`, with score ties resolved by the outer fold's qrel prior and model ID.\n\n`bm25_rm3__response_only__basic__d500` won 314 folds. The eight alternative selections beat it internally by only 0.0000117 to 0.001569 nDCG@10, revealing high-leverage near-tie instability. The full-development fixed score (0.2930 nDCG@10, 0.3359 MRR) is therefore optimistic; the nested 0.2774/0.3175 result is the leakage-safe headline."
+        "body": "## How held-out testing prevents answer-key leakage\n\n**Leakage** happens when information from the query being evaluated\u2014especially its organizer grades\u2014influences tuning or ranking. That can make a development result look better than it really is. This experiment uses nested leave-one-query-out validation:\n\n1. **Hold out one query** and seal all of its quality grades.\n2. **Use only the other 321 queries** to compare 24 frozen retrieval setups in an inner leave-one-out loop.\n3. **Choose one setup using top-10 ranking quality only.** MRR does not influence the choice.\n4. **Lock that choice and rank all 150 models** for the held-out query.\n5. **Reveal the sealed grades only to score the finished ranking.**\n6. **Repeat for all 322 queries and average the held-out scores.**\n\nExact matching discovery questions are also blocked before both RM3 expansion and final retrieval; the audit found zero such overlaps. Leakage-safe means the development estimate is fairer\u2014not that hidden-test performance is guaranteed.\n\n### What the inner selection chose\n\nRM3 over response text, with the basic filter and top 500 retrieved answers, was selected in 314/322 held-out folds (97.5%). The other eight folds were extremely close: their inner advantages ranged from only 0.0000117 to 0.001569 nDCG@10. A score computed after choosing one setup on all development labels (0.2930 nDCG@10 / 0.3359 MRR) is optimistic; the nested 0.2774 nDCG@10 / 0.3175 MRR result is the headline."
       },
       {
         "id": "uncertainty",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## Paired intervals support one clear TF-IDF gain\n\nAgainst TF-IDF, response retrieval wins/ties/loses **127/124/71** queries on nDCG@10 and **165/42/115** on reciprocal rank. Against the global prior, both intervals are positive: nDCG [+0.1032, +0.1756] and MRR [+0.0727, +0.1503]. Written runs and the 24\u00d7322\u00d7150 score tensor passed the validation receipt."
+        "body": "## One TF-IDF improvement is clear; the other is uncertain\n\nA **paired 95% confidence interval (CI)** starts with each query's response-search score minus the same query's baseline score, then resamples those paired differences 10,000 times. An interval entirely above zero supports an improvement; one crossing zero is inconclusive.\n\nAgainst TF-IDF, the average nDCG@10 difference is +0.0597, with interval [+0.0193, +0.1003]: a clear development-set improvement. The MRR difference is +0.0398, but its interval [-0.0030, +0.0819] crosses zero. MRR can show more query wins than losses and still be uncertain because the size and variability of those changes also matter.\n\nBoth intervals are below zero versus dense query search and above zero versus the global prior. **Wins/ties/losses** in the chart count how often response search scores higher, equal, or lower on individual queries; they show frequency, not the size of each difference."
+      },
+      {
+        "id": "query_outcomes_chart",
+        "type": "chart",
+        "chartId": "paired_query_outcomes_chart",
+        "layout": "full"
       },
       {
         "id": "volume_bias",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## SumScore has strong inventory-volume dependence\n\nFor the deployment candidate, retained response inventory correlates 0.839 with total SumScore, -0.925 with mean rank, and 0.651 with top-10 frequency (Spearman). The largest inventory quartile receives 46.6% of top-10 appearances despite containing 24.7% of models.\n\nThis is strong volume dependence and a plausible aggregation bias\u2014not proof of a pure artifact. Inventory also correlates 0.411 with the full-development qrel prior, so response volume partly tracks model quality or coverage."
+        "body": "## Main risk: more past answers create more chances to score\n\nFor the **most-selected fixed setup**, a model's **response inventory** is the number of its historical answers that survive filtering. SumScore adds every positive match, so a model with more searchable answers has more chances to accumulate score even if no individual answer is better.\n\nThe quarter of models with the largest inventories contains 24.7% of models but receives 46.6% of all top-10 placements. Spearman's rank correlation runs from -1 to +1: inventory correlates 0.839 with total SumScore and 0.651 with top-10 frequency.\n\nThis is a strong association and a plausible aggregation bias, not proof that response volume alone causes the ranking. Inventory also correlates 0.411 with average grades across the full development set, so models with more answers may also be better or cover more topics. This correlation is a diagnostic; it is not used as a retrieval feature."
       },
       {
-        "id": "limitations",
-        "type": "markdown",
-        "sourceId": "response_results",
-        "body": "## What the estimate does not establish\n\n- This is development-set cross-validation, not hidden-test performance.\n- The fixed deployment score reuses development labels for configuration choice and must not replace the nested estimate.\n- The 10k paired-query bootstrap conditions on the stitched outer predictions. It does not repeat configuration selection or account for dependence among overlapping training folds.\n- Between 13 and 55 models have zero selected retrieval score per query, making fold-local prior tie breaking material.\n- SumScore's volume dependence may not transfer unchanged to hidden data with a different response inventory."
+        "id": "inventory_share",
+        "type": "chart",
+        "chartId": "inventory_share_chart",
+        "layout": "full"
       },
       {
         "id": "next_steps",
         "type": "markdown",
-        "body": "## Recommended next experiment\n\n1. Preregister a **volume-normalized response aggregation** grid\u2014such as capped top-response sums and top-response means\u2014while keeping the same retrieval documents and nested protocol.\n2. Compare it directly with frozen SumScore, dense retrieval, TF-IDF, and the fold-local prior; include inventory-dependence diagnostics as a success guardrail.\n3. Only after isolating aggregation effects, add logprobs as a separate feature ablation so confidence and text evidence remain distinguishable."
+        "body": "## Recommended next experiment\n\n1. **Freeze volume-normalized scoring rules before looking at new results.** Try adding only a model's strongest few matches or averaging its strongest matches instead of summing every hit.\n2. **Use the same nested evaluation and the same three comparators.** Success should mean keeping the top-10 gain over TF-IDF while materially reducing the connection between answer inventory and ranking.\n3. **Test dense\u2013response combination only after the volume issue is understood.** Dense query search remains stronger and may add different evidence.\n4. **Keep log probabilities as a later, separate experiment.** That makes it possible to distinguish model confidence from the value of answer text itself."
       },
       {
         "id": "further_questions",
         "type": "markdown",
         "body": "## Further questions\n\n- Does volume normalization preserve the nDCG gain over TF-IDF while reducing inventory correlation?\n- Can a preregistered dense\u2013response fusion improve the queries where the two retrievers make different errors?\n- Does the selected RM3 configuration remain stable on hidden test queries with different response coverage?"
+      },
+      {
+        "id": "technical_details",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## Technical details for readers who want them\n\n- **Snapshot:** July 11, 2026 at 11:57 UTC; 322 development queries, 150 models, and 48,300 complete query\u2013model grades.\n- **Frozen grid:** 24 combinations of BM25 or BM25+RM3, answer text or question-plus-answer text, basic or aggressive filtering, and retrieval depth 100, 500, or 1,000.\n- **Most selected configuration:** `bm25_rm3__response_only__basic__d500`. This means RM3 over answer text, the basic filter, and depth 500.\n- **Pinned retrieval:** Lucene-style BM25 (`k1=0.9`, `b=0.4`), a frozen Unicode/English stemming analyzer, 10 RM3 feedback documents, 10 expansion terms, and 50% original-query weight.\n- **Run class:** internal automatic\u2014only organizer data, no pretrained answer encoder, manual intervention, external corpus, or log-probability metadata.\n- **Runtime:** the CPU experiment through its uncertainty summary took about 62 seconds in the recorded run.\n- **Reproducibility:** all 322\u00d7150 written rankings and the 24\u00d7322\u00d7150 score tensor passed validation; exact source, index, configuration, code, and artifact hashes are available through the report's source controls."
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "sourceId": "response_results",
+        "body": "## Caveats and assumptions\n\n- **Development is not the hidden test.** Nested validation reduces tuning bias, but future queries and response coverage can still differ.\n- **The fixed deployment score is optimistic.** It reuses all development labels to choose one setup, so it must not replace the nested held-out estimate.\n- **The 95% intervals are conditional.** They resample the 322 finished held-out predictions but do not rerun configuration selection or account for dependence among overlapping training folds inside every resample.\n- **Tie handling matters.** Between 13 and 55 models receive zero retrieval score per query; ties then use a model-quality prior computed without the held-out query.\n- **Volume bias may shift.** SumScore's inventory dependence may change on hidden data with a different mix of stored answers.\n- **Exact-query masking is conservative but not perfect isolation.** Matching discovery documents are blocked from feedback and final retrieval, while still contributing to global qrel-free index statistics. The observed overlap count is zero."
       }
     ]
   },
@@ -257,14 +566,16 @@
           "response_ndcg": 0.2773577839029814,
           "response_mrr": 0.31753289707886323,
           "ndcg_delta_vs_tfidf": 0.05970353774117848,
-          "mrr_delta_vs_tfidf": 0.03983722771869114
+          "mrr_delta_vs_tfidf": 0.03983722771869114,
+          "deployment_fold_share": 0.9751552795031055,
+          "deployment_fold_count": 314
         }
       ],
       "system_metrics": [
         {
           "system_order": 1,
           "metric_order": 1,
-          "system": "Response nested",
+          "system": "Response search",
           "metric": "nDCG@10",
           "value": 0.2773577839029814,
           "query_count": 322,
@@ -274,7 +585,7 @@
         {
           "system_order": 1,
           "metric_order": 2,
-          "system": "Response nested",
+          "system": "Response search",
           "metric": "MRR",
           "value": 0.31753289707886323,
           "query_count": 322,
@@ -284,7 +595,7 @@
         {
           "system_order": 2,
           "metric_order": 1,
-          "system": "Dense nested",
+          "system": "Dense query search",
           "metric": "nDCG@10",
           "value": 0.359854744095009,
           "query_count": 322,
@@ -294,7 +605,7 @@
         {
           "system_order": 2,
           "metric_order": 2,
-          "system": "Dense nested",
+          "system": "Dense query search",
           "metric": "MRR",
           "value": 0.4040633081116639,
           "query_count": 322,
@@ -304,7 +615,7 @@
         {
           "system_order": 3,
           "metric_order": 1,
-          "system": "TF-IDF k=10",
+          "system": "TF-IDF query search",
           "metric": "nDCG@10",
           "value": 0.2176542461618029,
           "query_count": 322,
@@ -314,7 +625,7 @@
         {
           "system_order": 3,
           "metric_order": 2,
-          "system": "TF-IDF k=10",
+          "system": "TF-IDF query search",
           "metric": "MRR",
           "value": 0.2776956693601721,
           "query_count": 322,
@@ -341,6 +652,394 @@
           "evaluation_protocol": "strict outer LOO",
           "run_classification": "internal control"
         }
+      ],
+      "query_outcomes": [
+        {
+          "comparison_order": 1,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "TF-IDF \u00b7 top-10 quality",
+          "baseline": "TF-IDF",
+          "metric": "nDCG@10",
+          "outcome": "Response better",
+          "outcome_count": 127,
+          "outcome_share": 0.3944099378881988,
+          "query_count": 322,
+          "mean_difference": 0.05970353774117846,
+          "ci_lower": 0.01929654754868551,
+          "ci_upper": 0.10030153011853288
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "TF-IDF \u00b7 top-10 quality",
+          "baseline": "TF-IDF",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 124,
+          "outcome_share": 0.38509316770186336,
+          "query_count": 322,
+          "mean_difference": 0.05970353774117846,
+          "ci_lower": 0.01929654754868551,
+          "ci_upper": 0.10030153011853288
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "TF-IDF \u00b7 top-10 quality",
+          "baseline": "TF-IDF",
+          "metric": "nDCG@10",
+          "outcome": "Response worse",
+          "outcome_count": 71,
+          "outcome_share": 0.2204968944099379,
+          "query_count": 322,
+          "mean_difference": 0.05970353774117846,
+          "ci_lower": 0.01929654754868551,
+          "ci_upper": 0.10030153011853288
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "TF-IDF \u00b7 first useful",
+          "baseline": "TF-IDF",
+          "metric": "MRR",
+          "outcome": "Response better",
+          "outcome_count": 165,
+          "outcome_share": 0.5124223602484472,
+          "query_count": 322,
+          "mean_difference": 0.039837227718691165,
+          "ci_lower": -0.002991499844517411,
+          "ci_upper": 0.08191610047377341
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "TF-IDF \u00b7 first useful",
+          "baseline": "TF-IDF",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 42,
+          "outcome_share": 0.13043478260869565,
+          "query_count": 322,
+          "mean_difference": 0.039837227718691165,
+          "ci_lower": -0.002991499844517411,
+          "ci_upper": 0.08191610047377341
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "TF-IDF \u00b7 first useful",
+          "baseline": "TF-IDF",
+          "metric": "MRR",
+          "outcome": "Response worse",
+          "outcome_count": 115,
+          "outcome_share": 0.35714285714285715,
+          "query_count": 322,
+          "mean_difference": 0.039837227718691165,
+          "ci_lower": -0.002991499844517411,
+          "ci_upper": 0.08191610047377341
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "Dense \u00b7 top-10 quality",
+          "baseline": "Dense",
+          "metric": "nDCG@10",
+          "outcome": "Response better",
+          "outcome_count": 90,
+          "outcome_share": 0.2795031055900621,
+          "query_count": 322,
+          "mean_difference": -0.08249696019202764,
+          "ci_lower": -0.1216099075642184,
+          "ci_upper": -0.04245105772933464
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "Dense \u00b7 top-10 quality",
+          "baseline": "Dense",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 104,
+          "outcome_share": 0.32298136645962733,
+          "query_count": 322,
+          "mean_difference": -0.08249696019202764,
+          "ci_lower": -0.1216099075642184,
+          "ci_upper": -0.04245105772933464
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "Dense \u00b7 top-10 quality",
+          "baseline": "Dense",
+          "metric": "nDCG@10",
+          "outcome": "Response worse",
+          "outcome_count": 128,
+          "outcome_share": 0.39751552795031053,
+          "query_count": 322,
+          "mean_difference": -0.08249696019202764,
+          "ci_lower": -0.1216099075642184,
+          "ci_upper": -0.04245105772933464
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "Dense \u00b7 first useful",
+          "baseline": "Dense",
+          "metric": "MRR",
+          "outcome": "Response better",
+          "outcome_count": 112,
+          "outcome_share": 0.34782608695652173,
+          "query_count": 322,
+          "mean_difference": -0.08653041103280064,
+          "ci_lower": -0.13023617842755839,
+          "ci_upper": -0.04273759206759319
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "Dense \u00b7 first useful",
+          "baseline": "Dense",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 57,
+          "outcome_share": 0.17701863354037267,
+          "query_count": 322,
+          "mean_difference": -0.08653041103280064,
+          "ci_lower": -0.13023617842755839,
+          "ci_upper": -0.04273759206759319
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "Dense \u00b7 first useful",
+          "baseline": "Dense",
+          "metric": "MRR",
+          "outcome": "Response worse",
+          "outcome_count": 153,
+          "outcome_share": 0.4751552795031056,
+          "query_count": 322,
+          "mean_difference": -0.08653041103280064,
+          "ci_lower": -0.13023617842755839,
+          "ci_upper": -0.04273759206759319
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "Global prior \u00b7 top-10 quality",
+          "baseline": "Global prior",
+          "metric": "nDCG@10",
+          "outcome": "Response better",
+          "outcome_count": 141,
+          "outcome_share": 0.43788819875776397,
+          "query_count": 322,
+          "mean_difference": 0.13883360158412927,
+          "ci_lower": 0.10316334658388547,
+          "ci_upper": 0.17555289945664496
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "Global prior \u00b7 top-10 quality",
+          "baseline": "Global prior",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 129,
+          "outcome_share": 0.40062111801242234,
+          "query_count": 322,
+          "mean_difference": 0.13883360158412927,
+          "ci_lower": 0.10316334658388547,
+          "ci_upper": 0.17555289945664496
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "Global prior \u00b7 top-10 quality",
+          "baseline": "Global prior",
+          "metric": "nDCG@10",
+          "outcome": "Response worse",
+          "outcome_count": 52,
+          "outcome_share": 0.16149068322981366,
+          "query_count": 322,
+          "mean_difference": 0.13883360158412927,
+          "ci_lower": 0.10316334658388547,
+          "ci_upper": 0.17555289945664496
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "Global prior \u00b7 first useful",
+          "baseline": "Global prior",
+          "metric": "MRR",
+          "outcome": "Response better",
+          "outcome_count": 186,
+          "outcome_share": 0.577639751552795,
+          "query_count": 322,
+          "mean_difference": 0.11087978906852236,
+          "ci_lower": 0.07266038275257017,
+          "ci_upper": 0.15034893833300592
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "Global prior \u00b7 first useful",
+          "baseline": "Global prior",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 39,
+          "outcome_share": 0.12111801242236025,
+          "query_count": 322,
+          "mean_difference": 0.11087978906852236,
+          "ci_lower": 0.07266038275257017,
+          "ci_upper": 0.15034893833300592
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "Global prior \u00b7 first useful",
+          "baseline": "Global prior",
+          "metric": "MRR",
+          "outcome": "Response worse",
+          "outcome_count": 97,
+          "outcome_share": 0.30124223602484473,
+          "query_count": 322,
+          "mean_difference": 0.11087978906852236,
+          "ci_lower": 0.07266038275257017,
+          "ci_upper": 0.15034893833300592
+        }
+      ],
+      "filter_flow": [
+        {
+          "stage_order": 1,
+          "stage": "All discovery responses",
+          "documents": 1163850,
+          "retained_share": 1.0,
+          "removed_at_step": 0,
+          "rule": "No filter"
+        },
+        {
+          "stage_order": 2,
+          "stage": "After basic filter",
+          "documents": 182800,
+          "retained_share": 0.15706491386347038,
+          "removed_at_step": 981050,
+          "rule": "Remove exact normalized \u201cI don't know\u201d answers"
+        },
+        {
+          "stage_order": 3,
+          "stage": "After aggressive filter",
+          "documents": 173162,
+          "retained_share": 0.1487837779782618,
+          "removed_at_step": 9638,
+          "rule": "Also remove very short or refusal-like responses"
+        }
+      ],
+      "inventory_shares": [
+        {
+          "quartile_order": 1,
+          "series_order": 1,
+          "inventory_group": "Fewest answers",
+          "series": "Models in group",
+          "share": 0.25333333333333335,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "top10_appearances": 352
+        },
+        {
+          "quartile_order": 1,
+          "series_order": 2,
+          "inventory_group": "Fewest answers",
+          "series": "Top-10 placements",
+          "share": 0.1093167701863354,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "top10_appearances": 352
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 1,
+          "inventory_group": "Lower-middle",
+          "series": "Models in group",
+          "share": 0.25333333333333335,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "top10_appearances": 559
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 2,
+          "inventory_group": "Lower-middle",
+          "series": "Top-10 placements",
+          "share": 0.17360248447204968,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "top10_appearances": 559
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 1,
+          "inventory_group": "Upper-middle",
+          "series": "Models in group",
+          "share": 0.24666666666666667,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "top10_appearances": 808
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 2,
+          "inventory_group": "Upper-middle",
+          "series": "Top-10 placements",
+          "share": 0.25093167701863356,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "top10_appearances": 808
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 1,
+          "inventory_group": "Most answers",
+          "series": "Models in group",
+          "share": 0.24666666666666667,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "top10_appearances": 1501
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 2,
+          "inventory_group": "Most answers",
+          "series": "Top-10 placements",
+          "share": 0.46614906832298136,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "top10_appearances": 1501
+        }
       ]
     }
   },
@@ -357,7 +1056,7 @@
       "query": {
         "engine": "sqlite",
         "language": "sql",
-        "sql": "SELECT response_ndcg, response_mrr, ndcg_delta_vs_tfidf, mrr_delta_vs_tfidf\nFROM headline_metrics",
+        "sql": "SELECT response_ndcg, response_mrr, ndcg_delta_vs_tfidf, mrr_delta_vs_tfidf,\n       deployment_fold_share, deployment_fold_count\nFROM headline_metrics",
         "description": "Selects the nested response metrics and paired TF-IDF deltas from an in-memory table loaded from the reviewed result snapshot.",
         "executed_at": "2026-07-11T11:57:25Z",
         "tables_used": [
@@ -368,9 +1067,11 @@
           "strict outer LOO"
         ],
         "metric_definitions": [
-          "nDCG@10: macro mean over 322 queries with linear positive 0/1/2 qrel gain and log2 rank discount through rank 10.",
-          "MRR: macro mean reciprocal rank of the first candidate with qrel grade greater than zero.",
-          "Response nested: one stitched outer prediction per query after the response candidate is selected only by inner macro nDCG@10."
+          "nDCG@10: average top-10 ranking quality over 322 equally weighted queries, using organizer grades 0/1/2 and giving higher ranks more credit.",
+          "MRR: average reciprocal rank of the first model with a positive organizer grade; first place is 1, second is 0.5, and fifth is 0.2.",
+          "Response nested: one held-out ranking per query after choosing the retrieval setup only with the other queries' grades.",
+          "Win/tie/loss: the number of paired queries where response search scores higher, equal, or lower than the named baseline.",
+          "Paired 95% interval: 10,000 query-level bootstrap resamples of response score minus baseline score, conditional on the finished nested selections."
         ]
       }
     },
@@ -392,9 +1093,84 @@
           "strict outer LOO"
         ],
         "metric_definitions": [
-          "nDCG@10: macro mean over 322 queries with linear positive 0/1/2 qrel gain and log2 rank discount through rank 10.",
-          "MRR: macro mean reciprocal rank of the first candidate with qrel grade greater than zero.",
-          "Response nested: one stitched outer prediction per query after the response candidate is selected only by inner macro nDCG@10."
+          "nDCG@10: average top-10 ranking quality over 322 equally weighted queries, using organizer grades 0/1/2 and giving higher ranks more credit.",
+          "MRR: average reciprocal rank of the first model with a positive organizer grade; first place is 1, second is 0.5, and fifth is 0.2.",
+          "Response nested: one held-out ranking per query after choosing the retrieval setup only with the other queries' grades.",
+          "Win/tie/loss: the number of paired queries where response search scores higher, equal, or lower than the named baseline.",
+          "Paired 95% interval: 10,000 query-level bootstrap resamples of response score minus baseline score, conditional on the finished nested selections."
+        ]
+      }
+    },
+    {
+      "id": "query_outcomes_sql",
+      "label": "Paired query outcomes and uncertainty context",
+      "path": "reports/trec_2026_response_retrieval_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT comparison_order, metric_order, outcome_order, comparison_metric,\n       baseline, metric, outcome, outcome_count, outcome_share, query_count,\n       mean_difference, ci_lower, ci_upper\nFROM query_outcomes\nORDER BY comparison_order, metric_order, outcome_order",
+        "description": "Selects response-search win, tie, and loss counts against each baseline for both official metrics, retaining paired intervals.",
+        "executed_at": "2026-07-11T11:57:25Z",
+        "tables_used": [
+          "query_outcomes"
+        ],
+        "filters": [
+          "322 official development queries per comparison",
+          "strict outer leave-one-query-out predictions"
+        ],
+        "metric_definitions": [
+          "nDCG@10: average top-10 ranking quality over 322 equally weighted queries, using organizer grades 0/1/2 and giving higher ranks more credit.",
+          "MRR: average reciprocal rank of the first model with a positive organizer grade; first place is 1, second is 0.5, and fifth is 0.2.",
+          "Response nested: one held-out ranking per query after choosing the retrieval setup only with the other queries' grades.",
+          "Win/tie/loss: the number of paired queries where response search scores higher, equal, or lower than the named baseline.",
+          "Paired 95% interval: 10,000 query-level bootstrap resamples of response score minus baseline score, conditional on the finished nested selections."
+        ]
+      }
+    },
+    {
+      "id": "filter_flow_sql",
+      "label": "Frozen response-filter stage counts",
+      "path": "reports/trec_2026_response_retrieval_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT stage_order, stage, documents, retained_share, removed_at_step, rule\nFROM filter_flow\nORDER BY stage_order",
+        "description": "Selects the raw, basic-filtered, and aggressive-filtered response document counts from the reviewed corpus audit.",
+        "executed_at": "2026-07-11T11:57:25Z",
+        "tables_used": [
+          "filter_flow"
+        ],
+        "filters": [
+          "official discovery response corpus",
+          "frozen basic and aggressive filter definitions"
+        ],
+        "metric_definitions": [
+          "Documents: one organizer discovery-query and candidate-model response pair.",
+          "Retained share: documents after the stage divided by all discovery responses."
+        ]
+      }
+    },
+    {
+      "id": "inventory_shares_sql",
+      "label": "Response-inventory quartile representation",
+      "path": "reports/trec_2026_response_retrieval_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT quartile_order, series_order, inventory_group, series, share,\n       model_count, inventory_min, inventory_max, top10_appearances\nFROM inventory_shares\nORDER BY quartile_order, series_order",
+        "description": "Selects each response-inventory quartile's share of candidate models and share of all top-10 placements for the deployment configuration.",
+        "executed_at": "2026-07-11T11:57:25Z",
+        "tables_used": [
+          "inventory_shares"
+        ],
+        "filters": [
+          "basic response filter",
+          "RM3 response-only deployment configuration at depth 500",
+          "322 development queries and 150 candidate models"
+        ],
+        "metric_definitions": [
+          "Model share: models in the inventory quartile divided by 150.",
+          "Top-10 placement share: placements earned by the quartile divided by 3,220 total top-10 slots."
         ]
       }
     },

@@ -135,7 +135,7 @@ and depth 500 in 314 of 322 folds. The deployment configuration showed strong re
 inventory dependence, so the report treats possible volume bias as a material caveat.
 
 The full CPU run took about one minute and peaked at 1.49 GB RSS on a Ryzen AI MAX+
-395. The self-contained, mobile-responsive report is
+395. The self-contained, mobile-responsive plain-language report is
 [`reports/trec_2026_response_retrieval_baseline.html`](reports/trec_2026_response_retrieval_baseline.html).
 
 ## Data

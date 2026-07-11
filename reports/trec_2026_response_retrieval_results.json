@@ -302,7 +302,41 @@
         "inventory_vs_mean_rank": -0.9254115308704426,
         "inventory_vs_sum_score": 0.8388064849388015,
         "inventory_vs_top10_frequency": 0.6505332413198981
-      }
+      },
+      "top10_representation_by_inventory_quartile": [
+        {
+          "inventory_max": 707.0,
+          "inventory_min": 36.0,
+          "model_count": 38,
+          "quartile": 1,
+          "top10_appearance_share": 0.1093167701863354,
+          "top10_appearances": 352
+        },
+        {
+          "inventory_max": 1213.0,
+          "inventory_min": 720.0,
+          "model_count": 38,
+          "quartile": 2,
+          "top10_appearance_share": 0.17360248447204968,
+          "top10_appearances": 559
+        },
+        {
+          "inventory_max": 1695.0,
+          "inventory_min": 1230.0,
+          "model_count": 37,
+          "quartile": 3,
+          "top10_appearance_share": 0.25093167701863356,
+          "top10_appearances": 808
+        },
+        {
+          "inventory_max": 2511.0,
+          "inventory_min": 1713.0,
+          "model_count": 37,
+          "quartile": 4,
+          "top10_appearance_share": 0.46614906832298136,
+          "top10_appearances": 1501
+        }
+      ]
     },
     "overlap_candidate_query_pairs": 0,
     "overlap_document_count_max_per_query_total": 0,
@@ -495,32 +529,56 @@
     "selection_tie_break": "declared_24_candidate_order"
   },
   "report_notes": {
-    "audience": "technical",
+    "audience": "product stakeholders and first-time topic readers",
     "delivery_mode": "portable_html",
+    "non_chart_visuals": [
+      "plain-language response-retrieval flow",
+      "nested-validation holdout flow"
+    ],
+    "repeated_bar_rationale": "All four quantitative questions compare or compose a small set of discrete categories; grouped and stacked bars are the most direct mobile-readable forms.",
     "required_structure": [
       "title",
-      "technical summary",
+      "executive summary",
       "key findings with visual evidence",
-      "scope, data, and metric definitions",
-      "methodology and experimental design",
-      "limitations, uncertainty, and robustness checks",
       "recommended next steps",
-      "further questions"
+      "further questions",
+      "caveats and assumptions"
     ],
-    "table_omission": "The four-system comparison is visualized rather than repeated as a broad table; exact values and all 24 fixed candidates remain here.",
-    "visual": {
-      "category_count": 4,
-      "family": "comparison and ranking",
-      "metric_count": 2,
-      "mobile_qa": "full-width chart in the responsive portable reader; the delivery receipt records whether a compatible browser completed narrow QA",
-      "palette_policy": "hard two-root cap with a visible metric legend",
-      "question": "How does nested response retrieval compare with dense, TF-IDF, and the global-prior control?",
-      "rows": 8,
-      "scale": "shared zero-based 0-to-1 metric scale",
-      "section": "four-system comparison",
-      "takeaway": "Response retrieval improves nDCG@10 over TF-IDF but remains below dense; its MRR improvement over TF-IDF is uncertain.",
-      "type": "full-width grouped vertical bar"
-    }
+    "table_omission": "Exact chart values remain available in semantic chart tables and source affordances; no broad duplicate result table is shown.",
+    "visuals": [
+      {
+        "family": "comparison and ranking",
+        "question": "Which approach ranks candidate LLMs best?",
+        "rows": 8,
+        "section": "four-system comparison",
+        "takeaway": "Response search improves nDCG@10 over TF-IDF, while dense semantic query search remains strongest.",
+        "type": "full-width grouped bar"
+      },
+      {
+        "family": "ordered stage comparison",
+        "question": "How much searchable answer text remains after each frozen cleaning rule?",
+        "rows": 3,
+        "section": "response filtering",
+        "takeaway": "Removing exact refusal answers reduces 1.16 million stored responses to 182,800 searchable documents.",
+        "type": "full-width horizontal bar"
+      },
+      {
+        "family": "composition",
+        "question": "How often does response search beat, tie, or trail each baseline?",
+        "rows": 18,
+        "section": "query-level outcomes",
+        "takeaway": "The two official metrics summarize different query-level win, tie, and loss patterns.",
+        "type": "full-width stacked bar"
+      },
+      {
+        "family": "comparison and composition",
+        "question": "Are top-10 placements concentrated among models with more stored historical answers?",
+        "rows": 8,
+        "section": "answer-inventory diagnostic",
+        "takeaway": "The highest-inventory quarter receives almost half of all top-10 placements despite containing about a quarter of models.",
+        "type": "full-width grouped bar"
+      }
+    ]
   },
   "retrieval_specification": {
     "aggregation": "SumScore: math.fsum of positive retrieved-document scores by model",

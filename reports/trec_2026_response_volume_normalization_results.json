@@ -1,0 +1,689 @@
+{
+  "aggregation_grid": {
+    "combined_candidate_count": 168,
+    "normalized_candidate_count": 144,
+    "normalized_order": [
+      "best_hit",
+      "top3_sum",
+      "top10_sum",
+      "top3_mean",
+      "top10_mean",
+      "mean_all"
+    ],
+    "sumscore_candidate_count": 24
+  },
+  "audience": "first-time general stakeholder",
+  "caveats": [
+    "Inventory association is not proof of causal unfairness; stronger models may legitimately have more historical responses.",
+    "The deployment-configuration bias diagnostics use all development queries and are behavior checks, not unbiased effectiveness estimates.",
+    "The normalized-versus-SumScore nDCG interval includes zero, so the +0.0119 point difference is promising but not statistically decisive here.",
+    "Dense query retrieval remains materially better than both lexical response systems on these development queries."
+  ],
+  "comparisons": {
+    "dense_nested_reference": {
+      "baseline": "dense_nested_reference",
+      "candidate": "response_normalized_nested",
+      "mrr_delta": {
+        "confidence_level": 0.95,
+        "lower": -0.12063592757755565,
+        "mean_difference": -0.07580866266234737,
+        "n_resamples": 10000,
+        "upper": -0.032319469588730936
+      },
+      "mrr_win_tie_loss": {
+        "losses": 140,
+        "ties": 55,
+        "wins": 127
+      },
+      "ndcg_at_10_delta": {
+        "confidence_level": 0.95,
+        "lower": -0.11009040975594586,
+        "mean_difference": -0.07062931173280643,
+        "n_resamples": 10000,
+        "upper": -0.031779030241317945
+      },
+      "ndcg_at_10_win_tie_loss": {
+        "losses": 125,
+        "ties": 97,
+        "wins": 100
+      }
+    },
+    "global_prior": {
+      "baseline": "global_prior",
+      "candidate": "response_normalized_nested",
+      "mrr_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.08546814230493215,
+        "mean_difference": 0.12160153743897564,
+        "n_resamples": 10000,
+        "upper": 0.16006273697591641
+      },
+      "mrr_win_tie_loss": {
+        "losses": 88,
+        "ties": 41,
+        "wins": 193
+      },
+      "ndcg_at_10_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.11483249123216074,
+        "mean_difference": 0.1507012500433505,
+        "n_resamples": 10000,
+        "upper": 0.18675595301438602
+      },
+      "ndcg_at_10_win_tie_loss": {
+        "losses": 51,
+        "ties": 122,
+        "wins": 149
+      }
+    },
+    "response_sumscore_nested": {
+      "baseline": "response_sumscore_nested",
+      "candidate": "response_normalized_nested",
+      "mrr_delta": {
+        "confidence_level": 0.95,
+        "lower": -0.00624198464767581,
+        "mean_difference": 0.010721748370453268,
+        "n_resamples": 10000,
+        "upper": 0.027759189164369185
+      },
+      "mrr_win_tie_loss": {
+        "losses": 98,
+        "ties": 98,
+        "wins": 126
+      },
+      "ndcg_at_10_delta": {
+        "confidence_level": 0.95,
+        "lower": -0.0030847973807279477,
+        "mean_difference": 0.011867648459221216,
+        "n_resamples": 10000,
+        "upper": 0.026519571432877424
+      },
+      "ndcg_at_10_win_tie_loss": {
+        "losses": 64,
+        "ties": 181,
+        "wins": 77
+      }
+    },
+    "tfidf_fixed_k10": {
+      "baseline": "tfidf_fixed_k10",
+      "candidate": "response_normalized_nested",
+      "mrr_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.00878962009509604,
+        "mean_difference": 0.05055897608914443,
+        "n_resamples": 10000,
+        "upper": 0.09274229088439705
+      },
+      "mrr_win_tie_loss": {
+        "losses": 113,
+        "ties": 45,
+        "wins": 164
+      },
+      "ndcg_at_10_delta": {
+        "confidence_level": 0.95,
+        "lower": 0.03225498930710094,
+        "mean_difference": 0.07157118620039968,
+        "n_resamples": 10000,
+        "upper": 0.11139748665709319
+      },
+      "ndcg_at_10_win_tie_loss": {
+        "losses": 73,
+        "ties": 120,
+        "wins": 129
+      }
+    }
+  },
+  "data": {
+    "candidate_model_count": 150,
+    "combined_score_tensor_shape": [
+      168,
+      322,
+      150
+    ],
+    "query_count": 322
+  },
+  "decision": {
+    "all_four_gates_passed": false,
+    "dense_comparison_is_non_gating": true,
+    "gates": {
+      "deployment_inventory_rho_at_most_0_7388": {
+        "observed": 0.8894471379126866,
+        "operator": "<=",
+        "passed": false,
+        "reference": 0.8388,
+        "threshold": 0.7388
+      },
+      "deployment_largest_quartile_share_at_most_0_411": {
+        "equal_model_share_reference": 0.247,
+        "observed": 0.4832298136645963,
+        "operator": "<=",
+        "passed": false,
+        "reference": 0.466,
+        "threshold": 0.411
+      },
+      "ndcg_ci_above_tfidf": {
+        "measure": "paired_95pct_ci_lower_bound_normalized_minus_tfidf_ndcg_at_10",
+        "observed": 0.03225498930710094,
+        "operator": ">",
+        "passed": true,
+        "threshold": 0.0
+      },
+      "ndcg_within_0_010_of_sumscore": {
+        "measure": "normalized_minus_sumscore_oof_ndcg_at_10",
+        "observed": 0.011867648459221225,
+        "operator": ">=",
+        "passed": true,
+        "threshold": -0.01
+      }
+    },
+    "mrr_is_non_gating": true,
+    "recommendation": "retain_sumscore_and_stop_this_aggregation_branch",
+    "strong_success": true
+  },
+  "definitions": {
+    "historical_response": "One organizer-provided answer produced by one candidate model for one earlier discovery query; this is not the last chat response.",
+    "inventory_rho": "Spearman association between a model's usable historical-response count and its total retrieval score; lower absolute values mean less dependence.",
+    "mrr": "Average reciprocal rank of the first useful model: first is 1, second is 0.5, fifth is 0.2.",
+    "ndcg_at_10": "Average quality of the first ten ranked models, giving more credit to useful models near the top; 0 is worst and 1 is ideal.",
+    "nested_validation": "Each held-out query is predicted only after the retrieval setup is selected using the other queries; its grades never choose its own setup.",
+    "rm3": "A lexical query-expansion step: an initial BM25 search suggests related terms, then the search is rerun. RM3 is not a language model.",
+    "sumscore": "Add every positive retrieved historical-response score belonging to a model.",
+    "task": "For each new query, rank the same 150 candidate language models so a useful model appears as early as possible.",
+    "top10sum": "For each model, add only its ten strongest retrieved historical-response scores; use fewer when fewer than ten are found."
+  },
+  "deployment": {
+    "development_effectiveness_is_optimistic": true,
+    "normalized": {
+      "aggregation": "top10_sum",
+      "configuration": "bm25_rm3__query_response__basic__d500__agg_top10_sum",
+      "fixed_candidate_development_metrics": {
+        "mrr": 0.3371185170849273,
+        "ndcg_at_10": 0.29772897426548545
+      },
+      "inventory_vs_aggregation_score_spearman": 0.8894471379126866,
+      "largest_inventory_quartile_top10_share": 0.4832298136645963,
+      "quartiles": [
+        {
+          "inventory_max": 707.0,
+          "inventory_min": 36.0,
+          "model_count": 38,
+          "quartile": 1,
+          "top10_appearance_share": 0.10652173913043478,
+          "top10_appearances": 343
+        },
+        {
+          "inventory_max": 1213.0,
+          "inventory_min": 720.0,
+          "model_count": 38,
+          "quartile": 2,
+          "top10_appearance_share": 0.168944099378882,
+          "top10_appearances": 544
+        },
+        {
+          "inventory_max": 1695.0,
+          "inventory_min": 1230.0,
+          "model_count": 37,
+          "quartile": 3,
+          "top10_appearance_share": 0.24130434782608695,
+          "top10_appearances": 777
+        },
+        {
+          "inventory_max": 2511.0,
+          "inventory_min": 1713.0,
+          "model_count": 37,
+          "quartile": 4,
+          "top10_appearance_share": 0.4832298136645963,
+          "top10_appearances": 1556
+        }
+      ]
+    },
+    "sumscore": {
+      "aggregation": "sum_all",
+      "configuration": "bm25_rm3__response_only__basic__d500",
+      "fixed_candidate_development_metrics": {
+        "mrr": 0.33590052304639545,
+        "ndcg_at_10": 0.2930391208497416
+      },
+      "inventory_vs_aggregation_score_spearman": 0.8388064849388015,
+      "largest_inventory_quartile_top10_share": 0.46614906832298136,
+      "quartiles": [
+        {
+          "inventory_max": 707.0,
+          "inventory_min": 36.0,
+          "model_count": 38,
+          "quartile": 1,
+          "top10_appearance_share": 0.1093167701863354,
+          "top10_appearances": 352
+        },
+        {
+          "inventory_max": 1213.0,
+          "inventory_min": 720.0,
+          "model_count": 38,
+          "quartile": 2,
+          "top10_appearance_share": 0.17360248447204968,
+          "top10_appearances": 559
+        },
+        {
+          "inventory_max": 1695.0,
+          "inventory_min": 1230.0,
+          "model_count": 37,
+          "quartile": 3,
+          "top10_appearance_share": 0.25093167701863356,
+          "top10_appearances": 808
+        },
+        {
+          "inventory_max": 2511.0,
+          "inventory_min": 1713.0,
+          "model_count": 37,
+          "quartile": 4,
+          "top10_appearance_share": 0.46614906832298136,
+          "top10_appearances": 1501
+        }
+      ]
+    }
+  },
+  "diagnostics": {
+    "deployment_behavior": {
+      "effectiveness_estimate": "optimistic_not_oof",
+      "gating_scope": "fixed_full_development_deployment_configurations",
+      "normalized": {
+        "aggregation": "top10_sum",
+        "configuration": "bm25_rm3__query_response__basic__d500__agg_top10_sum",
+        "fixed_candidate_development_metrics": {
+          "mrr": 0.3371185170849273,
+          "ndcg_at_10": 0.29772897426548545
+        },
+        "inventory_vs_aggregation_score_spearman": 0.8894471379126866,
+        "largest_inventory_quartile_top10_share": 0.4832298136645963,
+        "quartiles": [
+          {
+            "inventory_max": 707.0,
+            "inventory_min": 36.0,
+            "model_count": 38,
+            "quartile": 1,
+            "top10_appearance_share": 0.10652173913043478,
+            "top10_appearances": 343
+          },
+          {
+            "inventory_max": 1213.0,
+            "inventory_min": 720.0,
+            "model_count": 38,
+            "quartile": 2,
+            "top10_appearance_share": 0.168944099378882,
+            "top10_appearances": 544
+          },
+          {
+            "inventory_max": 1695.0,
+            "inventory_min": 1230.0,
+            "model_count": 37,
+            "quartile": 3,
+            "top10_appearance_share": 0.24130434782608695,
+            "top10_appearances": 777
+          },
+          {
+            "inventory_max": 2511.0,
+            "inventory_min": 1713.0,
+            "model_count": 37,
+            "quartile": 4,
+            "top10_appearance_share": 0.4832298136645963,
+            "top10_appearances": 1556
+          }
+        ]
+      },
+      "sumscore": {
+        "aggregation": "sum_all",
+        "configuration": "bm25_rm3__response_only__basic__d500",
+        "fixed_candidate_development_metrics": {
+          "mrr": 0.33590052304639545,
+          "ndcg_at_10": 0.2930391208497416
+        },
+        "inventory_vs_aggregation_score_spearman": 0.8388064849388015,
+        "largest_inventory_quartile_top10_share": 0.46614906832298136,
+        "quartiles": [
+          {
+            "inventory_max": 707.0,
+            "inventory_min": 36.0,
+            "model_count": 38,
+            "quartile": 1,
+            "top10_appearance_share": 0.1093167701863354,
+            "top10_appearances": 352
+          },
+          {
+            "inventory_max": 1213.0,
+            "inventory_min": 720.0,
+            "model_count": 38,
+            "quartile": 2,
+            "top10_appearance_share": 0.17360248447204968,
+            "top10_appearances": 559
+          },
+          {
+            "inventory_max": 1695.0,
+            "inventory_min": 1230.0,
+            "model_count": 37,
+            "quartile": 3,
+            "top10_appearance_share": 0.25093167701863356,
+            "top10_appearances": 808
+          },
+          {
+            "inventory_max": 2511.0,
+            "inventory_min": 1713.0,
+            "model_count": 37,
+            "quartile": 4,
+            "top10_appearance_share": 0.46614906832298136,
+            "top10_appearances": 1501
+          }
+        ]
+      }
+    },
+    "selection": {
+      "normalized_aggregation_frequency": {
+        "top10_sum": 322
+      },
+      "normalized_configuration_frequency": {
+        "bm25_rm3__query_response__aggressive__d500__agg_top10_sum": 6,
+        "bm25_rm3__query_response__basic__d500__agg_top10_sum": 316
+      },
+      "sumscore_configuration_frequency": {
+        "bm25_rm3__query_response__basic__d500": 6,
+        "bm25_rm3__response_only__aggressive__d500": 2,
+        "bm25_rm3__response_only__basic__d500": 314
+      }
+    },
+    "stitched_oof_robustness": {
+      "gating": false,
+      "normalized": {
+        "aggregate_tie_resolved_by_prior_fraction": 0.0,
+        "fold_inventory_vs_score_spearman": {
+          "count": 322,
+          "max": 0.8103896911853127,
+          "mean": 0.5464364419926847,
+          "min": 0.24366812393102183
+        },
+        "fold_largest_quartile_top10_share": {
+          "count": 322,
+          "max": 0.9,
+          "mean": 0.4832298136645963,
+          "min": 0.0
+        },
+        "prior_tie_position_count": 0,
+        "query_count": 322,
+        "top10_position_count": 3220,
+        "zero_aggregate_score_fraction": 0.0,
+        "zero_score_position_count": 0
+      },
+      "sumscore": {
+        "aggregate_tie_resolved_by_prior_fraction": 0.0,
+        "fold_inventory_vs_score_spearman": {
+          "count": 322,
+          "max": 0.7963356685801226,
+          "mean": 0.5559064418455903,
+          "min": 0.23476913668916458
+        },
+        "fold_largest_quartile_top10_share": {
+          "count": 322,
+          "max": 0.9,
+          "mean": 0.46832298136645967,
+          "min": 0.0
+        },
+        "prior_tie_position_count": 0,
+        "query_count": 322,
+        "top10_position_count": 3220,
+        "zero_aggregate_score_fraction": 0.0,
+        "zero_score_position_count": 0
+      }
+    }
+  },
+  "evidence_inputs": {
+    "decision": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/response_volume_normalization/decision.json",
+    "dense_per_query": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/reports/trec_2026_dense_query_knn_per_query.tsv",
+    "diagnostics": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/response_volume_normalization/diagnostics.json",
+    "qrels": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/data/dev/llm_dev_qrels.txt",
+    "rerun_summary": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/response_volume_normalization_rerun/summary.json",
+    "summary": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/response_volume_normalization/summary.json",
+    "validation": "/home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/response_volume_normalization/validation.json"
+  },
+  "metrics": {
+    "dense_nested_reference": {
+      "mrr": 0.4040633081116639,
+      "ndcg_at_10": 0.359854744095009
+    },
+    "global_prior": {
+      "mrr": 0.20665310801034087,
+      "ndcg_at_10": 0.1385241823188521
+    },
+    "response_normalized_nested": {
+      "mrr": 0.3282546454493165,
+      "ndcg_at_10": 0.2892254323622026
+    },
+    "response_sumscore_nested": {
+      "mrr": 0.31753289707886323,
+      "ndcg_at_10": 0.2773577839029814
+    },
+    "tfidf_fixed_k10": {
+      "mrr": 0.2776956693601721,
+      "ndcg_at_10": 0.2176542461618029
+    }
+  },
+  "protocol": {
+    "advisor_approved": true,
+    "fusion": false,
+    "grid_selection_provenance": "advisor_approved_protocol_b6cfa6c_locked_before_effectiveness_scores",
+    "inner_split": "strict_leave_one_query_out_within_outer_training_rows",
+    "logprob_features": false,
+    "name": "response_volume_normalization",
+    "normalized_selection_candidate_count": 144,
+    "outer_split": "strict_leave_one_query_out",
+    "ranking_tie_break": "aggregate_score_then_fold_local_prior_then_model_id",
+    "run_classification": "internal_automatic",
+    "selection_metric": "inner_macro_ndcg_at_10",
+    "status": "locked_before_effectiveness_scoring",
+    "sumscore_control_candidate_count": 24,
+    "sumscore_excluded_from_primary_selector": true
+  },
+  "question": "Can capped or averaged response-score aggregation preserve response retrieval quality while reducing advantage from larger response inventories?",
+  "recommendation": {
+    "next_action": "Stop this aggregation branch; do not add log probabilities or fusion as a post-hoc continuation of this experiment.",
+    "overall_best_baseline": "dense_nested_reference",
+    "reason": "Top10Sum raised the ranking point estimates but failed both preregistered volume-dependence gates, so all four required gates did not pass.",
+    "response_retrieval": "retain_sumscore_control"
+  },
+  "selection": {
+    "normalized_aggregation_frequency": {
+      "top10_sum": 322
+    },
+    "normalized_configuration_frequency": {
+      "bm25_rm3__query_response__aggressive__d500__agg_top10_sum": 6,
+      "bm25_rm3__query_response__basic__d500__agg_top10_sum": 316
+    },
+    "sumscore_configuration_frequency": {
+      "bm25_rm3__query_response__basic__d500": 6,
+      "bm25_rm3__response_only__aggressive__d500": 2,
+      "bm25_rm3__response_only__basic__d500": 314
+    }
+  },
+  "snapshot_as_of": "2026-07-11T17:40:34Z",
+  "validation": {
+    "deterministic_rerun": {
+      "combined_score_tensor_hash_identical": true,
+      "decision_relevant_files_identical": {
+        "decision.json": true,
+        "diagnostics.json": true,
+        "global_prior_control.trec": true,
+        "normalized_run.trec": true,
+        "per_query.tsv": true,
+        "selections.tsv": true,
+        "sumscore_control.trec": true,
+        "tfidf_control.trec": true
+      },
+      "first_runtime_seconds": 146.1720895069884,
+      "rerun_runtime_seconds": 135.3932442520163,
+      "summary_equal_except_runtime": true
+    },
+    "independent_effectiveness_recalculation": {
+      "metrics": {
+        "dense_nested_reference": {
+          "mrr": 0.4040633081116639,
+          "ndcg_at_10": 0.359854744095009
+        },
+        "global_prior": {
+          "mrr": 0.20665310801034087,
+          "ndcg_at_10": 0.1385241823188521
+        },
+        "response_normalized_nested": {
+          "mrr": 0.3282546454493165,
+          "ndcg_at_10": 0.2892254323622026
+        },
+        "response_sumscore_nested": {
+          "mrr": 0.31753289707886323,
+          "ndcg_at_10": 0.2773577839029814
+        },
+        "tfidf_fixed_k10": {
+          "mrr": 0.2776956693601721,
+          "ndcg_at_10": 0.2176542461618029
+        }
+      },
+      "paired_intervals_match": {
+        "dense_nested_reference": true,
+        "global_prior": true,
+        "response_sumscore_nested": true,
+        "tfidf_fixed_k10": true
+      },
+      "source": "TREC runs plus official qrels; dense per-query tracked reference"
+    },
+    "run_receipt": {
+      "artifact_sha256": {
+        "config.json": "a1144fed04105aee341db5f9f3cb270e15448f2100d6ca4353c5eb76dafbe0df",
+        "decision.json": "adfef7ea7dbc1ba8d40181306564863bd19f8dd8fc80760e98989305d054201b",
+        "diagnostics.json": "f51dc67ed865ee02732b47ad08acb3930ab62b9e6b13c3349762e178997eebed",
+        "global_prior_control.trec": "4da1a67bc50737b5b3299e7d941d787f0845d34210bf50b87c88862470be701a",
+        "normalized_run.trec": "96c33b4cf9e3a955031297abd2079f16acd1a633e9447c2d9a2d37eb2c5dc24e",
+        "per_query.tsv": "f320de28a494a8ff0e249de8ebba498f543ccc6fbd59df9c6bc328911a272037",
+        "selections.tsv": "d30285c32443504a66791a6374468a5bdc1a65771d3db539917d78190505f0e9",
+        "summary.json": "4dfebe0141b4c1fb1fd6deba803d97e28ce37fb706c329edd7b5fc0778637985",
+        "sumscore_control.trec": "51a30d186739b4ea25de81646203d5e371227cfccfa0b013a03bf9500efd5ed6",
+        "tfidf_control.trec": "3beba63086f221fc0ba664c0b3c71055f72a1319e48913502b73d18080a903bd"
+      },
+      "execution_provenance": {
+        "code_revision": "4a1e76f7b966e5b92954f6bebf4126425d21b481",
+        "code_sha256": {
+          "experiment.py": "f42888e62cc12d53d3edcf645852c1a0cdcce36a383a0f4ee84c9c92495da915",
+          "metrics.py": "cdb7d320aeb4a953f5771cc69f1c6cc10cebc08727a577ed1954934feda60e0d",
+          "response_experiment.py": "7de9c4a26eda076272d1e1b1e07911c629e5a39c10ab599a44805f12089db723",
+          "response_normalization.py": "fcbc48ba1f29f283b9ace8360b58ab42b1b5b3ed45b368c35c09c8fa77c10a83",
+          "response_retrieval.py": "1ceec8377868986122235de239801aa32e9962450e51b3e86ddbf0d81d8aa303",
+          "runio.py": "46a8ce20dbcd941dfdbcf0fdf102e0ff6df538d7780ba500fbcd73f10fe20936"
+        },
+        "git_worktree_status": "",
+        "input_sha256": {
+          "data/dev/llm_dev_data.tsv": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
+          "data/dev/llm_dev_qrels.txt": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
+          "data/dev/llm_discovery_data.json": "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25",
+          "reports/trec_2026_dense_query_knn_per_query.tsv": "ae4a0cf8bc7eb0642e1c0d315cafa3a56cf60b3d6bfb6ab63e80fb2d0de56437"
+        },
+        "platform": "Linux-7.0.0-27-generic-x86_64-with-glibc2.43",
+        "python_version": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:16:10) [GCC 11.2.0]"
+      },
+      "inputs": {
+        "candidate_model_count": 150,
+        "combined_candidate_count": 168,
+        "normalized_candidate_count": 144,
+        "query_count": 322,
+        "sumscore_candidate_count": 24
+      },
+      "protocol": {
+        "decision_gate_count": 4,
+        "normalized_selector_excludes_sumscore": true,
+        "normalized_sumscore_selected_independently": true,
+        "outer_qrels_excluded_from_selection": true,
+        "retrieval_shared_across_aggregations": true,
+        "score_tensor_shape": [
+          168,
+          322,
+          150
+        ]
+      },
+      "runs": {
+        "global_prior": {
+          "candidate_count": 150,
+          "query_count": 322,
+          "row_count": 48300,
+          "run_id": "global_prior_loo_control",
+          "valid": true
+        },
+        "response_normalized_nested": {
+          "candidate_count": 150,
+          "query_count": 322,
+          "row_count": 48300,
+          "run_id": "response_volume_normalized_nested_loo",
+          "valid": true
+        },
+        "response_sumscore_nested": {
+          "candidate_count": 150,
+          "query_count": 322,
+          "row_count": 48300,
+          "run_id": "response_sumscore_nested_loo_control",
+          "valid": true
+        },
+        "tfidf_fixed_k10": {
+          "candidate_count": 150,
+          "query_count": 322,
+          "row_count": 48300,
+          "run_id": "qknn_tfidf_w12_k10_loo_control",
+          "valid": true
+        }
+      },
+      "sub_artifacts": {
+        "normalized": {
+          "config.json": "artifacts/response_volume_normalization/normalized/config.json",
+          "diagnostics.json": "artifacts/response_volume_normalization/normalized/diagnostics.json",
+          "global_prior_control.trec": "artifacts/response_volume_normalization/normalized/global_prior_control.trec",
+          "inner_scores.tsv": "artifacts/response_volume_normalization/normalized/inner_scores.tsv",
+          "per_query.tsv": "artifacts/response_volume_normalization/normalized/per_query.tsv",
+          "predictions.tsv": "artifacts/response_volume_normalization/normalized/predictions.tsv",
+          "query_diagnostics.tsv": "artifacts/response_volume_normalization/normalized/query_diagnostics.tsv",
+          "retrieval_metadata.json": "artifacts/response_volume_normalization/normalized/retrieval_metadata.json",
+          "run.trec": "artifacts/response_volume_normalization/normalized/run.trec",
+          "score_tensors.npz": "artifacts/response_volume_normalization/normalized/score_tensors.npz",
+          "selections.tsv": "artifacts/response_volume_normalization/normalized/selections.tsv",
+          "summary.json": "artifacts/response_volume_normalization/normalized/summary.json",
+          "tfidf_control.trec": "artifacts/response_volume_normalization/normalized/tfidf_control.trec",
+          "validation.json": "artifacts/response_volume_normalization/normalized/validation.json"
+        },
+        "sumscore": {
+          "config.json": "artifacts/response_volume_normalization/sumscore/config.json",
+          "diagnostics.json": "artifacts/response_volume_normalization/sumscore/diagnostics.json",
+          "global_prior_control.trec": "artifacts/response_volume_normalization/sumscore/global_prior_control.trec",
+          "inner_scores.tsv": "artifacts/response_volume_normalization/sumscore/inner_scores.tsv",
+          "per_query.tsv": "artifacts/response_volume_normalization/sumscore/per_query.tsv",
+          "predictions.tsv": "artifacts/response_volume_normalization/sumscore/predictions.tsv",
+          "query_diagnostics.tsv": "artifacts/response_volume_normalization/sumscore/query_diagnostics.tsv",
+          "retrieval_metadata.json": "artifacts/response_volume_normalization/sumscore/retrieval_metadata.json",
+          "run.trec": "artifacts/response_volume_normalization/sumscore/run.trec",
+          "score_tensors.npz": "artifacts/response_volume_normalization/sumscore/score_tensors.npz",
+          "selections.tsv": "artifacts/response_volume_normalization/sumscore/selections.tsv",
+          "summary.json": "artifacts/response_volume_normalization/sumscore/summary.json",
+          "tfidf_control.trec": "artifacts/response_volume_normalization/sumscore/tfidf_control.trec",
+          "validation.json": "artifacts/response_volume_normalization/sumscore/validation.json"
+        }
+      },
+      "sumscore_reference": {
+        "applicable": true,
+        "deployment_configuration_match": true,
+        "metric_match": true,
+        "observed_mrr": 0.31753289707886323,
+        "observed_ndcg_at_10": 0.2773577839029814,
+        "selection_frequency_match": true,
+        "tracked_results_match": true
+      },
+      "sumscore_run_parity": {
+        "applicable": true,
+        "generated_run_id": "response_sumscore_nested_loo_control",
+        "generated_sha256": "51a30d186739b4ea25de81646203d5e371227cfccfa0b013a03bf9500efd5ed6",
+        "identical_rankings_and_scores": true,
+        "reference_sha256": "41f2158fac40e859923e0f3530053494458a6f3364b2e80965ff423d600759a0",
+        "run_id_ignored": true
+      }
+    },
+    "share_status": "ready_with_preregistered_negative_decision"
+  }
+}

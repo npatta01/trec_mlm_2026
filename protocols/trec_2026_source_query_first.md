@@ -1,7 +1,8 @@
 # TREC 2026 source-query-first response preregistration
 
 Status: advisor approved and locked before any source-query-first effectiveness score
-is computed.
+is computed; the K grid was amended from a qrel-free feasibility stop, also before any
+effectiveness score.
 
 Base revision: `81d4aa50812864133f7066ee5b698fd48ea20503`, the fetched
 `origin/main` revision that merges PR #5 and PR #8.
@@ -11,6 +12,26 @@ implementation scoring. The review fixed the retrieval unit, score normalization
 candidate grid, zero-response treatment, nested evaluation, comparisons, diagnostics,
 and decision gates. Structural corpus counts were permitted before the lock; development
 qrels were not used to design or inspect a source-query-first score.
+
+## Qrel-free feasibility amendment
+
+After the original protocol commit `459e545` and the clean implementation commit
+`6614dc0`, the first official command stopped during source-query retrieval. No
+effectiveness metric was computed and no experiment artifact was written. The locked
+`K=100` requirement was infeasible because one target reached only 85 positive source
+queries before the scorer encountered the stop.
+
+A complete qrel-free audit then found a minimum of 42 positive source-query matches
+across the 322 targets: five targets had fewer than 100, one had fewer than 50, and none
+had fewer than 25 or 40. The advisor approved replacing the original `K={10,50,100}`
+grid with the simple doubling grid `K={10,20,40}`. This preserves shallow-to-deep
+coverage while keeping an exact, equal opportunity count for every official target.
+
+Every other formula, exclusion, control, statistic, diagnostic, and decision gate is
+unchanged. Retrieval is performed once to 40 and the 10/20 candidates are exact
+prefixes. Any development, hidden-test, or deployment target with fewer than 40 positive
+source-query matches is a hard failure; it is never padded or silently changed to an
+"up to K" candidate.
 
 ## Question and interpretation
 
@@ -86,8 +107,8 @@ key is masked before ranking. All analyzer-equivalent source IDs are therefore e
 not only the canonical representative. Remaining documents are ordered by BM25 score
 descending and then `source_query_id` ascending.
 
-Retrieve once to the frozen maximum `K=100`; the `K=10` and `K=50` candidates are exact
-prefixes. An official target must have at least 100 unmasked, strictly positive source
+Retrieve once to the frozen maximum `K=40`; the `K=10` and `K=20` candidates are exact
+prefixes. An official target must have at least 40 unmasked, strictly positive source
 queries or the run fails rather than silently padding or changing the denominator.
 
 ## Equal response opportunities and explicit zeros
@@ -151,8 +172,8 @@ deployment selection, or a blended score.
 The primary candidate grid contains exactly three configurations in declaration order:
 
 1. `source_alignment__k10`
-2. `source_alignment__k50`
-3. `source_alignment__k100`
+2. `source_alignment__k20`
+3. `source_alignment__k40`
 
 Only `K` varies. Candidate ties use this declaration order. The primary selection metric
 is macro nDCG@10; MRR is secondary and is never a selection tie-break.
@@ -260,7 +281,7 @@ Required tests and validation include:
   response-corpus statistics.
 - Analyzer-key canonicalization, duplicate collapse, empty-key exclusion, and masking of
   every analyzer-equivalent exact target before retrieval.
-- Exact top-100 retrieval with `K=10/50` prefix equivalence and stable ties.
+- Exact top-40 retrieval with `K=10/20` prefix equivalence and stable ties.
 - Null, blank, exact-IDK, frozen-prefix refusal, valid short answer, and
   zero-analyzed-token response cells.
 - Hand-calculated `R`, `w`, `A`, `a`, `T`, `t`, `P`, and `U`, including zero denominators.

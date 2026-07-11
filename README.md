@@ -1,9 +1,8 @@
 # TREC Million LLMs 2026
 
 This repository collects the official TREC 2026 Million LLMs file inventory,
-reproducible notebook tooling, and background research from the 2025 track. The
-current codebase covers project setup and data discovery; it does not yet include a
-ranking baseline or submission pipeline.
+reproducible notebook tooling, a leakage-safe query-neighbor baseline, and background
+research from the 2025 track.
 
 Official track page: https://trec-mllm.github.io/
 
@@ -28,6 +27,33 @@ uv run jupyter nbconvert --execute --to notebook --inplace \
   notebooks/trec_2026_file_manifest.ipynb
 ```
 
+Run the first ranking baseline and write a complete TREC run plus diagnostics:
+
+```bash
+uv run trec-mlm query-knn \
+  --primary-selection-provenance predeclared_before_current_run \
+  --output-dir artifacts/query_knn_baseline
+```
+
+The default experiment uses strict leave-one-query-out evaluation, word TF-IDF query
+neighbors, a fixed primary setting of `k=10`, and a small exploratory sensitivity grid.
+It ranks all 150 candidate model IDs for every query. Validate and independently score
+the generated run with:
+
+```bash
+uv run trec-mlm validate-run artifacts/query_knn_baseline/run.trec \
+  --queries data/dev/llm_dev_data.tsv \
+  --qrels data/dev/llm_dev_qrels.txt
+uv run trec-mlm score-run \
+  --qrels data/dev/llm_dev_qrels.txt \
+  --run artifacts/query_knn_baseline/run.trec
+```
+
+The executed, mobile-friendly analysis is in
+[`notebooks/trec_2026_query_knn_baseline.ipynb`](notebooks/trec_2026_query_knn_baseline.ipynb).
+For a phone-friendly, read-only view, open
+[`reports/trec_2026_query_knn_baseline.html`](reports/trec_2026_query_knn_baseline.html).
+
 ## Data
 
 [`data/dev/file_manifest.tsv`](data/dev/file_manifest.tsv) records the official file
@@ -47,7 +73,9 @@ which expected files are present locally and whether their byte sizes match the 
 |---|---|
 | `data/dev/` | Source notes, manifest, tracked development files, and ignored large files |
 | `notebooks/` | Executable exploration and validation notebooks |
-| `reports/` | 2025 track literature review and interactive background report |
+| `reports/` | Literature reviews and reader-friendly baseline reports |
+| `trec_mlm/` | Baseline ranking, evaluation metrics, and TREC run tooling |
+| `tests/` | Unit and equivalence tests for the baseline pipeline |
 | `pyproject.toml` | Default Python and notebook dependencies for `uv` |
 | `uv.lock` | Reproducible dependency resolution |
 

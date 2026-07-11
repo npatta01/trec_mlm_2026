@@ -10,3 +10,14 @@ dependencies = [
     "nbconvert>=7.16.6",
     "pandas>=2.2.3",
 ]
+
+[project.scripts]
+trec-mlm = "trec_mlm.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "trec_mlm"
+module-root = ""

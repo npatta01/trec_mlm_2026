@@ -177,7 +177,7 @@
         "id": "technical_summary",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## Response evidence helps, but dense retrieval still leads\n\n- **Primary result:** nested response retrieval reached **0.2774 nDCG@10** and **0.3175 MRR** across 322 queries.\n- **Versus TF-IDF:** nDCG@10 improved by **+0.0597**, with a 95% paired interval of [+0.0193, +0.1003]. The MRR change was +0.0398, but its interval [-0.0030, +0.0819] crosses zero.\n- **Dense remains stronger:** response retrieval trails it by 0.0825 nDCG@10 and 0.0865 MRR; both paired intervals remain below zero.\n- **Practical reading:** `bm25_rm3__response_only__basic__d500` was selected in 314/322 folds (97.5%). This is a useful internal automatic baseline, not the new best system."
+        "body": "## Response retrieval improves nDCG, but dense still leads\n\n- **Primary result:** nested response retrieval reached **0.2774 nDCG@10** and **0.3175 MRR** across 322 queries.\n- **Versus TF-IDF:** nDCG@10 improved by **+0.0597**, with a 95% paired interval of [+0.0193, +0.1003]. The MRR change was +0.0398, but its interval [-0.0030, +0.0819] crosses zero.\n- **Dense remains stronger:** response retrieval trails it by 0.0825 nDCG@10 and 0.0865 MRR; both paired intervals remain below zero.\n- **Practical reading:** `bm25_rm3__response_only__basic__d500` was selected in 314/322 folds (97.5%). This is a useful internal automatic baseline, not the new best system."
       },
       {
         "id": "headline_metrics",
@@ -191,7 +191,7 @@
         "id": "comparison_interpretation",
         "type": "markdown",
         "sourceId": "response_results",
-        "body": "## The gain over TF-IDF is objective-dependent\n\nResponse retrieval improves graded top-10 utility over TF-IDF (0.2177) and clearly exceeds the prior (0.1385). Its MRR advantage over TF-IDF is not statistically resolved by the paired interval. Dense retrieval leads at 0.3599 nDCG@10 and 0.4041 MRR, so response text adds signal without displacing the semantic-query baseline."
+        "body": "## The gain over TF-IDF is objective-dependent\n\nResponse retrieval improves graded top-10 utility over TF-IDF (0.2177) and clearly exceeds the prior (0.1385). Its MRR advantage over TF-IDF is not statistically resolved by the paired interval. Dense retrieval leads at 0.3599 nDCG@10 and 0.4041 MRR, so the observed nDCG gain over TF-IDF does not displace the semantic-query baseline."
       },
       {
         "id": "comparison_chart",

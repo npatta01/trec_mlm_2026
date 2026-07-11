@@ -495,7 +495,7 @@ def _artifact(
                     "type": "markdown",
                     "sourceId": "response_results",
                     "body": (
-                        "## Response evidence helps, but dense retrieval still leads\n\n"
+                        "## Response retrieval improves nDCG, but dense still leads\n\n"
                         f"- **Primary result:** nested response retrieval reached "
                         f"**{response['ndcg_at_10']:.4f} nDCG@10** and "
                         f"**{response['mrr']:.4f} MRR** across {query_count} queries.\n"
@@ -531,8 +531,8 @@ def _artifact(
                         f"({prior['ndcg_at_10']:.4f}). Its MRR advantage over TF-IDF "
                         "is not statistically resolved by the paired interval. Dense "
                         f"retrieval leads at {dense['ndcg_at_10']:.4f} nDCG@10 and "
-                        f"{dense['mrr']:.4f} MRR, so response text adds signal without "
-                        "displacing the semantic-query baseline."
+                        f"{dense['mrr']:.4f} MRR, so the observed nDCG gain over TF-IDF "
+                        "does not displace the semantic-query baseline."
                     ),
                 },
                 {

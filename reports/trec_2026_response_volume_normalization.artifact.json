@@ -3,7 +3,7 @@
   "manifest": {
     "version": 1,
     "surface": "report",
-    "title": "Capping past-answer evidence improved ranking\u2014but not volume risk",
+    "title": "Capping past-answer evidence raised the ranking point estimate\u2014but failed the volume-risk gates",
     "description": "A general-audience, leakage-safe evaluation of capped and averaged historical-response aggregation for TREC Million LLMs 2026.",
     "generatedAt": "2026-07-11T17:40:34Z",
     "cards": [
@@ -571,13 +571,13 @@
       {
         "id": "title",
         "type": "markdown",
-        "body": "# Capping past-answer evidence improved ranking\u2014but not volume risk"
+        "body": "# Capping past-answer evidence raised the ranking point estimate\u2014but failed the volume-risk gates"
       },
       {
         "id": "executive_summary",
         "type": "markdown",
         "sourceId": "reviewed_results",
-        "body": "## Executive Summary\n\n- **Keep SumScore as the response-search control.** Top10Sum raised nested nDCG@10 from **0.2774** to **0.2892**, but the locked rule required all four effectiveness and volume-bias gates to pass; only two passed.\n\n- **The ranking signal is real enough to study, but not decisive versus SumScore.** The nDCG point difference was **+0.0119** with a paired 95% interval of **[-0.0031, 0.0265]**. The interval includes zero.\n\n- **Both preregistered deployment-volume checks worsened.** Inventory-score correlation rose from **0.839** to **0.889**, and the largest inventory group received **48.3%** of top-10 placements instead of falling to 41.1% or less.\n\n- **Dense query search remains the best tested baseline.** It scored **0.3599 nDCG@10 / 0.4041 MRR**, versus Top10Sum's **0.2892 / 0.3283**."
+        "body": "## Executive Summary\n\n- **Keep SumScore as the response-search control.** Top10Sum raised nested nDCG@10 from **0.2774** to **0.2892**, but the locked rule required all four effectiveness and volume-bias gates to pass; only two passed.\n\n- **The ranking signal is real enough to study, but not decisive versus SumScore.** The nDCG point difference was **+0.0119** with a paired 95% interval of **[-0.0031, 0.0265]**. The interval includes zero.\n\n- **Both deployment-volume diagnostics worsened, so both volume gates failed.** Inventory-score correlation rose from **0.839** to **0.889**, and the largest inventory group received **48.3%** of top-10 placements instead of falling to 41.1% or less.\n\n- **Dense query search remains the best tested baseline.** It scored **0.3599 nDCG@10 / 0.4041 MRR**, versus Top10Sum's **0.2892 / 0.3283**."
       },
       {
         "id": "task_primer",
@@ -605,7 +605,7 @@
         "id": "effectiveness_finding",
         "type": "markdown",
         "sourceId": "reviewed_results",
-        "body": "## Top10Sum clearly beat TF-IDF, while its advantage over SumScore remains uncertain\n\nTop10Sum reached **0.2892 nDCG@10** and **0.3283 MRR**. It was clearly above TF-IDF: the paired nDCG difference was **+0.0716**, with a 95% interval of **[0.0323, 0.1114]**. Dense query search remained higher by about **0.0706 nDCG**."
+        "body": "## Top10Sum clearly beat TF-IDF; its SumScore lift was uncertain; dense still led\n\nTop10Sum reached **0.2892 nDCG@10** and **0.3283 MRR**. It was clearly above TF-IDF: the paired nDCG difference was **+0.0716**, with a 95% interval of **[0.0323, 0.1114]**. Dense query search remained higher by about **0.0706 nDCG**."
       },
       {
         "id": "system_chart",
@@ -671,7 +671,7 @@
         "id": "decision_table",
         "type": "markdown",
         "sourceId": "reviewed_results",
-        "body": "## The preregistered decision\n\n| Required gate | Result | Observed |\n|---|---:|---:|\n| Inventory correlation \u2264 0.7388 | Fail | 0.8894 |\n| Largest-quartile share \u2264 41.1% | Fail | 48.3% |\n| Clearly better than TF-IDF | Pass | CI lower bound +0.0323 |\n| Within 0.010 nDCG of SumScore | Pass | nDCG difference +0.0119 |\n\nThe rule required **all four gates**. Because the two volume gates failed, the correct decision is to retain SumScore as the response-retrieval control and stop this aggregation branch\u2014even though Top10Sum's point effectiveness was higher."
+        "body": "## The preregistered decision\n\n| Required gate | Result | Observed |\n|---|---:|---:|\n| Inventory correlation \u2264 0.7388 | Fail | 0.8894 |\n| Largest-quartile share \u2264 41.1% | Fail | 48.3% |\n| Clearly better than TF-IDF | Pass | CI lower bound +0.0323 |\n| No more than 0.010 nDCG below SumScore | Pass | nDCG difference +0.0119 |\n\nThe rule required **all four gates**. Because the two volume gates failed, the correct decision is to retain SumScore as the response-retrieval control and stop this aggregation branch\u2014even though Top10Sum's point effectiveness was higher."
       },
       {
         "id": "next_steps",
@@ -688,7 +688,7 @@
         "id": "technical_details",
         "type": "markdown",
         "sourceId": "reviewed_results",
-        "body": "## Reproducibility and caveats\n\n- The CPU-only experiment used one shared BM25/RM3 retrieval pass for all seven aggregations; no GPU and no log probabilities were used.\n- A full second run reproduced every decision-relevant file and all score-tensor hashes exactly; only elapsed time differed.\n- The SumScore control reproduced Baseline 3 exactly, including rankings, metrics, selection counts, and deployment configuration.\n- Inventory diagnostics measure association, not causal unfairness. Stronger models may legitimately have more historical answers.\n- Full-development deployment diagnostics are intentionally optimistic and serve only as behavior gates; nested outer-fold metrics support effectiveness claims.\n- Secondary fold-by-fold evidence was mixed: mean inventory correlation fell slightly from 0.5559 to 0.5464, while largest-quartile placement share rose from 46.8% to 48.3%. Both preregistered deployment-volume gates still worsened.\n- Neither system's stitched top ten used zero-score models or score ties resolved by the qrel prior; both fractions were 0%."
+        "body": "## Reproducibility and caveats\n\n- The CPU-only experiment used one shared BM25/RM3 retrieval pass for all seven aggregations; no GPU and no log probabilities were used.\n- A full second run reproduced every decision-relevant file and all score-tensor hashes exactly; only elapsed time differed.\n- The SumScore control reproduced Baseline 3 exactly, including rankings, metrics, selection counts, and deployment configuration.\n- Inventory diagnostics measure association, not causal unfairness. Stronger models may legitimately have more historical answers.\n- Full-development deployment diagnostics reuse the development data and are not held-out effectiveness estimates; they serve only as like-for-like behavior gates. Nested outer-fold metrics support effectiveness claims.\n- Paired bootstrap intervals condition on the completed nested selections; they do not rerun candidate selection inside each resample.\n- Secondary fold-by-fold evidence was mixed: mean inventory correlation fell slightly from 0.5559 to 0.5464, while largest-quartile placement share rose from 46.8% to 48.3%. Both preregistered deployment-volume diagnostics worsened, so both gates failed.\n- Neither system's stitched top ten used zero-score models or score ties resolved by the qrel prior; both fractions were 0%."
       }
     ]
   },

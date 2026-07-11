@@ -484,7 +484,7 @@
   "recommendation": {
     "next_action": "Stop this aggregation branch; do not add log probabilities or fusion as a post-hoc continuation of this experiment.",
     "overall_best_baseline": "dense_nested_reference",
-    "reason": "Top10Sum improved ranking metrics but failed both preregistered volume-dependence gates, so all four required gates did not pass.",
+    "reason": "Top10Sum raised the ranking point estimates but failed both preregistered volume-dependence gates, so all four required gates did not pass.",
     "response_retrieval": "retain_sumscore_control"
   },
   "selection": {

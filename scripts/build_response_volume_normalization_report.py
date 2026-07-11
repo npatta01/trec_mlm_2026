@@ -103,7 +103,7 @@ def _reviewed_results(
             "response_retrieval": "retain_sumscore_control",
             "overall_best_baseline": "dense_nested_reference",
             "reason": (
-                "Top10Sum improved ranking metrics but failed both preregistered "
+                "Top10Sum raised the ranking point estimates but failed both preregistered "
                 "volume-dependence gates, so all four required gates did not pass."
             ),
             "next_action": (
@@ -457,7 +457,10 @@ def _artifact(results: dict[str, Any], results_path: Path) -> dict[str, Any]:
         "manifest": {
             "version": 1,
             "surface": "report",
-            "title": "Capping past-answer evidence improved ranking—but not volume risk",
+            "title": (
+                "Capping past-answer evidence raised the ranking point estimate—but "
+                "failed the volume-risk gates"
+            ),
             "description": (
                 "A general-audience, leakage-safe evaluation of capped and averaged "
                 "historical-response aggregation for TREC Million LLMs 2026."
@@ -1011,7 +1014,7 @@ def _blocks(results: dict[str, Any]) -> list[dict[str, Any]]:
     gate_rows = []
     labels = {
         "ndcg_ci_above_tfidf": "Clearly better than TF-IDF",
-        "ndcg_within_0_010_of_sumscore": "Within 0.010 nDCG of SumScore",
+        "ndcg_within_0_010_of_sumscore": "No more than 0.010 nDCG below SumScore",
         "deployment_inventory_rho_at_most_0_7388": "Inventory correlation ≤ 0.7388",
         "deployment_largest_quartile_share_at_most_0_411": (
             "Largest-quartile share ≤ 41.1%"
@@ -1028,7 +1031,10 @@ def _blocks(results: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "id": "title",
             "type": "markdown",
-            "body": "# Capping past-answer evidence improved ranking—but not volume risk",
+            "body": (
+                "# Capping past-answer evidence raised the ranking point estimate—but "
+                "failed the volume-risk gates"
+            ),
         },
         {
             "id": "executive_summary",
@@ -1044,7 +1050,8 @@ def _blocks(results: dict[str, Any]) -> list[dict[str, Any]]:
                 f"SumScore.** The nDCG point difference was **+{sum_interval['mean_difference']:.4f}** "
                 f"with a paired 95% interval of **[{sum_interval['lower']:.4f}, "
                 f"{sum_interval['upper']:.4f}]**. The interval includes zero.\n\n"
-                f"- **Both preregistered deployment-volume checks worsened.** Inventory-score "
+                f"- **Both deployment-volume diagnostics worsened, so both volume gates "
+                f"failed.** Inventory-score "
                 f"correlation rose from **{sum_bias['inventory_vs_aggregation_score_spearman']:.3f}** "
                 f"to **{bias['inventory_vs_aggregation_score_spearman']:.3f}**, and the "
                 f"largest inventory group received **{bias['largest_inventory_quartile_top10_share']:.1%}** "
@@ -1093,7 +1100,7 @@ def _blocks(results: dict[str, Any]) -> list[dict[str, Any]]:
             "type": "markdown",
             "sourceId": "reviewed_results",
             "body": (
-                "## Top10Sum clearly beat TF-IDF, while its advantage over SumScore remains uncertain\n\n"
+                "## Top10Sum clearly beat TF-IDF; its SumScore lift was uncertain; dense still led\n\n"
                 f"Top10Sum reached **{normalized['ndcg_at_10']:.4f} nDCG@10** and "
                 f"**{normalized['mrr']:.4f} MRR**. It was clearly above TF-IDF: the paired "
                 f"nDCG difference was **+{tfidf_interval['mean_difference']:.4f}**, with a "
@@ -1251,13 +1258,15 @@ def _blocks(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "metrics, selection counts, and deployment configuration.\n"
                 "- Inventory diagnostics measure association, not causal unfairness. Stronger "
                 "models may legitimately have more historical answers.\n"
-                "- Full-development deployment diagnostics are intentionally optimistic and "
-                "serve only as behavior gates; nested outer-fold metrics support effectiveness "
-                "claims.\n"
+                "- Full-development deployment diagnostics reuse the development data and are "
+                "not held-out effectiveness estimates; they serve only as like-for-like "
+                "behavior gates. Nested outer-fold metrics support effectiveness claims.\n"
+                "- Paired bootstrap intervals condition on the completed nested selections; "
+                "they do not rerun candidate selection inside each resample.\n"
                 "- Secondary fold-by-fold evidence was mixed: mean inventory correlation "
                 "fell slightly from 0.5559 to 0.5464, while largest-quartile placement share "
-                "rose from 46.8% to 48.3%. Both preregistered deployment-volume gates still "
-                "worsened.\n"
+                "rose from 46.8% to 48.3%. Both preregistered deployment-volume diagnostics "
+                "worsened, so both gates failed.\n"
                 "- Neither system's stitched top ten used zero-score models or score ties "
                 "resolved by the qrel prior; both fractions were 0%."
             ),

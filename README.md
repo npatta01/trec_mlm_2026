@@ -157,7 +157,8 @@ uv run --extra response trec-mlm response-volume-normalization \
 ```
 
 Nested validation selected Top10Sum in all 322 outer folds. Its held-out point estimates
-improved over SumScore, but both preregistered deployment-volume checks worsened:
+were higher than SumScore's, but both preregistered deployment-volume diagnostics
+worsened:
 
 | System | nDCG@10 | MRR | Inventory rho | Largest-inventory top-10 share |
 |---|---:|---:|---:|---:|

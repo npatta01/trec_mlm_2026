@@ -170,12 +170,12 @@ formatter/token records. Block only the failing model and retain its diagnostic 
 - Consumes: passed smoke receipts, `trec-mlm label-retrieval`, and the frozen query/candidate inputs.
 - Produces: validated per-run embeddings, 48,300 scores, complete rankings, metrics, timing, memory, hashes, and repeat receipts.
 
-- [ ] **Step 1: Execute Qwen 0.6B and 4B**
+- [ ] **Step 1: Execute `qwen3_embedding_0_6b` and `qwen3_embedding_4b`**
 
 Run bare and expert-capability representations twice using explicit Qwen terminal token
 IDs and fresh containers. Validate each artifact before continuing.
 
-- [ ] **Step 2: Execute Jina small**
+- [ ] **Step 2: Execute `jina_v5_small_retrieval`**
 
 Run both representations twice using its official query/document prefixes and last-token
 pooling. Record its CC-BY-NC-4.0 restriction in every artifact.

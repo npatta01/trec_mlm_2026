@@ -1,0 +1,4 @@
+interface:
+  display_name: "Inspect Query Results"
+  short_description: "Build a simple explorer for completed ranking runs"
+  default_prompt: "Use $inspect-query-results to build a query results explorer for the latest completed run."

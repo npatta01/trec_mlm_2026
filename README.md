@@ -6,6 +6,25 @@ research from the 2025 track.
 
 Official track page: https://trec-mllm.github.io/
 
+## Beginner's Approach Guide
+
+For a phone-friendly introduction to the task, fifteen accessible teaching visuals, a
+plain-language primer, a source-audited review of every 2025 submission family, the
+wider expert-search and LLM-routing literature, and a 2026 experiment ladder grounded
+in the files currently available, open
+[`reports/trec_2026_approaches_guide.html`](reports/trec_2026_approaches_guide.html).
+The report is self-contained, works without a server, follows system light/dark
+appearance, and retains a semantic no-script reading path and audio-friendly prose for
+phone screen readers.
+
+For the complete 2025 implementation playbooks and beginner diagrams explaining
+profiles and embeddings, open the companion
+[`reports/trec_2025_mllm_interactive_report.html`](reports/trec_2025_mllm_interactive_report.html).
+Jump directly to [Features](reports/trec_2025_mllm_interactive_report.html#features),
+[Approach Maps](reports/trec_2025_mllm_interactive_report.html#approach-maps), or
+[What Each Team Submitted](reports/trec_2025_mllm_interactive_report.html#participants)
+for the deeper recipes that the beginner guide now explains and cross-references.
+
 ## Quick Start
 
 Install [`uv`](https://docs.astral.sh/uv/), then create the locked project environment:

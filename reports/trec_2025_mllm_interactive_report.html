@@ -566,7 +566,194 @@
     .method-card p {
       color: var(--muted);
       margin: 8px 0 0;
+      font-size: 1rem;
+      line-height: 1.55;
+    }
+
+    .term-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid #99f6e4;
+      border-radius: 7px;
+      background: #ecfeff;
+      color: var(--teal-dark);
       font-size: 0.92rem;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .term-link:hover,
+    .term-link:focus-visible {
+      border-color: var(--teal);
+      outline: 2px solid var(--teal);
+      outline-offset: 2px;
+    }
+
+    .beginner-visual-stack {
+      display: grid;
+      gap: 18px;
+      margin: 0 0 24px;
+    }
+
+    .beginner-visual-intro {
+      margin: 0;
+      max-width: 78ch;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .beginner-figure {
+      margin: 0;
+      padding: clamp(16px, 3vw, 24px);
+      border: 1px solid #93c5fd;
+      border-radius: 16px;
+      background: #f8fafc;
+      scroll-margin-top: 90px;
+      overflow-wrap: anywhere;
+    }
+
+    .beginner-eyebrow {
+      margin: 0 0 5px;
+      color: #1d4ed8;
+      font-size: 0.88rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .beginner-figure h3 {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(1.22rem, 3vw, 1.65rem);
+      line-height: 1.25;
+    }
+
+    .beginner-lede {
+      max-width: 76ch;
+      margin: 8px 0 16px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .beginner-phase-grid,
+    .concept-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .beginner-phase,
+    .concept-card {
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: var(--paper);
+    }
+
+    .beginner-phase.phase-blue {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .beginner-phase.phase-gold {
+      border-color: #b45309;
+      background: #fff7ed;
+    }
+
+    .beginner-phase.phase-green {
+      border-color: #15803d;
+      background: #f0fdf4;
+    }
+
+    .phase-label {
+      margin: 0 0 6px;
+      color: var(--slate);
+      font-size: 0.86rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .beginner-phase h4,
+    .concept-card h4 {
+      margin: 0 0 7px;
+      color: var(--ink);
+      font-size: 1rem;
+      line-height: 1.3;
+    }
+
+    .beginner-phase p,
+    .concept-card p,
+    .beginner-phase li {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .beginner-phase ul,
+    .beginner-phase ol {
+      margin: 8px 0 0;
+      padding-left: 1.25rem;
+    }
+
+    .beginner-phase li + li {
+      margin-top: 6px;
+    }
+
+    .beginner-badge {
+      display: inline-block;
+      margin-top: 9px;
+      padding: 3px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      color: var(--slate);
+      font-size: 0.88rem;
+      font-weight: 800;
+    }
+
+    .concept-strip {
+      margin-top: 12px;
+    }
+
+    .concept-card {
+      background: var(--paper);
+    }
+
+    .vector-example {
+      display: block;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: var(--paper);
+      color: #0f172a;
+      font-size: 0.95rem;
+      overflow-wrap: anywhere;
+    }
+
+    .beginner-callout {
+      margin-top: 13px;
+      padding: 11px 13px;
+      border-left: 4px solid #2563eb;
+      border-radius: 0 9px 9px 0;
+      background: #e0f2fe;
+      color: #0c4a6e;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .audio-summary {
+      margin: 15px 0 0;
+      padding-top: 12px;
+      border-top: 1px solid #cbd5e1;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.55;
     }
 
     .approach-intro-grid {
@@ -1009,11 +1196,17 @@
       .legend-row,
       .playbook-flow,
       .team-flow,
-      .decision-ladder {
+      .decision-ladder,
+      .beginner-phase-grid,
+      .concept-strip {
         grid-template-columns: 1fr;
       }
 
       .fact {
+        min-height: auto;
+      }
+
+      .method-card {
         min-height: auto;
       }
 
@@ -1028,6 +1221,30 @@
 
       .playbook-head::after {
         justify-self: start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .bar {
+        transition: none;
+      }
+    }
+
+    @media (forced-colors: active) {
+      .beginner-figure,
+      .beginner-phase,
+      .concept-card,
+      .beginner-badge,
+      .term-link {
+        border: 2px solid CanvasText;
+      }
+
+      .beginner-callout {
+        border-left-color: CanvasText;
       }
     }
 
@@ -1140,6 +1357,9 @@
             <div><dt>nDCG@10</dt><dd>A top-10 ranking metric. Higher is better when highly relevant items appear near the top.</dd></div>
             <div><dt>MRR</dt><dd>Mean Reciprocal Rank. It focuses on how early the first relevant result appears.</dd></div>
             <div><dt>BM25 / RM3</dt><dd>Classic search methods. BM25 matches query terms; RM3 expands the query using pseudo-relevance feedback.</dd></div>
+            <div><dt>Profile</dt><dd>A saved summary of one candidate ID's historical work, built before the new query arrives.</dd></div>
+            <div><dt>Embedding</dt><dd>A list of numbers representing one item, such as a query or response, in a learned similarity space.</dd></div>
+            <div><dt>Centroid</dt><dd>A representative center of a group of similar embeddings. It is a compact topic summary, not a correctness label.</dd></div>
           </dl>
         </div>
       </div>
@@ -1220,8 +1440,100 @@
       <div class="section-title">
         <div>
           <h2>Features and Modeling Ideas</h2>
-          <p>Most systems tried to infer expertise from past behavior: responses, response confidence, model profiles, embeddings, weak relevance labels, or ensembles of those signals.</p>
+          <p>Each item below is a clue that a ranking system can use. Two terms are easy to confuse: a <strong>profile</strong> is a saved résumé for one candidate built from many past records, while an <strong>embedding</strong> is a list of meaning coordinates for one item. The pictures below unpack both terms before the feature catalog.</p>
         </div>
+      </div>
+
+      <div class="beginner-visual-stack" aria-label="Beginner explanations of profiles and embeddings">
+        <p class="beginner-visual-intro"><strong>Start here:</strong> neither idea is magic. A profile stores evidence we already observed about one candidate. An embedding gives the system a numerical way to compare the meaning of text.</p>
+
+        <figure class="beginner-figure" id="profile-explainer" aria-labelledby="profile-explainer-title" aria-describedby="profile-explainer-caption">
+          <p class="beginner-eyebrow">Beginner visual</p>
+          <h3 id="profile-explainer-title">A profile is a résumé built from past work samples</h3>
+          <p class="beginner-lede">This invented chemistry example explains the mechanism. Its candidate, text, and outcome are not competition measurements.</p>
+
+          <div class="beginner-phase-grid">
+            <div class="beginner-phase phase-blue">
+              <p class="phase-label">Phase A — input</p>
+              <h4>Collect one candidate's old work</h4>
+              <ul>
+                <li>Old answer: “Activation energy is the barrier a reaction must cross.”</li>
+                <li>Old answer: “Salt lowers water's freezing point.”</li>
+                <li>Also keep useful metadata such as response length, confidence, refusals, and cleaning flags.</li>
+              </ul>
+              <span class="beginner-badge">Many historical records</span>
+            </div>
+
+            <div class="beginner-phase phase-gold">
+              <p class="phase-label">Phase B — build once</p>
+              <h4>Compress that history into a profile</h4>
+              <ul>
+                <li><strong>Text profile:</strong> one searchable document containing past work.</li>
+                <li><strong>Semantic profile:</strong> several typical-answer centers, called centroids. UDInfo reported ten per candidate.</li>
+                <li><strong>Behavioral profile:</strong> stored topic and response statistics. paulphys reported 64 fields.</li>
+              </ul>
+              <span class="beginner-badge">One saved résumé per candidate</span>
+            </div>
+
+            <div class="beginner-phase phase-green">
+              <p class="phase-label">Phase C — new query</p>
+              <h4>Compare the question with every profile</h4>
+              <p><strong>New query:</strong> “Why do catalysts speed up chemical reactions?”</p>
+              <ul>
+                <li>Match words against a text profile.</li>
+                <li>Match a query embedding against semantic centers.</li>
+                <li>Join query clues with behavior fields in a learned ranker.</li>
+                <li>Produce one score per candidate and sort.</li>
+              </ul>
+              <span class="beginner-badge">Output: candidate ranking</span>
+            </div>
+          </div>
+
+          <div class="beginner-callout"><strong>What “profile” does not mean here:</strong> it is not personal user data, the model's internal weights, its system prompt, one newly generated answer, or the final ranking score. It is stored evidence about one candidate. A close match suggests fit; it does not prove the next answer will be correct.</div>
+          <figcaption class="audio-summary" id="profile-explainer-caption"><strong>Audio summary:</strong> A profile is a stored summary of one candidate's discovery history. It can be one searchable document, several representative semantic centers, or behavior statistics. When a new query arrives, the system compares it with every candidate's profile, produces one score for each candidate, and sorts the scores. In this invented example, the chemistry candidate moves upward because its stored work is relevant. Similarity alone does not prove correctness.</figcaption>
+        </figure>
+
+        <figure class="beginner-figure" id="embedding-explainer" aria-labelledby="embedding-explainer-title" aria-describedby="embedding-explainer-caption">
+          <p class="beginner-eyebrow">Beginner visual</p>
+          <h3 id="embedding-explainer-title">One item becomes an embedding; many records become a profile</h3>
+          <p class="beginner-lede">An embedding is a numerical representation of one item. It can be an ingredient inside a profile, but “embedding” and “profile” are not synonyms.</p>
+
+          <div class="beginner-phase-grid">
+            <div class="beginner-phase phase-blue">
+              <p class="phase-label">1 — text input</p>
+              <h4>Start with text that uses different words</h4>
+              <p><strong>New query:</strong> “Why do catalysts make reactions faster?”</p>
+              <p><strong>Past answer:</strong> “A catalyst lowers the activation-energy barrier.”</p>
+              <p><strong>Unrelated answer:</strong> “Bread rises when yeast releases gas.”</p>
+            </div>
+
+            <div class="beginner-phase phase-gold">
+              <p class="phase-label">2 — encoder</p>
+              <h4>Turn each item into meaning coordinates</h4>
+              <p>The same text-embedding model converts each item into a long vector—a list of numbers.</p>
+              <code class="vector-example">query → [0.72, −0.08, 0.51, …]</code>
+              <code class="vector-example">chemistry answer → [0.69, −0.05, 0.48, …]</code>
+              <p>These shortened vectors are illustrative. Real vectors have many dimensions, and individual coordinates are not readable facts.</p>
+            </div>
+
+            <div class="beginner-phase phase-green">
+              <p class="phase-label">3 — comparison</p>
+              <h4>Use closeness as one ranking clue</h4>
+              <p>The query and chemistry answer land nearer one another than the bread answer because their meanings are more related.</p>
+              <p>A similarity measure converts that closeness into a feature or score.</p>
+              <span class="beginner-badge">Similarity, not verified truth</span>
+            </div>
+          </div>
+
+          <div class="concept-strip" aria-label="Relationship between embeddings, profiles, and ranking features">
+            <div class="concept-card"><h4>One text → one embedding</h4><p>A query, response, or text profile can each be encoded into meaning coordinates.</p></div>
+            <div class="concept-card"><h4>Many records → one profile</h4><p>A profile can retain text, many embeddings compressed into centroids, behavior statistics, or all three.</p></div>
+            <div class="concept-card"><h4>Comparison → ranking feature</h4><p>Compare the new query with stored evidence, repeat for every candidate, then sort candidate scores.</p></div>
+          </div>
+
+          <div class="beginner-callout"><strong>The selected sentence in plain English:</strong> “Encode a profile” means that if a candidate's saved profile is text, the system may pass that text through an embedding model too. It does not mean a profile and an embedding are the same object.</div>
+          <figcaption class="audio-summary" id="embedding-explainer-caption"><strong>Audio summary:</strong> An embedding model converts each item, such as a query or response, into a list of numbers representing meaning. The new question and past evidence are encoded with a compatible model; nearby vectors suggest related meaning and provide one ranking clue. A profile is broader: it summarizes one candidate from many historical records and may contain text, embeddings, or behavior statistics. Similarity does not prove that an answer is correct.</figcaption>
+        </figure>
       </div>
 
       <div class="method-grid" id="featureCards" aria-label="Feature families"></div>
@@ -1245,8 +1557,8 @@
           <h3>Legend for the playbooks</h3>
           <p>The diagrams are schematic, but every box corresponds to an implementable part of the system.</p>
           <div class="legend-row" aria-label="Pipeline legend">
-            <div class="legend-item" style="--team-color: var(--slate);"><b>1. Data</b><span>Released queries, answers, qrels, metadata, or profiles.</span></div>
-            <div class="legend-item" style="--team-color: var(--amber);"><b>2. Signal</b><span>Weak labels, retrieval hits, embeddings, logprobs, or heuristics.</span></div>
+            <div class="legend-item" style="--team-color: var(--slate);"><b>1. Data</b><span>Released queries, answers, qrels, metadata, or saved candidate résumés called profiles.</span></div>
+            <div class="legend-item" style="--team-color: var(--amber);"><b>2. Signal</b><span>Weak labels, retrieval hits, meaning coordinates called embeddings, logprobs, or heuristics.</span></div>
             <div class="legend-item" style="--team-color: var(--indigo);"><b>3. Ranker</b><span>BM25/RM3, FAISS scoring, LightGBM, neural towers, or ensembles.</span></div>
             <div class="legend-item" style="--team-color: var(--green);"><b>4. Output</b><span>One score per candidate LLM ID, sorted into a TREC run.</span></div>
           </div>
@@ -1730,7 +2042,7 @@
         <div class="recipe-block">
           <h3>Three indexes to build</h3>
           <ol>
-            <li><b>LLM profile index:</b> one document per LLM, created by concatenating that LLM's historical query-response pairs. Rank profiles with BM25/RM3. Submit top 100 LLMs.</li>
+            <li><b>LLM profile index:</b> one document per LLM, created by concatenating that LLM's historical query-response pairs. The official profile run ranked these documents with BM25 and submitted the top 100 LLMs; RM3 was tested for this profile setup but reduced performance and was not used in the final profile run.</li>
             <li><b>Question index:</b> one document per discovery query. Associate each query document with the LLMs that survived filtering for that query. Retrieve top 100 query documents, then vote or sum scores into LLM IDs.</li>
             <li><b>Response index:</b> one document per historical response, usually query plus response text. Retrieve top 1,000 response documents, then aggregate by LLM ID. This was their strongest family.</li>
           </ol>
@@ -1962,7 +2274,7 @@
         </a>
         <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/GenAIus.mllm.pdf">
           <b>GenAIus participant paper</b>
-          <span>BM25/RM3 profile, question, and response-level retrieval baselines.</span>
+          <span>Profile, question, and response-level lexical retrieval baselines; the official profile run used BM25.</span>
         </a>
         <a class="source-link" href="https://trec.nist.gov/pubs/trec34/papers/SRCB.mllm.tot.pdf">
           <b>SRCB participant paper</b>
@@ -2021,10 +2333,10 @@
 
     const featureFamilies = [
       { key: "response-index", title: "Response-Level Retrieval", tags: ["BM25", "RM3", "aggregation"], text: "Index each historical answer, retrieve similar past answers for a new query, then aggregate back to LLM IDs. This was the clearest strong baseline." },
-      { key: "profiles", title: "LLM Profiles", tags: ["centroids", "profile docs"], text: "Represent each LLM ID through a profile built from prior answers, clusters, or summary behavior. Compact, but can blur mixed expertise." },
+      { key: "profiles", title: "LLM Profile (a saved model résumé)", tags: ["past answers", "stored summary"], text: "A profile is saved evidence about one candidate LLM, built from its old answers before the new question arrives. It may be a searchable document, several typical-answer centers, or behavior statistics. The router compares the new question with this résumé. One broad profile can hide that a model is strong in one topic and weak in another.", learnMore: { href: "#profile-explainer", label: "See what a profile stores" } },
       { key: "weak-labels", title: "Weak LLM Labels", tags: ["judge models", "rerankers"], text: "Use stronger LLMs or rerankers to label discovery answers, creating training data where human labels are absent." },
       { key: "logprobs", title: "Response Metadata", tags: ["logprobs", "confidence"], text: "Use token probabilities, response length, or confidence statistics as model behavior signals. Useful, but confidence is not correctness." },
-      { key: "embeddings", title: "Embeddings", tags: ["SBERT", "BGE", "Qwen"], text: "Encode queries, answers, profiles, or reference answers so models can match semantic similarity beyond exact words." },
+      { key: "embeddings", title: "Embeddings (meaning coordinates)", tags: ["text → numbers", "semantic match"], text: "An embedding turns one piece of text into a list of numbers. Texts with related meaning are intended to land near one another even when they use different words. A profile may contain embeddings, but it can also contain text and behavior statistics. Closeness is a ranking clue, not proof of correctness.", learnMore: { href: "#embedding-explainer", label: "See how embeddings compare meaning" } },
       { key: "ensemble", title: "Ensembles and Meta-Rankers", tags: ["LightGBM", "LambdaMART"], text: "Combine many weaker signals into a learned ranker or ensemble. Powerful, but prone to development-set overfitting." }
     ];
 
@@ -2074,6 +2386,7 @@
             <h3>${feature.title}</h3>
             <div>${feature.tags.map((tag) => `<span class="tag teal">${tag}</span>`).join("")}</div>
             <p>${feature.text}</p>
+            ${feature.learnMore ? `<a class="term-link" href="${feature.learnMore.href}">${feature.learnMore.label}</a>` : ""}
             <p><b>${matches}</b> official runs used this signal family.</p>
           </article>
         `;

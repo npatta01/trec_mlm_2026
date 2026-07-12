@@ -1,0 +1,2056 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Source-query-first answer alignment passed 0 of 4 locked gates",
+    "description": "A novice-friendly, leakage-safe evaluation of source-query-first lexical answer alignment for TREC Million LLMs 2026.",
+    "generatedAt": "2026-07-11T22:15:43Z",
+    "cards": [
+      {
+        "id": "ranking_quality",
+        "description": "Nested top-10 ranking quality; the signed badge is source-query-first minus independently nested SumScore.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Source-query-first nDCG@10",
+            "field": "primary_ndcg",
+            "format": "number"
+          },
+          {
+            "label": "vs SumScore",
+            "field": "ndcg_delta_vs_sumscore",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "first_useful_model",
+        "description": "Nested reciprocal rank of the first useful model; the signed badge is source-query-first minus independently nested SumScore.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Source-query-first MRR",
+            "field": "primary_mrr",
+            "format": "number"
+          },
+          {
+            "label": "vs SumScore",
+            "field": "mrr_delta_vs_sumscore",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "inventory_rho",
+        "description": "Absolute BASIC-inventory association with total primary score for the fixed deployment K. Lower is better.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Inventory correlation",
+            "field": "inventory_rho",
+            "format": "number"
+          },
+          {
+            "label": "Maximum allowed",
+            "field": "inventory_rho_gate",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "largest_quartile",
+        "description": "Share of all 3,220 fixed-deployment top-10 placements received by the largest frozen BASIC-inventory quartile. Lower is better.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Largest-quartile share",
+            "field": "largest_quartile_share",
+            "format": "percent"
+          },
+          {
+            "label": "Maximum allowed",
+            "field": "largest_quartile_gate",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "gate_result",
+        "description": "The locked rule requires all four effectiveness and volume-risk gates.",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "Gates passed",
+            "field": "passed_gate_count",
+            "format": "number"
+          },
+          {
+            "label": "Gates required",
+            "field": "gate_count",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "system_metric_comparison",
+        "title": "Model-ranking scores by approach",
+        "subtitle": "Same 322 held-out queries and 150 candidate models; both metrics range from 0 to 1 and higher is better.",
+        "type": "horizontalBar",
+        "dataset": "system_metrics",
+        "sourceId": "system_metrics_sql",
+        "intent": "comparison",
+        "question": "Which approach ranks useful models earliest?",
+        "rationale": "Grouped horizontal bars keep six long approach names readable on mobile.",
+        "comparisonContext": {
+          "denominator": "322 development queries",
+          "grain": "one held-out model ranking per query",
+          "normalization": "macro average from 0 to 1",
+          "unit": "score"
+        },
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "Approach"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "label": "Score",
+            "format": "number"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "query_count",
+              "type": "quantitative",
+              "label": "Queries"
+            },
+            {
+              "field": "candidate_model_count",
+              "type": "quantitative",
+              "label": "Models"
+            },
+            {
+              "field": "evaluation_protocol",
+              "type": "text",
+              "label": "Evaluation"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Metric"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 12
+      },
+      {
+        "id": "query_outcomes_chart",
+        "title": "Per-query outcomes versus each baseline",
+        "subtitle": "Share of 322 paired queries for both metrics; better and worse refer to source-query-first relative to the named baseline.",
+        "type": "horizontalStackedBar100",
+        "dataset": "query_outcomes",
+        "sourceId": "query_outcomes_sql",
+        "intent": "composition",
+        "question": "How often did source-query-first beat, tie, or trail each baseline?",
+        "rationale": "Normalized stacks expose paired query frequency while source rows retain exact mean differences and intervals.",
+        "comparisonContext": {
+          "denominator": "322 paired queries per baseline and metric",
+          "grain": "one held-out query",
+          "normalization": "each bar sums to 100%",
+          "unit": "share of queries"
+        },
+        "encodings": {
+          "x": {
+            "field": "comparison_metric",
+            "type": "nominal",
+            "label": "Baseline and metric"
+          },
+          "y": {
+            "field": "outcome_count",
+            "type": "quantitative",
+            "label": "Queries"
+          },
+          "color": {
+            "field": "outcome",
+            "type": "nominal",
+            "label": "Paired outcome"
+          },
+          "tooltip": [
+            {
+              "field": "outcome_share",
+              "type": "quantitative",
+              "label": "Query share",
+              "format": "percent"
+            },
+            {
+              "field": "mean_difference",
+              "type": "quantitative",
+              "label": "Average difference"
+            },
+            {
+              "field": "ci_lower",
+              "type": "quantitative",
+              "label": "95% interval lower"
+            },
+            {
+              "field": "ci_upper",
+              "type": "quantitative",
+              "label": "95% interval upper"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "groupMode": "stacked100"
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Source-query-first outcome"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "layout": "full",
+        "maxRows": 30
+      },
+      {
+        "id": "response_status_chart",
+        "title": "Historical response cells by frozen status",
+        "subtitle": "All 1,163,850 discovery query-model cells; invalid responses remain opportunities and receive zero rather than being dropped.",
+        "type": "horizontalBar",
+        "dataset": "response_statuses",
+        "sourceId": "response_statuses_sql",
+        "intent": "comparison",
+        "question": "Which historical response cells can carry lexical evidence?",
+        "rationale": "Four exact status counts make the zero policy auditable.",
+        "comparisonContext": {
+          "denominator": "1,163,850 discovery query-model cells",
+          "grain": "one frozen response status",
+          "normalization": "mutually exhaustive cell counts",
+          "unit": "response cells"
+        },
+        "encodings": {
+          "x": {
+            "field": "status",
+            "type": "nominal",
+            "label": "Status"
+          },
+          "y": {
+            "field": "cell_count",
+            "type": "quantitative",
+            "label": "Response cells",
+            "format": "compact"
+          },
+          "tooltip": [
+            {
+              "field": "cell_share",
+              "type": "quantitative",
+              "label": "Cell share",
+              "format": "percent"
+            },
+            {
+              "field": "scored_as_zero",
+              "type": "text",
+              "label": "Explicit zero"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "labels": {
+          "values": "all"
+        },
+        "layout": "full",
+        "maxRows": 4
+      },
+      {
+        "id": "volume_gate_comparison",
+        "title": "Volume-dependence checks",
+        "subtitle": "Fixed-deployment behavior on all development queries; lower is better and source-query-first had to be at or below each maximum.",
+        "type": "bar",
+        "dataset": "volume_gates",
+        "sourceId": "volume_gates_sql",
+        "intent": "comparison",
+        "question": "Did equal source-query opportunity reduce both volume signals?",
+        "rationale": "Grouped bars place the primary result beside both response controls and the frozen maximum.",
+        "comparisonContext": {
+          "denominator": "150 models and 3,220 top-10 placements",
+          "grain": "one fixed-deployment behavior diagnostic",
+          "normalization": "unitless values from 0 to 1",
+          "unit": "value"
+        },
+        "encodings": {
+          "x": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Diagnostic"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "label": "Value",
+            "format": "number"
+          },
+          "color": {
+            "field": "series",
+            "type": "nominal",
+            "label": "Series"
+          },
+          "tooltip": [
+            {
+              "field": "model_count",
+              "type": "quantitative",
+              "label": "Models"
+            },
+            {
+              "field": "top10_position_count",
+              "type": "quantitative",
+              "label": "Top-10 positions"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "vertical",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "Series"
+        },
+        "labels": {
+          "values": "all"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0,
+            "label": "Zero",
+            "lineStyle": "solid"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 8
+      },
+      {
+        "id": "inventory_quartile_comparison",
+        "title": "Top-10 placement share by response inventory",
+        "subtitle": "Models use the same frozen BASIC-inventory quartiles as PR #8; balanced exposure would roughly follow each group's model share.",
+        "type": "bar",
+        "dataset": "inventory_quartiles",
+        "sourceId": "inventory_quartiles_sql",
+        "intent": "comparison",
+        "question": "Where are top-10 placements concentrated?",
+        "rationale": "Grouped shares compare all three response systems with the available model share in each frozen quartile.",
+        "comparisonContext": {
+          "denominator": "150 models and 3,220 top-10 placements per system",
+          "grain": "frozen BASIC-response-inventory quartile",
+          "normalization": "shares sum to 100% within each series",
+          "unit": "share"
+        },
+        "encodings": {
+          "x": {
+            "field": "inventory_group",
+            "type": "ordinal",
+            "label": "Usable historical answers"
+          },
+          "y": {
+            "field": "share",
+            "type": "quantitative",
+            "label": "Share",
+            "format": "percent"
+          },
+          "color": {
+            "field": "series",
+            "type": "nominal",
+            "label": "Share type"
+          },
+          "tooltip": [
+            {
+              "field": "model_count",
+              "type": "quantitative",
+              "label": "Models in group"
+            },
+            {
+              "field": "inventory_min",
+              "type": "quantitative",
+              "label": "Fewest BASIC responses"
+            },
+            {
+              "field": "inventory_max",
+              "type": "quantitative",
+              "label": "Most BASIC responses"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "vertical",
+          "groupMode": "grouped",
+          "categoryLabelPolicy": "wrap",
+          "showValues": true
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "What is being shared"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "referenceLines": [
+          {
+            "axis": "y",
+            "value": 0.25,
+            "label": "Roughly even share",
+            "color": "neutral",
+            "lineStyle": "dashed"
+          }
+        ],
+        "layout": "full",
+        "maxRows": 16
+      }
+    ],
+    "tables": [
+      {
+        "id": "selection_counts_table",
+        "title": "Nested K selection counts",
+        "subtitle": "One selected K per held-out query; only inner macro nDCG@10 entered selection.",
+        "dataset": "selection_counts",
+        "sourceId": "selection_counts_sql",
+        "columns": [
+          {
+            "field": "selected_k",
+            "label": "K",
+            "format": "number"
+          },
+          {
+            "field": "outer_fold_count",
+            "label": "Outer folds",
+            "format": "number"
+          },
+          {
+            "field": "outer_fold_share",
+            "label": "Fold share",
+            "format": "percent"
+          }
+        ],
+        "defaultSort": {
+          "field": "selected_k",
+          "direction": "asc"
+        },
+        "maxRows": 3
+      }
+    ],
+    "sources": [
+      {
+        "id": "reviewed_results",
+        "label": "Reviewed source-query-first result snapshot",
+        "path": "reports/trec_2026_source_query_first_results.json"
+      },
+      {
+        "id": "headline_sql",
+        "label": "Headline source-query-first metrics and gates",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT primary_ndcg, ndcg_delta_vs_sumscore, primary_mrr, mrr_delta_vs_sumscore, inventory_rho, inventory_rho_gate, largest_quartile_share, largest_quartile_gate, passed_gate_count, gate_count FROM headline_metrics",
+          "description": "Selects headline effectiveness, frozen volume checks, and gate counts from the reviewed result snapshot.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "headline_metrics"
+          ],
+          "filters": [
+            "322 official development queries",
+            "150 candidate models",
+            "strict nested leave-one-query-out",
+            "advisor-approved protocol locked before effectiveness scoring"
+          ],
+          "metric_definitions": [
+            "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+            "MRR: macro reciprocal rank of the first positively judged model.",
+            "Paired interval: 10,000 query-level bootstrap resamples of source-query-first minus the named baseline, conditional on finished nested selections.",
+            "Inventory correlation: absolute Spearman association between frozen BASIC response inventory and total fixed-deployment primary score.",
+            "Largest-quartile share: share of 3,220 fixed-deployment top-10 placements received by the frozen largest BASIC-inventory quartile."
+          ]
+        }
+      },
+      {
+        "id": "system_metrics_sql",
+        "label": "Six-system effectiveness comparison",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT system_order, metric_order, system, metric, value, query_count, candidate_model_count, evaluation_protocol, higher_is_better FROM system_metrics ORDER BY system_order, metric_order",
+          "description": "Selects held-out nDCG@10 and MRR for the six headline systems.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "system_metrics"
+          ],
+          "filters": [
+            "322 official development queries",
+            "150 candidate models",
+            "strict nested leave-one-query-out",
+            "advisor-approved protocol locked before effectiveness scoring"
+          ],
+          "metric_definitions": [
+            "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+            "MRR: macro reciprocal rank of the first positively judged model.",
+            "Paired interval: 10,000 query-level bootstrap resamples of source-query-first minus the named baseline, conditional on finished nested selections.",
+            "Inventory correlation: absolute Spearman association between frozen BASIC response inventory and total fixed-deployment primary score.",
+            "Largest-quartile share: share of 3,220 fixed-deployment top-10 placements received by the frozen largest BASIC-inventory quartile."
+          ]
+        }
+      },
+      {
+        "id": "query_outcomes_sql",
+        "label": "Paired query outcomes and uncertainty",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT comparison_order, metric_order, outcome_order, comparison_metric, baseline, metric, outcome, outcome_count, outcome_share, query_count, mean_difference, ci_lower, ci_upper FROM query_outcomes ORDER BY comparison_order, metric_order, outcome_order",
+          "description": "Selects source-query-first win, tie, and loss counts against each headline baseline with paired interval context.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "query_outcomes"
+          ],
+          "filters": [
+            "322 official development queries",
+            "150 candidate models",
+            "strict nested leave-one-query-out",
+            "advisor-approved protocol locked before effectiveness scoring",
+            "10,000 paired-query resamples"
+          ],
+          "metric_definitions": [
+            "Mean difference and confidence bounds are source-query-first minus the named baseline."
+          ]
+        }
+      },
+      {
+        "id": "response_statuses_sql",
+        "label": "Frozen response-cell status audit",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT status_order, status, cell_count, cell_share, scored_as_zero, raw_response_cells, filter_name FROM response_statuses ORDER BY status_order",
+          "description": "Selects mutually exhaustive frozen response-cell statuses and the explicit-zero policy.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "response_statuses"
+          ],
+          "filters": [
+            "official discovery response matrix",
+            "basic_plus_prefix"
+          ],
+          "metric_definitions": [
+            "Invalid cells remain among the 150 local response slots and receive zero for both response-side signals."
+          ]
+        }
+      },
+      {
+        "id": "volume_gates_sql",
+        "label": "Fixed-deployment volume-gate comparison",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT metric_order, series_order, metric, series, value, role, lower_is_better, model_count, top10_position_count FROM volume_gates ORDER BY metric_order, series_order",
+          "description": "Selects SumScore, Top10Sum, source-query-first, and maximum-allowed values for both frozen deployment-volume diagnostics.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "volume_gates"
+          ],
+          "filters": [
+            "150 models",
+            "3,220 fixed-deployment top-10 placements"
+          ],
+          "metric_definitions": [
+            "Inventory-score correlation is absolute Spearman rho; lower is better.",
+            "Largest-quartile share uses the frozen PR #8 BASIC-response inventory groups."
+          ]
+        }
+      },
+      {
+        "id": "inventory_quartiles_sql",
+        "label": "Frozen response-inventory quartile representation",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT quartile_order, series_order, inventory_group, series, share, model_count, inventory_min, inventory_max, source_alignment_top10_appearances FROM inventory_quartiles ORDER BY quartile_order, series_order",
+          "description": "Selects model and fixed-deployment top-10 placement shares for the same deterministic BASIC-inventory quartiles used by PR #8.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "inventory_quartiles"
+          ],
+          "filters": [
+            "frozen BASIC inventory",
+            "150 models",
+            "3,220 placements"
+          ],
+          "metric_definitions": [
+            "Each placement series and the model-share series sum to 100%."
+          ]
+        }
+      },
+      {
+        "id": "selection_counts_sql",
+        "label": "Nested K selection counts",
+        "path": "reports/trec_2026_source_query_first_results.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT configuration_order, configuration, selected_k, outer_fold_count, outer_fold_share, selection_metric FROM selection_counts ORDER BY configuration_order",
+          "description": "Selects how often K=10, 20, or 40 was chosen using inner macro nDCG@10.",
+          "executed_at": "2026-07-11T22:15:43Z",
+          "tables_used": [
+            "selection_counts"
+          ],
+          "filters": [
+            "322 outer folds",
+            "primary alignment selector only"
+          ],
+          "metric_definitions": [
+            "Outer-fold share is selected fold count divided by 322."
+          ]
+        }
+      },
+      {
+        "id": "locked_protocol",
+        "label": "Advisor-approved source-query-first preregistration",
+        "path": "protocols/trec_2026_source_query_first.md"
+      },
+      {
+        "id": "primary_summary",
+        "label": "Primary official experiment summary",
+        "path": "artifacts/source_query_first/summary.json"
+      },
+      {
+        "id": "primary_validation",
+        "label": "Complete-run and provenance validation receipt",
+        "path": "artifacts/source_query_first/validation.json"
+      },
+      {
+        "id": "deterministic_rerun",
+        "label": "Independent clean deterministic rerun",
+        "path": "artifacts/source_query_first_rerun/summary.json"
+      },
+      {
+        "id": "source_pipeline",
+        "label": "Tracked nested source-query-first experiment",
+        "path": "trec_mlm/source_query_experiment.py"
+      },
+      {
+        "id": "source_scorer",
+        "label": "Tracked qrel-free source-query and response scorer",
+        "path": "trec_mlm/source_query_first.py"
+      },
+      {
+        "id": "response_controls",
+        "label": "Tracked merged SumScore and Top10Sum result snapshot",
+        "path": "reports/trec_2026_response_volume_normalization_results.json"
+      },
+      {
+        "id": "dense_reference",
+        "label": "Tracked dense nested per-query reference",
+        "path": "reports/trec_2026_dense_query_knn_per_query.tsv"
+      },
+      {
+        "id": "development_qrels",
+        "label": "Official TREC development relevance judgments",
+        "path": "data/dev/llm_dev_qrels.txt"
+      },
+      {
+        "id": "discovery_responses",
+        "label": "Official TREC historical discovery queries and responses",
+        "path": "data/dev/llm_discovery_data.json"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Source-query-first answer alignment passed 0 of 4 locked gates"
+      },
+      {
+        "id": "executive_summary",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Executive Summary\n\n- **The locked advancement rule did not pass.** Source-query-first answer alignment passed **0 of 4** gates. This result still requires an explicit owner decision and does not release or merge any earlier response work.\n\n- **Held-out ranking quality was 0.2033 nDCG@10 and 0.2482 MRR.** Its nDCG difference from independently nested SumScore was **-0.0741**, with paired 95% interval **[-0.1040, -0.0449]**.\n\n- **Every model received the same source-query opportunities.** Each selected source query kept all 150 model slots; null, blank, exact \u2018I don't know,\u2019 and frozen-prefix refusals remained in the denominator and scored zero.\n\n- **Dense query search remained at 0.3599 nDCG@10 / 0.4041 MRR.** Source-to-response lexical overlap is called answer alignment\u2014not correctness, factuality, usefulness, or human-rated quality."
+      },
+      {
+        "id": "task_primer",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## What problem is this experiment solving?\n\nFor each new question, the system must rank the same **150 candidate language models**. A good ranking puts models judged useful for that question near the top. The evaluation contains **322 development queries**.\n\nA **historical response** is one organizer-provided answer from one model for one earlier discovery query. This experiment first retrieves related older queries, then checks whether each model's stored response lexically addresses its own older query. The discovery data has no per-response correctness labels."
+      },
+      {
+        "id": "metric_guide",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## How to read the scores\n\n- **nDCG@10** measures the quality and order of the first ten models. Higher is better; 1 is ideal. This is the only selection metric.\n- **MRR** measures how early the first useful model appears. First place scores 1, second 0.5, and fifth 0.2. MRR never selects K or a decision gate.\n- A **paired 95% interval** resamples differences on the same 322 queries. An interval crossing zero does not establish a clear average direction here."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "ranking_quality",
+          "first_useful_model",
+          "inventory_rho",
+          "largest_quartile",
+          "gate_result"
+        ]
+      },
+      {
+        "id": "effectiveness_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Six systems put the source-query-first result in context\n\nSource-query-first scored **0.2033 nDCG@10 / 0.2482 MRR**. SumScore scored **0.2774 / 0.3175**, and Top10Sum scored **0.2892 / 0.3283**. The paired nDCG difference from TF-IDF was **-0.0144** with interval **[-0.0507, +0.0221]**. The chart uses the same 322 held-out queries and 150-model universe for every approach."
+      },
+      {
+        "id": "system_chart",
+        "type": "chart",
+        "chartId": "system_metric_comparison",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "method_explainer",
+        "type": "markdown",
+        "sourceId": "source_pipeline",
+        "body": "## What source-query-first changes\n\n`New target query \u2192 retrieve K unique older queries \u2192 keep the same 150 model slots for every older query \u2192 score answer alignment \u2192 combine with normalized source-query weights \u2192 rank models`\n\nThe implementation keeps three lexical signals separate:\n\n1. **Source-query relevance:** new target to older query.\n2. **Answer alignment:** older query to that model's own stored response. This is the primary response-side signal.\n3. **Target-to-response relevance:** new target to stored response. This is a same-K diagnostic only and cannot select K, enter the primary score, or affect the four gates.\n\nPlain BM25 is used throughout. There is no RM3, query-plus-response concatenation, learned weight, score fusion, dense response embedding, or log probability."
+      },
+      {
+        "id": "opportunity_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Equal opportunity means preserving zeros, not deleting them\n\nThe official discovery matrix has **1,163,850** query-model cells. The frozen rule leaves **182,798 eligible responses**, gives zero to **981,050 exact \u2018I don't know\u2019 cells** and **2 additional prefix refusals**, and preserves null or blank slots as zeros if present.\n\nFor every selected older query, all 150 model slots stay in the local BM25 corpus and denominator. Equal opportunity does not mean every model supplied a usable answer; it means unusable answers cannot disappear from evaluation."
+      },
+      {
+        "id": "response_status_chart_block",
+        "type": "chart",
+        "chartId": "response_status_chart",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "leakage_explainer",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## How held-out testing prevents answer-key leakage\n\nEach outer query is sealed. The system compares K = 10, 20, and 40 only on the other 321 queries, chooses the largest inner nDCG@10, and then ranks the sealed query once. Its grades never choose its own K or evidence. Exact analyzer-equivalent discovery queries are masked before retrieval.\n\n`Seal 1 query \u2192 choose K on the other 321 \u2192 rank 150 models \u2192 reveal grades \u2192 repeat 322 times`\n\nThe source retrieval and response signal tensors are qrel-free and shared across folds. Fold-local qrels enter only selection, tie priors, and evaluation where the protocol permits them."
+      },
+      {
+        "id": "selection_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Nested validation chose K before each held-out ranking\n\nThe full-development deployment hint is **K = 40**. It is selected after held-out reporting and is used only for future deployment guidance and like-for-like volume diagnostics; its same-development effectiveness is optimistic. The table shows how often each K was selected across the 322 unbiased outer predictions."
+      },
+      {
+        "id": "selection_table_block",
+        "type": "table",
+        "tableId": "selection_counts_table",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "diagnostic_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Direct target-to-response relevance stays a diagnostic\n\nUsing the primary-selected K but replacing answer alignment with direct target-to-response relevance produced **0.2023 nDCG@10 / 0.2510 MRR**. This is not a seventh headline competitor: it did not select K, enter the primary score, choose deployment K, or affect the gates. Its purpose is to keep the three lexical signals attributable."
+      },
+      {
+        "id": "paired_outcomes_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Per-query outcomes show frequency; intervals show average uncertainty\n\nEach bar counts paired query wins, ties, and losses for one metric and baseline. Those counts show how often the ranking changed direction; the mean paired difference and its interval determine magnitude and uncertainty. The exact values remain available in the chart's semantic source table."
+      },
+      {
+        "id": "query_outcomes",
+        "type": "chart",
+        "chartId": "query_outcomes_chart",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "bias_finding",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Equal source-query slots are tested against the old volume-risk gates\n\nFor fixed K = 40, absolute BASIC-inventory correlation with total primary score was **0.8019** against a maximum of **0.7388**. The largest frozen inventory quartile received **50.4%** of top-10 placements against a maximum of **41.1%**. These full-development values are behavior gates, not unbiased effectiveness estimates. Inventory association is a risk diagnostic, not proof of causation."
+      },
+      {
+        "id": "volume_gate_chart_block",
+        "type": "chart",
+        "chartId": "volume_gate_comparison",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "inventory_chart_block",
+        "type": "chart",
+        "chartId": "inventory_quartile_comparison",
+        "layout": {
+          "columns": 12,
+          "minColumns": 8
+        }
+      },
+      {
+        "id": "decision",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## The preregistered decision\n\n- **Fail \u2014 BASIC inventory-score correlation at most 0.7388:** observed 0.8019.\n- **Fail \u2014 Largest frozen inventory-quartile share at most 41.1%:** observed 50.4%.\n- **Fail \u2014 Clearly better than TF-IDF on nDCG@10:** 95% interval lower bound -0.0507.\n- **Fail \u2014 No more than 0.010 nDCG@10 below SumScore:** nDCG@10 difference -0.0741.\n\nThe locked rule required **all four gates**. 4 of four frozen gates failed, so source-query-first answer alignment does not advance under the preregistered rule. Matching or exceeding SumScore nDCG@10 is recorded as strong success but is not a fifth gate. Dense, Top10Sum, and MRR comparisons are context only."
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## What should happen next?\n\n1. **Treat the locked four-gate result as the experiment decision.** Do not substitute a post-hoc metric, K, blend, or diagnostic.\n2. **Request the explicit owner decision.** Passing the experiment rule would only advance the method for consideration; it cannot release or merge earlier work on its own.\n3. **Keep answer alignment scoped correctly.** Genuine correctness or helpfulness claims require response-level human judgments that this corpus does not provide."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Does lexical answer alignment track human response quality when independent response-level judgments become available?\n- Which queries explain disagreements between source-query-first and dense query retrieval without tuning on their held-out grades?\n- Does equal source-query opportunity behave similarly on the hidden test when source-query coverage and refusal patterns shift?"
+      },
+      {
+        "id": "technical_details",
+        "type": "markdown",
+        "sourceId": "reviewed_results",
+        "body": "## Reproducibility and caveats\n\n- The CPU-local experiment reached its summary in **142.4 seconds** of wall time and **142.3 CPU-seconds**, with **1.52 GiB peak RSS** on the recorded platform. It uses pinned lexical analysis and float64 BM25; no GPU, pretrained encoder, external corpus, log probabilities, or learned weights enter the primary method.\n- A clean second run reproduced every decision-relevant file byte for byte, and the report builder independently recalculated runs, metrics, paired intervals, and all four gates.\n- Nested development evaluation reduces tuning bias but does not guarantee hidden-test performance.\n- Paired bootstrap intervals condition on the completed stitched selections; they do not rerun selection inside each resample.\n- Fixed-deployment K behavior diagnostics reuse all development queries and are not held-out effectiveness estimates.\n- Answer alignment measures lexical overlap with the response's own source query. It does not establish correctness, factuality, usefulness, or human preference."
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-11T22:15:43Z",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "primary_ndcg": 0.20326816299273073,
+          "ndcg_delta_vs_sumscore": -0.07408962091025065,
+          "primary_mrr": 0.24821942261827648,
+          "mrr_delta_vs_sumscore": -0.06931347446058675,
+          "inventory_rho": 0.8018536000889841,
+          "inventory_rho_gate": 0.7388,
+          "largest_quartile_share": 0.5037267080745341,
+          "largest_quartile_gate": 0.411,
+          "passed_gate_count": 0,
+          "gate_count": 4
+        }
+      ],
+      "system_metrics": [
+        {
+          "system_order": 1,
+          "metric_order": 1,
+          "system": "Source-query-first alignment",
+          "metric": "nDCG@10",
+          "value": 0.20326816299273073,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 1,
+          "metric_order": 2,
+          "system": "Source-query-first alignment",
+          "metric": "MRR",
+          "value": 0.24821942261827648,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 2,
+          "metric_order": 1,
+          "system": "Dense query search",
+          "metric": "nDCG@10",
+          "value": 0.359854744095009,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 2,
+          "metric_order": 2,
+          "system": "Dense query search",
+          "metric": "MRR",
+          "value": 0.4040633081116639,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 3,
+          "metric_order": 1,
+          "system": "SumScore response search",
+          "metric": "nDCG@10",
+          "value": 0.2773577839029814,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 3,
+          "metric_order": 2,
+          "system": "SumScore response search",
+          "metric": "MRR",
+          "value": 0.31753289707886323,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 4,
+          "metric_order": 1,
+          "system": "Top10Sum response search",
+          "metric": "nDCG@10",
+          "value": 0.2892254323622026,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 4,
+          "metric_order": 2,
+          "system": "Top10Sum response search",
+          "metric": "MRR",
+          "value": 0.3282546454493165,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "strict nested outer leave-one-out",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 5,
+          "metric_order": 1,
+          "system": "TF-IDF query search",
+          "metric": "nDCG@10",
+          "value": 0.2176542461618029,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "fixed or fold-local outer leave-one-out control",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 5,
+          "metric_order": 2,
+          "system": "TF-IDF query search",
+          "metric": "MRR",
+          "value": 0.2776956693601721,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "fixed or fold-local outer leave-one-out control",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 6,
+          "metric_order": 1,
+          "system": "Global prior",
+          "metric": "nDCG@10",
+          "value": 0.1385241823188521,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "fixed or fold-local outer leave-one-out control",
+          "higher_is_better": true
+        },
+        {
+          "system_order": 6,
+          "metric_order": 2,
+          "system": "Global prior",
+          "metric": "MRR",
+          "value": 0.20665310801034087,
+          "query_count": 322,
+          "candidate_model_count": 150,
+          "evaluation_protocol": "fixed or fold-local outer leave-one-out control",
+          "higher_is_better": true
+        }
+      ],
+      "query_outcomes": [
+        {
+          "comparison_order": 1,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "SumScore \u00b7 nDCG@10",
+          "baseline": "SumScore",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first better",
+          "outcome_count": 57,
+          "outcome_share": 0.17701863354037267,
+          "query_count": 322,
+          "mean_difference": -0.07408962091025063,
+          "ci_lower": -0.10403327881102362,
+          "ci_upper": -0.04485347849909393
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "SumScore \u00b7 nDCG@10",
+          "baseline": "SumScore",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 142,
+          "outcome_share": 0.4409937888198758,
+          "query_count": 322,
+          "mean_difference": -0.07408962091025063,
+          "ci_lower": -0.10403327881102362,
+          "ci_upper": -0.04485347849909393
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "SumScore \u00b7 nDCG@10",
+          "baseline": "SumScore",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 123,
+          "outcome_share": 0.38198757763975155,
+          "query_count": 322,
+          "mean_difference": -0.07408962091025063,
+          "ci_lower": -0.10403327881102362,
+          "ci_upper": -0.04485347849909393
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "SumScore \u00b7 MRR",
+          "baseline": "SumScore",
+          "metric": "MRR",
+          "outcome": "Source-query-first better",
+          "outcome_count": 104,
+          "outcome_share": 0.32298136645962733,
+          "query_count": 322,
+          "mean_difference": -0.06931347446058678,
+          "ci_lower": -0.1038721417352371,
+          "ci_upper": -0.035540591990154656
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "SumScore \u00b7 MRR",
+          "baseline": "SumScore",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 42,
+          "outcome_share": 0.13043478260869565,
+          "query_count": 322,
+          "mean_difference": -0.06931347446058678,
+          "ci_lower": -0.1038721417352371,
+          "ci_upper": -0.035540591990154656
+        },
+        {
+          "comparison_order": 1,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "SumScore \u00b7 MRR",
+          "baseline": "SumScore",
+          "metric": "MRR",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 176,
+          "outcome_share": 0.546583850931677,
+          "query_count": 322,
+          "mean_difference": -0.06931347446058678,
+          "ci_lower": -0.1038721417352371,
+          "ci_upper": -0.035540591990154656
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "Top10Sum \u00b7 nDCG@10",
+          "baseline": "Top10Sum",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first better",
+          "outcome_count": 53,
+          "outcome_share": 0.16459627329192547,
+          "query_count": 322,
+          "mean_difference": -0.08595726936947184,
+          "ci_lower": -0.11507305792909106,
+          "ci_upper": -0.057113394078171884
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "Top10Sum \u00b7 nDCG@10",
+          "baseline": "Top10Sum",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 138,
+          "outcome_share": 0.42857142857142855,
+          "query_count": 322,
+          "mean_difference": -0.08595726936947184,
+          "ci_lower": -0.11507305792909106,
+          "ci_upper": -0.057113394078171884
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "Top10Sum \u00b7 nDCG@10",
+          "baseline": "Top10Sum",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 131,
+          "outcome_share": 0.40683229813664595,
+          "query_count": 322,
+          "mean_difference": -0.08595726936947184,
+          "ci_lower": -0.11507305792909106,
+          "ci_upper": -0.057113394078171884
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "Top10Sum \u00b7 MRR",
+          "baseline": "Top10Sum",
+          "metric": "MRR",
+          "outcome": "Source-query-first better",
+          "outcome_count": 100,
+          "outcome_share": 0.3105590062111801,
+          "query_count": 322,
+          "mean_difference": -0.08003522283104005,
+          "ci_lower": -0.11350791097503558,
+          "ci_upper": -0.047408455405001756
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "Top10Sum \u00b7 MRR",
+          "baseline": "Top10Sum",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 47,
+          "outcome_share": 0.14596273291925466,
+          "query_count": 322,
+          "mean_difference": -0.08003522283104005,
+          "ci_lower": -0.11350791097503558,
+          "ci_upper": -0.047408455405001756
+        },
+        {
+          "comparison_order": 2,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "Top10Sum \u00b7 MRR",
+          "baseline": "Top10Sum",
+          "metric": "MRR",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 175,
+          "outcome_share": 0.5434782608695652,
+          "query_count": 322,
+          "mean_difference": -0.08003522283104005,
+          "ci_lower": -0.11350791097503558,
+          "ci_upper": -0.047408455405001756
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "Dense \u00b7 nDCG@10",
+          "baseline": "Dense",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first better",
+          "outcome_count": 66,
+          "outcome_share": 0.20496894409937888,
+          "query_count": 322,
+          "mean_difference": -0.15658658110227827,
+          "ci_lower": -0.19712723568727775,
+          "ci_upper": -0.11643851864086198
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "Dense \u00b7 nDCG@10",
+          "baseline": "Dense",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 97,
+          "outcome_share": 0.30124223602484473,
+          "query_count": 322,
+          "mean_difference": -0.15658658110227827,
+          "ci_lower": -0.19712723568727775,
+          "ci_upper": -0.11643851864086198
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "Dense \u00b7 nDCG@10",
+          "baseline": "Dense",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 159,
+          "outcome_share": 0.4937888198757764,
+          "query_count": 322,
+          "mean_difference": -0.15658658110227827,
+          "ci_lower": -0.19712723568727775,
+          "ci_upper": -0.11643851864086198
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "Dense \u00b7 MRR",
+          "baseline": "Dense",
+          "metric": "MRR",
+          "outcome": "Source-query-first better",
+          "outcome_count": 98,
+          "outcome_share": 0.30434782608695654,
+          "query_count": 322,
+          "mean_difference": -0.1558438854933874,
+          "ci_lower": -0.2002512365755213,
+          "ci_upper": -0.11067887661689862
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "Dense \u00b7 MRR",
+          "baseline": "Dense",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 44,
+          "outcome_share": 0.13664596273291926,
+          "query_count": 322,
+          "mean_difference": -0.1558438854933874,
+          "ci_lower": -0.2002512365755213,
+          "ci_upper": -0.11067887661689862
+        },
+        {
+          "comparison_order": 3,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "Dense \u00b7 MRR",
+          "baseline": "Dense",
+          "metric": "MRR",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 180,
+          "outcome_share": 0.5590062111801242,
+          "query_count": 322,
+          "mean_difference": -0.1558438854933874,
+          "ci_lower": -0.2002512365755213,
+          "ci_upper": -0.11067887661689862
+        },
+        {
+          "comparison_order": 4,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "TF-IDF \u00b7 nDCG@10",
+          "baseline": "TF-IDF",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first better",
+          "outcome_count": 93,
+          "outcome_share": 0.2888198757763975,
+          "query_count": 322,
+          "mean_difference": -0.014386083169072172,
+          "ci_lower": -0.050703383927656456,
+          "ci_upper": 0.02208257968471301
+        },
+        {
+          "comparison_order": 4,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "TF-IDF \u00b7 nDCG@10",
+          "baseline": "TF-IDF",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 136,
+          "outcome_share": 0.422360248447205,
+          "query_count": 322,
+          "mean_difference": -0.014386083169072172,
+          "ci_lower": -0.050703383927656456,
+          "ci_upper": 0.02208257968471301
+        },
+        {
+          "comparison_order": 4,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "TF-IDF \u00b7 nDCG@10",
+          "baseline": "TF-IDF",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 93,
+          "outcome_share": 0.2888198757763975,
+          "query_count": 322,
+          "mean_difference": -0.014386083169072172,
+          "ci_lower": -0.050703383927656456,
+          "ci_upper": 0.02208257968471301
+        },
+        {
+          "comparison_order": 4,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "TF-IDF \u00b7 MRR",
+          "baseline": "TF-IDF",
+          "metric": "MRR",
+          "outcome": "Source-query-first better",
+          "outcome_count": 151,
+          "outcome_share": 0.468944099378882,
+          "query_count": 322,
+          "mean_difference": -0.029476246741895615,
+          "ci_lower": -0.07169858458773605,
+          "ci_upper": 0.010887436680431857
+        },
+        {
+          "comparison_order": 4,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "TF-IDF \u00b7 MRR",
+          "baseline": "TF-IDF",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 31,
+          "outcome_share": 0.09627329192546584,
+          "query_count": 322,
+          "mean_difference": -0.029476246741895615,
+          "ci_lower": -0.07169858458773605,
+          "ci_upper": 0.010887436680431857
+        },
+        {
+          "comparison_order": 4,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "TF-IDF \u00b7 MRR",
+          "baseline": "TF-IDF",
+          "metric": "MRR",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 140,
+          "outcome_share": 0.43478260869565216,
+          "query_count": 322,
+          "mean_difference": -0.029476246741895615,
+          "ci_lower": -0.07169858458773605,
+          "ci_upper": 0.010887436680431857
+        },
+        {
+          "comparison_order": 5,
+          "metric_order": 1,
+          "outcome_order": 1,
+          "comparison_metric": "Global prior \u00b7 nDCG@10",
+          "baseline": "Global prior",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first better",
+          "outcome_count": 104,
+          "outcome_share": 0.32298136645962733,
+          "query_count": 322,
+          "mean_difference": 0.06474398067387865,
+          "ci_lower": 0.03604470543455745,
+          "ci_upper": 0.09466324371428518
+        },
+        {
+          "comparison_order": 5,
+          "metric_order": 1,
+          "outcome_order": 2,
+          "comparison_metric": "Global prior \u00b7 nDCG@10",
+          "baseline": "Global prior",
+          "metric": "nDCG@10",
+          "outcome": "Tie",
+          "outcome_count": 155,
+          "outcome_share": 0.4813664596273292,
+          "query_count": 322,
+          "mean_difference": 0.06474398067387865,
+          "ci_lower": 0.03604470543455745,
+          "ci_upper": 0.09466324371428518
+        },
+        {
+          "comparison_order": 5,
+          "metric_order": 1,
+          "outcome_order": 3,
+          "comparison_metric": "Global prior \u00b7 nDCG@10",
+          "baseline": "Global prior",
+          "metric": "nDCG@10",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 63,
+          "outcome_share": 0.1956521739130435,
+          "query_count": 322,
+          "mean_difference": 0.06474398067387865,
+          "ci_lower": 0.03604470543455745,
+          "ci_upper": 0.09466324371428518
+        },
+        {
+          "comparison_order": 5,
+          "metric_order": 2,
+          "outcome_order": 1,
+          "comparison_metric": "Global prior \u00b7 MRR",
+          "baseline": "Global prior",
+          "metric": "MRR",
+          "outcome": "Source-query-first better",
+          "outcome_count": 170,
+          "outcome_share": 0.5279503105590062,
+          "query_count": 322,
+          "mean_difference": 0.041566314607935584,
+          "ci_lower": 0.00799203964799448,
+          "ci_upper": 0.07514441382463509
+        },
+        {
+          "comparison_order": 5,
+          "metric_order": 2,
+          "outcome_order": 2,
+          "comparison_metric": "Global prior \u00b7 MRR",
+          "baseline": "Global prior",
+          "metric": "MRR",
+          "outcome": "Tie",
+          "outcome_count": 34,
+          "outcome_share": 0.10559006211180125,
+          "query_count": 322,
+          "mean_difference": 0.041566314607935584,
+          "ci_lower": 0.00799203964799448,
+          "ci_upper": 0.07514441382463509
+        },
+        {
+          "comparison_order": 5,
+          "metric_order": 2,
+          "outcome_order": 3,
+          "comparison_metric": "Global prior \u00b7 MRR",
+          "baseline": "Global prior",
+          "metric": "MRR",
+          "outcome": "Source-query-first worse",
+          "outcome_count": 118,
+          "outcome_share": 0.36645962732919257,
+          "query_count": 322,
+          "mean_difference": 0.041566314607935584,
+          "ci_lower": 0.00799203964799448,
+          "ci_upper": 0.07514441382463509
+        }
+      ],
+      "response_statuses": [
+        {
+          "status_order": 1,
+          "status": "Eligible response",
+          "cell_count": 182798,
+          "cell_share": 0.15706319542896421,
+          "scored_as_zero": false,
+          "raw_response_cells": 1163850,
+          "filter_name": "basic_plus_prefix"
+        },
+        {
+          "status_order": 2,
+          "status": "Exact \u2018I don't know\u2019",
+          "cell_count": 981050,
+          "cell_share": 0.8429350861365297,
+          "scored_as_zero": true,
+          "raw_response_cells": 1163850,
+          "filter_name": "basic_plus_prefix"
+        },
+        {
+          "status_order": 3,
+          "status": "Refusal prefix",
+          "cell_count": 2,
+          "cell_share": 1.7184345061648838e-06,
+          "scored_as_zero": true,
+          "raw_response_cells": 1163850,
+          "filter_name": "basic_plus_prefix"
+        },
+        {
+          "status_order": 4,
+          "status": "Null or blank",
+          "cell_count": 0,
+          "cell_share": 0.0,
+          "scored_as_zero": true,
+          "raw_response_cells": 1163850,
+          "filter_name": "basic_plus_prefix"
+        }
+      ],
+      "volume_gates": [
+        {
+          "metric_order": 1,
+          "series_order": 1,
+          "metric": "Inventory-score correlation",
+          "series": "SumScore",
+          "value": 0.8388064849388015,
+          "role": "baseline",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 1,
+          "series_order": 2,
+          "metric": "Inventory-score correlation",
+          "series": "Top10Sum",
+          "value": 0.8894471379126866,
+          "role": "context",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 1,
+          "series_order": 3,
+          "metric": "Inventory-score correlation",
+          "series": "Source-query-first",
+          "value": 0.8018536000889841,
+          "role": "actual",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 1,
+          "series_order": 4,
+          "metric": "Inventory-score correlation",
+          "series": "Maximum allowed",
+          "value": 0.7388,
+          "role": "target",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 2,
+          "series_order": 1,
+          "metric": "Largest-quartile placement share",
+          "series": "SumScore",
+          "value": 0.46614906832298136,
+          "role": "baseline",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 2,
+          "series_order": 2,
+          "metric": "Largest-quartile placement share",
+          "series": "Top10Sum",
+          "value": 0.4832298136645963,
+          "role": "context",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 2,
+          "series_order": 3,
+          "metric": "Largest-quartile placement share",
+          "series": "Source-query-first",
+          "value": 0.5037267080745341,
+          "role": "actual",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        },
+        {
+          "metric_order": 2,
+          "series_order": 4,
+          "metric": "Largest-quartile placement share",
+          "series": "Maximum allowed",
+          "value": 0.411,
+          "role": "target",
+          "lower_is_better": true,
+          "model_count": 150,
+          "top10_position_count": 3220
+        }
+      ],
+      "inventory_quartiles": [
+        {
+          "quartile_order": 1,
+          "series_order": 1,
+          "inventory_group": "Fewest answers",
+          "series": "Models in group",
+          "share": 0.25333333333333335,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "source_alignment_top10_appearances": 218
+        },
+        {
+          "quartile_order": 1,
+          "series_order": 2,
+          "inventory_group": "Fewest answers",
+          "series": "SumScore placements",
+          "share": 0.1093167701863354,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "source_alignment_top10_appearances": 218
+        },
+        {
+          "quartile_order": 1,
+          "series_order": 3,
+          "inventory_group": "Fewest answers",
+          "series": "Top10Sum placements",
+          "share": 0.10652173913043478,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "source_alignment_top10_appearances": 218
+        },
+        {
+          "quartile_order": 1,
+          "series_order": 4,
+          "inventory_group": "Fewest answers",
+          "series": "Source-query-first placements",
+          "share": 0.06770186335403727,
+          "model_count": 38,
+          "inventory_min": 36.0,
+          "inventory_max": 707.0,
+          "source_alignment_top10_appearances": 218
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 1,
+          "inventory_group": "Lower-middle",
+          "series": "Models in group",
+          "share": 0.25333333333333335,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "source_alignment_top10_appearances": 554
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 2,
+          "inventory_group": "Lower-middle",
+          "series": "SumScore placements",
+          "share": 0.17360248447204968,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "source_alignment_top10_appearances": 554
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 3,
+          "inventory_group": "Lower-middle",
+          "series": "Top10Sum placements",
+          "share": 0.168944099378882,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "source_alignment_top10_appearances": 554
+        },
+        {
+          "quartile_order": 2,
+          "series_order": 4,
+          "inventory_group": "Lower-middle",
+          "series": "Source-query-first placements",
+          "share": 0.1720496894409938,
+          "model_count": 38,
+          "inventory_min": 720.0,
+          "inventory_max": 1213.0,
+          "source_alignment_top10_appearances": 554
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 1,
+          "inventory_group": "Upper-middle",
+          "series": "Models in group",
+          "share": 0.24666666666666667,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "source_alignment_top10_appearances": 826
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 2,
+          "inventory_group": "Upper-middle",
+          "series": "SumScore placements",
+          "share": 0.25093167701863356,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "source_alignment_top10_appearances": 826
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 3,
+          "inventory_group": "Upper-middle",
+          "series": "Top10Sum placements",
+          "share": 0.24130434782608695,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "source_alignment_top10_appearances": 826
+        },
+        {
+          "quartile_order": 3,
+          "series_order": 4,
+          "inventory_group": "Upper-middle",
+          "series": "Source-query-first placements",
+          "share": 0.2565217391304348,
+          "model_count": 37,
+          "inventory_min": 1230.0,
+          "inventory_max": 1695.0,
+          "source_alignment_top10_appearances": 826
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 1,
+          "inventory_group": "Most answers",
+          "series": "Models in group",
+          "share": 0.24666666666666667,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "source_alignment_top10_appearances": 1622
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 2,
+          "inventory_group": "Most answers",
+          "series": "SumScore placements",
+          "share": 0.46614906832298136,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "source_alignment_top10_appearances": 1622
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 3,
+          "inventory_group": "Most answers",
+          "series": "Top10Sum placements",
+          "share": 0.4832298136645963,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "source_alignment_top10_appearances": 1622
+        },
+        {
+          "quartile_order": 4,
+          "series_order": 4,
+          "inventory_group": "Most answers",
+          "series": "Source-query-first placements",
+          "share": 0.5037267080745341,
+          "model_count": 37,
+          "inventory_min": 1713.0,
+          "inventory_max": 2511.0,
+          "source_alignment_top10_appearances": 1622
+        }
+      ],
+      "selection_counts": [
+        {
+          "configuration_order": 1,
+          "configuration": "source_alignment__k10",
+          "selected_k": 10,
+          "outer_fold_count": 0,
+          "outer_fold_share": 0.0,
+          "selection_metric": "inner macro nDCG@10"
+        },
+        {
+          "configuration_order": 2,
+          "configuration": "source_alignment__k20",
+          "selected_k": 20,
+          "outer_fold_count": 0,
+          "outer_fold_share": 0.0,
+          "selection_metric": "inner macro nDCG@10"
+        },
+        {
+          "configuration_order": 3,
+          "configuration": "source_alignment__k40",
+          "selected_k": 40,
+          "outer_fold_count": 322,
+          "outer_fold_share": 1.0,
+          "selection_metric": "inner macro nDCG@10"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "reviewed_results",
+      "label": "Reviewed source-query-first result snapshot",
+      "path": "reports/trec_2026_source_query_first_results.json"
+    },
+    {
+      "id": "headline_sql",
+      "label": "Headline source-query-first metrics and gates",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT primary_ndcg, ndcg_delta_vs_sumscore, primary_mrr, mrr_delta_vs_sumscore, inventory_rho, inventory_rho_gate, largest_quartile_share, largest_quartile_gate, passed_gate_count, gate_count FROM headline_metrics",
+        "description": "Selects headline effectiveness, frozen volume checks, and gate counts from the reviewed result snapshot.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "headline_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "150 candidate models",
+          "strict nested leave-one-query-out",
+          "advisor-approved protocol locked before effectiveness scoring"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+          "MRR: macro reciprocal rank of the first positively judged model.",
+          "Paired interval: 10,000 query-level bootstrap resamples of source-query-first minus the named baseline, conditional on finished nested selections.",
+          "Inventory correlation: absolute Spearman association between frozen BASIC response inventory and total fixed-deployment primary score.",
+          "Largest-quartile share: share of 3,220 fixed-deployment top-10 placements received by the frozen largest BASIC-inventory quartile."
+        ]
+      }
+    },
+    {
+      "id": "system_metrics_sql",
+      "label": "Six-system effectiveness comparison",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT system_order, metric_order, system, metric, value, query_count, candidate_model_count, evaluation_protocol, higher_is_better FROM system_metrics ORDER BY system_order, metric_order",
+        "description": "Selects held-out nDCG@10 and MRR for the six headline systems.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "system_metrics"
+        ],
+        "filters": [
+          "322 official development queries",
+          "150 candidate models",
+          "strict nested leave-one-query-out",
+          "advisor-approved protocol locked before effectiveness scoring"
+        ],
+        "metric_definitions": [
+          "nDCG@10: macro top-10 ranking quality over equally weighted queries.",
+          "MRR: macro reciprocal rank of the first positively judged model.",
+          "Paired interval: 10,000 query-level bootstrap resamples of source-query-first minus the named baseline, conditional on finished nested selections.",
+          "Inventory correlation: absolute Spearman association between frozen BASIC response inventory and total fixed-deployment primary score.",
+          "Largest-quartile share: share of 3,220 fixed-deployment top-10 placements received by the frozen largest BASIC-inventory quartile."
+        ]
+      }
+    },
+    {
+      "id": "query_outcomes_sql",
+      "label": "Paired query outcomes and uncertainty",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT comparison_order, metric_order, outcome_order, comparison_metric, baseline, metric, outcome, outcome_count, outcome_share, query_count, mean_difference, ci_lower, ci_upper FROM query_outcomes ORDER BY comparison_order, metric_order, outcome_order",
+        "description": "Selects source-query-first win, tie, and loss counts against each headline baseline with paired interval context.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "query_outcomes"
+        ],
+        "filters": [
+          "322 official development queries",
+          "150 candidate models",
+          "strict nested leave-one-query-out",
+          "advisor-approved protocol locked before effectiveness scoring",
+          "10,000 paired-query resamples"
+        ],
+        "metric_definitions": [
+          "Mean difference and confidence bounds are source-query-first minus the named baseline."
+        ]
+      }
+    },
+    {
+      "id": "response_statuses_sql",
+      "label": "Frozen response-cell status audit",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT status_order, status, cell_count, cell_share, scored_as_zero, raw_response_cells, filter_name FROM response_statuses ORDER BY status_order",
+        "description": "Selects mutually exhaustive frozen response-cell statuses and the explicit-zero policy.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "response_statuses"
+        ],
+        "filters": [
+          "official discovery response matrix",
+          "basic_plus_prefix"
+        ],
+        "metric_definitions": [
+          "Invalid cells remain among the 150 local response slots and receive zero for both response-side signals."
+        ]
+      }
+    },
+    {
+      "id": "volume_gates_sql",
+      "label": "Fixed-deployment volume-gate comparison",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT metric_order, series_order, metric, series, value, role, lower_is_better, model_count, top10_position_count FROM volume_gates ORDER BY metric_order, series_order",
+        "description": "Selects SumScore, Top10Sum, source-query-first, and maximum-allowed values for both frozen deployment-volume diagnostics.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "volume_gates"
+        ],
+        "filters": [
+          "150 models",
+          "3,220 fixed-deployment top-10 placements"
+        ],
+        "metric_definitions": [
+          "Inventory-score correlation is absolute Spearman rho; lower is better.",
+          "Largest-quartile share uses the frozen PR #8 BASIC-response inventory groups."
+        ]
+      }
+    },
+    {
+      "id": "inventory_quartiles_sql",
+      "label": "Frozen response-inventory quartile representation",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT quartile_order, series_order, inventory_group, series, share, model_count, inventory_min, inventory_max, source_alignment_top10_appearances FROM inventory_quartiles ORDER BY quartile_order, series_order",
+        "description": "Selects model and fixed-deployment top-10 placement shares for the same deterministic BASIC-inventory quartiles used by PR #8.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "inventory_quartiles"
+        ],
+        "filters": [
+          "frozen BASIC inventory",
+          "150 models",
+          "3,220 placements"
+        ],
+        "metric_definitions": [
+          "Each placement series and the model-share series sum to 100%."
+        ]
+      }
+    },
+    {
+      "id": "selection_counts_sql",
+      "label": "Nested K selection counts",
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT configuration_order, configuration, selected_k, outer_fold_count, outer_fold_share, selection_metric FROM selection_counts ORDER BY configuration_order",
+        "description": "Selects how often K=10, 20, or 40 was chosen using inner macro nDCG@10.",
+        "executed_at": "2026-07-11T22:15:43Z",
+        "tables_used": [
+          "selection_counts"
+        ],
+        "filters": [
+          "322 outer folds",
+          "primary alignment selector only"
+        ],
+        "metric_definitions": [
+          "Outer-fold share is selected fold count divided by 322."
+        ]
+      }
+    },
+    {
+      "id": "locked_protocol",
+      "label": "Advisor-approved source-query-first preregistration",
+      "path": "protocols/trec_2026_source_query_first.md"
+    },
+    {
+      "id": "primary_summary",
+      "label": "Primary official experiment summary",
+      "path": "artifacts/source_query_first/summary.json"
+    },
+    {
+      "id": "primary_validation",
+      "label": "Complete-run and provenance validation receipt",
+      "path": "artifacts/source_query_first/validation.json"
+    },
+    {
+      "id": "deterministic_rerun",
+      "label": "Independent clean deterministic rerun",
+      "path": "artifacts/source_query_first_rerun/summary.json"
+    },
+    {
+      "id": "source_pipeline",
+      "label": "Tracked nested source-query-first experiment",
+      "path": "trec_mlm/source_query_experiment.py"
+    },
+    {
+      "id": "source_scorer",
+      "label": "Tracked qrel-free source-query and response scorer",
+      "path": "trec_mlm/source_query_first.py"
+    },
+    {
+      "id": "response_controls",
+      "label": "Tracked merged SumScore and Top10Sum result snapshot",
+      "path": "reports/trec_2026_response_volume_normalization_results.json"
+    },
+    {
+      "id": "dense_reference",
+      "label": "Tracked dense nested per-query reference",
+      "path": "reports/trec_2026_dense_query_knn_per_query.tsv"
+    },
+    {
+      "id": "development_qrels",
+      "label": "Official TREC development relevance judgments",
+      "path": "data/dev/llm_dev_qrels.txt"
+    },
+    {
+      "id": "discovery_responses",
+      "label": "Official TREC historical discovery queries and responses",
+      "path": "data/dev/llm_discovery_data.json"
+    }
+  ]
+}

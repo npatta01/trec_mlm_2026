@@ -4,9 +4,11 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
+from trec_mlm.cli import build_parser, main
 from trec_mlm.metrics import QueryMetrics
 from trec_mlm.response_retrieval import (
     DEFAULT_RESPONSE_CANDIDATES,
@@ -179,6 +181,34 @@ def _dense_reference() -> dict[str, QueryMetrics]:
 
 
 class SourceQueryExperimentTest(unittest.TestCase):
+    def test_cli_keeps_concluded_experiment_explicit_and_opt_in(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["source-query-first"])
+        self.assertEqual("source-query-first", args.command)
+        help_text = parser.format_help()
+        self.assertIn("reproduce the concluded, non-default", help_text)
+        self.assertIn("first v1 experiment and frozen response controls", help_text)
+
+        result = SimpleNamespace(summary={"status": "fixture"})
+        with (
+            patch(
+                "trec_mlm.source_query_experiment.run_source_query_experiment",
+                return_value=result,
+            ) as run,
+            patch(
+                "trec_mlm.source_query_experiment.write_source_query_experiment_artifacts",
+                return_value={"summary": "unused"},
+            ) as write,
+            patch("builtins.print"),
+        ):
+            self.assertEqual(
+                0,
+                main(["source-query-first", "--output-dir", "unused"]),
+            )
+
+        run.assert_called_once()
+        write.assert_called_once_with(result, "unused")
+
     def test_nested_primary_and_independent_controls_are_complete(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -176,7 +176,7 @@ def build_parser() -> argparse.ArgumentParser:
     source_first = commands.add_parser(
         "source-query-first",
         help=(
-            "run the advisor-locked source-query-first answer-alignment "
+            "reproduce the concluded, non-default source-query-first v1 "
             "experiment and frozen response controls"
         ),
     )

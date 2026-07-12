@@ -228,14 +228,30 @@ to -0.0449. It passed none of the four locked gates: it was not clearly above TF
 was not within 0.010 nDCG@10 of SumScore, had absolute response-inventory correlation
 0.8019 against a 0.7388 maximum, and gave the largest inventory quartile 50.4% of
 top-10 placements against a 41.1% maximum. The locked recommendation is therefore to
-retain SumScore and stop the source-query-first branch, subject to the explicit owner
-decision required by the protocol.
+retain SumScore and stop the source-query-first branch. The owner accepts that
+method-selection result: conclude v1 and do not select it as the default or a submission
+method.
+
+Separately, the owner elected to merge the completed code and evidence as a frozen,
+opt-in research archive. This is not a permanent rejection of the method family. A
+future retest is explicitly allowed after a decision-relevant bug, new evidence, a
+materially changed benchmark, or a newly preregistered qrel-free method. The scoped
+decision, post-hoc case diagnostic, and required retest procedure are recorded in
+[`reports/trec_2026_source_query_first_decision.md`](reports/trec_2026_source_query_first_decision.md).
 
 Both official runs reproduced the decision receipt and the merged PR #8 SumScore and
 Top10Sum run files byte-for-byte. The first run took about 142 CPU seconds and peaked at
 1.63 GB RSS. The self-contained report explains the task, leakage controls, metrics,
 uncertainty, and volume diagnostics in phone-friendly language:
 [`reports/trec_2026_source_query_first.html`](reports/trec_2026_source_query_first.html).
+
+The prespecified paired comparison recorded 57 nDCG@10 wins, 142 ties, and 123 losses
+against SumScore. A post-hoc case diagnostic observed presently unrouteable
+complementarity on this development set: source-query-first beat SumScore, Top10Sum,
+dense, and TF-IDF together on 24 queries. Similar-looking questions also failed, and no
+examined qrel-free signal reliably identified the winners before scoring. These
+observations may motivate a separately preregistered experiment on genuinely unseen
+judgments; they do not alter the locked 0-of-4-gates decision.
 
 ## Data
 

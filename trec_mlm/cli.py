@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, Sequence
 import json
+from pathlib import Path
+import re
+import subprocess
+import time
+from typing import Any
 
 from trec_mlm.dense_query_knn import (
     DEFAULT_ENCODERS,
@@ -18,6 +24,131 @@ from trec_mlm.experiment import (
 from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.query_knn import load_complete_qrels, load_development_data
 from trec_mlm.runio import rankings_from_run, validate_trec_run
+from trec_mlm.label_retrieval import encoder_specs_by_key as label_encoder_specs_by_key
+
+
+def _run_grouprank_smoke_generation(
+    *,
+    llm: Any,
+    selection: Mapping[str, Any],
+    runtime_metadata: Mapping[str, Any],
+    output_path: str | Path,
+) -> dict[str, Any]:
+    """Retain the sealed smoke generation contract for library-level testing."""
+
+    from trec_mlm.grouprank import build_group_requests
+    from trec_mlm.grouprank_inference import (
+        finalize_grouprank_runtime,
+        run_grouprank_requests,
+    )
+    from trec_mlm.grouprank_smoke import write_grouprank_smoke
+
+    first_request = build_group_requests(selection)[0]
+    transient_stats: dict[str, int] = {}
+    started = time.perf_counter()
+    raw_outputs = run_grouprank_requests(
+        llm,
+        (first_request,),
+        stats=transient_stats,
+    )
+    elapsed_seconds = time.perf_counter() - started
+    runtime = finalize_grouprank_runtime(
+        runtime_metadata,
+        raw_outputs,
+        elapsed_seconds=elapsed_seconds,
+        expected_request_count=1,
+    )
+    return write_grouprank_smoke(
+        selection,
+        raw_output=raw_outputs[0],
+        runtime_metadata=runtime,
+        output_path=output_path,
+    )
+
+
+def _verify_git_launch_provenance(
+    code_revision: str,
+    *,
+    repository: str | Path | None = None,
+) -> str:
+    """Require the supplied revision to be the clean tracked repository HEAD."""
+
+    if re.fullmatch(r"[0-9a-f]{40}", code_revision) is None:
+        raise ValueError("pilot code revision must be a full 40-hex commit SHA")
+    root = Path.cwd() if repository is None else Path(repository)
+    command_kwargs = {
+        "cwd": root,
+        "check": True,
+        "capture_output": True,
+        "text": True,
+    }
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], **command_kwargs
+        ).stdout.strip()
+        if head != code_revision:
+            raise ValueError("pilot code revision does not match HEAD")
+        tracked_status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            **command_kwargs,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError("pilot Git provenance could not be verified") from error
+    if tracked_status.strip():
+        raise ValueError("pilot tracked worktree is not clean")
+    return "clean"
+
+
+def _run_pilot_pointwise_messages(
+    llm: Any,
+    messages: Sequence[list[dict[str, str]]],
+    *,
+    grade_tokens: Mapping[int, int],
+    seed: int,
+    use_tqdm: bool = True,
+    stats: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
+    """Run one-token pilot grading while preserving emitted-token diagnostics."""
+
+    from vllm import SamplingParams
+
+    from trec_mlm.llm_ranker_inference import (
+        extract_grade_log_probabilities,
+        pointwise_sampling_kwargs,
+        update_inference_stats,
+    )
+
+    sampling = SamplingParams(
+        **pointwise_sampling_kwargs(grade_tokens, seed=seed)
+    )
+    outputs = llm.chat(
+        list(messages),
+        sampling_params=sampling,
+        use_tqdm=use_tqdm,
+    )
+    if stats is not None:
+        update_inference_stats(stats, outputs)
+
+    records = []
+    for output in outputs:
+        try:
+            emitted = output.outputs[0]
+            emitted_token_id = int(emitted.token_ids[0])
+            emitted_text = emitted.text
+        except (AttributeError, IndexError, TypeError, ValueError) as error:
+            raise ValueError(
+                "vLLM output is missing the emitted grade token"
+            ) from error
+        records.append(
+            {
+                "grade_log_probabilities": extract_grade_log_probabilities(
+                    output, grade_tokens
+                ),
+                "emitted_grade_token_id": emitted_token_id,
+                "emitted_grade_text": emitted_text,
+            }
+        )
+    return records
 
 
 def _neighbor_grid(value: str) -> tuple[int, ...]:
@@ -203,6 +334,147 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/source_query_first",
     )
 
+    label = commands.add_parser(
+        "label-retrieval",
+        help="run one frozen zero-shot expert-label encoder",
+    )
+    label.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    label.add_argument("--qrels", default="data/dev/llm_dev_qrels.txt")
+    label.add_argument(
+        "--candidates",
+        default="reports/trec_2026_discovery_profile_audit.json",
+    )
+    label.add_argument(
+        "--dense-per-query",
+        default="reports/trec_2026_dense_query_knn_per_query.tsv",
+    )
+    label.add_argument(
+        "--encoder",
+        choices=("mpnet_label_control", *label_encoder_specs_by_key()),
+        required=True,
+    )
+    label.add_argument(
+        "--label-representation",
+        choices=("bare", "expert_capability"),
+        default="bare",
+    )
+    label.add_argument("--batch-size", type=int, default=32)
+    label.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    label.add_argument("--seed", type=int, default=2026)
+    label.add_argument("--run-id")
+    label.add_argument("--output-dir", required=True)
+
+    label_summary = commands.add_parser(
+        "label-sweep-summary",
+        help="compare saved label runs and apply the frozen stage gate",
+    )
+    label_summary.add_argument("--baseline-dir", required=True)
+    label_summary.add_argument(
+        "--model-result",
+        action="append",
+        default=[],
+        metavar="ENCODER=DIR",
+    )
+    label_summary.add_argument(
+        "--repeat-result",
+        action="append",
+        default=[],
+        metavar="ENCODER=DIR",
+        help="independent repeat artifact for the matching model result",
+    )
+    label_summary.add_argument("--maximum-zero-ndcg", type=int, default=131)
+    label_summary.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    label_summary.add_argument("--seed", type=int, default=2026)
+    label_summary.add_argument("--output-dir", required=True)
+
+    diversity_summary = commands.add_parser(
+        "label-diversity-summary",
+        help="compare exploratory small/diverse label runs",
+    )
+    diversity_summary.add_argument("--baseline-dir", required=True)
+    diversity_summary.add_argument("--e5-reference-dir", required=True)
+    diversity_summary.add_argument(
+        "--condition-result",
+        action="append",
+        default=[],
+        metavar="CONDITION=DIR",
+    )
+    diversity_summary.add_argument(
+        "--repeat-result",
+        action="append",
+        default=[],
+        metavar="CONDITION=DIR",
+    )
+    diversity_summary.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    diversity_summary.add_argument("--seed", type=int, default=2026)
+    diversity_summary.add_argument("--output-dir", required=True)
+
+    llm_ranker = commands.add_parser(
+        "llm-label-ranker",
+        help="run or post-hoc evaluate a zero-shot LLM expert-label ranker",
+    )
+    llm_ranker.add_argument("--phase", choices=("rank", "evaluate"), default="rank")
+    llm_ranker.add_argument("--method", choices=("pointwise", "listwise"), required=True)
+    llm_ranker.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    llm_ranker.add_argument(
+        "--candidates", default="reports/trec_2026_discovery_profile_audit.json"
+    )
+    llm_ranker.add_argument(
+        "--smoke-receipt",
+        default="artifacts/llm_label_ranker/smoke/smoke.json",
+    )
+    llm_ranker.add_argument("--batch-size", type=int)
+    llm_ranker.add_argument("--seed", type=int, default=2026)
+    llm_ranker.add_argument("--run-id")
+    llm_ranker.add_argument("--code-revision")
+    llm_ranker.add_argument("--worktree-status", default="clean")
+    llm_ranker.add_argument("--input-dir")
+    llm_ranker.add_argument("--qrels")
+    llm_ranker.add_argument("--output-dir", required=True)
+
+    llm_ranker_pilot = commands.add_parser(
+        "llm-label-ranker-pilot",
+        help="run one frozen qrel-free LLM ranker feasibility pilot",
+    )
+    llm_ranker_pilot.add_argument(
+        "--stage", type=int, choices=(1, 2), required=True
+    )
+    llm_ranker_pilot.add_argument("--selection", required=True)
+    llm_ranker_pilot.add_argument(
+        "--method", choices=("pointwise", "listwise"), required=True
+    )
+    llm_ranker_pilot.add_argument("--smoke-receipt", required=True)
+    llm_ranker_pilot.add_argument("--code-revision", required=True)
+    llm_ranker_pilot.add_argument("--output-dir", required=True)
+
+    grouprank_pilot = commands.add_parser(
+        "grouprank-pilot",
+        help=(
+            "post-hoc evaluate the frozen GroupRank pilot; its smoke and rank "
+            "phases are terminal"
+        ),
+    )
+    grouprank_pilot.add_argument(
+        "--phase", choices=("smoke", "rank", "evaluate"), required=True
+    )
+    grouprank_pilot.add_argument("--selection", required=True)
+    grouprank_pilot.add_argument("--code-revision", required=True)
+    grouprank_pilot.add_argument("--output-dir", required=True)
+    grouprank_pilot.add_argument("--smoke-receipt")
+    grouprank_pilot.add_argument("--judgments")
+    grouprank_pilot.add_argument("--report-json")
+    grouprank_pilot.add_argument("--report-md")
+
+    failure_capture = commands.add_parser(
+        "llm-label-ranker-failure-capture",
+        help="capture exact Podman evidence for a terminal listwise pilot failure",
+    )
+    failure_capture.add_argument("--container", required=True)
+    failure_capture.add_argument("--selection", required=True)
+    failure_capture.add_argument("--smoke-receipt", required=True)
+    failure_capture.add_argument("--expected-ranking-dir", required=True)
+    failure_capture.add_argument("--output-dir", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -322,6 +594,377 @@ def main(argv: list[str] | None = None) -> int:
         result = run_source_query_experiment(config)
         paths = write_source_query_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-retrieval":
+        from trec_mlm.label_experiment import (
+            LabelExperimentConfig,
+            run_label_experiment,
+            write_label_experiment_artifacts,
+        )
+
+        config = LabelExperimentConfig(
+            query_path=args.queries,
+            qrels_path=args.qrels,
+            candidate_path=args.candidates,
+            encoder_key=args.encoder,
+            label_representation=args.label_representation,
+            dense_per_query_path=args.dense_per_query,
+            bootstrap_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+            batch_size=args.batch_size,
+            run_id=args.run_id,
+        )
+        result = run_label_experiment(config)
+        paths = write_label_experiment_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-sweep-summary":
+        from trec_mlm.label_experiment import (
+            build_sweep_summary,
+            load_label_experiment_artifacts,
+            write_sweep_summary,
+        )
+        from trec_mlm.response_experiment import load_dense_per_query_reference
+
+        model_results = {}
+        for value in args.model_result:
+            if "=" not in value:
+                raise SystemExit("--model-result must use ENCODER=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in model_results:
+                raise SystemExit(
+                    "--model-result entries must have unique ENCODER=DIR values"
+                )
+            model_results[key] = load_label_experiment_artifacts(directory)
+        repeat_results = {}
+        for value in args.repeat_result:
+            if "=" not in value:
+                raise SystemExit("--repeat-result must use ENCODER=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in repeat_results:
+                raise SystemExit(
+                    "--repeat-result entries must have unique ENCODER=DIR values"
+                )
+            if key not in model_results:
+                raise SystemExit("--repeat-result ENCODER must match --model-result")
+            repeat_results[key] = load_label_experiment_artifacts(directory)
+        baseline_result = load_label_experiment_artifacts(args.baseline_dir)
+        dense_reference = load_dense_per_query_reference(
+            baseline_result.config.dense_per_query_path,
+            expected_query_ids=baseline_result.query_ids,
+        )
+        summary = build_sweep_summary(
+            baseline=baseline_result,
+            model_results=model_results,
+            repeat_results=repeat_results,
+            dense_reference=dense_reference,
+            maximum_zero_ndcg=args.maximum_zero_ndcg,
+            n_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+        )
+        paths = write_sweep_summary(summary, args.output_dir)
+        print(json.dumps({"summary": summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-diversity-summary":
+        from trec_mlm.label_experiment import (
+            build_diversity_summary,
+            load_label_experiment_artifacts,
+            write_diversity_summary,
+        )
+
+        condition_results = {}
+        for value in args.condition_result:
+            if "=" not in value:
+                raise SystemExit("--condition-result must use CONDITION=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in condition_results:
+                raise SystemExit(
+                    "--condition-result entries must have unique CONDITION=DIR values"
+                )
+            condition_results[key] = load_label_experiment_artifacts(directory)
+        repeat_results = {}
+        for value in args.repeat_result:
+            if "=" not in value:
+                raise SystemExit("--repeat-result must use CONDITION=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in repeat_results:
+                raise SystemExit(
+                    "--repeat-result entries must have unique CONDITION=DIR values"
+                )
+            repeat_results[key] = load_label_experiment_artifacts(directory)
+        if set(repeat_results) != set(condition_results):
+            raise SystemExit(
+                "--repeat-result conditions must exactly match --condition-result"
+            )
+        summary = build_diversity_summary(
+            baseline=load_label_experiment_artifacts(args.baseline_dir),
+            e5_reference=load_label_experiment_artifacts(args.e5_reference_dir),
+            model_results=condition_results,
+            repeat_results=repeat_results,
+            n_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+        )
+        paths = write_diversity_summary(summary, args.output_dir)
+        print(json.dumps({"summary": summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "llm-label-ranker":
+        from trec_mlm.llm_ranker_experiment import (
+            LLMRankerConfig,
+            evaluate_frozen_ranker_artifact,
+            run_listwise_phase_a,
+            run_pointwise_phase_a,
+            write_ranker_phase_a_artifacts,
+        )
+
+        if args.phase == "evaluate":
+            if not args.input_dir or not args.qrels:
+                raise SystemExit("evaluate phase requires --input-dir and --qrels")
+            receipt = evaluate_frozen_ranker_artifact(
+                args.input_dir, args.qrels, args.output_dir
+            )
+            print(json.dumps(receipt, indent=2))
+            return 0
+
+        if args.input_dir or args.qrels:
+            raise SystemExit("rank phase does not accept --input-dir or --qrels")
+        if not args.code_revision:
+            raise SystemExit("rank phase requires --code-revision")
+        from trec_mlm.llm_ranker_inference import (
+            grade_token_ids,
+            load_ranker_engine,
+            run_listwise_messages,
+            run_pointwise_messages,
+        )
+        from trec_mlm.label_experiment import load_candidate_manifest
+        from trec_mlm.llm_ranker import candidate_handles
+
+        run_id = args.run_id or f"qwen3_4b_{args.method}_zero_shot"
+        config = LLMRankerConfig(
+            query_path=args.queries,
+            candidate_path=args.candidates,
+            smoke_receipt_path=args.smoke_receipt,
+            method=args.method,
+            seed=args.seed,
+            run_id=run_id,
+            code_revision=args.code_revision,
+            worktree_status=args.worktree_status,
+        )
+        llm, tokenizer, metadata = load_ranker_engine(seed=args.seed)
+        inference_stats = {
+            "request_count": 0,
+            "prompt_token_count": 0,
+            "output_token_count": 0,
+        }
+        metadata["inference_stats"] = inference_stats
+        if args.method == "pointwise":
+            tokens = grade_token_ids(tokenizer)
+            metadata["grade_token_ids"] = tokens
+
+            def infer_pointwise(messages):
+                values, observed = run_pointwise_messages(
+                    llm, tokenizer, messages, seed=args.seed, stats=inference_stats
+                )
+                if observed != tokens:
+                    raise ValueError("grade token IDs changed during inference")
+                return values
+
+            result = run_pointwise_phase_a(
+                config,
+                infer_batch=infer_pointwise,
+                batch_size=args.batch_size or 1024,
+                runtime_metadata=metadata,
+            )
+        else:
+            handles = tuple(candidate_handles(load_candidate_manifest(args.candidates)))
+
+            def infer_listwise(messages):
+                return run_listwise_messages(
+                    llm,
+                    messages,
+                    handles=handles,
+                    seed=args.seed,
+                    stats=inference_stats,
+                )
+
+            result = run_listwise_phase_a(
+                config,
+                infer_batch=infer_listwise,
+                batch_size=args.batch_size or 16,
+                runtime_metadata=metadata,
+            )
+        paths = write_ranker_phase_a_artifacts(result, args.output_dir)
+        print(json.dumps({"runtime": result.runtime_metadata, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "grouprank-pilot":
+        if args.phase == "evaluate":
+            if not args.judgments or not args.report_json or not args.report_md:
+                raise SystemExit(
+                    "evaluate phase requires --judgments, --report-json, and --report-md"
+                )
+            if args.smoke_receipt is not None:
+                raise SystemExit("evaluate phase does not accept --smoke-receipt")
+            from trec_mlm.grouprank_report import (
+                build_grouprank_report,
+                write_grouprank_report,
+            )
+
+            report = build_grouprank_report(
+                Path(args.output_dir),
+                judgments_path=Path(args.judgments),
+                selection_path=Path(args.selection),
+                code_revision=args.code_revision,
+            )
+            paths = write_grouprank_report(
+                report,
+                report_path=Path(args.report_json),
+                markdown_path=Path(args.report_md),
+            )
+            print(json.dumps({"report": report, "artifacts": paths}, indent=2))
+            return 0
+
+        raise SystemExit(
+            "This GroupRank 7B pilot is terminal after failed retry "
+            "648a8f400d88cf0e6d3a99f94f4edbfc32ce3b1ba83b010d7e95b00bd3ba7493; "
+            "start a separately named experiment/namespace for any future smoke "
+            "or ranking run."
+        )
+
+    if args.command == "llm-label-ranker-pilot":
+        from trec_mlm.artifact_manifest import validate_pilot_smoke_receipt
+        from trec_mlm.llm_ranker_inference import (
+            PILOT_GPU_MEMORY_UTILIZATION,
+            grade_token_ids,
+            load_ranker_engine,
+        )
+        from trec_mlm.llm_ranker_pilot import (
+            DEFAULT_CANDIDATE_PATH,
+            DEFAULT_QUERY_PATH,
+            DEFAULT_SMOKE_RECEIPT_PATH,
+            PilotListwiseParseFailure,
+            preflight_pilot_inputs,
+            run_pilot_listwise_messages,
+            run_pilot_phase_a,
+            write_pilot_phase_a,
+            write_pilot_phase_a_failure,
+        )
+
+        selection_path = Path(args.selection)
+        selection, _input_sha256 = preflight_pilot_inputs(
+            selection_path,
+            query_path=DEFAULT_QUERY_PATH,
+            candidate_path=DEFAULT_CANDIDATE_PATH,
+        )
+        if selection.get("stage") != args.stage:
+            raise ValueError("pilot CLI stage disagrees with the selection manifest")
+        candidate_count = {1: 12, 2: 20}[args.stage]
+
+        smoke_path = Path(args.smoke_receipt)
+        if smoke_path.expanduser().resolve(strict=False) != (
+            DEFAULT_SMOKE_RECEIPT_PATH.expanduser().resolve(strict=False)
+        ):
+            raise ValueError("pilot CLI smoke receipt path is not approved")
+        validate_pilot_smoke_receipt(smoke_path)
+        worktree_status = _verify_git_launch_provenance(args.code_revision)
+
+        llm, tokenizer, metadata = load_ranker_engine(
+            seed=2026,
+            gpu_memory_utilization=PILOT_GPU_MEMORY_UTILIZATION,
+        )
+        inference_stats = {
+            "request_count": 0,
+            "prompt_token_count": 0,
+            "output_token_count": 0,
+        }
+        metadata.update(
+            {
+                "code_revision": args.code_revision,
+                "worktree_status": worktree_status,
+                "query_path": str(DEFAULT_QUERY_PATH),
+                "candidate_path": str(DEFAULT_CANDIDATE_PATH),
+                "smoke_receipt_path": str(DEFAULT_SMOKE_RECEIPT_PATH),
+                "inference_stats": inference_stats,
+            }
+        )
+
+        if args.method == "pointwise":
+            tokens = grade_token_ids(tokenizer)
+            metadata["grade_token_ids"] = tokens
+
+            def infer_pointwise(messages):
+                return _run_pilot_pointwise_messages(
+                    llm,
+                    messages,
+                    grade_tokens=tokens,
+                    seed=2026,
+                    use_tqdm=True,
+                    stats=inference_stats,
+                )
+
+            infer_batch = infer_pointwise
+        else:
+            handles = tuple(
+                f"C{index:02d}" for index in range(candidate_count)
+            )
+
+            def infer_listwise(messages):
+                return run_pilot_listwise_messages(
+                    llm,
+                    messages,
+                    handles=handles,
+                    seed=2026,
+                    use_tqdm=True,
+                    stats=inference_stats,
+                )
+
+            infer_batch = infer_listwise
+
+        try:
+            result = run_pilot_phase_a(
+                selection,
+                method=args.method,
+                infer_batch=infer_batch,
+                runtime_metadata=metadata,
+            )
+        except PilotListwiseParseFailure as error:
+            paths = write_pilot_phase_a_failure(error.result, args.output_dir)
+            print(
+                json.dumps(
+                    {
+                        "disposition": "unscorable_parse_failure",
+                        "failure": error.result.failure,
+                        "artifacts": paths,
+                    },
+                    indent=2,
+                )
+            )
+            raise
+        paths = write_pilot_phase_a(result, args.output_dir)
+        print(
+            json.dumps(
+                {"runtime": result.runtime_metadata, "artifacts": paths},
+                indent=2,
+            )
+        )
+        return 0
+
+    if args.command == "llm-label-ranker-failure-capture":
+        from trec_mlm.llm_ranker_failure import (
+            capture_terminal_listwise_failure,
+        )
+
+        receipt = capture_terminal_listwise_failure(
+            container_name=args.container,
+            output_dir=args.output_dir,
+            selection_path=args.selection,
+            smoke_receipt_path=args.smoke_receipt,
+            expected_ranking_dir=args.expected_ranking_dir,
+        )
+        print(json.dumps(receipt, indent=2, sort_keys=True))
         return 0
 
     if args.command == "validate-run":

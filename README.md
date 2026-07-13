@@ -138,6 +138,27 @@ The self-contained, mobile-responsive technical report is
 [`reports/trec_2026_dense_query_knn_baseline.html`](reports/trec_2026_dense_query_knn_baseline.html).
 Its reviewed result snapshot and canonical report source are kept beside it for audit.
 
+## Zero-shot expert-label sweep
+
+The staged instruction-aware sweep ranks cleaned expert topic labels directly from each
+question. Reproduce its formal MPNet raw-label control with:
+
+```bash
+uv run --extra dense trec-mlm label-retrieval \
+  --encoder mpnet_label_control \
+  --output-dir artifacts/label_sweep/mpnet_label_control
+```
+
+Large Qwen and E5-Mistral encoders run first in the pinned ROCm image; smaller models
+run only if a large model passes the frozen paired-confidence and coverage gate. See
+[`protocols/trec_2026_instruction_aware_label_sweep.md`](protocols/trec_2026_instruction_aware_label_sweep.md)
+for the exact revisions, prompts, runtime, gate, repeatability rule, and summary command.
+Use `--label-representation expert_capability` to test the fixed contextual document
+template alongside the default cleaned-label representation.
+
+The exploratory small/diverse follow-up is reported in
+[`docs/results/2026-07-12-small-diverse-label-embedding-sweep.md`](docs/results/2026-07-12-small-diverse-label-embedding-sweep.md).
+
 ## Baseline 3: Discovery-Response Retrieval
 
 Download the smaller official discovery-response file using the command in

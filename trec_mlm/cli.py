@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 import json
 from pathlib import Path
 import re
+import subprocess
 from typing import Any
 
 from trec_mlm.dense_query_knn import (
@@ -23,6 +24,39 @@ from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.query_knn import load_complete_qrels, load_development_data
 from trec_mlm.runio import rankings_from_run, validate_trec_run
 from trec_mlm.label_retrieval import encoder_specs_by_key as label_encoder_specs_by_key
+
+
+def _verify_git_launch_provenance(
+    code_revision: str,
+    *,
+    repository: str | Path | None = None,
+) -> str:
+    """Require the supplied revision to be the clean tracked repository HEAD."""
+
+    if re.fullmatch(r"[0-9a-f]{40}", code_revision) is None:
+        raise ValueError("pilot code revision must be a full 40-hex commit SHA")
+    root = Path.cwd() if repository is None else Path(repository)
+    command_kwargs = {
+        "cwd": root,
+        "check": True,
+        "capture_output": True,
+        "text": True,
+    }
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], **command_kwargs
+        ).stdout.strip()
+        if head != code_revision:
+            raise ValueError("pilot code revision does not match HEAD")
+        tracked_status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            **command_kwargs,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError("pilot Git provenance could not be verified") from error
+    if tracked_status.strip():
+        raise ValueError("pilot tracked worktree is not clean")
+    return "clean"
 
 
 def _run_pilot_pointwise_messages(
@@ -708,29 +742,21 @@ def main(argv: list[str] | None = None) -> int:
             DEFAULT_CANDIDATE_PATH,
             DEFAULT_QUERY_PATH,
             DEFAULT_SMOKE_RECEIPT_PATH,
+            preflight_pilot_inputs,
             run_pilot_listwise_messages,
             run_pilot_phase_a,
-            validate_pilot_selection,
             write_pilot_phase_a,
         )
 
         selection_path = Path(args.selection)
-        if selection_path.name != "selection.json":
-            raise ValueError("pilot CLI accepts only a qrel-free selection.json")
-        try:
-            selection = json.loads(selection_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
-            raise ValueError("pilot selection is not valid JSON") from error
-        if not isinstance(selection, dict):
-            raise ValueError("pilot selection must be an object")
+        selection, _input_sha256 = preflight_pilot_inputs(
+            selection_path,
+            query_path=DEFAULT_QUERY_PATH,
+            candidate_path=DEFAULT_CANDIDATE_PATH,
+        )
         if selection.get("stage") != args.stage:
             raise ValueError("pilot CLI stage disagrees with the selection manifest")
         candidate_count = {1: 12, 2: 20}[args.stage]
-        validate_pilot_selection(
-            selection,
-            expected_stage=args.stage,
-            expected_candidate_count=candidate_count,
-        )
 
         smoke_path = Path(args.smoke_receipt)
         if smoke_path.expanduser().resolve(strict=False) != (
@@ -738,8 +764,7 @@ def main(argv: list[str] | None = None) -> int:
         ):
             raise ValueError("pilot CLI smoke receipt path is not approved")
         validate_pilot_smoke_receipt(smoke_path)
-        if re.fullmatch(r"[0-9a-f]{40}", args.code_revision) is None:
-            raise ValueError("pilot code revision must be a full 40-hex commit SHA")
+        worktree_status = _verify_git_launch_provenance(args.code_revision)
 
         llm, tokenizer, metadata = load_ranker_engine(seed=2026)
         inference_stats = {
@@ -750,7 +775,7 @@ def main(argv: list[str] | None = None) -> int:
         metadata.update(
             {
                 "code_revision": args.code_revision,
-                "worktree_status": "clean",
+                "worktree_status": worktree_status,
                 "query_path": str(DEFAULT_QUERY_PATH),
                 "candidate_path": str(DEFAULT_CANDIDATE_PATH),
                 "smoke_receipt_path": str(DEFAULT_SMOKE_RECEIPT_PATH),
@@ -791,7 +816,7 @@ def main(argv: list[str] | None = None) -> int:
             infer_batch = infer_listwise
 
         result = run_pilot_phase_a(
-            selection_path,
+            selection,
             method=args.method,
             infer_batch=infer_batch,
             runtime_metadata=metadata,

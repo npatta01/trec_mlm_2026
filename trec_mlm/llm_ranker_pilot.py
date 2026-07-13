@@ -788,11 +788,35 @@ def _validate_current_pilot_inputs(
     return {"queries": query_digest, "candidates": candidate_digest}
 
 
+def preflight_pilot_inputs(
+    selection: Mapping[str, Any] | str | Path,
+    *,
+    query_path: str | Path = DEFAULT_QUERY_PATH,
+    candidate_path: str | Path = DEFAULT_CANDIDATE_PATH,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Validate qrel-free selection and approved live inputs before engine loading."""
+
+    approved_query = _normalize_approved_path(
+        str(query_path), approved=DEFAULT_QUERY_PATH, label="query"
+    )
+    approved_candidate = _normalize_approved_path(
+        str(candidate_path), approved=DEFAULT_CANDIDATE_PATH, label="candidate"
+    )
+    frozen_selection = _load_phase_a_selection(selection)
+    input_sha256 = _validate_current_pilot_inputs(
+        frozen_selection,
+        query_path=approved_query,
+        candidate_path=approved_candidate,
+    )
+    return frozen_selection, input_sha256
+
+
 def _pilot_runtime_config(
     selection: Mapping[str, Any],
     *,
     method: str,
     runtime_metadata: Mapping[str, Any],
+    input_sha256: Mapping[str, str],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if method not in {"pointwise", "listwise"}:
         raise ValueError("pilot method must be 'pointwise' or 'listwise'")
@@ -802,11 +826,6 @@ def _pilot_runtime_config(
     query_path = runtime["query_path"]
     candidate_path = runtime["candidate_path"]
     smoke_path = runtime["smoke_receipt_path"]
-    input_sha256 = _validate_current_pilot_inputs(
-        selection,
-        query_path=query_path,
-        candidate_path=candidate_path,
-    )
     smoke = validate_pilot_smoke_receipt(smoke_path)
     runtime.update(
         {
@@ -914,11 +933,16 @@ def run_pilot_phase_a(
     """Run one compact pilot using only its frozen qrel-free selection."""
 
     validated_runtime = _validate_runtime_metadata_before_io(runtime_metadata)
-    frozen_selection = _load_phase_a_selection(selection)
+    frozen_selection, input_sha256 = preflight_pilot_inputs(
+        selection,
+        query_path=validated_runtime["query_path"],
+        candidate_path=validated_runtime["candidate_path"],
+    )
     runtime, config = _pilot_runtime_config(
         frozen_selection,
         method=method,
         runtime_metadata=validated_runtime,
+        input_sha256=input_sha256,
     )
     prompts: list[dict[str, Any]] = []
     messages: list[list[dict[str, str]]] = []

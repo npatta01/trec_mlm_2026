@@ -10,7 +10,7 @@ import sys
 import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from trec_mlm import cli
 from trec_mlm.cli import build_parser, main
@@ -1120,7 +1120,7 @@ class PilotCliTest(unittest.TestCase):
             with patch(
                 "trec_mlm.llm_ranker_inference.load_ranker_engine"
             ) as load_engine:
-                with self.assertRaisesRegex(ValueError, "exactly 12.*candidates"):
+                with self.assertRaisesRegex(ValueError, "12 candidates"):
                     main(
                         [
                             "llm-label-ranker-pilot",
@@ -1140,6 +1140,146 @@ class PilotCliTest(unittest.TestCase):
                     )
 
         load_engine.assert_not_called()
+
+    def test_git_provenance_helper_checks_head_and_tracked_status(self) -> None:
+        with patch(
+            "subprocess.run",
+            side_effect=(
+                SimpleNamespace(stdout="a" * 40 + "\n"),
+                SimpleNamespace(stdout=""),
+            ),
+        ) as run:
+            status = cli._verify_git_launch_provenance(
+                "a" * 40,
+                repository=ROOT,
+            )
+
+        self.assertEqual("clean", status)
+        self.assertEqual(
+            [
+                call(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=ROOT,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ),
+                call(
+                    [
+                        "git",
+                        "status",
+                        "--porcelain",
+                        "--untracked-files=no",
+                    ],
+                    cwd=ROOT,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ),
+            ],
+            run.call_args_list,
+        )
+
+    def test_cli_rejects_mismatched_head_and_dirty_tracked_status_before_engine(
+        self,
+    ) -> None:
+        argv = [
+            "llm-label-ranker-pilot",
+            "--stage",
+            "1",
+            "--selection",
+            "artifacts/llm_label_ranker/pilot/stage1/selection.json",
+            "--method",
+            "pointwise",
+            "--smoke-receipt",
+            "artifacts/llm_label_ranker/smoke/smoke.json",
+            "--code-revision",
+            "a" * 40,
+            "--output-dir",
+            "unused",
+        ]
+        cases = (
+            (
+                (SimpleNamespace(stdout="b" * 40 + "\n"),),
+                "does not match HEAD",
+            ),
+            (
+                (
+                    SimpleNamespace(stdout="a" * 40 + "\n"),
+                    SimpleNamespace(stdout=" M trec_mlm/cli.py\n"),
+                ),
+                "tracked worktree is not clean",
+            ),
+        )
+        for git_results, expected in cases:
+            with self.subTest(expected=expected):
+                with (
+                    patch("subprocess.run", side_effect=git_results),
+                    patch(
+                        "trec_mlm.llm_ranker_inference.load_ranker_engine",
+                        side_effect=AssertionError("engine must not load"),
+                    ) as load_engine,
+                ):
+                    with self.assertRaisesRegex(ValueError, expected):
+                        main(argv)
+                load_engine.assert_not_called()
+
+    def test_cli_rejects_mutated_approved_live_input_before_engine(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            query_path = root / "queries.tsv"
+            candidate_path = root / "candidates.json"
+            smoke_path = root / "smoke.json"
+            selection_path = root / "selection.json"
+            shutil.copyfile(QUERY_PATH, query_path)
+            shutil.copyfile(CANDIDATE_PATH, candidate_path)
+            shutil.copyfile(
+                ROOT / "artifacts/llm_label_ranker/smoke/smoke.json",
+                smoke_path,
+            )
+            shutil.copyfile(
+                ROOT
+                / "artifacts/llm_label_ranker/pilot/stage1/selection.json",
+                selection_path,
+            )
+            query_path.write_bytes(query_path.read_bytes() + b"\n")
+
+            with (
+                patch.multiple(
+                    "trec_mlm.llm_ranker_pilot",
+                    DEFAULT_QUERY_PATH=query_path,
+                    DEFAULT_CANDIDATE_PATH=candidate_path,
+                    DEFAULT_SMOKE_RECEIPT_PATH=smoke_path,
+                ),
+                patch(
+                    "trec_mlm.cli._verify_git_launch_provenance",
+                    return_value="clean",
+                ),
+                patch(
+                    "trec_mlm.llm_ranker_inference.load_ranker_engine",
+                    side_effect=AssertionError("engine must not load"),
+                ) as load_engine,
+            ):
+                with self.assertRaisesRegex(ValueError, "query input SHA256 changed"):
+                    main(
+                        [
+                            "llm-label-ranker-pilot",
+                            "--stage",
+                            "1",
+                            "--selection",
+                            str(selection_path),
+                            "--method",
+                            "pointwise",
+                            "--smoke-receipt",
+                            str(smoke_path),
+                            "--code-revision",
+                            "a" * 40,
+                            "--output-dir",
+                            str(root / "output"),
+                        ]
+                    )
+
+            load_engine.assert_not_called()
 
     def test_cli_preflights_provenance_and_passed_smoke_before_engine_load(
         self,
@@ -1284,6 +1424,11 @@ class PilotCliTest(unittest.TestCase):
                     return_value={0: 15, 1: 16, 2: 17},
                 ),
                 patch(
+                    "trec_mlm.cli._verify_git_launch_provenance",
+                    return_value="clean",
+                    create=True,
+                ) as verify_git,
+                patch(
                     "trec_mlm.cli._run_pilot_pointwise_messages",
                     side_effect=pointwise_infer,
                     create=True,
@@ -1320,6 +1465,7 @@ class PilotCliTest(unittest.TestCase):
                     )
 
             self.assertEqual(2, load_engine.call_count)
+            self.assertEqual(2, verify_git.call_count)
             run_pointwise.assert_called_once()
             run_listwise.assert_called_once()
             pointwise = load_frozen_pilot(pointwise_dir)

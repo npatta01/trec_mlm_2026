@@ -78,4 +78,3 @@ different interface and must not be presented as a rescue of these artifacts.
   `docs/superpowers/specs/2026-07-13-grouprank-7b-stage2-pilot-design.md`
 - [Pinned model card](https://huggingface.co/AQ-MedAI/Diver-GroupRank-7B/blob/42a9504b32616f155970d5b7f349b63dc24b3e27/README.md#inference)
 - [Authors' GroupRank inference code](https://github.com/AQ-MedAI/Diver/blob/main/Reranker/rerank_groupwise.py)
-

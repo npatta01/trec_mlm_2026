@@ -128,6 +128,51 @@ _SELECTION_ENTRY_KEYS = frozenset({"query_id", "question", "candidate_ids"})
 _JUDGMENT_ENTRY_KEYS = frozenset({"query_id", "grades", "roles"})
 _ROLE_KEYS = ("relevant", "confounder", "negative")
 
+_PILOT_SELECTION_STRATA: Mapping[str, str] = {
+    STAGE1_QUERY_IDS[0]: "issue_11",
+    STAGE1_QUERY_IDS[1]: "issue_11",
+    STAGE1_QUERY_IDS[2]: "embedding_success",
+    STAGE1_QUERY_IDS[3]: "embedding_success",
+    STAGE1_QUERY_IDS[4]: "embedding_failure",
+    STAGE1_QUERY_IDS[5]: "embedding_failure",
+}
+_PILOT_SUBJECT_STRATA: Mapping[str, str] = {
+    STAGE1_QUERY_IDS[0]: "linguistics",
+    STAGE1_QUERY_IDS[1]: "geography",
+    STAGE1_QUERY_IDS[2]: "food-and-drink",
+    STAGE1_QUERY_IDS[3]: "mathematics",
+    STAGE1_QUERY_IDS[4]: "biology",
+    STAGE1_QUERY_IDS[5]: "architecture",
+}
+_REPORT_METHODS = (
+    "pointwise",
+    "listwise",
+    "qwen4b_contextual",
+    "e5_contextual",
+)
+_LLM_REPORT_METHODS = ("pointwise", "listwise")
+_BASELINE_REPORT_METHODS = ("qwen4b_contextual", "e5_contextual")
+_ERROR_CLASSIFICATIONS = frozenset(
+    {
+        "label ambiguity",
+        "related-topic confusion",
+        "overly broad label preference",
+        "overly narrow label preference",
+        "ranking-format failure",
+    }
+)
+_MANUAL_ERROR_CLASSIFICATIONS: Mapping[tuple[str, str], str] = {
+    ("pointwise", STAGE1_QUERY_IDS[5]): "related-topic confusion",
+    ("listwise", STAGE1_QUERY_IDS[1]): "overly broad label preference",
+    ("listwise", STAGE1_QUERY_IDS[4]): "overly narrow label preference",
+    ("listwise", STAGE1_QUERY_IDS[5]): "related-topic confusion",
+    ("qwen4b_contextual", STAGE1_QUERY_IDS[1]): "overly broad label preference",
+    ("qwen4b_contextual", STAGE1_QUERY_IDS[4]): "overly narrow label preference",
+    ("qwen4b_contextual", STAGE1_QUERY_IDS[5]): "related-topic confusion",
+    ("e5_contextual", STAGE1_QUERY_IDS[1]): "overly broad label preference",
+    ("e5_contextual", STAGE1_QUERY_IDS[4]): "overly narrow label preference",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class PilotPhaseAResult:
@@ -1690,6 +1735,478 @@ def evaluate_pilot(
         "phase_a_sha256": _sha256(source / "ranking_receipt.json"),
         "qrels_sha256": _sha256(qrels_path),
         "per_query": per_query,
+    }
+
+
+def build_pilot_report(
+    *,
+    pointwise_dir: str | Path,
+    listwise_dir: str | Path,
+    qwen_dir: str | Path,
+    e5_dir: str | Path,
+    qrels_path: str | Path,
+) -> dict[str, Any]:
+    """Build the qrel-assisted exploratory Stage 1 decision receipt."""
+
+    # These two calls deliberately precede every qrel-assisted or baseline read.
+    pointwise = load_frozen_pilot(pointwise_dir)
+    listwise = load_frozen_pilot(listwise_dir)
+    if pointwise.method != "pointwise" or listwise.method != "listwise":
+        raise ValueError("Stage 1 report requires pointwise and listwise artifacts")
+    if pointwise.selection != listwise.selection:
+        raise ValueError("Stage 1 Phase A selections disagree")
+    selection = pointwise.selection
+    query_count, candidate_count = _require_stage_shape(selection)
+    if selection.get("stage") != 1 or (query_count, candidate_count) != (6, 12):
+        raise ValueError("Stage 1 report requires six queries with twelve candidates")
+    if tuple(entry["query_id"] for entry in selection["questions"]) != STAGE1_QUERY_IDS:
+        raise ValueError("Stage 1 report query inventory changed")
+
+    # Qrels and the qrel-bearing baseline loaders are legal only after both Phase A
+    # artifacts have passed their full hash/content validation above.
+    all_queries = load_queries_tsv(DEFAULT_QUERY_PATH)
+    qrels = load_complete_qrels(qrels_path, expected_query_ids=all_queries)
+    from trec_mlm.label_experiment import load_label_experiment_artifacts
+
+    qwen = load_label_experiment_artifacts(qwen_dir)
+    e5 = load_label_experiment_artifacts(e5_dir)
+    for result, expected_key, label in (
+        (qwen, "qwen3_embedding_4b", "Qwen4B"),
+        (e5, "e5_mistral_7b_instruct", "E5"),
+    ):
+        if (
+            result.config.encoder_key != expected_key
+            or result.config.label_representation != "expert_capability"
+        ):
+            raise ValueError(f"{label} baseline is not the frozen contextual run")
+
+    baseline_results = {
+        "qwen4b_contextual": qwen,
+        "e5_contextual": e5,
+    }
+    rankings: dict[str, dict[str, list[str]]] = {
+        "pointwise": pointwise.rankings,
+        "listwise": listwise.rankings,
+        "qwen4b_contextual": {},
+        "e5_contextual": {},
+    }
+    for entry in selection["questions"]:
+        query_id = entry["query_id"]
+        candidates = set(entry["candidate_ids"])
+        for method, result in baseline_results.items():
+            if query_id not in result.rankings:
+                raise ValueError(f"{method} baseline is missing query {query_id!r}")
+            restricted = [
+                candidate_id
+                for candidate_id in result.rankings[query_id]
+                if candidate_id in candidates
+            ]
+            if len(restricted) != candidate_count or set(restricted) != candidates:
+                raise ValueError(
+                    f"{method} baseline does not cover the frozen candidate set"
+                )
+            rankings[method][query_id] = restricted
+
+    rotation_by_query = {
+        entry["query_id"]: _rotation_agreement(
+            query_id=entry["query_id"],
+            candidate_ids=entry["candidate_ids"],
+            raw_outputs=listwise.raw_outputs,
+        )
+        for entry in selection["questions"]
+    }
+    question_rows: list[dict[str, Any]] = []
+    method_summaries: dict[str, dict[str, Any]] = {
+        method: {
+            "top3_relevant_count": 0,
+            "top3_query_ids": [],
+            "miss_query_ids": [],
+            "parse_failure_count": 0,
+        }
+        for method in _REPORT_METHODS
+    }
+    for entry in selection["questions"]:
+        query_id = entry["query_id"]
+        candidate_ids = entry["candidate_ids"]
+        relevant = [
+            candidate_id
+            for candidate_id in candidate_ids
+            if float(qrels[query_id][candidate_id]) > 0.0
+        ]
+        if not relevant:
+            raise ValueError(f"pilot query {query_id!r} has no relevant candidate")
+        relevant_grades = {
+            candidate_id: float(qrels[query_id][candidate_id])
+            for candidate_id in relevant
+        }
+        relevant_ranks: dict[str, dict[str, int]] = {}
+        best_ranks: dict[str, int] = {}
+        top_three: dict[str, list[str]] = {}
+        errors: dict[str, dict[str, str] | None] = {}
+        for method in _REPORT_METHODS:
+            ranking = rankings[method][query_id]
+            method_relevant_ranks = {
+                candidate_id: ranking.index(candidate_id) + 1
+                for candidate_id in relevant
+            }
+            best_rank = min(method_relevant_ranks.values())
+            relevant_ranks[method] = method_relevant_ranks
+            best_ranks[method] = best_rank
+            top_three[method] = ranking[:3]
+            if best_rank <= 3:
+                method_summaries[method]["top3_relevant_count"] += 1
+                method_summaries[method]["top3_query_ids"].append(query_id)
+                errors[method] = None
+            else:
+                method_summaries[method]["miss_query_ids"].append(query_id)
+                errors[method] = _manual_error(
+                    method=method,
+                    query_id=query_id,
+                    top_three=ranking[:3],
+                    relevant_ranks=method_relevant_ranks,
+                )
+
+        rotation = rotation_by_query[query_id]
+        method_summaries["listwise"]["parse_failure_count"] += rotation[
+            "parse_failure_count"
+        ]
+        question_rows.append(
+            {
+                "query_id": query_id,
+                "question": entry["question"],
+                "selection_stratum": _PILOT_SELECTION_STRATA[query_id],
+                "subject_stratum": _PILOT_SUBJECT_STRATA[query_id],
+                "qrel_assisted": True,
+                "relevant_grades": relevant_grades,
+                "relevant_ranks": relevant_ranks,
+                "best_relevant_rank": best_ranks,
+                "top_three": top_three,
+                "llm_minus_baseline_rank_delta": {
+                    method: {
+                        baseline: best_ranks[method] - best_ranks[baseline]
+                        for baseline in _BASELINE_REPORT_METHODS
+                    }
+                    for method in _LLM_REPORT_METHODS
+                },
+                "listwise_rotation_agreement": rotation,
+                "parse_failures": {
+                    "pointwise": 0,
+                    "listwise": rotation["parse_failure_count"],
+                },
+                "manual_error_classification": errors,
+            }
+        )
+
+    gate_methods: dict[str, dict[str, Any]] = {}
+    for method in _LLM_REPORT_METHODS:
+        successful_query_ids = list(method_summaries[method]["top3_query_ids"])
+        successful_subjects = sorted(
+            {_PILOT_SUBJECT_STRATA[query_id] for query_id in successful_query_ids}
+        )
+        no_parse_dependency = all(
+            next(
+                row for row in question_rows if row["query_id"] == query_id
+            )["parse_failures"][method]
+            == 0
+            for query_id in successful_query_ids
+        )
+        top3_condition = len(successful_query_ids) >= 4
+        subject_condition = len(successful_subjects) > 1
+        gate_methods[method] = {
+            "passes": top3_condition and subject_condition and no_parse_dependency,
+            "top3_relevant_count": len(successful_query_ids),
+            "required_top3_relevant_count": 4,
+            "successful_query_ids": successful_query_ids,
+            "successful_subject_strata": successful_subjects,
+            "spans_more_than_one_subject": subject_condition,
+            "no_success_depends_on_parse_failure": no_parse_dependency,
+        }
+    passed_methods = [
+        method for method in _LLM_REPORT_METHODS if gate_methods[method]["passes"]
+    ]
+    stage1_passed = bool(passed_methods)
+    if passed_methods == ["pointwise"]:
+        gate_summary = "Pointwise passes the small-pilot feasibility gate; listwise does not."
+    elif passed_methods == ["listwise"]:
+        gate_summary = "Listwise passes the small-pilot feasibility gate; pointwise does not."
+    elif passed_methods:
+        gate_summary = "Pointwise and listwise both pass the small-pilot feasibility gate."
+    else:
+        gate_summary = "Neither LLM method passes the small-pilot feasibility gate."
+    decision_text = (
+        f"{gate_summary} Stage 2 is permitted, but no larger run starts automatically."
+        if stage1_passed
+        else f"{gate_summary} Stop and discuss the six examples."
+    )
+
+    return {
+        "version": 1,
+        "stage": 1,
+        "evidence_scope": "qrel-assisted exploratory",
+        "selection_sha256": _sha256(Path(pointwise_dir) / "selection.json"),
+        "question_count": query_count,
+        "candidate_count_per_question": candidate_count,
+        "questions": question_rows,
+        "method_summaries": method_summaries,
+        "gate": {
+            "heuristic_not_statistical_test": True,
+            "methods": gate_methods,
+            "passed_methods": passed_methods,
+            "stage1_passed": stage1_passed,
+        },
+        "decision": {
+            "stage2_allowed": stage1_passed,
+            "automatic_continuation": False,
+            "plain_language": decision_text,
+        },
+        "recomputation_inputs": {
+            "phase_a": {
+                "pointwise": _phase_a_recomputation_record(pointwise_dir),
+                "listwise": _phase_a_recomputation_record(listwise_dir),
+            },
+            "baselines": {
+                "qwen4b_contextual": _baseline_recomputation_record(qwen_dir),
+                "e5_contextual": _baseline_recomputation_record(e5_dir),
+            },
+            "qrels": {
+                "path": str(Path(qrels_path)),
+                "sha256": _sha256(qrels_path),
+            },
+        },
+    }
+
+
+def _rotation_agreement(
+    *,
+    query_id: str,
+    candidate_ids: Sequence[str],
+    raw_outputs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    records = [record for record in raw_outputs if record.get("query_id") == query_id]
+    records.sort(key=lambda record: int(record.get("rotation", -1)))
+    if len(records) != 3 or [record.get("rotation") for record in records] != [0, 1, 2]:
+        raise ValueError(f"listwise rotations are incomplete for {query_id!r}")
+    parse_failures = sum(record.get("validation_error") is not None for record in records)
+    fallback_count = sum(record.get("used_fallback") is True for record in records)
+    orders = [record.get("selected_candidate_ids") for record in records]
+    expected = set(candidate_ids)
+    if any(
+        not isinstance(order, list)
+        or len(order) != len(candidate_ids)
+        or set(order) != expected
+        for order in orders
+    ):
+        raise ValueError(f"listwise rotation ranking changed for {query_id!r}")
+    normalized_orders = [list(order) for order in orders]
+    pair_agreements: list[float] = []
+    candidates = sorted(expected)
+    for first_index in range(2):
+        for second_index in range(first_index + 1, 3):
+            first_positions = {
+                candidate_id: rank
+                for rank, candidate_id in enumerate(normalized_orders[first_index])
+            }
+            second_positions = {
+                candidate_id: rank
+                for rank, candidate_id in enumerate(normalized_orders[second_index])
+            }
+            agreements = 0
+            comparisons = 0
+            for left_index, left in enumerate(candidates):
+                for right in candidates[left_index + 1 :]:
+                    comparisons += 1
+                    agreements += (
+                        (first_positions[left] < first_positions[right])
+                        == (second_positions[left] < second_positions[right])
+                    )
+            pair_agreements.append(agreements / comparisons)
+    mean_agreement = sum(pair_agreements) / len(pair_agreements)
+    return {
+        "rotation_count": 3,
+        "rotation_top_three": [order[:3] for order in normalized_orders],
+        "exact_order_agreement": len({tuple(order) for order in normalized_orders}) == 1,
+        "top_three_set_agreement": len(
+            {tuple(sorted(order[:3])) for order in normalized_orders}
+        )
+        == 1,
+        "mean_pairwise_order_agreement": round(mean_agreement, 12),
+        "mean_pairwise_kendall_tau": round(2.0 * mean_agreement - 1.0, 12),
+        "parse_failure_count": parse_failures,
+        "fallback_count": fallback_count,
+    }
+
+
+def _manual_error(
+    *,
+    method: str,
+    query_id: str,
+    top_three: Sequence[str],
+    relevant_ranks: Mapping[str, int],
+) -> dict[str, str]:
+    classification = _MANUAL_ERROR_CLASSIFICATIONS.get((method, query_id))
+    if classification not in _ERROR_CLASSIFICATIONS:
+        raise ValueError(
+            f"manual error classification missing for {method}/{query_id}"
+        )
+    nearest, nearest_rank = min(relevant_ranks.items(), key=lambda item: item[1])
+    leaders = ", ".join(top_three)
+    evidence = (
+        f"The method ranked {leaders} ahead of relevant label {nearest} at rank "
+        f"{nearest_rank}, matching the reviewed {classification} pattern."
+    )
+    return {"classification": classification, "evidence": evidence}
+
+
+def _phase_a_recomputation_record(artifact_dir: str | Path) -> dict[str, Any]:
+    source = Path(artifact_dir)
+    receipt = _load_json_object(
+        source / "ranking_receipt.json", label="pilot ranking receipt"
+    )
+    return {
+        "path": str(source),
+        "ranking_receipt_sha256": _sha256(source / "ranking_receipt.json"),
+        "selection_sha256": _sha256(source / "selection.json"),
+        "artifact_sha256": dict(receipt["artifact_sha256"]),
+    }
+
+
+def _baseline_recomputation_record(artifact_dir: str | Path) -> dict[str, Any]:
+    source = Path(artifact_dir)
+    validation = _load_json_object(
+        source / "validation.json", label="label baseline validation"
+    )
+    hashes = validation.get("artifact_sha256")
+    if not isinstance(hashes, Mapping) or not hashes:
+        raise ValueError("label baseline validation hashes are missing")
+    return {
+        "path": str(source),
+        "validation_sha256": _sha256(source / "validation.json"),
+        "artifact_sha256": dict(hashes),
+    }
+
+
+def render_pilot_report_markdown(report: Mapping[str, Any]) -> str:
+    """Render the compact six-question Stage 1 decision table."""
+
+    questions = report.get("questions")
+    gate = report.get("gate")
+    decision = report.get("decision")
+    if (
+        not isinstance(questions, list)
+        or len(questions) != 6
+        or not isinstance(gate, Mapping)
+        or not isinstance(decision, Mapping)
+    ):
+        raise ValueError("Stage 1 report is incomplete")
+    lines = [
+        "# LLM Expert-Label Ranker: Stage 1 Pilot",
+        "",
+        "> Qrel-assisted exploratory development evidence; this is a six-question feasibility diagnostic, not a deployment comparison.",
+        "",
+        "## Decision",
+        "",
+        str(decision["plain_language"]),
+        "",
+        "No Stage 2 run, model selection, fusion, or deployment action was started by this report.",
+        "",
+        "## Gate",
+        "",
+        "| Method | Relevant in top 3 | Subjects represented | Parse-safe | Pass |",
+        "| --- | ---: | ---: | --- | --- |",
+    ]
+    for method, label in (("pointwise", "Pointwise"), ("listwise", "Listwise")):
+        method_gate = gate["methods"][method]
+        lines.append(
+            f"| {label} | {method_gate['top3_relevant_count']}/6 | "
+            f"{len(method_gate['successful_subject_strata'])} | "
+            f"{'yes' if method_gate['no_success_depends_on_parse_failure'] else 'no'} | "
+            f"{'yes' if method_gate['passes'] else 'no'} |"
+        )
+    lines.extend(
+        [
+            "",
+            "The gate requires at least 4/6 top-three hits, more than one successful subject stratum, and no success that depends on a parse failure.",
+            "",
+            "## Six-question decision table",
+            "",
+            "Best-rank order is pointwise / listwise / contextual Qwen4B / contextual E5. Rank deltas are LLM rank minus baseline rank, so negative is better for the LLM.",
+            "",
+            "| Query | Stratum | Relevant | Best ranks P / L / Q4 / E5 | Top 3 P / L / Q4 / E5 | P−Q4 / P−E5 / L−Q4 / L−E5 | Listwise rotation agreement | Reviewed misses |",
+            "| --- | --- | --- | ---: | --- | ---: | ---: | --- |",
+        ]
+    )
+    for row in questions:
+        best = row["best_relevant_rank"]
+        top = row["top_three"]
+        delta = row["llm_minus_baseline_rank_delta"]
+        errors = row["manual_error_classification"]
+        reviewed = "; ".join(
+            f"{method}: {value['classification']}"
+            for method, value in errors.items()
+            if value is not None
+        ) or "none"
+        relevant = ", ".join(row["relevant_grades"])
+        top_text = "<br>".join(
+            f"{label}: {', '.join(top[method])}"
+            for method, label in (
+                ("pointwise", "P"),
+                ("listwise", "L"),
+                ("qwen4b_contextual", "Q4"),
+                ("e5_contextual", "E5"),
+            )
+        )
+        lines.append(
+            f"| `{row['query_id']}` {row['question']} | "
+            f"{row['selection_stratum']} / {row['subject_stratum']} | {relevant} | "
+            f"{best['pointwise']} / {best['listwise']} / "
+            f"{best['qwen4b_contextual']} / {best['e5_contextual']} | {top_text} | "
+            f"{delta['pointwise']['qwen4b_contextual']} / "
+            f"{delta['pointwise']['e5_contextual']} / "
+            f"{delta['listwise']['qwen4b_contextual']} / "
+            f"{delta['listwise']['e5_contextual']} | "
+            f"{row['listwise_rotation_agreement']['mean_pairwise_order_agreement']:.3f}; "
+            f"{row['listwise_rotation_agreement']['parse_failure_count']} parse failures | "
+            f"{reviewed} |"
+        )
+    inputs = report["recomputation_inputs"]
+    lines.extend(
+        [
+            "",
+            "## Recalculation receipt",
+            "",
+            f"- Pointwise receipt SHA-256: `{inputs['phase_a']['pointwise']['ranking_receipt_sha256']}`",
+            f"- Listwise receipt SHA-256: `{inputs['phase_a']['listwise']['ranking_receipt_sha256']}`",
+            f"- Frozen selection SHA-256: `{report['selection_sha256']}`",
+            f"- Contextual Qwen4B validation SHA-256: `{inputs['baselines']['qwen4b_contextual']['validation_sha256']}`",
+            f"- Contextual E5 validation SHA-256: `{inputs['baselines']['e5_contextual']['validation_sha256']}`",
+            f"- Qrels SHA-256: `{inputs['qrels']['sha256']}`",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_pilot_report(
+    report: Mapping[str, Any],
+    *,
+    report_path: str | Path,
+    markdown_path: str | Path,
+) -> dict[str, str]:
+    """Write deterministic JSON and Markdown Stage 1 report artifacts."""
+
+    json_destination = Path(report_path)
+    markdown_destination = Path(markdown_path)
+    json_destination.parent.mkdir(parents=True, exist_ok=True)
+    markdown_destination.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(json_destination, report)
+    markdown_destination.write_text(
+        render_pilot_report_markdown(report), encoding="utf-8"
+    )
+    return {
+        "report_path": str(json_destination),
+        "markdown_path": str(markdown_destination),
+        "report_sha256": _sha256(json_destination),
+        "markdown_sha256": _sha256(markdown_destination),
     }
 
 

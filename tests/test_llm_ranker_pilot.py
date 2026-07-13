@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import call, patch
 
 from trec_mlm import cli
+from trec_mlm import llm_ranker_pilot as pilot_module
 from trec_mlm.cli import build_parser, main
 from trec_mlm.label_experiment import load_candidate_manifest
 from trec_mlm.label_retrieval import clean_candidate_label
@@ -54,6 +55,18 @@ QWEN_RUN_PATH = (
     ROOT
     / "artifacts/label_sweep_diverse/qwen3_embedding_4b"
     / "expert_capability/run1/run.trec"
+)
+QWEN_CONTEXT_DIR = QWEN_RUN_PATH.parent
+E5_CONTEXT_DIR = (
+    ROOT
+    / "artifacts/label_sweep_corrected/e5_mistral_7b_instruct"
+    / "expert_capability/run1"
+)
+POINTWISE_PILOT_DIR = (
+    ROOT / "artifacts/llm_label_ranker/pilot/stage1/pointwise"
+)
+LISTWISE_PILOT_DIR = (
+    ROOT / "artifacts/llm_label_ranker/pilot/stage1/listwise"
 )
 
 STAGE1_QUERY_IDS = (
@@ -1027,6 +1040,236 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "core artifact set changed"):
             load_frozen_pilot(artifact_dir)
+
+
+class PilotReportTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.selection = json.loads(
+            (POINTWISE_PILOT_DIR / "selection.json").read_text(encoding="utf-8")
+        )
+        cls.qrels = load_complete_qrels(
+            QRELS_PATH,
+            expected_query_ids=load_queries_tsv(QUERY_PATH),
+        )
+        cls.pointwise = SimpleNamespace(
+            method="pointwise",
+            selection=cls.selection,
+            rankings=json.loads(
+                (POINTWISE_PILOT_DIR / "rankings.json").read_text(encoding="utf-8")
+            ),
+            raw_outputs=tuple(
+                json.loads(line)
+                for line in (
+                    POINTWISE_PILOT_DIR / "raw_outputs.jsonl"
+                ).read_text(encoding="utf-8").splitlines()
+            ),
+        )
+        cls.listwise = SimpleNamespace(
+            method="listwise",
+            selection=cls.selection,
+            rankings=json.loads(
+                (LISTWISE_PILOT_DIR / "rankings.json").read_text(encoding="utf-8")
+            ),
+            raw_outputs=tuple(
+                json.loads(line)
+                for line in (
+                    LISTWISE_PILOT_DIR / "raw_outputs.jsonl"
+                ).read_text(encoding="utf-8").splitlines()
+            ),
+        )
+        cls.qwen = SimpleNamespace(
+            config=SimpleNamespace(
+                encoder_key="qwen3_embedding_4b",
+                label_representation="expert_capability",
+            ),
+            rankings=rankings_from_run(QWEN_CONTEXT_DIR / "run.trec"),
+        )
+        cls.e5 = SimpleNamespace(
+            config=SimpleNamespace(
+                encoder_key="e5_mistral_7b_instruct",
+                label_representation="expert_capability",
+            ),
+            rankings=rankings_from_run(E5_CONTEXT_DIR / "run.trec"),
+        )
+
+    def test_build_pilot_report_interface_exists(self) -> None:
+        self.assertTrue(callable(getattr(pilot_module, "build_pilot_report", None)))
+
+    def _build(self) -> dict[str, object]:
+        with (
+            patch.object(
+                pilot_module,
+                "load_frozen_pilot",
+                side_effect=(self.pointwise, self.listwise),
+            ),
+            patch.object(
+                pilot_module,
+                "load_complete_qrels",
+                return_value=self.qrels,
+            ),
+            patch(
+                "trec_mlm.label_experiment.load_label_experiment_artifacts",
+                side_effect=(self.qwen, self.e5),
+            ),
+        ):
+            return pilot_module.build_pilot_report(
+                pointwise_dir=POINTWISE_PILOT_DIR,
+                listwise_dir=LISTWISE_PILOT_DIR,
+                qwen_dir=QWEN_CONTEXT_DIR,
+                e5_dir=E5_CONTEXT_DIR,
+                qrels_path=QRELS_PATH,
+            )
+
+    def test_report_restricts_baselines_and_calculates_the_gate(self) -> None:
+        report = self._build()
+
+        self.assertEqual("qrel-assisted exploratory", report.get("evidence_scope"))
+        rows = report.get("questions")
+        self.assertIsInstance(rows, list)
+        self.assertEqual(6, len(rows))
+        by_query = {row["query_id"]: row for row in rows}
+        issue = by_query["57265eeaf1498d1400e8dd76"]
+        self.assertEqual(
+            {"pointwise": 3, "listwise": 4, "qwen4b_contextual": 5, "e5_contextual": 6},
+            issue["best_relevant_rank"],
+        )
+        self.assertEqual(
+            ["Geography", "Geography_by_country", "Landscape"],
+            issue["top_three"]["pointwise"],
+        )
+        self.assertEqual(
+            {"qwen4b_contextual": -2, "e5_contextual": -3},
+            issue["llm_minus_baseline_rank_delta"]["pointwise"],
+        )
+        self.assertEqual(5, report["method_summaries"]["pointwise"]["top3_relevant_count"])
+        self.assertEqual(3, report["method_summaries"]["listwise"]["top3_relevant_count"])
+        self.assertTrue(report["gate"]["methods"]["pointwise"]["passes"])
+        self.assertFalse(report["gate"]["methods"]["listwise"]["passes"])
+        self.assertTrue(report["gate"]["stage1_passed"])
+        self.assertEqual(["pointwise"], report["gate"]["passed_methods"])
+        self.assertNotIn("confidence_interval", json.dumps(report))
+
+    def test_report_records_rotation_parse_and_manual_miss_evidence(self) -> None:
+        report = self._build()
+        by_query = {row["query_id"]: row for row in report["questions"]}
+
+        landscape = by_query["57265eeaf1498d1400e8dd76"]
+        agreement = landscape["listwise_rotation_agreement"]
+        self.assertEqual(3, agreement["rotation_count"])
+        self.assertGreaterEqual(agreement["mean_pairwise_order_agreement"], 0.0)
+        self.assertLessEqual(agreement["mean_pairwise_order_agreement"], 1.0)
+        self.assertEqual(0, agreement["parse_failure_count"])
+        self.assertEqual(0, agreement["fallback_count"])
+        self.assertEqual(
+            "overly broad label preference",
+            landscape["manual_error_classification"]["listwise"]["classification"],
+        )
+        bacterial = by_query["5726eb785951b619008f8276"]
+        self.assertEqual(
+            "overly narrow label preference",
+            bacterial["manual_error_classification"]["listwise"]["classification"],
+        )
+        for row in report["questions"]:
+            for method, rank in row["best_relevant_rank"].items():
+                error = row["manual_error_classification"][method]
+                if rank <= 3:
+                    self.assertIsNone(error)
+                else:
+                    self.assertIn(
+                        error["classification"],
+                        {
+                            "label ambiguity",
+                            "related-topic confusion",
+                            "overly broad label preference",
+                            "overly narrow label preference",
+                            "ranking-format failure",
+                        },
+                    )
+                    self.assertTrue(error["evidence"].endswith("."))
+
+    def test_report_is_deterministic_and_hashes_every_recomputation_source(self) -> None:
+        first = self._build()
+        second = self._build()
+
+        self.assertEqual(first, second)
+        inputs = first["recomputation_inputs"]
+        self.assertEqual(
+            _sha256(POINTWISE_PILOT_DIR / "ranking_receipt.json"),
+            inputs["phase_a"]["pointwise"]["ranking_receipt_sha256"],
+        )
+        self.assertEqual(
+            _sha256(LISTWISE_PILOT_DIR / "ranking_receipt.json"),
+            inputs["phase_a"]["listwise"]["ranking_receipt_sha256"],
+        )
+        self.assertEqual(
+            _sha256(QWEN_CONTEXT_DIR / "validation.json"),
+            inputs["baselines"]["qwen4b_contextual"]["validation_sha256"],
+        )
+        self.assertIn(
+            "label_embeddings.npy",
+            inputs["baselines"]["e5_contextual"]["artifact_sha256"],
+        )
+        self.assertEqual(_sha256(QRELS_PATH), inputs["qrels"]["sha256"])
+
+    def test_report_does_not_open_qrels_or_baselines_before_both_receipts_validate(self) -> None:
+        qrels = patch.object(
+            pilot_module,
+            "load_complete_qrels",
+            side_effect=AssertionError("qrels opened before both receipts validated"),
+        )
+        baselines = patch(
+            "trec_mlm.label_experiment.load_label_experiment_artifacts",
+            side_effect=AssertionError("baseline opened before both receipts validated"),
+        )
+        with (
+            patch.object(
+                pilot_module,
+                "load_frozen_pilot",
+                side_effect=(self.pointwise, ValueError("second receipt invalid")),
+            ),
+            qrels as qrels_loader,
+            baselines as baseline_loader,
+        ):
+            with self.assertRaisesRegex(ValueError, "second receipt invalid"):
+                pilot_module.build_pilot_report(
+                    pointwise_dir=POINTWISE_PILOT_DIR,
+                    listwise_dir=LISTWISE_PILOT_DIR,
+                    qwen_dir=QWEN_CONTEXT_DIR,
+                    e5_dir=E5_CONTEXT_DIR,
+                    qrels_path=QRELS_PATH,
+                )
+        qrels_loader.assert_not_called()
+        baseline_loader.assert_not_called()
+
+    def test_report_writer_emits_sorted_json_and_a_six_row_decision_table(self) -> None:
+        self.assertTrue(
+            callable(getattr(pilot_module, "render_pilot_report_markdown", None))
+        )
+        self.assertTrue(callable(getattr(pilot_module, "write_pilot_report", None)))
+        report = self._build()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report_path = root / "nested/report.json"
+            markdown_path = root / "docs/result.md"
+            written = pilot_module.write_pilot_report(
+                report,
+                report_path=report_path,
+                markdown_path=markdown_path,
+            )
+
+            self.assertEqual(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                report_path.read_text(encoding="utf-8"),
+            )
+            markdown = markdown_path.read_text(encoding="utf-8")
+            self.assertEqual(6, sum(line.startswith("| `") for line in markdown.splitlines()))
+            self.assertIn("Qrel-assisted exploratory", markdown)
+            self.assertIn("Pointwise passes", markdown)
+            self.assertIn("P−Q4 / P−E5 / L−Q4 / L−E5", markdown)
+            self.assertNotIn("confidence interval", markdown.lower())
+            self.assertEqual(_sha256(report_path), written["report_sha256"])
+            self.assertEqual(_sha256(markdown_path), written["markdown_sha256"])
 
 
 class PilotCliTest(unittest.TestCase):

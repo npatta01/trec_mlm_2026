@@ -6,7 +6,6 @@ import importlib
 import json
 import os
 from pathlib import Path
-from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -25,6 +24,7 @@ from trec_mlm.grouprank_inference import (
     MODEL_ID,
     MODEL_LICENSE,
     MODEL_REVISION,
+    ROCM_CONTAINER_IMAGE,
 )
 
 
@@ -61,6 +61,7 @@ def _engine_metadata() -> dict[str, object]:
         "torch_version": "2.11.0",
         "hip_version": "7.2.0",
         "device_properties": "fixture Radeon 8060S",
+        "container_image": ROCM_CONTAINER_IMAGE,
     }
 
 
@@ -71,6 +72,7 @@ def _runtime_metadata() -> dict[str, object]:
         "worktree_status": "clean",
         "query_path": str(QUERY_PATH),
         "candidate_path": str(CANDIDATE_PATH),
+        "elapsed_seconds": 1.25,
         "inference_stats": {
             "request_count": 1,
             "prompt_token_count": 300,
@@ -269,6 +271,23 @@ class GroupRankSmokeReceiptTest(unittest.TestCase):
                 code_revision=CODE_REVISION,
             )
 
+    def test_smoke_validation_rejects_forged_runtime_totals(self) -> None:
+        smoke = _smoke_module()
+        self._write_valid_smoke()
+        forged = json.loads(self.path.read_text(encoding="utf-8"))
+        forged["runtime"]["inference_stats"]["output_token_count"] += 1
+        self.path.write_text(json.dumps(forged), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "inference stats disagree with raw output",
+        ):
+            smoke.validate_grouprank_smoke(
+                self.path,
+                selection=self.selection,
+                code_revision=CODE_REVISION,
+            )
+
 
 class GroupRankCliTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -327,247 +346,89 @@ class GroupRankCliTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parser.parse_args([*argv, "--qrels", "must-not-open"])
 
-    def test_smoke_cli_preflights_and_uses_only_first_group(self) -> None:
-        events: list[str] = []
+    def test_smoke_helper_finalizes_runtime_after_generation(self) -> None:
+        from trec_mlm import cli
+
         llm = object()
-        tokenizer = object()
-
-        def preflight(*args, **kwargs):
-            events.append("preflight")
-            return self.selection, dict(self.selection["input_sha256"])
-
-        def verify(_revision):
-            events.append("provenance")
-            return "clean"
-
-        def load_engine():
-            events.append("engine")
-            return llm, tokenizer, _engine_metadata()
+        metadata = {
+            **_engine_metadata(),
+            "code_revision": CODE_REVISION,
+            "worktree_status": "clean",
+            "query_path": str(QUERY_PATH),
+            "candidate_path": str(CANDIDATE_PATH),
+        }
 
         def run_requests(observed_llm, requests, *, stats):
-            events.append("inference")
             self.assertIs(llm, observed_llm)
             self.assertEqual((self.request,), tuple(requests))
             stats.update(
-                request_count=1,
-                prompt_token_count=300,
-                output_token_count=80,
+                request_count=999,
+                prompt_token_count=999,
+                output_token_count=999,
             )
             return [_raw_record(self.request)]
 
         with (
             patch(
-                "trec_mlm.llm_ranker_pilot.preflight_pilot_inputs",
-                side_effect=preflight,
-            ),
-            patch("trec_mlm.cli._verify_git_launch_provenance", side_effect=verify),
-            patch(
-                "trec_mlm.grouprank_inference.load_grouprank_engine",
-                side_effect=load_engine,
-            ) as load,
-            patch(
                 "trec_mlm.grouprank_inference.run_grouprank_requests",
                 side_effect=run_requests,
             ),
-            patch("builtins.print"),
+            patch.object(cli.time, "perf_counter", side_effect=(20.0, 22.5)),
         ):
-            status = main(self._argv("smoke", self.smoke_path))
+            receipt = cli._run_grouprank_smoke_generation(
+                llm=llm,
+                selection=self.selection,
+                runtime_metadata=metadata,
+                output_path=self.smoke_path,
+            )
 
-        self.assertEqual(0, status)
-        self.assertEqual(["preflight", "provenance", "engine", "inference"], events)
-        load.assert_called_once_with()
-        receipt = _smoke_module().validate_grouprank_smoke(
-            self.smoke_path,
-            selection=self.selection,
-            code_revision=CODE_REVISION,
+        self.assertEqual(2.5, receipt["runtime"]["elapsed_seconds"])
+        self.assertEqual(
+            ROCM_CONTAINER_IMAGE,
+            receipt["runtime"]["container_image"],
+        )
+        self.assertEqual(
+            {
+                "request_count": 1,
+                "prompt_token_count": 300,
+                "output_token_count": 80,
+            },
+            receipt["runtime"]["inference_stats"],
         )
         self.assertTrue(receipt["passed"])
 
-    def test_rank_cli_validates_matching_smoke_before_one_engine_load(self) -> None:
-        self._write_valid_smoke()
-        events: list[str] = []
-        llm = object()
-
-        def preflight(*args, **kwargs):
-            events.append("preflight")
-            return self.selection, dict(self.selection["input_sha256"])
-
-        def verify(_revision):
-            events.append("provenance")
-            return "clean"
-
-        real_validate = _smoke_module().validate_grouprank_smoke
-
-        def validate(*args, **kwargs):
-            events.append("smoke")
-            return real_validate(*args, **kwargs)
-
-        def load_engine():
-            events.append("engine")
-            return llm, object(), _engine_metadata()
-
-        def execute(selection, *, infer_batch, runtime_metadata, output_dir):
-            events.append("execute")
-            requests = build_group_requests(selection)
-            self.assertEqual(48, len(requests))
-            outputs = infer_batch(requests)
-            self.assertEqual(48, len(outputs))
-            self.assertEqual(self.root / "rank", Path(output_dir))
-            return SimpleNamespace(runtime=runtime_metadata)
-
-        def run_requests(observed_llm, requests, *, stats):
-            self.assertIs(llm, observed_llm)
-            stats.update(
-                request_count=len(requests),
-                prompt_token_count=14_400,
-                output_token_count=3_840,
-            )
-            return [_raw_record(request) for request in requests]
-
-        with (
-            patch(
-                "trec_mlm.llm_ranker_pilot.preflight_pilot_inputs",
-                side_effect=preflight,
-            ),
-            patch("trec_mlm.cli._verify_git_launch_provenance", side_effect=verify),
-            patch(
-                "trec_mlm.grouprank_smoke.validate_grouprank_smoke",
-                side_effect=validate,
-            ) as validate_smoke,
-            patch(
-                "trec_mlm.grouprank_inference.load_grouprank_engine",
-                side_effect=load_engine,
-            ) as load,
-            patch(
-                "trec_mlm.grouprank_inference.run_grouprank_requests",
-                side_effect=run_requests,
-            ) as run,
-            patch(
-                "trec_mlm.grouprank_pilot.execute_grouprank_phase_a",
-                side_effect=execute,
-            ) as execute_phase_a,
-            patch("builtins.print"),
-        ):
-            status = main(self._argv("rank", self.root / "rank"))
-
-        self.assertEqual(0, status)
-        self.assertEqual(
-            ["preflight", "provenance", "smoke", "engine", "execute"],
-            events,
-        )
-        validate_smoke.assert_called_once()
-        load.assert_called_once_with()
-        execute_phase_a.assert_called_once()
-        run.assert_called_once()
-
-    def test_rank_cli_rejects_missing_failed_wrong_or_corrupted_smoke_before_engine(
+    def test_terminal_cli_rejects_arbitrary_future_smoke_and_rank_before_engine(
         self,
     ) -> None:
-        smoke = _smoke_module()
-        self._write_valid_smoke()
-        valid = json.loads(self.smoke_path.read_text(encoding="utf-8"))
-        cases = ("missing", "failed", "model", "revision", "corrupt")
-        for kind in cases:
-            with self.subTest(kind=kind):
-                path = self.root / f"{kind}.json"
-                if kind != "missing":
-                    changed = deepcopy(valid)
-                    if kind == "failed":
-                        changed["passed"] = False
-                        changed["validation"] = {
-                            "state": "failed",
-                            "error_type": "ValueError",
-                            "error_message": "fixture failure",
-                        }
-                    elif kind == "model":
-                        changed["model"]["model_id"] = "wrong/model"
-                    elif kind == "revision":
-                        changed["model"]["revision"] = "wrong-revision"
-                    else:
-                        changed["raw_output"]["raw_text"] += "corruption"
-                    path.write_text(json.dumps(changed), encoding="utf-8")
-                argv = self._argv("rank", self.root / f"rank-{kind}")
-                argv[argv.index("--smoke-receipt") + 1] = str(path)
+        for phase in ("smoke", "rank"):
+            with self.subTest(phase=phase):
+                argv = self._argv(phase, self.root / f"arbitrary-{phase}")
+                if phase == "rank":
+                    argv[argv.index("--smoke-receipt") + 1] = str(
+                        self.root / "arbitrary-third-smoke.json"
+                    )
                 with (
                     patch(
-                        "trec_mlm.cli._verify_git_launch_provenance",
-                        return_value="clean",
-                    ),
+                        "trec_mlm.llm_ranker_pilot.preflight_pilot_inputs",
+                        side_effect=AssertionError("selection must not be opened"),
+                    ) as preflight,
                     patch(
                         "trec_mlm.grouprank_inference.load_grouprank_engine",
                         side_effect=AssertionError("engine must not load"),
                     ) as load,
+                    patch(
+                        "trec_mlm.cli._verify_git_launch_provenance",
+                        side_effect=AssertionError("Git must not be inspected"),
+                    ) as provenance,
                 ):
-                    with self.assertRaises(ValueError):
-                        main(argv)
-                load.assert_not_called()
-
-        with self.assertRaisesRegex(ValueError, "code revision changed"):
-            smoke.validate_grouprank_smoke(
-                self.smoke_path,
-                selection=self.selection,
-                code_revision="b" * 40,
-            )
-
-    def test_cli_provenance_rejects_dirty_or_mismatched_revision_before_engine(
-        self,
-    ) -> None:
-        self._write_valid_smoke()
-        for phase in ("smoke", "rank"):
-            for message in (
-                "pilot code revision does not match HEAD",
-                "pilot tracked worktree is not clean",
-            ):
-                with self.subTest(phase=phase, message=message):
-                    output = self.smoke_path if phase == "smoke" else self.root / "rank"
-                    with (
-                        patch(
-                            "trec_mlm.cli._verify_git_launch_provenance",
-                            side_effect=ValueError(message),
-                        ),
-                        patch(
-                            "trec_mlm.grouprank_inference.load_grouprank_engine",
-                            side_effect=AssertionError("engine must not load"),
-                        ) as load,
+                    with self.assertRaisesRegex(
+                        SystemExit,
+                        "terminal.*separately named experiment",
                     ):
-                        with self.assertRaisesRegex(ValueError, message):
-                            main(self._argv(phase, output))
-                    load.assert_not_called()
-
-    def test_rank_cli_returns_nonzero_after_persisted_parse_failure(self) -> None:
-        self._write_valid_smoke()
-        destination = self.root / "failed-rank"
-
-        def invalid_outputs(_llm, requests, *, stats):
-            records = [_raw_record(request) for request in requests]
-            records[0]["raw_text"] = (
-                '<reason>Compared all experts.</reason>\n'
-                '<answer>{"C00":5}</answer>'
-            )
-            stats.update(
-                request_count=len(requests),
-                prompt_token_count=14_400,
-                output_token_count=3_840,
-            )
-            return records
-
-        with (
-            patch("trec_mlm.cli._verify_git_launch_provenance", return_value="clean"),
-            patch(
-                "trec_mlm.grouprank_inference.load_grouprank_engine",
-                return_value=(object(), object(), _engine_metadata()),
-            ),
-            patch(
-                "trec_mlm.grouprank_inference.run_grouprank_requests",
-                side_effect=invalid_outputs,
-            ),
-            patch("builtins.print"),
-        ):
-            status = main(self._argv("rank", destination))
-
-        self.assertNotEqual(0, status)
-        self.assertTrue((destination / "failure_receipt.json").is_file())
-        self.assertFalse((destination / "ranking_receipt.json").exists())
+                        main(argv)
+                preflight.assert_not_called()
+                load.assert_not_called()
+                provenance.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ from trec_mlm.grouprank_inference import (
     MODEL_ID,
     MODEL_LICENSE,
     MODEL_REVISION,
+    ROCM_CONTAINER_IMAGE,
+    finalize_grouprank_runtime,
     load_grouprank_engine,
     run_grouprank_requests,
 )
@@ -118,10 +120,81 @@ class GroupRankLoaderTest(unittest.TestCase):
             GPU_MEMORY_UTILIZATION, metadata["gpu_memory_utilization"]
         )
         self.assertEqual(ATTENTION_BACKEND, metadata["attention_backend"])
+        self.assertEqual(ROCM_CONTAINER_IMAGE, metadata["container_image"])
         self.assertEqual("0.24.0", metadata["vllm_version"])
         self.assertEqual("2.11.0", metadata["torch_version"])
         self.assertEqual("7.2", metadata["hip_version"])
         self.assertEqual("fixture gfx1151", metadata["device_properties"])
+
+    def test_runtime_is_reconciled_from_raw_records_not_caller_stats(self) -> None:
+        caller_stats = {
+            "request_count": 999,
+            "prompt_token_count": 999,
+            "output_token_count": 999,
+        }
+        metadata = {
+            "container_image": ROCM_CONTAINER_IMAGE,
+            "inference_stats": caller_stats,
+        }
+        raw_outputs = (
+            {"prompt_token_count": 7, "output_token_count": 3},
+            {"prompt_token_count": 11, "output_token_count": 5},
+        )
+
+        runtime = finalize_grouprank_runtime(
+            metadata,
+            raw_outputs,
+            elapsed_seconds=1.25,
+            expected_request_count=2,
+        )
+
+        self.assertEqual(
+            {
+                "request_count": 2,
+                "prompt_token_count": 18,
+                "output_token_count": 8,
+            },
+            runtime["inference_stats"],
+        )
+        self.assertEqual(1.25, runtime["elapsed_seconds"])
+        self.assertIsNot(caller_stats, runtime["inference_stats"])
+
+    def test_runtime_requires_exact_container_positive_time_and_request_count(
+        self,
+    ) -> None:
+        record = {"prompt_token_count": 7, "output_token_count": 3}
+        cases = (
+            (
+                {"container_image": "wrong/image"},
+                (record,),
+                1.0,
+                1,
+                "container image",
+            ),
+            (
+                {"container_image": ROCM_CONTAINER_IMAGE},
+                (record,),
+                0.0,
+                1,
+                "positive finite",
+            ),
+            (
+                {"container_image": ROCM_CONTAINER_IMAGE},
+                (record,),
+                1.0,
+                2,
+                "exactly 2 requests",
+            ),
+        )
+        for metadata, outputs, elapsed, count, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    finalize_grouprank_runtime(
+                        metadata,
+                        outputs,
+                        elapsed_seconds=elapsed,
+                        expected_request_count=count,
+                    )
 
 
 class GroupRankRunnerTest(unittest.TestCase):

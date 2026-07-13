@@ -21,14 +21,12 @@ from trec_mlm.grouprank_inference import (
     MODEL_ID,
     MODEL_LICENSE,
     MODEL_REVISION,
+    ROCM_CONTAINER_IMAGE,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SELECTION_PATH = ROOT / "artifacts/llm_label_ranker/pilot/stage2/selection.json"
-JUDGMENTS_PATH = (
-    ROOT / "artifacts/llm_label_ranker/pilot/stage2/selection_judgments.json"
-)
 QUERY_PATH = ROOT / "data/dev/llm_dev_data.tsv"
 CANDIDATE_PATH = ROOT / "reports/trec_2026_discovery_profile_audit.json"
 
@@ -61,6 +59,7 @@ def _runtime() -> dict[str, object]:
         "worktree_status": "clean",
         "query_path": str(QUERY_PATH),
         "candidate_path": str(CANDIDATE_PATH),
+        "container_image": ROCM_CONTAINER_IMAGE,
     }
 
 
@@ -124,7 +123,20 @@ class GroupRankPhaseAContractTest(unittest.TestCase):
             )
         )
 
-        first = json.loads(JUDGMENTS_PATH.read_text(encoding="utf-8"))
+        first = {
+            "version": 1,
+            "stage": 2,
+            "questions": [
+                {
+                    "query_id": "synthetic-question",
+                    "grades": {"expert-a": 1, "expert-b": 0},
+                    "roles": {
+                        "relevant": ["expert-a"],
+                        "negative": ["expert-b"],
+                    },
+                }
+            ],
+        }
         second = deepcopy(first)
         entry = second["questions"][0]
         relevant = entry["roles"]["relevant"][0]
@@ -151,18 +163,37 @@ class GroupRankPhaseAContractTest(unittest.TestCase):
     def test_phase_a_persists_exact_complete_success_inventory(self) -> None:
         pilot = _pilot_module()
         destination = self.root / "success"
+        runtime = _runtime()
+        caller_stats = {
+            "request_count": 999,
+            "prompt_token_count": 999,
+            "output_token_count": 999,
+        }
+        runtime["inference_stats"] = caller_stats
 
-        result = pilot.execute_grouprank_phase_a(
-            self.selection,
-            infer_batch=_valid_infer,
-            runtime_metadata=_runtime(),
-            output_dir=destination,
-        )
+        with patch.object(pilot.time, "perf_counter", side_effect=(10.0, 11.25)):
+            result = pilot.execute_grouprank_phase_a(
+                self.selection,
+                infer_batch=_valid_infer,
+                runtime_metadata=runtime,
+                output_dir=destination,
+            )
 
         self.assertEqual(48, len(result.prompts))
         self.assertEqual(48, len(result.raw_outputs))
         self.assertEqual(12, len(result.candidate_scores))
         self.assertEqual(12, len(result.rankings))
+        self.assertEqual(ROCM_CONTAINER_IMAGE, result.runtime["container_image"])
+        self.assertEqual(1.25, result.runtime["elapsed_seconds"])
+        self.assertEqual(
+            {
+                "request_count": 48,
+                "prompt_token_count": 14_400,
+                "output_token_count": 3_840,
+            },
+            result.runtime["inference_stats"],
+        )
+        self.assertIsNot(caller_stats, result.runtime["inference_stats"])
         observations = Counter(
             (row["query_id"], candidate)
             for row in result.raw_outputs
@@ -198,6 +229,11 @@ class GroupRankPhaseAContractTest(unittest.TestCase):
         receipt = pilot.validate_grouprank_artifact(destination)
         loaded = pilot.load_frozen_grouprank(destination)
         self.assertTrue(receipt["qrel_free_phase"])
+        self.assertEqual(ROCM_CONTAINER_IMAGE, receipt["container_image"])
+        self.assertEqual(
+            ROCM_CONTAINER_IMAGE,
+            loaded.config["container_image"],
+        )
         self.assertEqual(result.rankings, loaded.rankings)
         self.assertEqual(result.candidate_scores, loaded.candidate_scores)
 
@@ -295,6 +331,18 @@ class GroupRankFailurePersistenceTest(unittest.TestCase):
 
                 self.assertGreater(observed_parse_calls, 0)
                 self.assertEqual(48, len(raised.exception.result.raw_outputs))
+                self.assertGreater(
+                    raised.exception.result.runtime["elapsed_seconds"],
+                    0,
+                )
+                self.assertEqual(
+                    {
+                        "request_count": 48,
+                        "prompt_token_count": 14_400,
+                        "output_token_count": 3_840,
+                    },
+                    raised.exception.result.runtime["inference_stats"],
+                )
                 self.assertEqual(
                     {
                         "config.json",
@@ -310,6 +358,14 @@ class GroupRankFailurePersistenceTest(unittest.TestCase):
                 self.assertFalse((destination / "rankings.json").exists())
                 receipt = json.loads(
                     (destination / "failure_receipt.json").read_text(encoding="utf-8")
+                )
+                persisted_runtime = json.loads(
+                    (destination / "runtime.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(raised.exception.result.runtime, persisted_runtime)
+                self.assertEqual(
+                    ROCM_CONTAINER_IMAGE,
+                    receipt["container_image"],
                 )
                 self.assertEqual(48, receipt["execution"]["planned_request_count"])
                 self.assertEqual(48, receipt["execution"]["persisted_raw_output_count"])
@@ -342,6 +398,32 @@ class GroupRankFailurePersistenceTest(unittest.TestCase):
             {path.name for path in staging[0].iterdir()},
         )
         self.assertFalse((staging[0] / "raw_outputs.jsonl").exists())
+
+    def test_config_and_selection_are_fsynced_before_inference(self) -> None:
+        pilot = _pilot_module()
+        fsynced: set[str] = set()
+        real_fsync = os.fsync
+
+        def tracking_fsync(file_descriptor: int) -> None:
+            target = Path(os.readlink(f"/proc/self/fd/{file_descriptor}"))
+            if target.is_file():
+                fsynced.add(target.name)
+            real_fsync(file_descriptor)
+
+        def infer(requests):
+            self.assertTrue(
+                {"config.json", "selection.json"}.issubset(fsynced),
+                "config and selection must be fsynced before inference",
+            )
+            return _valid_infer(requests)
+
+        with patch.object(pilot.os, "fsync", side_effect=tracking_fsync):
+            pilot.execute_grouprank_phase_a(
+                self.selection,
+                infer_batch=infer,
+                runtime_metadata=_runtime(),
+                output_dir=self.root / "fsync-order",
+            )
 
 
 class GroupRankArtifactValidationTest(unittest.TestCase):
@@ -487,6 +569,20 @@ class GroupRankArtifactValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError,
             "GroupRank score disagrees with raw output",
+        ):
+            self.pilot.validate_grouprank_artifact(changed)
+
+    def test_validation_rejects_rehashed_forged_runtime_totals(self) -> None:
+        changed = self._copy("forged-runtime-totals")
+        runtime_path = changed / "runtime.json"
+        runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+        runtime["inference_stats"]["prompt_token_count"] += 1
+        self._write_json(runtime_path, runtime)
+        self._rehash_core(changed, runtime_path.name)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "inference stats disagree with raw outputs",
         ):
             self.pilot.validate_grouprank_artifact(changed)
 

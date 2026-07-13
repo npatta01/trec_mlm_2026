@@ -449,7 +449,7 @@ podman ps --format '{{.ID}} {{.Names}} {{.Status}} {{.Image}}'
 
 Expected: both devices are accessible, at least 35 GiB memory is available, memory/IO PSI `avg10` is below 1.00, and no other ROCm inference container is active. Otherwise stop and report the preflight rather than downloading or running.
 
-- [ ] **Step 2: Run the single protocol-correction smoke retry**
+- [x] **Step 2: Run the single protocol-correction smoke retry (historical)**
 
 The original strict smoke failed because its raw generation contained two
 `<answer>` blocks. Preserve
@@ -480,11 +480,16 @@ podman run --name "$NAME" \
     --output-dir artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke_protocol_v2.json'
 ```
 
-Expected: the 15.2 GB checkpoint resolves to the frozen revision, ROCm loads it in BF16, one ten-candidate response validates, and the smoke receipt reports `passed: true`.
+Historical result: the checkpoint and ROCm runtime loaded, but the response
+copied the literal placeholder key instead of the ten handles. The immutable
+failed receipt SHA-256 is
+`648a8f400d88cf0e6d3a99f94f4edbfc32ce3b1ba83b010d7e95b00bd3ba7493`.
+The command above is retained only as an audit record; the current CLI rejects
+all future smoke attempts for this experiment before loading the engine.
 
-- [ ] **Step 3: Recheck resources and run Phase A offline**
+- [x] **Step 3: Stop before Phase A after the terminal smoke failure**
 
-Repeat Step 1, then run the cached checkpoint offline:
+The planned, unexecuted offline command was:
 
 ```bash
 IMAGE='docker.io/vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28'
@@ -507,11 +512,14 @@ podman run --name "$NAME" \
     --output-dir artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/rank'
 ```
 
-Expected: exactly 48 requests and twelve validated rankings. On any invalid output, retain the failure receipt, do not evaluate, and report the exact query/repetition/group and raw generation.
+This rank command was not launched because the smoke gate failed. It is retained
+only as a record of the planned invocation; the current CLI rejects it and any
+arbitrary replacement paths before engine loading. A future attempt requires a
+separately named experiment and artifact namespace.
 
-- [ ] **Step 4: Evaluate only after Phase A validation**
+- [x] **Step 4: Do not evaluate without a Phase A ranking**
 
-Run on the host:
+The gated evaluation command would have been:
 
 ```bash
 python -m trec_mlm.cli grouprank-pilot \
@@ -524,9 +532,11 @@ python -m trec_mlm.cli grouprank-pilot \
   --code-revision "$(git rev-parse HEAD)"
 ```
 
-Expected: metrics, per-query evidence, baseline comparisons, and an explicit pass/fail decision.
+Historical result: this command was not run because no Phase A ranking exists.
+The evaluate path remains available only for a separately validated, sealed
+ranking artifact and still validates it before opening judgments.
 
-- [ ] **Step 5: Verify, commit the durable report, and stop**
+- [x] **Step 5: Verify, commit the durable report, and stop**
 
 Run:
 

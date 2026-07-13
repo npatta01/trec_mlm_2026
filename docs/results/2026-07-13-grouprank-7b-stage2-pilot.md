@@ -25,6 +25,13 @@ Both attempts used model revision
 group, presentation order, and deterministic sampling seed. Neither opened
 qrels.
 
+Provenance limitation: the two preserved smoke receipts do not themselves
+embed the container digest or elapsed time. The recorded operator commands used
+the pinned ROCm image, but those two fields cannot be verified from the receipt
+bytes alone. New GroupRank artifact code requires the exact pinned image and a
+positive measured duration, and reconciles token totals from captured raw
+records; this does not retroactively add fields to either preserved receipt.
+
 ## Why the pilot stopped
 
 The frozen design requires a passed smoke before the full run and rejects any
@@ -68,6 +75,8 @@ feasibility study rather than repairing this pilot:
 
 Fixed-key constrained decoding is a reasonable separate arm, but it tests a
 different interface and must not be presented as a rescue of these artifacts.
+The current `grouprank-pilot` smoke and rank phases are mechanically terminal;
+the separate arm must use a new command and artifact namespace.
 
 ## Sources
 

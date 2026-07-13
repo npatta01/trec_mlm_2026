@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any
 
 from trec_mlm.dense_query_knn import (
@@ -24,6 +25,45 @@ from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.query_knn import load_complete_qrels, load_development_data
 from trec_mlm.runio import rankings_from_run, validate_trec_run
 from trec_mlm.label_retrieval import encoder_specs_by_key as label_encoder_specs_by_key
+
+
+def _run_grouprank_smoke_generation(
+    *,
+    llm: Any,
+    selection: Mapping[str, Any],
+    runtime_metadata: Mapping[str, Any],
+    output_path: str | Path,
+) -> dict[str, Any]:
+    """Retain the sealed smoke generation contract for library-level testing."""
+
+    from trec_mlm.grouprank import build_group_requests
+    from trec_mlm.grouprank_inference import (
+        finalize_grouprank_runtime,
+        run_grouprank_requests,
+    )
+    from trec_mlm.grouprank_smoke import write_grouprank_smoke
+
+    first_request = build_group_requests(selection)[0]
+    transient_stats: dict[str, int] = {}
+    started = time.perf_counter()
+    raw_outputs = run_grouprank_requests(
+        llm,
+        (first_request,),
+        stats=transient_stats,
+    )
+    elapsed_seconds = time.perf_counter() - started
+    runtime = finalize_grouprank_runtime(
+        runtime_metadata,
+        raw_outputs,
+        elapsed_seconds=elapsed_seconds,
+        expected_request_count=1,
+    )
+    return write_grouprank_smoke(
+        selection,
+        raw_output=raw_outputs[0],
+        runtime_metadata=runtime,
+        output_path=output_path,
+    )
 
 
 def _verify_git_launch_provenance(
@@ -409,7 +449,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     grouprank_pilot = commands.add_parser(
         "grouprank-pilot",
-        help="smoke-test, run, or post-hoc evaluate the frozen GroupRank pilot",
+        help=(
+            "post-hoc evaluate the frozen GroupRank pilot; its smoke and rank "
+            "phases are terminal"
+        ),
     )
     grouprank_pilot.add_argument(
         "--phase", choices=("smoke", "rank", "evaluate"), required=True
@@ -784,121 +827,12 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"report": report, "artifacts": paths}, indent=2))
             return 0
 
-        if args.judgments or args.report_json or args.report_md:
-            raise SystemExit(
-                "smoke and rank phases do not accept evaluation report arguments"
-            )
-        from trec_mlm.grouprank import build_group_requests
-        from trec_mlm.grouprank_inference import (
-            load_grouprank_engine,
-            run_grouprank_requests,
+        raise SystemExit(
+            "This GroupRank 7B pilot is terminal after failed retry "
+            "648a8f400d88cf0e6d3a99f94f4edbfc32ce3b1ba83b010d7e95b00bd3ba7493; "
+            "start a separately named experiment/namespace for any future smoke "
+            "or ranking run."
         )
-        from trec_mlm.grouprank_pilot import (
-            GroupRankParseFailure,
-            execute_grouprank_phase_a,
-        )
-        from trec_mlm.grouprank_smoke import (
-            validate_grouprank_smoke,
-            write_grouprank_smoke,
-        )
-        from trec_mlm.llm_ranker_pilot import (
-            DEFAULT_CANDIDATE_PATH,
-            DEFAULT_QUERY_PATH,
-            preflight_pilot_inputs,
-        )
-
-        selection, _input_sha256 = preflight_pilot_inputs(
-            Path(args.selection),
-            query_path=DEFAULT_QUERY_PATH,
-            candidate_path=DEFAULT_CANDIDATE_PATH,
-        )
-        worktree_status = _verify_git_launch_provenance(args.code_revision)
-
-        if args.phase == "smoke":
-            if args.smoke_receipt is not None:
-                raise SystemExit("smoke phase does not accept --smoke-receipt")
-        else:
-            if args.smoke_receipt is None:
-                raise SystemExit("rank phase requires --smoke-receipt")
-            validate_grouprank_smoke(
-                args.smoke_receipt,
-                selection=selection,
-                code_revision=args.code_revision,
-            )
-
-        llm, _tokenizer, metadata = load_grouprank_engine()
-        inference_stats = {
-            "request_count": 0,
-            "prompt_token_count": 0,
-            "output_token_count": 0,
-        }
-        metadata.update(
-            {
-                "code_revision": args.code_revision,
-                "worktree_status": worktree_status,
-                "query_path": str(DEFAULT_QUERY_PATH),
-                "candidate_path": str(DEFAULT_CANDIDATE_PATH),
-            }
-        )
-
-        if args.phase == "smoke":
-            metadata["inference_stats"] = inference_stats
-            first_request = build_group_requests(selection)[0]
-            raw_outputs = run_grouprank_requests(
-                llm,
-                (first_request,),
-                stats=inference_stats,
-            )
-            if len(raw_outputs) != 1:
-                raise ValueError(
-                    "GroupRank smoke inference must return exactly one raw output"
-                )
-            receipt = write_grouprank_smoke(
-                selection,
-                raw_output=raw_outputs[0],
-                runtime_metadata=metadata,
-                output_path=args.output_dir,
-            )
-            print(json.dumps(receipt, indent=2))
-            return 0
-
-        def infer_batch(requests):
-            return run_grouprank_requests(
-                llm,
-                requests,
-                stats=inference_stats,
-            )
-
-        try:
-            result = execute_grouprank_phase_a(
-                selection,
-                infer_batch=infer_batch,
-                runtime_metadata=metadata,
-                output_dir=args.output_dir,
-            )
-        except GroupRankParseFailure as error:
-            print(
-                json.dumps(
-                    {
-                        "passed": False,
-                        "output_dir": str(args.output_dir),
-                        "error": str(error),
-                    },
-                    indent=2,
-                )
-            )
-            return 1
-        print(
-            json.dumps(
-                {
-                    "passed": True,
-                    "output_dir": str(args.output_dir),
-                    "runtime": result.runtime,
-                },
-                indent=2,
-            )
-        )
-        return 0
 
     if args.command == "llm-label-ranker-pilot":
         from trec_mlm.artifact_manifest import validate_pilot_smoke_receipt

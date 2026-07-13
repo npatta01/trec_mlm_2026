@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+import math
 from typing import Any
 
 from trec_mlm.grouprank import GroupRankRequest
@@ -15,8 +16,59 @@ MODEL_LICENSE = "Apache-2.0"
 MAX_MODEL_LEN = 8192
 GPU_MEMORY_UTILIZATION = 0.40
 ATTENTION_BACKEND = "TRITON_ATTN"
+ROCM_CONTAINER_IMAGE = (
+    "docker.io/vllm/vllm-openai-rocm@sha256:"
+    "3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28"
+)
 
 _MODEL_PARAMETER_COUNT = 7_615_616_512
+
+
+def finalize_grouprank_runtime(
+    runtime_metadata: Mapping[str, Any],
+    raw_outputs: Sequence[Mapping[str, Any]],
+    *,
+    elapsed_seconds: float,
+    expected_request_count: int,
+) -> dict[str, Any]:
+    """Build immutable post-inference provenance from captured raw records."""
+
+    if runtime_metadata.get("container_image") != ROCM_CONTAINER_IMAGE:
+        raise ValueError("GroupRank runtime container image changed")
+    if (
+        isinstance(elapsed_seconds, bool)
+        or not isinstance(elapsed_seconds, (int, float))
+        or not math.isfinite(float(elapsed_seconds))
+        or elapsed_seconds <= 0
+    ):
+        raise ValueError("GroupRank runtime elapsed seconds must be positive finite")
+    if len(raw_outputs) != expected_request_count:
+        raise ValueError(
+            f"GroupRank runtime must record exactly {expected_request_count} requests"
+        )
+
+    prompt_token_count = 0
+    output_token_count = 0
+    for record in raw_outputs:
+        if not isinstance(record, Mapping):
+            raise ValueError("GroupRank raw outputs must be objects")
+        for field in ("prompt_token_count", "output_token_count"):
+            value = record.get(field)
+            if type(value) is not int or value < 0:
+                raise ValueError(
+                    f"GroupRank raw output {field.replace('_', ' ')} changed"
+                )
+        prompt_token_count += record["prompt_token_count"]
+        output_token_count += record["output_token_count"]
+
+    runtime = dict(runtime_metadata)
+    runtime["elapsed_seconds"] = float(elapsed_seconds)
+    runtime["inference_stats"] = {
+        "request_count": len(raw_outputs),
+        "prompt_token_count": prompt_token_count,
+        "output_token_count": output_token_count,
+    }
+    return runtime
 
 
 def load_grouprank_engine() -> tuple[Any, Any, dict[str, Any]]:
@@ -57,6 +109,7 @@ def load_grouprank_engine() -> tuple[Any, Any, dict[str, Any]]:
         "max_model_len": MAX_MODEL_LEN,
         "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
         "attention_backend": ATTENTION_BACKEND,
+        "container_image": ROCM_CONTAINER_IMAGE,
         "vllm_version": vllm.__version__,
         "torch_version": str(torch.__version__),
         "hip_version": torch.version.hip,

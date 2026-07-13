@@ -24,6 +24,7 @@ from trec_mlm.grouprank_inference import (
     MODEL_ID,
     MODEL_LICENSE,
     MODEL_REVISION,
+    ROCM_CONTAINER_IMAGE,
 )
 from trec_mlm.grouprank_pilot import request_to_record
 from trec_mlm.llm_ranker_pilot import preflight_pilot_inputs
@@ -58,9 +59,10 @@ _RUNTIME_KEYS = frozenset(
         "query_path",
         "candidate_path",
         "inference_stats",
+        "container_image",
+        "elapsed_seconds",
     }
 )
-_RUNTIME_OPTIONAL_KEYS = frozenset({"container_digest", "elapsed_seconds"})
 _PROMPT_KEYS = frozenset(
     {
         "query_id",
@@ -97,6 +99,7 @@ _RECEIPT_KEYS = frozenset(
         "selection_sha256",
         "prompt_sha256",
         "raw_output_sha256",
+        "container_image",
         "model",
         "runtime",
         "prompt",
@@ -218,9 +221,7 @@ def _validate_runtime(payload: object) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         raise ValueError("GroupRank smoke runtime metadata must be an object")
     fields = set(payload)
-    if fields - (_RUNTIME_KEYS | _RUNTIME_OPTIONAL_KEYS) or not _RUNTIME_KEYS.issubset(
-        fields
-    ):
+    if fields != _RUNTIME_KEYS:
         raise ValueError("GroupRank smoke runtime metadata schema changed")
     runtime = dict(payload)
     model = _validate_model({field: runtime[field] for field in _MODEL_KEYS})
@@ -247,20 +248,16 @@ def _validate_runtime(payload: object) -> dict[str, Any]:
     if runtime["worktree_status"] != "clean":
         raise ValueError("GroupRank smoke worktree status must be exactly 'clean'")
     runtime["inference_stats"] = _validate_inference_stats(runtime["inference_stats"])
-    if "container_digest" in runtime and (
-        type(runtime["container_digest"]) is not str
-        or not runtime["container_digest"].strip()
+    if runtime["container_image"] != ROCM_CONTAINER_IMAGE:
+        raise ValueError("GroupRank smoke container image changed")
+    elapsed = runtime["elapsed_seconds"]
+    if (
+        isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(float(elapsed))
+        or elapsed <= 0
     ):
-        raise ValueError("GroupRank smoke container digest is missing")
-    if "elapsed_seconds" in runtime:
-        elapsed = runtime["elapsed_seconds"]
-        if (
-            isinstance(elapsed, bool)
-            or not isinstance(elapsed, (int, float))
-            or not math.isfinite(float(elapsed))
-            or elapsed < 0
-        ):
-            raise ValueError("GroupRank smoke elapsed seconds changed")
+        raise ValueError("GroupRank smoke elapsed seconds must be positive finite")
     return runtime
 
 
@@ -314,6 +311,7 @@ def _base_receipt(
         "selection_sha256": _sha256_bytes(_json_bytes(selection)),
         "prompt_sha256": _sha256_bytes(_json_bytes(prompt)),
         "raw_output_sha256": _sha256_bytes(_json_bytes(raw_output)),
+        "container_image": ROCM_CONTAINER_IMAGE,
         "model": _model_contract(),
         "runtime": dict(runtime),
         "prompt": dict(prompt),
@@ -422,6 +420,10 @@ def validate_grouprank_smoke(
 
     _validate_model(receipt["model"])
     runtime = _validate_runtime(receipt["runtime"])
+    if receipt["container_image"] != ROCM_CONTAINER_IMAGE:
+        raise ValueError("GroupRank smoke receipt container image changed")
+    if receipt["container_image"] != runtime["container_image"]:
+        raise ValueError("GroupRank smoke receipt and runtime container image disagree")
     if receipt["model"] != {field: runtime[field] for field in _MODEL_KEYS}:
         raise ValueError("GroupRank smoke model and runtime disagree")
     if code_revision is not None and runtime["code_revision"] != code_revision:

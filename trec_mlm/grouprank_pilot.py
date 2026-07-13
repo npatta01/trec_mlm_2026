@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import time
 from typing import Any, NoReturn
 
 from trec_mlm.grouprank import (
@@ -31,6 +32,8 @@ from trec_mlm.grouprank_inference import (
     MODEL_ID,
     MODEL_LICENSE,
     MODEL_REVISION,
+    ROCM_CONTAINER_IMAGE,
+    finalize_grouprank_runtime,
 )
 from trec_mlm.llm_ranker_pilot import preflight_pilot_inputs
 
@@ -74,11 +77,11 @@ _RUNTIME_REQUIRED_KEYS = frozenset(
         "worktree_status",
         "query_path",
         "candidate_path",
+        "container_image",
     }
 )
 _RUNTIME_OPTIONAL_KEYS = frozenset(
     {
-        "container_digest",
         "elapsed_seconds",
         "inference_stats",
     }
@@ -109,6 +112,7 @@ _CONFIG_KEYS = frozenset(
         "worktree_status",
         "query_path",
         "candidate_path",
+        "container_image",
         "runtime_versions",
     }
 )
@@ -289,6 +293,8 @@ def _validate_inference_stats(payload: object) -> dict[str, int]:
 
 def _validate_runtime_metadata(
     runtime_metadata: Mapping[str, Any],
+    *,
+    finalized: bool = False,
 ) -> dict[str, Any]:
     if not isinstance(runtime_metadata, Mapping):
         raise ValueError("GroupRank runtime metadata must be an object")
@@ -318,6 +324,7 @@ def _validate_runtime_metadata(
         ("worktree_status", "worktree status"),
         ("query_path", "query path"),
         ("candidate_path", "candidate path"),
+        ("container_image", "container image"),
     ):
         value = runtime[field]
         if type(value) is not str or not value.strip():
@@ -332,6 +339,7 @@ def _validate_runtime_metadata(
         ("max_model_len", MAX_MODEL_LEN),
         ("gpu_memory_utilization", GPU_MEMORY_UTILIZATION),
         ("attention_backend", ATTENTION_BACKEND),
+        ("container_image", ROCM_CONTAINER_IMAGE),
     ):
         if runtime[field] != expected:
             labels = {
@@ -349,26 +357,25 @@ def _validate_runtime_metadata(
         )
     if runtime["worktree_status"] != "clean":
         raise ValueError("GroupRank runtime worktree status must be exactly 'clean'")
-    if "container_digest" in runtime and (
-        type(runtime["container_digest"]) is not str
-        or not runtime["container_digest"].strip()
-    ):
-        raise ValueError(
-            "GroupRank runtime container digest must be a non-empty string"
-        )
     if "elapsed_seconds" in runtime:
         elapsed = runtime["elapsed_seconds"]
         if (
             isinstance(elapsed, bool)
             or not isinstance(elapsed, (int, float))
             or not math.isfinite(float(elapsed))
-            or elapsed < 0
+            or elapsed <= 0
         ):
-            raise ValueError("GroupRank runtime elapsed seconds changed")
+            raise ValueError(
+                "GroupRank runtime elapsed seconds must be positive finite"
+            )
     if "inference_stats" in runtime:
         runtime["inference_stats"] = _validate_inference_stats(
             runtime["inference_stats"]
         )
+    if finalized and not {"elapsed_seconds", "inference_stats"}.issubset(runtime):
+        raise ValueError("GroupRank finalized runtime metadata is incomplete")
+    if finalized and runtime["inference_stats"]["request_count"] != _REQUEST_COUNT:
+        raise ValueError("GroupRank runtime must record exactly 48 requests")
     return runtime
 
 
@@ -404,6 +411,7 @@ def build_phase_a_config(
         "worktree_status": runtime_metadata["worktree_status"],
         "query_path": runtime_metadata["query_path"],
         "candidate_path": runtime_metadata["candidate_path"],
+        "container_image": runtime_metadata["container_image"],
         "runtime_versions": {
             "vllm": runtime_metadata["vllm_version"],
             "torch": runtime_metadata["torch_version"],
@@ -582,6 +590,7 @@ def _receipt_provenance(config: Mapping[str, Any]) -> dict[str, Any]:
         "code_revision": config["code_revision"],
         "worktree_status": config["worktree_status"],
         "runtime_versions": config["runtime_versions"],
+        "container_image": config["container_image"],
     }
 
 
@@ -731,15 +740,24 @@ def execute_grouprank_phase_a(
         )
     )
     try:
-        write_json(staging / "config.json", config)
-        write_json(staging / "selection.json", frozen_selection)
+        write_json(staging / "config.json", config, fsync=True)
+        write_json(staging / "selection.json", frozen_selection, fsync=True)
         write_jsonl(staging / "prompts.jsonl", prompts, fsync=True)
+        started = time.perf_counter()
         raw_outputs = tuple(infer_batch(requests))
+        elapsed_seconds = time.perf_counter() - started
         write_jsonl(
             staging / "raw_outputs.jsonl",
             raw_outputs,
             fsync=True,
         )
+        runtime = finalize_grouprank_runtime(
+            runtime,
+            raw_outputs,
+            elapsed_seconds=elapsed_seconds,
+            expected_request_count=_REQUEST_COUNT,
+        )
+        runtime = _validate_runtime_metadata(runtime, finalized=True)
     except BaseException as error:
         _raise_retained_staging(
             staging,
@@ -890,6 +908,7 @@ def _validate_config(config: Mapping[str, Any]) -> None:
         ("max_model_len", MAX_MODEL_LEN),
         ("gpu_memory_utilization", GPU_MEMORY_UTILIZATION),
         ("attention_backend", ATTENTION_BACKEND),
+        ("container_image", ROCM_CONTAINER_IMAGE),
     ):
         if config.get(field) != expected:
             labels = {
@@ -930,7 +949,12 @@ def _validate_receipt_provenance(
         raise ValueError("GroupRank schema SHA256 changed")
     if receipt.get("model") != _model_receipt(config):
         raise ValueError("GroupRank receipt model metadata changed")
-    for field in ("code_revision", "worktree_status", "runtime_versions"):
+    for field in (
+        "code_revision",
+        "worktree_status",
+        "runtime_versions",
+        "container_image",
+    ):
         if receipt.get(field) != config[field]:
             raise ValueError(f"GroupRank receipt {field.replace('_', ' ')} changed")
 
@@ -1002,7 +1026,7 @@ def _validated_artifact(
         raise ValueError("GroupRank schema SHA256 changed")
 
     runtime = _load_json_object(source / "runtime.json", label="GroupRank runtime")
-    validated_runtime = _validate_runtime_metadata(runtime)
+    validated_runtime = _validate_runtime_metadata(runtime, finalized=True)
     for runtime_field, config_field in (
         ("model_id", "model_id"),
         ("revision", "model_revision"),
@@ -1017,6 +1041,7 @@ def _validated_artifact(
         ("worktree_status", "worktree_status"),
         ("query_path", "query_path"),
         ("candidate_path", "candidate_path"),
+        ("container_image", "container_image"),
     ):
         if validated_runtime[runtime_field] != config[config_field]:
             raise ValueError(
@@ -1034,6 +1059,14 @@ def _validated_artifact(
         source / "raw_outputs.jsonl",
         label="GroupRank raw outputs",
     )
+    reconciled_runtime = finalize_grouprank_runtime(
+        validated_runtime,
+        raw_outputs,
+        elapsed_seconds=validated_runtime["elapsed_seconds"],
+        expected_request_count=_REQUEST_COUNT,
+    )
+    if reconciled_runtime["inference_stats"] != validated_runtime["inference_stats"]:
+        raise ValueError("GroupRank inference stats disagree with raw outputs")
     candidate_scores, expected_rankings = parse_and_aggregate(
         requests,
         raw_outputs,

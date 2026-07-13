@@ -93,6 +93,15 @@ envelope, one explicit operator retry may write `smoke_protocol_v2.json`. This
 is not an automatic runtime retry, and the rank phase may proceed only by
 validating that distinct passed receipt.
 
+That one retry was executed and failed. The preserved
+`smoke_protocol_v2.json` SHA-256 is
+`648a8f400d88cf0e6d3a99f94f4edbfc32ce3b1ba83b010d7e95b00bd3ba7493`.
+This exact model-specific pilot is therefore terminal: its CLI rejects every
+future smoke or rank invocation before input validation or engine loading,
+regardless of paths. Any further format study must use a separately named
+experiment and artifact namespace. Post-hoc evaluation retains its sealed
+ranking-validation-before-qrel boundary.
+
 Do not repair semantic failures, substitute zeros, or synthesize fallback
 rankings. If any request fails, persist all raw outputs and a terminal failure
 receipt, then stop before opening qrels.

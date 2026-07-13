@@ -407,6 +407,18 @@ def build_parser() -> argparse.ArgumentParser:
     llm_ranker_pilot.add_argument("--code-revision", required=True)
     llm_ranker_pilot.add_argument("--output-dir", required=True)
 
+    grouprank_pilot = commands.add_parser(
+        "grouprank-pilot",
+        help="smoke-test or run the frozen qrel-free GroupRank pilot",
+    )
+    grouprank_pilot.add_argument(
+        "--phase", choices=("smoke", "rank"), required=True
+    )
+    grouprank_pilot.add_argument("--selection", required=True)
+    grouprank_pilot.add_argument("--code-revision", required=True)
+    grouprank_pilot.add_argument("--output-dir", required=True)
+    grouprank_pilot.add_argument("--smoke-receipt")
+
     failure_capture = commands.add_parser(
         "llm-label-ranker-failure-capture",
         help="capture exact Podman evidence for a terminal listwise pilot failure",
@@ -740,6 +752,119 @@ def main(argv: list[str] | None = None) -> int:
             )
         paths = write_ranker_phase_a_artifacts(result, args.output_dir)
         print(json.dumps({"runtime": result.runtime_metadata, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "grouprank-pilot":
+        from trec_mlm.grouprank import build_group_requests
+        from trec_mlm.grouprank_inference import (
+            load_grouprank_engine,
+            run_grouprank_requests,
+        )
+        from trec_mlm.grouprank_pilot import (
+            GroupRankParseFailure,
+            execute_grouprank_phase_a,
+        )
+        from trec_mlm.grouprank_smoke import (
+            validate_grouprank_smoke,
+            write_grouprank_smoke,
+        )
+        from trec_mlm.llm_ranker_pilot import (
+            DEFAULT_CANDIDATE_PATH,
+            DEFAULT_QUERY_PATH,
+            preflight_pilot_inputs,
+        )
+
+        selection, _input_sha256 = preflight_pilot_inputs(
+            Path(args.selection),
+            query_path=DEFAULT_QUERY_PATH,
+            candidate_path=DEFAULT_CANDIDATE_PATH,
+        )
+        worktree_status = _verify_git_launch_provenance(args.code_revision)
+
+        if args.phase == "smoke":
+            if args.smoke_receipt is not None:
+                raise SystemExit("smoke phase does not accept --smoke-receipt")
+        else:
+            if args.smoke_receipt is None:
+                raise SystemExit("rank phase requires --smoke-receipt")
+            validate_grouprank_smoke(
+                args.smoke_receipt,
+                selection=selection,
+                code_revision=args.code_revision,
+            )
+
+        llm, _tokenizer, metadata = load_grouprank_engine()
+        inference_stats = {
+            "request_count": 0,
+            "prompt_token_count": 0,
+            "output_token_count": 0,
+        }
+        metadata.update(
+            {
+                "code_revision": args.code_revision,
+                "worktree_status": worktree_status,
+                "query_path": str(DEFAULT_QUERY_PATH),
+                "candidate_path": str(DEFAULT_CANDIDATE_PATH),
+            }
+        )
+
+        if args.phase == "smoke":
+            metadata["inference_stats"] = inference_stats
+            first_request = build_group_requests(selection)[0]
+            raw_outputs = run_grouprank_requests(
+                llm,
+                (first_request,),
+                stats=inference_stats,
+            )
+            if len(raw_outputs) != 1:
+                raise ValueError(
+                    "GroupRank smoke inference must return exactly one raw output"
+                )
+            receipt = write_grouprank_smoke(
+                selection,
+                raw_output=raw_outputs[0],
+                runtime_metadata=metadata,
+                output_path=args.output_dir,
+            )
+            print(json.dumps(receipt, indent=2))
+            return 0
+
+        def infer_batch(requests):
+            return run_grouprank_requests(
+                llm,
+                requests,
+                stats=inference_stats,
+            )
+
+        try:
+            result = execute_grouprank_phase_a(
+                selection,
+                infer_batch=infer_batch,
+                runtime_metadata=metadata,
+                output_dir=args.output_dir,
+            )
+        except GroupRankParseFailure as error:
+            print(
+                json.dumps(
+                    {
+                        "passed": False,
+                        "output_dir": str(args.output_dir),
+                        "error": str(error),
+                    },
+                    indent=2,
+                )
+            )
+            return 1
+        print(
+            json.dumps(
+                {
+                    "passed": True,
+                    "output_dir": str(args.output_dir),
+                    "runtime": result.runtime,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     if args.command == "llm-label-ranker-pilot":

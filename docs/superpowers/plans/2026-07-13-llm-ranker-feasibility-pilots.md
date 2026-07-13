@@ -13,6 +13,10 @@
 - Model: `Qwen/Qwen3-4B-Instruct-2507@cdbee75f17c01a7cc42f958dc650907174af0554`.
 - Runtime: `vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28`.
 - FP32, official chat template exactly once, greedy decoding, seed 2026.
+- Runtime amendment approved only for the compact pilot: pass
+  `gpu_memory_utilization=0.30` and record it with `max_model_len=8192` and
+  `attention_backend=TRITON_ATTN` in smoke, config, and runtime artifacts. Preserve the
+  canonical ranker's `0.70` default. Run a fresh parity/listwise smoke before pointwise.
 - Stage 1 has exactly six questions and twelve unique candidate labels per question.
 - Pointwise runs exactly 72 pairs. Listwise runs exactly 18 calls and ranks all twelve handles.
 - Qrels may select the pilot inventory but may not appear in prompts or Phase A inference inputs.

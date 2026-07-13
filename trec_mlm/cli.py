@@ -735,6 +735,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "llm-label-ranker-pilot":
         from trec_mlm.artifact_manifest import validate_pilot_smoke_receipt
         from trec_mlm.llm_ranker_inference import (
+            PILOT_GPU_MEMORY_UTILIZATION,
             grade_token_ids,
             load_ranker_engine,
         )
@@ -766,7 +767,10 @@ def main(argv: list[str] | None = None) -> int:
         validate_pilot_smoke_receipt(smoke_path)
         worktree_status = _verify_git_launch_provenance(args.code_revision)
 
-        llm, tokenizer, metadata = load_ranker_engine(seed=2026)
+        llm, tokenizer, metadata = load_ranker_engine(
+            seed=2026,
+            gpu_memory_utilization=PILOT_GPU_MEMORY_UTILIZATION,
+        )
         inference_stats = {
             "request_count": 0,
             "prompt_token_count": 0,

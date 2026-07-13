@@ -15,6 +15,13 @@ repeat it or start any other full sweep during these pilots.
 - Revision: `cdbee75f17c01a7cc42f958dc650907174af0554`
 - Runtime: the existing pinned vLLM ROCm container and validated official chat-template
   path
+- Pilot-only runtime amendment: use `gpu_memory_utilization=0.30` while preserving
+  FP32, the 8,192-token maximum context, `TRITON_ATTN`, prompts, decoding, seed, and
+  scoring. The canonical/full-ranker default remains `0.70`. This amendment follows
+  two zero-record Stage 1 exits and a detached reproduction in which `systemd-oomd`
+  killed the pilot after vLLM allocated a 53.04 GiB/193,104-token KV cache. The amended
+  smoke allocated 13.04 GiB/47,472 tokens and retained about 39--41 GiB host-memory
+  headroom.
 - Representations: cleaned expert labels plus the frozen expert-capability sentence
 - Methods: pointwise expected relevance grade and listwise ranking
 - Seed: 2026

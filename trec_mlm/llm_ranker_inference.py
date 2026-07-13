@@ -9,6 +9,10 @@ from typing import Any
 MODEL_ID = "Qwen/Qwen3-4B-Instruct-2507"
 MODEL_REVISION = "cdbee75f17c01a7cc42f958dc650907174af0554"
 MODEL_DTYPE = "float32"
+MAX_MODEL_LEN = 8192
+ATTENTION_BACKEND = "TRITON_ATTN"
+CANONICAL_GPU_MEMORY_UTILIZATION = 0.70
+PILOT_GPU_MEMORY_UTILIZATION = 0.30
 
 
 def chat_template_input_ids(tokenizer: Any, messages: Sequence[Mapping[str, str]]) -> Any:
@@ -118,7 +122,11 @@ def update_inference_stats(stats: dict[str, int], outputs: Sequence[Any]) -> Non
     stats["output_token_count"] = stats.get("output_token_count", 0) + generated_tokens
 
 
-def load_ranker_engine(*, seed: int = 2026) -> tuple[Any, Any, dict[str, Any]]:
+def load_ranker_engine(
+    *,
+    seed: int = 2026,
+    gpu_memory_utilization: float = CANONICAL_GPU_MEMORY_UTILIZATION,
+) -> tuple[Any, Any, dict[str, Any]]:
     """Load the frozen FP32 ranker and tokenizer in the pinned runtime."""
 
     try:
@@ -141,15 +149,18 @@ def load_ranker_engine(*, seed: int = 2026) -> tuple[Any, Any, dict[str, Any]]:
         dtype=MODEL_DTYPE,
         seed=seed,
         trust_remote_code=False,
-        max_model_len=8192,
-        gpu_memory_utilization=0.70,
-        attention_config={"backend": "TRITON_ATTN"},
+        max_model_len=MAX_MODEL_LEN,
+        gpu_memory_utilization=gpu_memory_utilization,
+        attention_config={"backend": ATTENTION_BACKEND},
     )
     return llm, tokenizer, {
         "model_id": MODEL_ID,
         "revision": MODEL_REVISION,
         "dtype": MODEL_DTYPE,
         "seed": seed,
+        "gpu_memory_utilization": gpu_memory_utilization,
+        "max_model_len": MAX_MODEL_LEN,
+        "attention_backend": ATTENTION_BACKEND,
         "vllm_version": vllm.__version__,
         "torch_version": torch.__version__,
         "hip_version": torch.version.hip,

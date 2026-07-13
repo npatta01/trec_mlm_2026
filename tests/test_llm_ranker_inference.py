@@ -11,10 +11,15 @@ from trec_mlm.llm_ranker_inference import (
     extract_grade_log_probabilities,
     grade_token_ids,
     listwise_json_schema,
+    load_ranker_engine,
     pointwise_sampling_kwargs,
     run_listwise_messages,
     update_inference_stats,
 )
+
+
+MAX_MODEL_LEN = 8192
+ATTENTION_BACKEND = "TRITON_ATTN"
 
 
 class _Tokenizer:
@@ -39,6 +44,58 @@ class _Output:
 
 
 class PointwiseInferenceAdapterTest(unittest.TestCase):
+    def test_engine_loader_honors_and_records_explicit_memory_budget(self) -> None:
+        class Cuda:
+            @staticmethod
+            def is_available():
+                return True
+
+            @staticmethod
+            def get_device_properties(_index):
+                return "fixture gfx1151"
+
+        torch = ModuleType("torch")
+        torch.__version__ = "2.11.0"
+        torch.cuda = Cuda()
+        torch.version = SimpleNamespace(hip="7.2")
+
+        class LLM:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        vllm = ModuleType("vllm")
+        vllm.__version__ = "0.24.0"
+        vllm.LLM = LLM
+
+        tokenizer = object()
+
+        class AutoTokenizer:
+            @staticmethod
+            def from_pretrained(*_args, **_kwargs):
+                return tokenizer
+
+        transformers = ModuleType("transformers")
+        transformers.AutoTokenizer = AutoTokenizer
+
+        with patch.dict(
+            sys.modules,
+            {"torch": torch, "vllm": vllm, "transformers": transformers},
+        ):
+            llm, observed_tokenizer, metadata = load_ranker_engine(
+                seed=2026,
+                gpu_memory_utilization=0.30,
+            )
+
+        self.assertIs(tokenizer, observed_tokenizer)
+        self.assertEqual(0.30, llm.kwargs["gpu_memory_utilization"])
+        self.assertEqual(MAX_MODEL_LEN, llm.kwargs["max_model_len"])
+        self.assertEqual(
+            {"backend": ATTENTION_BACKEND}, llm.kwargs["attention_config"]
+        )
+        self.assertEqual(0.30, metadata["gpu_memory_utilization"])
+        self.assertEqual(MAX_MODEL_LEN, metadata["max_model_len"])
+        self.assertEqual(ATTENTION_BACKEND, metadata["attention_backend"])
+
     def test_chat_template_extracts_input_ids_from_batch_encoding(self) -> None:
         class Tokenizer:
             def apply_chat_template(self, messages, **kwargs):

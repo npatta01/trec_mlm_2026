@@ -23,9 +23,12 @@ from trec_mlm.llm_ranker import (
     format_pointwise_messages,
 )
 from trec_mlm.llm_ranker_inference import (
+    ATTENTION_BACKEND,
+    MAX_MODEL_LEN,
     MODEL_DTYPE,
     MODEL_ID,
     MODEL_REVISION,
+    PILOT_GPU_MEMORY_UTILIZATION,
     run_listwise_messages,
 )
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
@@ -79,6 +82,9 @@ _PILOT_CONFIG_KEYS = frozenset(
         "model_id",
         "model_revision",
         "dtype",
+        "gpu_memory_utilization",
+        "max_model_len",
+        "attention_backend",
         "code_revision",
         "worktree_status",
         "query_path",
@@ -97,6 +103,9 @@ _RUNTIME_INPUT_FIELDS = frozenset(
         "revision",
         "dtype",
         "seed",
+        "gpu_memory_utilization",
+        "max_model_len",
+        "attention_backend",
         "vllm_version",
         "torch_version",
         "hip_version",
@@ -674,9 +683,18 @@ def _validate_runtime_metadata_before_io(
         ("revision", MODEL_REVISION),
         ("dtype", MODEL_DTYPE),
         ("seed", 2026),
+        ("gpu_memory_utilization", PILOT_GPU_MEMORY_UTILIZATION),
+        ("max_model_len", MAX_MODEL_LEN),
+        ("attention_backend", ATTENTION_BACKEND),
     ):
         if runtime[field] != expected:
-            label = "model revision" if field == "revision" else field
+            labels = {
+                "revision": "model revision",
+                "gpu_memory_utilization": "GPU memory utilization",
+                "max_model_len": "maximum model length",
+                "attention_backend": "attention backend",
+            }
+            label = labels.get(field, field)
             raise ValueError(f"pilot runtime {label} changed")
     if _COMMIT_SHA_RE.fullmatch(runtime["code_revision"]) is None:
         raise ValueError("pilot code revision must be a full 40-hex commit SHA")
@@ -848,6 +866,9 @@ def _pilot_runtime_config(
         "model_id": MODEL_ID,
         "model_revision": MODEL_REVISION,
         "dtype": MODEL_DTYPE,
+        "gpu_memory_utilization": runtime["gpu_memory_utilization"],
+        "max_model_len": runtime["max_model_len"],
+        "attention_backend": runtime["attention_backend"],
         "code_revision": code_revision,
         "worktree_status": worktree_status,
         "query_path": query_path,
@@ -1399,9 +1420,18 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
         ("model_revision", MODEL_REVISION),
         ("dtype", MODEL_DTYPE),
         ("seed", 2026),
+        ("gpu_memory_utilization", PILOT_GPU_MEMORY_UTILIZATION),
+        ("max_model_len", MAX_MODEL_LEN),
+        ("attention_backend", ATTENTION_BACKEND),
     ):
         if config.get(field) != expected:
-            label = "model revision" if field == "model_revision" else field
+            labels = {
+                "model_revision": "model revision",
+                "gpu_memory_utilization": "GPU memory utilization",
+                "max_model_len": "maximum model length",
+                "attention_backend": "attention backend",
+            }
+            label = labels.get(field, field)
             raise ValueError(f"pilot {label} changed")
     code_revision = config.get("code_revision")
     if not isinstance(code_revision, str) or _COMMIT_SHA_RE.fullmatch(
@@ -1526,6 +1556,9 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
         "revision": config["model_revision"],
         "dtype": config["dtype"],
         "seed": config["seed"],
+        "gpu_memory_utilization": config["gpu_memory_utilization"],
+        "max_model_len": config["max_model_len"],
+        "attention_backend": config["attention_backend"],
         "code_revision": config["code_revision"],
         "worktree_status": config["worktree_status"],
         "query_path": config["query_path"],

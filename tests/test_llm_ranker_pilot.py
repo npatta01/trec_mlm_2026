@@ -30,9 +30,20 @@ from trec_mlm.llm_ranker_pilot import (
     validate_pilot_selection,
     write_pilot_phase_a,
 )
-from trec_mlm.llm_ranker_inference import MODEL_DTYPE, MODEL_ID, MODEL_REVISION
+from trec_mlm.llm_ranker_inference import (
+    MODEL_DTYPE,
+    MODEL_ID,
+    MODEL_REVISION,
+)
+
+
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
 from trec_mlm.runio import rankings_from_run
+
+
+PILOT_GPU_MEMORY_UTILIZATION = 0.30
+MAX_MODEL_LEN = 8192
+ATTENTION_BACKEND = "TRITON_ATTN"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -563,6 +574,15 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
             ROOT / "artifacts/llm_label_ranker/smoke/smoke.json",
             self.smoke_path,
         )
+        smoke = json.loads(self.smoke_path.read_text(encoding="utf-8"))
+        smoke["metadata"].update(
+            {
+                "gpu_memory_utilization": PILOT_GPU_MEMORY_UTILIZATION,
+                "max_model_len": MAX_MODEL_LEN,
+                "attention_backend": ATTENTION_BACKEND,
+            }
+        )
+        self.smoke_path.write_text(json.dumps(smoke), encoding="utf-8")
         shutil.copyfile(
             ROOT / "artifacts/llm_label_ranker/pilot/stage1/selection.json",
             self.selection_path,
@@ -580,6 +600,9 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
             "revision": MODEL_REVISION,
             "dtype": MODEL_DTYPE,
             "seed": 2026,
+            "gpu_memory_utilization": PILOT_GPU_MEMORY_UTILIZATION,
+            "max_model_len": MAX_MODEL_LEN,
+            "attention_backend": ATTENTION_BACKEND,
             "vllm_version": "0.24.0",
             "torch_version": "2.11.0",
             "hip_version": "7.2",
@@ -732,6 +755,29 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
                 runtime_metadata=self.runtime,
             )
 
+    def test_phase_a_records_and_freezes_pilot_engine_settings(self) -> None:
+        runtime = {
+            **self.runtime,
+            "gpu_memory_utilization": PILOT_GPU_MEMORY_UTILIZATION,
+            "max_model_len": MAX_MODEL_LEN,
+            "attention_backend": ATTENTION_BACKEND,
+        }
+
+        result = run_pilot_phase_a(
+            self.selection,
+            method="pointwise",
+            infer_batch=self._pointwise_infer,
+            runtime_metadata=runtime,
+        )
+
+        for field, expected in (
+            ("gpu_memory_utilization", PILOT_GPU_MEMORY_UTILIZATION),
+            ("max_model_len", MAX_MODEL_LEN),
+            ("attention_backend", ATTENTION_BACKEND),
+        ):
+            self.assertEqual(expected, result.runtime_metadata[field])
+            self.assertEqual(expected, result.config[field])
+
     def test_phase_a_rejects_unapproved_paths_before_opening_them(self) -> None:
         qrels_path = self.root / "qrels-must-never-open.txt"
         qrels_path.write_text("sensitive qrel fixture\n", encoding="utf-8")
@@ -850,6 +896,9 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
             "model revision": ("model_revision", "changed-revision"),
             "dtype": ("dtype", "bfloat16"),
             "seed": ("seed", 2027),
+            "GPU memory utilization": ("gpu_memory_utilization", 0.70),
+            "maximum model length": ("max_model_len", 4096),
+            "attention backend": ("attention_backend", "FLASH_ATTN"),
             "code revision": ("code_revision", "not_recorded"),
             "worktree status": ("worktree_status", "dirty"),
         }
@@ -1216,6 +1265,10 @@ class PilotCliTest(unittest.TestCase):
                 with (
                     patch("subprocess.run", side_effect=git_results),
                     patch(
+                        "trec_mlm.artifact_manifest.validate_pilot_smoke_receipt",
+                        return_value={"passed": True},
+                    ),
+                    patch(
                         "trec_mlm.llm_ranker_inference.load_ranker_engine",
                         side_effect=AssertionError("engine must not load"),
                     ) as load_engine,
@@ -1310,7 +1363,10 @@ class PilotCliTest(unittest.TestCase):
                 with patch(
                     "trec_mlm.llm_ranker_inference.load_ranker_engine",
                     side_effect=AssertionError("engine must not load"),
-                ) as load_engine:
+                ) as load_engine, patch(
+                    "trec_mlm.artifact_manifest.validate_pilot_smoke_receipt",
+                    return_value={"passed": True},
+                ):
                     with self.assertRaisesRegex(ValueError, expected):
                         main(argv)
                 load_engine.assert_not_called()
@@ -1341,7 +1397,10 @@ class PilotCliTest(unittest.TestCase):
         llm = object()
         tokenizer = object()
 
-        def engine():
+        def engine(**kwargs):
+            self.assertEqual(
+                {"seed": 2026, "gpu_memory_utilization": 0.30}, kwargs
+            )
             return (
                 llm,
                 tokenizer,
@@ -1350,6 +1409,9 @@ class PilotCliTest(unittest.TestCase):
                     "revision": MODEL_REVISION,
                     "dtype": MODEL_DTYPE,
                     "seed": 2026,
+                    "gpu_memory_utilization": PILOT_GPU_MEMORY_UTILIZATION,
+                    "max_model_len": MAX_MODEL_LEN,
+                    "attention_backend": ATTENTION_BACKEND,
                     "vllm_version": "0.24.0",
                     "torch_version": "2.11.0",
                     "hip_version": "7.2",
@@ -1417,8 +1479,18 @@ class PilotCliTest(unittest.TestCase):
             with (
                 patch(
                     "trec_mlm.llm_ranker_inference.load_ranker_engine",
-                    side_effect=lambda **_kwargs: engine(),
+                    side_effect=engine,
                 ) as load_engine,
+                patch(
+                    "trec_mlm.artifact_manifest.validate_pilot_smoke_receipt",
+                    return_value={"passed": True},
+                ),
+                patch(
+                    "trec_mlm.llm_ranker_pilot.validate_pilot_smoke_receipt",
+                    side_effect=lambda path: {
+                        "receipt_sha256": _sha256(Path(path))
+                    },
+                ),
                 patch(
                     "trec_mlm.llm_ranker_inference.grade_token_ids",
                     return_value={0: 15, 1: 16, 2: 17},
@@ -1468,8 +1540,14 @@ class PilotCliTest(unittest.TestCase):
             self.assertEqual(2, verify_git.call_count)
             run_pointwise.assert_called_once()
             run_listwise.assert_called_once()
-            pointwise = load_frozen_pilot(pointwise_dir)
-            listwise = load_frozen_pilot(listwise_dir)
+            with patch(
+                "trec_mlm.llm_ranker_pilot.validate_pilot_smoke_receipt",
+                side_effect=lambda path: {
+                    "receipt_sha256": _sha256(Path(path))
+                },
+            ):
+                pointwise = load_frozen_pilot(pointwise_dir)
+                listwise = load_frozen_pilot(listwise_dir)
             self.assertEqual(72, len(pointwise.raw_outputs))
             self.assertEqual(18, len(listwise.raw_outputs))
             self.assertEqual(

@@ -10,7 +10,16 @@ from trec_mlm.artifact_manifest import (
     validate_pilot_smoke_receipt,
     validate_smoke_receipt,
 )
-from trec_mlm.llm_ranker_inference import MODEL_DTYPE, MODEL_ID, MODEL_REVISION
+from trec_mlm.llm_ranker_inference import (
+    MODEL_DTYPE,
+    MODEL_ID,
+    MODEL_REVISION,
+)
+
+
+PILOT_GPU_MEMORY_UTILIZATION = 0.30
+MAX_MODEL_LEN = 8192
+ATTENTION_BACKEND = "TRITON_ATTN"
 
 
 class ArtifactManifestTest(unittest.TestCase):
@@ -43,6 +52,9 @@ class ArtifactManifestTest(unittest.TestCase):
                         "revision": MODEL_REVISION,
                         "dtype": MODEL_DTYPE,
                         "seed": 2026,
+                        "gpu_memory_utilization": PILOT_GPU_MEMORY_UTILIZATION,
+                        "max_model_len": MAX_MODEL_LEN,
+                        "attention_backend": ATTENTION_BACKEND,
                         "vllm_version": "0.24.0",
                         "torch_version": "2.11.0",
                         "hip_version": "7.2",
@@ -135,6 +147,15 @@ class ArtifactManifestTest(unittest.TestCase):
                 ),
                 "HIP version": lambda payload: payload["metadata"].update(
                     {"hip_version": ""}
+                ),
+                "GPU memory utilization": lambda payload: payload[
+                    "metadata"
+                ].update({"gpu_memory_utilization": 0.70}),
+                "maximum model length": lambda payload: payload["metadata"].update(
+                    {"max_model_len": 4096}
+                ),
+                "attention backend": lambda payload: payload["metadata"].update(
+                    {"attention_backend": "FLASH_ATTN"}
                 ),
             }
             original = json.loads(path.read_text(encoding="utf-8"))

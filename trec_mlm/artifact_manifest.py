@@ -10,7 +10,14 @@ from pathlib import Path
 import re
 from typing import Any
 
-from trec_mlm.llm_ranker_inference import MODEL_DTYPE, MODEL_ID, MODEL_REVISION
+from trec_mlm.llm_ranker_inference import (
+    ATTENTION_BACKEND,
+    MAX_MODEL_LEN,
+    MODEL_DTYPE,
+    MODEL_ID,
+    MODEL_REVISION,
+    PILOT_GPU_MEMORY_UTILIZATION,
+)
 
 
 _PILOT_GRADE_TOKEN_IDS = {0: 15, 1: 16, 2: 17}
@@ -172,9 +179,18 @@ def validate_pilot_smoke_receipt(
         ("revision", revision),
         ("dtype", dtype),
         ("seed", seed),
+        ("gpu_memory_utilization", PILOT_GPU_MEMORY_UTILIZATION),
+        ("max_model_len", MAX_MODEL_LEN),
+        ("attention_backend", ATTENTION_BACKEND),
     ):
         if metadata.get(field) != expected:
-            label = "model revision" if field == "revision" else field
+            labels = {
+                "revision": "model revision",
+                "gpu_memory_utilization": "GPU memory utilization",
+                "max_model_len": "maximum model length",
+                "attention_backend": "attention backend",
+            }
+            label = labels.get(field, field)
             raise ValueError(f"smoke receipt metadata {label} does not match")
     for field, label in (
         ("vllm_version", "vLLM version"),

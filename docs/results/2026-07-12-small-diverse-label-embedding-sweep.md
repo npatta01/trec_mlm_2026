@@ -25,14 +25,17 @@ MPNet its mean nDCG@10 difference is +0.0225 with paired 95% interval
 [-0.0146, +0.0299]. Neither comparison excludes zero, so the sweep does not establish
 that Qwen 4B is better than either reference.
 
-Contextualization is reliably beneficial within Qwen 4B (+0.0327 nDCG, 95% interval
+The nominal exploratory paired intervals exclude zero for contextualization within
+Qwen 4B (+0.0327 nDCG, 95% interval
 [+0.0121, +0.0530]), Qwen 0.6B (+0.0243, [+0.0077, +0.0411]), and Jina small
 (+0.0259, [+0.0091, +0.0426]). Nomic's interval includes zero, while BGE-M3's point
-estimate decreases.
+estimate decreases. These post-hoc conditions were inspected without a
+multiple-comparison correction.
 
-The Qwen 4B contextual repeats have identical metrics and scores within `1.52e-6`, but
-at least one complete ranking differs because a near-tied pair changes order. It is
-therefore retained as promising exploratory evidence but fails the strict repeat rule.
+The Qwen 4B contextual repeats have identical metrics and top-10 rankings, with scores
+within `1.52e-6`. Across all 322 complete 150-item rankings, only two adjacent tail
+orders change: ranks 33/34 and 113/114. It therefore fails the preregistered all-150
+repeat rule but does not show meaningful top-rank instability.
 No deployment model, fusion system, or LLM ranker was selected automatically.
 
 Machine-readable comparisons and the full plain-language receipt are under

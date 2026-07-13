@@ -407,6 +407,16 @@ def build_parser() -> argparse.ArgumentParser:
     llm_ranker_pilot.add_argument("--code-revision", required=True)
     llm_ranker_pilot.add_argument("--output-dir", required=True)
 
+    failure_capture = commands.add_parser(
+        "llm-label-ranker-failure-capture",
+        help="capture exact Podman evidence for a terminal listwise pilot failure",
+    )
+    failure_capture.add_argument("--container", required=True)
+    failure_capture.add_argument("--selection", required=True)
+    failure_capture.add_argument("--smoke-receipt", required=True)
+    failure_capture.add_argument("--expected-ranking-dir", required=True)
+    failure_capture.add_argument("--output-dir", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -832,6 +842,21 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
+        return 0
+
+    if args.command == "llm-label-ranker-failure-capture":
+        from trec_mlm.llm_ranker_failure import (
+            capture_terminal_listwise_failure,
+        )
+
+        receipt = capture_terminal_listwise_failure(
+            container_name=args.container,
+            output_dir=args.output_dir,
+            selection_path=args.selection,
+            smoke_receipt_path=args.smoke_receipt,
+            expected_ranking_dir=args.expected_ranking_dir,
+        )
+        print(json.dumps(receipt, indent=2, sort_keys=True))
         return 0
 
     if args.command == "validate-run":

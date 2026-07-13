@@ -31,8 +31,9 @@ from trec_mlm.llm_ranker_inference import (
     PILOT_GPU_MEMORY_UTILIZATION,
     run_listwise_messages,
 )
+from trec_mlm.metrics import EvaluationResult, evaluate_rankings
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
-from trec_mlm.runio import rankings_from_run
+from trec_mlm.runio import rankings_from_run, validate_trec_run
 
 
 STAGE1_QUERY_IDS = (
@@ -922,6 +923,14 @@ def _normalize_approved_path(
         raise ValueError(f"pilot runtime {label} path must be a string")
     normalized = Path(value).expanduser().resolve(strict=False)
     normalized_approved = Path(approved).expanduser().resolve(strict=False)
+    approved_path = Path(approved)
+    if approved_path.is_absolute() is False and Path(value).is_absolute():
+        try:
+            container_relative = Path(value).relative_to("/workspace")
+        except ValueError:
+            pass
+        else:
+            normalized = (Path.cwd() / container_relative).resolve(strict=False)
     if normalized != normalized_approved:
         raise ValueError(f"pilot runtime {label} path is not approved")
     return str(normalized_approved)
@@ -1949,6 +1958,24 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
     )
 
 
+def capture_terminal_listwise_failure(**kwargs: Any) -> dict[str, Any]:
+    """Capture exact terminal failure evidence via the host-side Podman tool."""
+
+    from trec_mlm.llm_ranker_failure import capture_terminal_listwise_failure as capture
+
+    return capture(**kwargs)
+
+
+def validate_terminal_listwise_failure(
+    artifact_dir: str | Path,
+) -> dict[str, Any]:
+    """Validate terminal failure evidence that is intentionally not a ranking."""
+
+    from trec_mlm.llm_ranker_failure import validate_terminal_listwise_failure as validate
+
+    return validate(artifact_dir)
+
+
 def evaluate_pilot(
     artifact_dir: str | Path,
     qrels_path: str | Path,
@@ -2224,6 +2251,392 @@ def build_pilot_report(
     }
 
 
+def _stage2_metric_summary(
+    result: EvaluationResult,
+    *,
+    rankings: Mapping[str, Sequence[str]],
+    qrels: Mapping[str, Mapping[str, int | float]],
+) -> dict[str, Any]:
+    top3_query_ids = [
+        query_id
+        for query_id in qrels
+        if any(float(qrels[query_id].get(candidate_id, 0)) > 0 for candidate_id in rankings[query_id][:3])
+    ]
+    return {
+        "availability": "available",
+        "query_count": len(qrels),
+        "ndcg_at_10": result.macro_ndcg_at_k,
+        "mrr": result.mean_reciprocal_rank,
+        "top3_relevant_count": len(top3_query_ids),
+        "top3_query_ids": top3_query_ids,
+    }
+
+
+def _unavailable_stage2_metrics() -> dict[str, Any]:
+    return {
+        "availability": "unavailable",
+        "reason": "terminal_listwise_parse_failure_no_persisted_rankings",
+        "query_count": 12,
+        "ndcg_at_10": None,
+        "mrr": None,
+        "top3_relevant_count": None,
+        "top3_query_ids": None,
+    }
+
+
+def build_stage2_pointwise_report(
+    *,
+    pointwise_dir: str | Path,
+    listwise_failure_dir: str | Path,
+    qwen_dir: str | Path,
+    e5_dir: str | Path,
+    qrels_path: str | Path,
+) -> dict[str, Any]:
+    """Build Stage 2 evidence with pointwise scored and listwise unavailable."""
+
+    # Both terminal states must validate before any qrel or qrel-bearing baseline read.
+    pointwise = load_frozen_pilot(pointwise_dir)
+    failure_receipt = validate_terminal_listwise_failure(listwise_failure_dir)
+    if pointwise.method != "pointwise":
+        raise ValueError("Stage 2 report requires a pointwise ranking artifact")
+    selection = pointwise.selection
+    query_count, candidate_count = _require_stage_shape(selection)
+    if selection.get("stage") != 2 or (query_count, candidate_count) != (12, 20):
+        raise ValueError("Stage 2 report requires twelve queries with twenty candidates")
+    if tuple(entry["query_id"] for entry in selection["questions"]) != STAGE2_QUERY_IDS:
+        raise ValueError("Stage 2 report query inventory changed")
+    selection_sha256 = _sha256(Path(pointwise_dir) / "selection.json")
+    if failure_receipt.get("selection", {}).get("sha256") != selection_sha256:
+        raise ValueError("Stage 2 pointwise/failure selections disagree")
+
+    all_queries = load_queries_tsv(DEFAULT_QUERY_PATH)
+    complete_qrels = load_complete_qrels(qrels_path, expected_query_ids=all_queries)
+    qwen = _load_validated_baseline_rankings(
+        qwen_dir, expected_encoder_key="qwen3_embedding_4b"
+    )
+    e5 = _load_validated_baseline_rankings(
+        e5_dir, expected_encoder_key="e5_mistral_7b_instruct"
+    )
+
+    rankings: dict[str, dict[str, list[str]]] = {
+        "pointwise": pointwise.rankings,
+        "qwen4b_contextual": {},
+        "e5_contextual": {},
+    }
+    for entry in selection["questions"]:
+        query_id = entry["query_id"]
+        candidates = set(entry["candidate_ids"])
+        for method, result in (
+            ("qwen4b_contextual", qwen),
+            ("e5_contextual", e5),
+        ):
+            source_ranking = result.get(query_id)
+            if source_ranking is None:
+                raise ValueError(f"{method} baseline is missing query {query_id!r}")
+            restricted = [
+                candidate_id
+                for candidate_id in source_ranking
+                if candidate_id in candidates
+            ]
+            if len(restricted) != candidate_count or set(restricted) != candidates:
+                raise ValueError(
+                    f"{method} baseline does not cover the frozen candidate set"
+                )
+            rankings[method][query_id] = restricted
+
+    restricted_qrels = {
+        entry["query_id"]: {
+            candidate_id: complete_qrels[entry["query_id"]][candidate_id]
+            for candidate_id in entry["candidate_ids"]
+        }
+        for entry in selection["questions"]
+    }
+    evaluations = {
+        method: evaluate_rankings(method_rankings, restricted_qrels, k=10)
+        for method, method_rankings in rankings.items()
+    }
+    metrics = {
+        method: _stage2_metric_summary(
+            evaluations[method], rankings=rankings[method], qrels=restricted_qrels
+        )
+        for method in rankings
+    }
+    metrics["listwise"] = _unavailable_stage2_metrics()
+
+    question_rows: list[dict[str, Any]] = []
+    for entry in selection["questions"]:
+        query_id = entry["query_id"]
+        relevant_grades = {
+            candidate_id: float(grade)
+            for candidate_id, grade in restricted_qrels[query_id].items()
+            if float(grade) > 0
+        }
+        if not relevant_grades:
+            raise ValueError(f"Stage 2 query {query_id!r} has no relevant candidate")
+        per_method: dict[str, Any] = {}
+        for method in rankings:
+            ranking = rankings[method][query_id]
+            relevant_ranks = {
+                candidate_id: ranking.index(candidate_id) + 1
+                for candidate_id in relevant_grades
+            }
+            query_metrics = evaluations[method].per_query[query_id]
+            per_method[method] = {
+                "top_three": ranking[:3],
+                "relevant_ranks": relevant_ranks,
+                "best_relevant_rank": min(relevant_ranks.values()),
+                "ndcg_at_10": query_metrics.ndcg_at_k,
+                "reciprocal_rank": query_metrics.reciprocal_rank,
+                "top3_relevant": any(rank <= 3 for rank in relevant_ranks.values()),
+            }
+        per_method["listwise"] = {
+            "top_three": None,
+            "relevant_ranks": None,
+            "best_relevant_rank": None,
+            "ndcg_at_10": None,
+            "reciprocal_rank": None,
+            "top3_relevant": None,
+            "availability": "unavailable",
+        }
+        question_rows.append(
+            {
+                "query_id": query_id,
+                "question": entry["question"],
+                "stratum": STAGE2_QUERY_STRATA[query_id],
+                "qrel_assisted": True,
+                "relevant_grades": relevant_grades,
+                "methods": per_method,
+            }
+        )
+
+    strata: dict[str, Any] = {}
+    for stratum in (
+        "issue_like_clear",
+        "contextual_qwen_success",
+        "contextual_qwen_failure",
+    ):
+        query_ids = [
+            query_id
+            for query_id in STAGE2_QUERY_IDS
+            if STAGE2_QUERY_STRATA[query_id] == stratum
+        ]
+        stratum_qrels = {
+            query_id: restricted_qrels[query_id] for query_id in query_ids
+        }
+        stratum_metrics = {
+            method: _stage2_metric_summary(
+                evaluate_rankings(
+                    {query_id: method_rankings[query_id] for query_id in query_ids},
+                    stratum_qrels,
+                    k=10,
+                ),
+                rankings={
+                    query_id: method_rankings[query_id] for query_id in query_ids
+                },
+                qrels=stratum_qrels,
+            )
+            for method, method_rankings in rankings.items()
+        }
+        unavailable = _unavailable_stage2_metrics()
+        unavailable["query_count"] = len(query_ids)
+        stratum_metrics["listwise"] = unavailable
+        strata[stratum] = {
+            "query_count": len(query_ids),
+            "query_ids": query_ids,
+            "metrics": stratum_metrics,
+        }
+
+    failure_sha256 = _sha256(
+        Path(listwise_failure_dir) / "failure_receipt.json"
+    )
+    decision_text = (
+        "Stage 2 pointwise evidence is complete, but on this qrel-assisted "
+        f"diagnostic it placed a relevant label in the top three for "
+        f"{metrics['pointwise']['top3_relevant_count']}/12 questions versus "
+        f"{metrics['qwen4b_contextual']['top3_relevant_count']}/12 for contextual "
+        f"Qwen4B and {metrics['e5_contextual']['top3_relevant_count']}/12 for "
+        "contextual E5. That does not support expanding the current pointwise "
+        "design yet. The final listwise attempt is unscorable because no validated "
+        "rankings were persisted. Discuss these examples before any larger pilot."
+    )
+    return {
+        "version": 1,
+        "stage": 2,
+        "evidence_scope": "qrel-assisted exploratory",
+        "caveat": (
+            "The candidate sets and strata were chosen using development qrels; "
+            "these results diagnose feasibility and are not an unbiased model comparison."
+        ),
+        "question_count": query_count,
+        "candidate_count_per_question": candidate_count,
+        "selection_sha256": selection_sha256,
+        "method_status": {
+            "pointwise": "complete",
+            "listwise": "unscorable",
+            "qwen4b_contextual": "complete_restricted_baseline",
+            "e5_contextual": "complete_restricted_baseline",
+        },
+        "metrics": metrics,
+        "strata": strata,
+        "questions": question_rows,
+        "listwise_failure": {
+            "receipt_sha256": failure_sha256,
+            "disposition": failure_receipt["disposition"],
+            "error_message": failure_receipt["failure"]["error_message"],
+            "query_id": failure_receipt["failure"]["query_id"],
+            "rotation": failure_receipt["failure"]["rotation"],
+            "planned_request_count": failure_receipt["execution"][
+                "planned_request_count"
+            ],
+            "log_observed_request_count": failure_receipt["execution"][
+                "log_observed_request_count"
+            ],
+            "persisted_raw_output_count": 0,
+            "rankings_available": False,
+            "rerun_permitted": False,
+        },
+        "decision": {
+            "pointwise": "complete",
+            "listwise": "unscorable_final_attempt",
+            "automatic_continuation": False,
+            "plain_language": decision_text,
+        },
+        "recomputation_inputs": {
+            "phase_a": {
+                "pointwise": _phase_a_recomputation_record(pointwise_dir),
+                "listwise_failure": {
+                    "path": str(Path(listwise_failure_dir)),
+                    "failure_receipt_sha256": failure_sha256,
+                    "artifact_sha256": dict(failure_receipt["artifact_sha256"]),
+                },
+            },
+            "baselines": {
+                "qwen4b_contextual": _baseline_recomputation_record(qwen_dir),
+                "e5_contextual": _baseline_recomputation_record(e5_dir),
+            },
+            "qrels": {"path": str(Path(qrels_path)), "sha256": _sha256(qrels_path)},
+        },
+    }
+
+
+def render_stage2_pointwise_report_markdown(report: Mapping[str, Any]) -> str:
+    """Render the Stage 2 pointwise-only feasibility receipt."""
+
+    if report.get("stage") != 2 or len(report.get("questions", [])) != 12:
+        raise ValueError("Stage 2 report is incomplete")
+    metrics = report["metrics"]
+    failure = report["listwise_failure"]
+    lines = [
+        "# LLM Expert-Label Ranker: Stage 2 Pilot",
+        "",
+        "> Qrel-assisted exploratory development evidence; candidate sets and strata were selected with development qrels.",
+        "",
+        "## Disposition",
+        "",
+        report["decision"]["plain_language"],
+        "",
+        "No inference rerun, model selection, fusion, or deployment action was started by this report.",
+        "",
+        "## Headline metrics (restricted 20-label sets)",
+        "",
+        "| Method | Status | nDCG@10 | MRR | Relevant in top 3 |",
+        "| --- | --- | ---: | ---: | ---: |",
+    ]
+    for method, label in (
+        ("pointwise", "Pointwise"),
+        ("listwise", "Listwise"),
+        ("qwen4b_contextual", "Contextual Qwen4B"),
+        ("e5_contextual", "Contextual E5-Mistral"),
+    ):
+        item = metrics[method]
+        if item["availability"] == "available":
+            values = (
+                f"{item['ndcg_at_10']:.4f}",
+                f"{item['mrr']:.4f}",
+                f"{item['top3_relevant_count']}/12",
+            )
+        else:
+            values = ("unavailable", "unavailable", "unavailable")
+        lines.append(
+            f"| {label} | {report['method_status'][method]} | "
+            f"{values[0]} | {values[1]} | {values[2]} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Strata",
+            "",
+            "| Stratum | Method | nDCG@10 | MRR | Relevant in top 3 |",
+            "| --- | --- | ---: | ---: | ---: |",
+        ]
+    )
+    for stratum, payload in report["strata"].items():
+        for method, label in (
+            ("pointwise", "Pointwise"),
+            ("qwen4b_contextual", "Qwen4B"),
+            ("e5_contextual", "E5"),
+            ("listwise", "Listwise"),
+        ):
+            item = payload["metrics"][method]
+            if item["availability"] == "available":
+                values = (
+                    f"{item['ndcg_at_10']:.4f}",
+                    f"{item['mrr']:.4f}",
+                    f"{item['top3_relevant_count']}/{payload['query_count']}",
+                )
+            else:
+                values = ("unavailable", "unavailable", "unavailable")
+            lines.append(
+                f"| {stratum} | {label} | {values[0]} | {values[1]} | {values[2]} |"
+            )
+    lines.extend(
+        [
+            "",
+            "## Terminal listwise failure",
+            "",
+            f"- Receipt SHA-256: `{failure['receipt_sha256']}`",
+            f"- Failed parse: `{failure['query_id']}` rotation `{failure['rotation']}`",
+            f"- Planned/log-observed requests: {failure['planned_request_count']}/{failure['log_observed_request_count']}",
+            "- Persisted raw outputs: 0; rankings available: no; OOM: no.",
+            f"- Exact error: `{failure['error_message']}`",
+            "",
+            "The log proves request processing reached 36/36, not that 35 usable outputs existed. The program raised before any raw output or ranking artifact was persisted.",
+            "",
+            "## Recalculation receipt",
+            "",
+            f"- Pointwise receipt SHA-256: `{report['recomputation_inputs']['phase_a']['pointwise']['ranking_receipt_sha256']}`",
+            f"- Frozen selection SHA-256: `{report['selection_sha256']}`",
+            f"- Qrels SHA-256: `{report['recomputation_inputs']['qrels']['sha256']}`",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_stage2_pointwise_report(
+    report: Mapping[str, Any],
+    *,
+    report_path: str | Path,
+    markdown_path: str | Path,
+) -> dict[str, str]:
+    """Write deterministic JSON and Markdown Stage 2 report artifacts."""
+
+    json_destination = Path(report_path)
+    markdown_destination = Path(markdown_path)
+    json_destination.parent.mkdir(parents=True, exist_ok=True)
+    markdown_destination.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(json_destination, report)
+    markdown_destination.write_text(
+        render_stage2_pointwise_report_markdown(report), encoding="utf-8"
+    )
+    return {
+        "report_path": str(json_destination),
+        "markdown_path": str(markdown_destination),
+        "report_sha256": _sha256(json_destination),
+        "markdown_sha256": _sha256(markdown_destination),
+    }
+
+
 def _rotation_agreement(
     *,
     query_id: str,
@@ -2331,6 +2744,72 @@ def _baseline_recomputation_record(artifact_dir: str | Path) -> dict[str, Any]:
         "validation_sha256": _sha256(source / "validation.json"),
         "artifact_sha256": dict(hashes),
     }
+
+
+def _load_validated_baseline_rankings(
+    artifact_dir: str | Path,
+    *,
+    expected_encoder_key: str,
+) -> dict[str, list[str]]:
+    """Load a frozen run after rehashing its durable validation inventory.
+
+    This intentionally validates the published TREC run rather than reconstructing
+    float-score tie order. The latter is stricter than the frozen Stage 2 question:
+    both baselines are compared using their already captured complete rankings.
+    """
+
+    source = Path(artifact_dir)
+    validation = _load_json_object(
+        source / "validation.json", label="label baseline validation"
+    )
+    hashes = validation.get("artifact_sha256")
+    if not isinstance(hashes, Mapping) or not hashes:
+        raise ValueError("label baseline validation hashes are missing")
+    for name, expected_hash in hashes.items():
+        if (
+            not isinstance(name, str)
+            or not isinstance(expected_hash, str)
+            or not (source / name).is_file()
+            or _sha256(source / name) != expected_hash
+        ):
+            raise ValueError(f"label baseline artifact hash mismatch: {name}")
+    config = _load_json_object(source / "config.json", label="label baseline config")
+    if (
+        config.get("encoder_key") != expected_encoder_key
+        or config.get("label_representation") != "expert_capability"
+    ):
+        raise ValueError("label baseline is not the frozen contextual run")
+    query_path = _normalize_approved_path(
+        config.get("query_path"), approved=DEFAULT_QUERY_PATH, label="baseline query"
+    )
+    candidate_path = _normalize_approved_path(
+        config.get("candidate_path"),
+        approved=DEFAULT_CANDIDATE_PATH,
+        label="baseline candidate",
+    )
+    query_ids = tuple(load_queries_tsv(query_path))
+    candidate_ids = load_candidate_manifest(candidate_path)
+    run_validation = validate_trec_run(
+        source / "run.trec",
+        expected_query_ids=query_ids,
+        expected_model_ids=candidate_ids,
+    )
+    recorded_run = validation.get("run")
+    if (
+        not isinstance(recorded_run, Mapping)
+        or recorded_run.get("valid") is not True
+        or run_validation["query_count"] != len(query_ids)
+        or run_validation["candidate_count"] != len(candidate_ids)
+        or run_validation["row_count"] != len(query_ids) * len(candidate_ids)
+    ):
+        raise ValueError("label baseline TREC run validation changed")
+    rankings = rankings_from_run(source / "run.trec")
+    if set(rankings) != set(query_ids) or any(
+        len(ranking) != len(candidate_ids) or set(ranking) != set(candidate_ids)
+        for ranking in rankings.values()
+    ):
+        raise ValueError("label baseline ranking inventory changed")
+    return rankings
 
 
 def render_pilot_report_markdown(report: Mapping[str, Any]) -> str:

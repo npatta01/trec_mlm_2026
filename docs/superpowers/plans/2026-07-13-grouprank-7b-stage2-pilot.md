@@ -434,11 +434,13 @@ REPO="$(pwd -P)"
 GIT_COMMON="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)"
 NAME="trec-grouprank7b-smoke-$(git rev-parse --short HEAD)"
 podman run --name "$NAME" \
+  --entrypoint /bin/bash \
   --device /dev/kfd --device /dev/dri \
   --group-add keep-groups --ipc=host \
+  -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 \
   -v /home/npatta01/.cache/huggingface:/root/.cache/huggingface \
   -v "$REPO:/workspace" -v "$GIT_COMMON:$GIT_COMMON:ro" \
-  -w /workspace "$IMAGE" /bin/bash -lc \
+  -w /workspace "$IMAGE" -lc \
   'python -m trec_mlm.cli grouprank-pilot \
     --phase smoke \
     --selection artifacts/llm_label_ranker/pilot/stage2/selection.json \
@@ -458,12 +460,13 @@ REPO="$(pwd -P)"
 GIT_COMMON="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)"
 NAME="trec-grouprank7b-rank-$(git rev-parse --short HEAD)"
 podman run --name "$NAME" \
+  --entrypoint /bin/bash \
   --device /dev/kfd --device /dev/dri \
   --group-add keep-groups --ipc=host \
   -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
   -v /home/npatta01/.cache/huggingface:/root/.cache/huggingface \
   -v "$REPO:/workspace" -v "$GIT_COMMON:$GIT_COMMON:ro" \
-  -w /workspace "$IMAGE" /bin/bash -lc \
+  -w /workspace "$IMAGE" -lc \
   'python -m trec_mlm.cli grouprank-pilot \
     --phase rank \
     --selection artifacts/llm_label_ranker/pilot/stage2/selection.json \

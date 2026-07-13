@@ -17,12 +17,17 @@ from trec_mlm.llm_ranker import SYSTEM_PROMPT, format_pointwise_messages
 from trec_mlm.llm_ranker_pilot import (
     balanced_pilot_orders,
     build_stage1_selection,
+    evaluate_pilot,
     format_pilot_listwise_messages,
+    load_frozen_pilot,
     parse_complete_pilot_ranking,
     pilot_handles,
+    run_pilot_phase_a,
     run_pilot_listwise_messages,
     validate_pilot_selection,
+    write_pilot_phase_a,
 )
+from trec_mlm.llm_ranker_inference import MODEL_DTYPE, MODEL_ID, MODEL_REVISION
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
 from trec_mlm.runio import rankings_from_run
 
@@ -539,6 +544,259 @@ class PilotSelectionTest(unittest.TestCase):
                     candidate_path=CANDIDATE_PATH,
                     qwen_run_path=changed_qwen_run,
                 )
+
+
+class PilotPhaseAArtifactTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.query_path = self.root / "queries.tsv"
+        self.candidate_path = self.root / "candidates.json"
+        self.smoke_path = self.root / "smoke.json"
+        self.selection_path = self.root / "selection.json"
+        shutil.copyfile(QUERY_PATH, self.query_path)
+        shutil.copyfile(CANDIDATE_PATH, self.candidate_path)
+        shutil.copyfile(
+            ROOT / "artifacts/llm_label_ranker/smoke/smoke.json",
+            self.smoke_path,
+        )
+        shutil.copyfile(
+            ROOT / "artifacts/llm_label_ranker/pilot/stage1/selection.json",
+            self.selection_path,
+        )
+        self.selection = json.loads(self.selection_path.read_text(encoding="utf-8"))
+        self.runtime = {
+            "model_id": MODEL_ID,
+            "revision": MODEL_REVISION,
+            "dtype": MODEL_DTYPE,
+            "seed": 2026,
+            "vllm_version": "0.24.0",
+            "torch_version": "2.11.0",
+            "hip_version": "7.2",
+            "code_revision": "fixture-revision",
+            "worktree_status": "clean",
+            "query_path": str(self.query_path),
+            "candidate_path": str(self.candidate_path),
+            "smoke_receipt_path": str(self.smoke_path),
+        }
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    @staticmethod
+    def _pointwise_infer(messages):
+        outputs = []
+        for item in messages:
+            candidate_id = item[-1]["content"].split('<expert id="', 1)[1].split(
+                '">', 1
+            )[0]
+            emitted_grade = sum(candidate_id.encode("utf-8")) % 3
+            log_probabilities = {0: -4.0, 1: -4.0, 2: -4.0}
+            log_probabilities[emitted_grade] = -0.1
+            outputs.append(
+                {
+                    "emitted_grade_token_id": 15 + emitted_grade,
+                    "emitted_grade_text": str(emitted_grade),
+                    "grade_log_probabilities": log_probabilities,
+                }
+            )
+        return outputs
+
+    def _run_and_write(self, name: str = "phase_a"):
+        result = run_pilot_phase_a(
+            self.selection_path,
+            method="pointwise",
+            infer_batch=self._pointwise_infer,
+            runtime_metadata=self.runtime,
+        )
+        artifact_dir = self.root / name
+        paths = write_pilot_phase_a(result, artifact_dir)
+        return result, artifact_dir, paths
+
+    def _write_qrels(self, path: Path, *, reverse: bool) -> None:
+        candidate_ids = load_candidate_manifest(self.candidate_path)
+        lines = []
+        for entry in self.selection["questions"]:
+            relevant = entry["candidate_ids"][-1 if reverse else 0]
+            for candidate_id in candidate_ids:
+                grade = 2 if candidate_id == relevant else 0
+                lines.append(f"{entry['query_id']} 0 {candidate_id} {grade}\n")
+        path.write_text("".join(lines), encoding="utf-8")
+
+    @staticmethod
+    def _rehash_config(artifact_dir: Path) -> None:
+        receipt_path = artifact_dir / "ranking_receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["artifact_sha256"]["config.json"] = _sha256(
+            artifact_dir / "config.json"
+        )
+        receipt_path.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    def test_phase_a_is_qrel_isolated_and_evaluation_changes_only_relevance_ranks(
+        self,
+    ) -> None:
+        result, artifact_dir, paths = self._run_and_write()
+        before = {name: Path(path).read_bytes() for name, path in paths.items()}
+        frozen = load_frozen_pilot(artifact_dir)
+        self.assertEqual(result.selection, frozen.selection)
+        self.assertEqual(result.prompts, frozen.prompts)
+        self.assertEqual(result.raw_outputs, frozen.raw_outputs)
+        self.assertEqual(result.scores, frozen.scores)
+        self.assertEqual(result.rankings, frozen.rankings)
+
+        first_qrels = self.root / "qrels-first.txt"
+        last_qrels = self.root / "qrels-last.txt"
+        self._write_qrels(first_qrels, reverse=False)
+        self._write_qrels(last_qrels, reverse=True)
+        first = evaluate_pilot(artifact_dir, first_qrels)
+        last = evaluate_pilot(artifact_dir, last_qrels)
+
+        self.assertNotEqual(first["per_query"], last["per_query"])
+        self.assertEqual(
+            before,
+            {name: Path(path).read_bytes() for name, path in paths.items()},
+        )
+        self.assertEqual(
+            first["phase_a_sha256"],
+            last["phase_a_sha256"],
+        )
+
+    def test_pointwise_raw_output_preserves_emitted_grade_and_all_probabilities(
+        self,
+    ) -> None:
+        result = run_pilot_phase_a(
+            self.selection,
+            method="pointwise",
+            infer_batch=self._pointwise_infer,
+            runtime_metadata=self.runtime,
+        )
+
+        record = result.raw_outputs[0]
+        self.assertEqual(str(record["emitted_grade_token_id"] - 15), record["emitted_grade_text"])
+        self.assertEqual({"0", "1", "2"}, set(record["grade_log_probabilities"]))
+        self.assertEqual({"0", "1", "2"}, set(record["grade_probabilities"]))
+        expected = (
+            record["grade_probabilities"]["1"]
+            + 2.0 * record["grade_probabilities"]["2"]
+        )
+        self.assertAlmostEqual(expected, record["expected_grade"])
+
+    def test_phase_a_rejects_sealed_judgments_and_listwise_parse_failures(self) -> None:
+        judgments = (
+            ROOT
+            / "artifacts/llm_label_ranker/pilot/stage1/selection_judgments.json"
+        )
+        with self.assertRaisesRegex(ValueError, "qrel-free selection"):
+            run_pilot_phase_a(
+                judgments,
+                method="pointwise",
+                infer_batch=self._pointwise_infer,
+                runtime_metadata=self.runtime,
+            )
+
+        for forbidden in ("qrels_path", "selection_judgments_path"):
+            with self.subTest(forbidden=forbidden):
+                leaky_runtime = {**self.runtime, forbidden: "must-not-be-opened"}
+                with self.assertRaisesRegex(ValueError, "does not accept qrel"):
+                    run_pilot_phase_a(
+                        self.selection,
+                        method="pointwise",
+                        infer_batch=self._pointwise_infer,
+                        runtime_metadata=leaky_runtime,
+                    )
+
+        def invalid_listwise(messages):
+            return [json.dumps(["C00"] * 12) for _ in messages]
+
+        with self.assertRaisesRegex(ValueError, "duplicates, omissions"):
+            run_pilot_phase_a(
+                self.selection,
+                method="listwise",
+                infer_batch=invalid_listwise,
+                runtime_metadata=self.runtime,
+            )
+
+    def test_loader_rejects_every_mutated_core_file_and_prompt_hash(self) -> None:
+        _result, artifact_dir, _paths = self._run_and_write()
+        core_names = (
+            "config.json",
+            "selection.json",
+            "prompts.jsonl",
+            "raw_outputs.jsonl",
+            "scores.tsv",
+            "rankings.json",
+            "runtime.json",
+        )
+        for name in core_names:
+            with self.subTest(name=name):
+                changed_dir = self.root / f"changed-{name.replace('.', '-')}"
+                shutil.copytree(artifact_dir, changed_dir)
+                with (changed_dir / name).open("ab") as handle:
+                    handle.write(b"corruption")
+                with self.assertRaisesRegex(ValueError, f"artifact hash mismatch: {name}"):
+                    load_frozen_pilot(changed_dir)
+
+        changed_dir = self.root / "changed-prompt-hash"
+        shutil.copytree(artifact_dir, changed_dir)
+        receipt_path = changed_dir / "ranking_receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["prompt_sha256"] = "0" * 64
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "prompt SHA256 changed"):
+            load_frozen_pilot(changed_dir)
+
+    def test_loader_rehashes_current_inputs_and_smoke_receipt(self) -> None:
+        _result, artifact_dir, _paths = self._run_and_write()
+        mutations = (
+            (self.query_path, "query input SHA256 changed"),
+            (self.candidate_path, "candidate input SHA256 changed"),
+            (self.smoke_path, "smoke receipt SHA256 changed"),
+        )
+        for path, expected in mutations:
+            with self.subTest(path=path.name):
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(original + b"\n")
+                    with self.assertRaisesRegex(ValueError, expected):
+                        load_frozen_pilot(artifact_dir)
+                finally:
+                    path.write_bytes(original)
+
+    def test_loader_rejects_semantic_config_corruption(self) -> None:
+        _result, artifact_dir, _paths = self._run_and_write()
+        mutations = {
+            "model revision": ("model_revision", "changed-revision"),
+            "dtype": ("dtype", "bfloat16"),
+            "seed": ("seed", 2027),
+            "code revision": ("code_revision", "not_recorded"),
+        }
+        for expected, (field, value) in mutations.items():
+            with self.subTest(field=field):
+                changed_dir = self.root / f"changed-{field}"
+                shutil.copytree(artifact_dir, changed_dir)
+                config_path = changed_dir / "config.json"
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                config[field] = value
+                config_path.write_text(
+                    json.dumps(config, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                self._rehash_config(changed_dir)
+                with self.assertRaisesRegex(ValueError, expected):
+                    load_frozen_pilot(changed_dir)
+
+    def test_loader_requires_exact_core_artifact_inventory(self) -> None:
+        _result, artifact_dir, _paths = self._run_and_write()
+        receipt_path = artifact_dir / "ranking_receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["artifact_sha256"]["extra.json"] = "0" * 64
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "core artifact set changed"):
+            load_frozen_pilot(artifact_dir)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,118 @@
+{
+  "input_sha256": {
+    "candidates": "4a770b919024dffd1cffe85edd2f0219aeec31cdbb2a96d1005861fa1bf03f91",
+    "queries": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c"
+  },
+  "questions": [
+    {
+      "candidate_ids": [
+        "Anthropology",
+        "Categories_by_time",
+        "Death",
+        "Human_communication",
+        "Languages",
+        "Linguistics",
+        "Research",
+        "Scholars_and_academics_by_subject",
+        "Science_stubs",
+        "Sport_by_location",
+        "Technology",
+        "Technology_by_type"
+      ],
+      "query_id": "56fc3b342603e7140040a037",
+      "question": "Who founded autosegmental phonology?"
+    },
+    {
+      "candidate_ids": [
+        "Business_by_country",
+        "Europe_geography_stubs",
+        "Geography",
+        "Geography_by_country",
+        "Geography_stubs",
+        "Governments_of_country_subdivisions",
+        "Landscape",
+        "Science",
+        "Sports",
+        "Sports_venues",
+        "The_arts",
+        "Time"
+      ],
+      "query_id": "57265eeaf1498d1400e8dd76",
+      "question": "What is Thuringia's highest mountain?"
+    },
+    {
+      "candidate_ids": [
+        "Cuisine",
+        "Culture_by_country",
+        "Documents",
+        "Educational_organizations",
+        "Food_and_drink",
+        "Food_and_drink_by_country",
+        "Food_industry",
+        "History_of_technology",
+        "Linguistics",
+        "Mass_media",
+        "National_security",
+        "Technology"
+      ],
+      "query_id": "570a34484103511400d595c8",
+      "question": "What temperature are cask ales stored at before being tapped?"
+    },
+    {
+      "candidate_ids": [
+        "Applied_mathematics",
+        "Artificial_objects",
+        "Branches_of_science",
+        "Companies",
+        "Fields_of_mathematics",
+        "Human_names",
+        "Infrastructure",
+        "Mathematics",
+        "Natural_sciences",
+        "People_by_historical_event",
+        "People_by_time",
+        "Sport_by_location"
+      ],
+      "query_id": "57298ef11d04691400779530",
+      "question": "What type of prime distribution does the Riemann hypothesis propose is also true for short intervals near X?"
+    },
+    {
+      "candidate_ids": [
+        "Biota_by_conservation_status",
+        "Branches_of_science",
+        "Culture_by_language",
+        "Culture_by_location",
+        "Education_by_subject",
+        "Entities",
+        "Food_industry",
+        "History_by_topic",
+        "Life",
+        "Natural_sciences",
+        "Organisms",
+        "Political_history"
+      ],
+      "query_id": "5726eb785951b619008f8276",
+      "question": "What kind of immune system do bacteria have?"
+    },
+    {
+      "candidate_ids": [
+        "Culture_by_language",
+        "Europe_geography_stubs",
+        "Geography_by_period",
+        "Government-related_organizations",
+        "History_by_location",
+        "Human_behavior",
+        "Infrastructure",
+        "Languages",
+        "Places",
+        "Sports_events",
+        "The_arts",
+        "Topics_in_culture"
+      ],
+      "query_id": "5729068e1d04691400778f8f",
+      "question": "WHen was the Parc de la Villette created?"
+    }
+  ],
+  "seed": 2026,
+  "stage": 1
+}

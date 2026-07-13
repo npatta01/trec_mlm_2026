@@ -1,0 +1,231 @@
+{
+  "input_sha256": {
+    "qrels": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
+    "qwen_run": "857d279a8466cabe66069acb4c47edcaba3a74c100eb6202e6d474834cfa7408"
+  },
+  "questions": [
+    {
+      "grades": {
+        "Anthropology": 0.0,
+        "Categories_by_time": 0.0,
+        "Death": 0.0,
+        "Human_communication": 0.0,
+        "Languages": 0.0,
+        "Linguistics": 2.0,
+        "Research": 0.0,
+        "Scholars_and_academics_by_subject": 0.0,
+        "Science_stubs": 0.0,
+        "Sport_by_location": 0.0,
+        "Technology": 0.0,
+        "Technology_by_type": 0.0
+      },
+      "query_id": "56fc3b342603e7140040a037",
+      "roles": {
+        "confounder": [
+          "Scholars_and_academics_by_subject",
+          "Anthropology",
+          "Languages",
+          "Human_communication"
+        ],
+        "negative": [
+          "Death",
+          "Science_stubs",
+          "Technology",
+          "Categories_by_time",
+          "Research",
+          "Technology_by_type",
+          "Sport_by_location"
+        ],
+        "relevant": [
+          "Linguistics"
+        ]
+      }
+    },
+    {
+      "grades": {
+        "Business_by_country": 0.0,
+        "Europe_geography_stubs": 0.0,
+        "Geography": 0.0,
+        "Geography_by_country": 0.0,
+        "Geography_stubs": 0.0,
+        "Governments_of_country_subdivisions": 0.0,
+        "Landscape": 2.0,
+        "Science": 0.0,
+        "Sports": 0.0,
+        "Sports_venues": 0.0,
+        "The_arts": 0.0,
+        "Time": 0.0
+      },
+      "query_id": "57265eeaf1498d1400e8dd76",
+      "roles": {
+        "confounder": [
+          "Europe_geography_stubs",
+          "Geography_stubs",
+          "Geography",
+          "Geography_by_country"
+        ],
+        "negative": [
+          "Science",
+          "Time",
+          "The_arts",
+          "Sports",
+          "Sports_venues",
+          "Governments_of_country_subdivisions",
+          "Business_by_country"
+        ],
+        "relevant": [
+          "Landscape"
+        ]
+      }
+    },
+    {
+      "grades": {
+        "Cuisine": 0.0,
+        "Culture_by_country": 0.0,
+        "Documents": 0.0,
+        "Educational_organizations": 0.0,
+        "Food_and_drink": 1.0,
+        "Food_and_drink_by_country": 0.0,
+        "Food_industry": 0.0,
+        "History_of_technology": 0.0,
+        "Linguistics": 0.0,
+        "Mass_media": 0.0,
+        "National_security": 0.0,
+        "Technology": 0.0
+      },
+      "query_id": "570a34484103511400d595c8",
+      "roles": {
+        "confounder": [
+          "Food_and_drink_by_country",
+          "Food_industry",
+          "Cuisine",
+          "History_of_technology"
+        ],
+        "negative": [
+          "Documents",
+          "Linguistics",
+          "Educational_organizations",
+          "Culture_by_country",
+          "Technology",
+          "Mass_media",
+          "National_security"
+        ],
+        "relevant": [
+          "Food_and_drink"
+        ]
+      }
+    },
+    {
+      "grades": {
+        "Applied_mathematics": 0.0,
+        "Artificial_objects": 0.0,
+        "Branches_of_science": 0.0,
+        "Companies": 0.0,
+        "Fields_of_mathematics": 2.0,
+        "Human_names": 0.0,
+        "Infrastructure": 0.0,
+        "Mathematics": 0.0,
+        "Natural_sciences": 0.0,
+        "People_by_historical_event": 0.0,
+        "People_by_time": 0.0,
+        "Sport_by_location": 0.0
+      },
+      "query_id": "57298ef11d04691400779530",
+      "roles": {
+        "confounder": [
+          "Mathematics",
+          "Applied_mathematics",
+          "Branches_of_science",
+          "Natural_sciences"
+        ],
+        "negative": [
+          "Artificial_objects",
+          "Companies",
+          "People_by_historical_event",
+          "Human_names",
+          "Infrastructure",
+          "Sport_by_location",
+          "People_by_time"
+        ],
+        "relevant": [
+          "Fields_of_mathematics"
+        ]
+      }
+    },
+    {
+      "grades": {
+        "Biota_by_conservation_status": 0.0,
+        "Branches_of_science": 0.0,
+        "Culture_by_language": 0.0,
+        "Culture_by_location": 0.0,
+        "Education_by_subject": 0.0,
+        "Entities": 1.0,
+        "Food_industry": 0.0,
+        "History_by_topic": 0.0,
+        "Life": 2.0,
+        "Natural_sciences": 0.0,
+        "Organisms": 0.0,
+        "Political_history": 0.0
+      },
+      "query_id": "5726eb785951b619008f8276",
+      "roles": {
+        "confounder": [
+          "Organisms",
+          "Branches_of_science",
+          "Biota_by_conservation_status",
+          "Natural_sciences"
+        ],
+        "negative": [
+          "Culture_by_location",
+          "History_by_topic",
+          "Political_history",
+          "Education_by_subject",
+          "Food_industry",
+          "Culture_by_language"
+        ],
+        "relevant": [
+          "Life",
+          "Entities"
+        ]
+      }
+    },
+    {
+      "grades": {
+        "Culture_by_language": 2.0,
+        "Europe_geography_stubs": 0.0,
+        "Geography_by_period": 0.0,
+        "Government-related_organizations": 0.0,
+        "History_by_location": 0.0,
+        "Human_behavior": 0.0,
+        "Infrastructure": 2.0,
+        "Languages": 0.0,
+        "Places": 0.0,
+        "Sports_events": 0.0,
+        "The_arts": 0.0,
+        "Topics_in_culture": 0.0
+      },
+      "query_id": "5729068e1d04691400778f8f",
+      "roles": {
+        "confounder": [
+          "History_by_location",
+          "Places",
+          "The_arts",
+          "Geography_by_period"
+        ],
+        "negative": [
+          "Human_behavior",
+          "Government-related_organizations",
+          "Languages",
+          "Topics_in_culture",
+          "Sports_events",
+          "Europe_geography_stubs"
+        ],
+        "relevant": [
+          "Culture_by_language",
+          "Infrastructure"
+        ]
+      }
+    }
+  ],
+  "stage": 1
+}

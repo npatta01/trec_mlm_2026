@@ -132,6 +132,7 @@ _FAILURE_CORE_FILES = frozenset(
         "runtime.json",
     }
 )
+_SUCCESS_INVENTORY = (*sorted(_SUCCESS_CORE_FILES), "ranking_receipt.json")
 
 
 @dataclass(frozen=True)
@@ -630,7 +631,7 @@ def finalize_success_artifact(
         "stage": result.selection["stage"],
         "rankings_available": True,
         "scores_available": True,
-        "inventory": [*sorted(_SUCCESS_CORE_FILES), "ranking_receipt.json"],
+        "inventory": list(_SUCCESS_INVENTORY),
         "artifact_sha256": artifact_sha256,
         **_receipt_provenance(result.config),
         "execution": {
@@ -938,8 +939,16 @@ def _validated_artifact(
     artifact_dir: str | Path,
 ) -> tuple[GroupRankPhaseAResult, dict[str, Any]]:
     source = Path(artifact_dir)
+    try:
+        directory_inventory = {path.name for path in source.iterdir()}
+    except OSError as error:
+        raise ValueError("GroupRank artifact directory is missing") from error
+    if directory_inventory != set(_SUCCESS_INVENTORY):
+        raise ValueError("GroupRank directory inventory changed")
     receipt_path = source / "ranking_receipt.json"
     receipt = _load_json_object(receipt_path, label="GroupRank ranking receipt")
+    if receipt.get("inventory") != list(_SUCCESS_INVENTORY):
+        raise ValueError("GroupRank receipt inventory changed")
     if (
         receipt.get("qrel_free_phase") is not True
         or receipt.get("artifact_type") != "grouprank_phase_a"
@@ -1055,12 +1064,7 @@ def _validated_artifact(
     )
     for query_id, query_scores in candidate_scores.items():
         for candidate_id, expected_score in query_scores.items():
-            if not math.isclose(
-                stored_scores[query_id][candidate_id],
-                expected_score,
-                rel_tol=1e-12,
-                abs_tol=1e-12,
-            ):
+            if stored_scores[query_id][candidate_id] != expected_score:
                 raise ValueError("GroupRank score disagrees with raw output")
         if rankings[query_id] != expected_rankings[query_id]:
             raise ValueError("GroupRank ranking disagrees with scores")
@@ -1083,8 +1087,8 @@ def _validated_artifact(
         selection=frozen_selection,
         prompts=prompts,
         raw_outputs=raw_outputs,
-        candidate_scores=stored_scores,
-        rankings=rankings,
+        candidate_scores=candidate_scores,
+        rankings=expected_rankings,
         config=config,
         runtime=validated_runtime,
     )

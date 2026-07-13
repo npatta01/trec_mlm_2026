@@ -397,6 +397,29 @@ class GroupRankArtifactValidationTest(unittest.TestCase):
                 ):
                     self.pilot.validate_grouprank_artifact(changed)
 
+    def test_validation_rejects_an_extra_directory_entry(self) -> None:
+        changed = self._copy("extra-entry")
+        (changed / "unexpected.txt").write_text("not in inventory\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "GroupRank directory inventory changed",
+        ):
+            self.pilot.validate_grouprank_artifact(changed)
+
+    def test_validation_rejects_a_falsified_receipt_inventory(self) -> None:
+        changed = self._copy("receipt-inventory")
+        receipt_path = changed / "ranking_receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["inventory"] = [*receipt["inventory"], "unexpected.txt"]
+        self._write_json(receipt_path, receipt)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "GroupRank receipt inventory changed",
+        ):
+            self.pilot.validate_grouprank_artifact(changed)
+
     def test_validation_rejects_rehashed_semantic_corruption(self) -> None:
         cases = (
             ("selection-hash", "selection SHA256 changed"),
@@ -444,6 +467,22 @@ class GroupRankArtifactValidationTest(unittest.TestCase):
 
                 with self.assertRaisesRegex(ValueError, expected):
                     self.pilot.validate_grouprank_artifact(changed)
+
+    def test_validation_rejects_rehashed_sub_tolerance_score_corruption(self) -> None:
+        changed = self._copy("sub-tolerance-score")
+        scores_path = changed / "scores.tsv"
+        lines = scores_path.read_text(encoding="utf-8").splitlines()
+        fields = lines[1].split("\t")
+        fields[2] = repr(float(fields[2]) + 1e-13)
+        lines[1] = "\t".join(fields)
+        scores_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self._rehash_core(changed, scores_path.name)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "GroupRank score disagrees with raw output",
+        ):
+            self.pilot.validate_grouprank_artifact(changed)
 
     def test_valid_artifact_reloads_deterministically(self) -> None:
         first = self.pilot.load_frozen_grouprank(self.artifact)

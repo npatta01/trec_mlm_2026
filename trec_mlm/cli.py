@@ -279,6 +279,29 @@ def build_parser() -> argparse.ArgumentParser:
     diversity_summary.add_argument("--seed", type=int, default=2026)
     diversity_summary.add_argument("--output-dir", required=True)
 
+    llm_ranker = commands.add_parser(
+        "llm-label-ranker",
+        help="run or post-hoc evaluate a zero-shot LLM expert-label ranker",
+    )
+    llm_ranker.add_argument("--phase", choices=("rank", "evaluate"), default="rank")
+    llm_ranker.add_argument("--method", choices=("pointwise", "listwise"), required=True)
+    llm_ranker.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    llm_ranker.add_argument(
+        "--candidates", default="reports/trec_2026_discovery_profile_audit.json"
+    )
+    llm_ranker.add_argument(
+        "--smoke-receipt",
+        default="artifacts/llm_label_ranker/smoke/smoke.json",
+    )
+    llm_ranker.add_argument("--batch-size", type=int)
+    llm_ranker.add_argument("--seed", type=int, default=2026)
+    llm_ranker.add_argument("--run-id")
+    llm_ranker.add_argument("--code-revision")
+    llm_ranker.add_argument("--worktree-status", default="clean")
+    llm_ranker.add_argument("--input-dir")
+    llm_ranker.add_argument("--qrels")
+    llm_ranker.add_argument("--output-dir", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -513,6 +536,95 @@ def main(argv: list[str] | None = None) -> int:
         )
         paths = write_diversity_summary(summary, args.output_dir)
         print(json.dumps({"summary": summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "llm-label-ranker":
+        from trec_mlm.llm_ranker_experiment import (
+            LLMRankerConfig,
+            evaluate_frozen_ranker_artifact,
+            run_listwise_phase_a,
+            run_pointwise_phase_a,
+            write_ranker_phase_a_artifacts,
+        )
+
+        if args.phase == "evaluate":
+            if not args.input_dir or not args.qrels:
+                raise SystemExit("evaluate phase requires --input-dir and --qrels")
+            receipt = evaluate_frozen_ranker_artifact(
+                args.input_dir, args.qrels, args.output_dir
+            )
+            print(json.dumps(receipt, indent=2))
+            return 0
+
+        if args.input_dir or args.qrels:
+            raise SystemExit("rank phase does not accept --input-dir or --qrels")
+        if not args.code_revision:
+            raise SystemExit("rank phase requires --code-revision")
+        from trec_mlm.llm_ranker_inference import (
+            grade_token_ids,
+            load_ranker_engine,
+            run_listwise_messages,
+            run_pointwise_messages,
+        )
+        from trec_mlm.label_experiment import load_candidate_manifest
+        from trec_mlm.llm_ranker import candidate_handles
+
+        run_id = args.run_id or f"qwen3_4b_{args.method}_zero_shot"
+        config = LLMRankerConfig(
+            query_path=args.queries,
+            candidate_path=args.candidates,
+            smoke_receipt_path=args.smoke_receipt,
+            method=args.method,
+            seed=args.seed,
+            run_id=run_id,
+            code_revision=args.code_revision,
+            worktree_status=args.worktree_status,
+        )
+        llm, tokenizer, metadata = load_ranker_engine(seed=args.seed)
+        inference_stats = {
+            "request_count": 0,
+            "prompt_token_count": 0,
+            "output_token_count": 0,
+        }
+        metadata["inference_stats"] = inference_stats
+        if args.method == "pointwise":
+            tokens = grade_token_ids(tokenizer)
+            metadata["grade_token_ids"] = tokens
+
+            def infer_pointwise(messages):
+                values, observed = run_pointwise_messages(
+                    llm, tokenizer, messages, seed=args.seed, stats=inference_stats
+                )
+                if observed != tokens:
+                    raise ValueError("grade token IDs changed during inference")
+                return values
+
+            result = run_pointwise_phase_a(
+                config,
+                infer_batch=infer_pointwise,
+                batch_size=args.batch_size or 1024,
+                runtime_metadata=metadata,
+            )
+        else:
+            handles = tuple(candidate_handles(load_candidate_manifest(args.candidates)))
+
+            def infer_listwise(messages):
+                return run_listwise_messages(
+                    llm,
+                    messages,
+                    handles=handles,
+                    seed=args.seed,
+                    stats=inference_stats,
+                )
+
+            result = run_listwise_phase_a(
+                config,
+                infer_batch=infer_listwise,
+                batch_size=args.batch_size or 16,
+                runtime_metadata=metadata,
+            )
+        paths = write_ranker_phase_a_artifacts(result, args.output_dir)
+        print(json.dumps({"runtime": result.runtime_metadata, "artifacts": paths}, indent=2))
         return 0
 
     if args.command == "validate-run":

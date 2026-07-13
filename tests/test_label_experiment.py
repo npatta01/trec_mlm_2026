@@ -178,6 +178,41 @@ class LabelExperimentTest(unittest.TestCase):
             payload["prompt_metadata"]["document_template"],
         )
 
+    def test_loader_rejects_missing_score_rows(self) -> None:
+        result = run_label_experiment(
+            self.config,
+            query_embeddings=self.query_embeddings,
+            label_embeddings=self.label_embeddings,
+            encoder_metadata={"backend": "fixture"},
+        )
+        output_dir = Path(self.directory.name) / "missing_score"
+        paths = write_label_experiment_artifacts(result, output_dir)
+        score_path = Path(paths["scores.tsv"])
+        lines = score_path.read_text(encoding="utf-8").splitlines()
+        score_path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "score rows"):
+            load_label_experiment_artifacts(output_dir)
+
+    def test_loader_rejects_run_that_disagrees_with_scores(self) -> None:
+        result = run_label_experiment(
+            self.config,
+            query_embeddings=self.query_embeddings,
+            label_embeddings=self.label_embeddings,
+            encoder_metadata={"backend": "fixture"},
+        )
+        output_dir = Path(self.directory.name) / "run_disagreement"
+        paths = write_label_experiment_artifacts(result, output_dir)
+        run_path = Path(paths["run.trec"])
+        lines = run_path.read_text(encoding="utf-8").splitlines()
+        first, second = lines[0].split(), lines[1].split()
+        first[2], second[2] = second[2], first[2]
+        lines[0], lines[1] = " ".join(first), " ".join(second)
+        run_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "rankings disagree"):
+            load_label_experiment_artifacts(output_dir)
+
     def test_sweep_summary_applies_gate_and_stage_two_decision(self) -> None:
         baseline_config = LabelExperimentConfig(
             query_path=str(self.query_path),

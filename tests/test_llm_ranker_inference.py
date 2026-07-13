@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import unittest
+
+from trec_mlm.llm_ranker_inference import (
+    chat_template_input_ids,
+    extract_grade_log_probabilities,
+    grade_token_ids,
+    listwise_json_schema,
+    pointwise_sampling_kwargs,
+    update_inference_stats,
+)
+
+
+class _Tokenizer:
+    def encode(self, text, *, add_special_tokens):
+        assert add_special_tokens is False
+        return {"0": [10], "1": [11], "2": [12]}[text]
+
+
+@dataclass
+class _Logprob:
+    logprob: float
+
+
+@dataclass
+class _Completion:
+    logprobs: list[dict[int, _Logprob]]
+
+
+@dataclass
+class _Output:
+    outputs: list[_Completion]
+
+
+class PointwiseInferenceAdapterTest(unittest.TestCase):
+    def test_chat_template_extracts_input_ids_from_batch_encoding(self) -> None:
+        class Tokenizer:
+            def apply_chat_template(self, messages, **kwargs):
+                self.kwargs = kwargs
+                return {"input_ids": [[1, 2, 3]]}
+
+        tokenizer = Tokenizer()
+
+        ids = chat_template_input_ids(tokenizer, [{"role": "user", "content": "x"}])
+
+        self.assertEqual([[1, 2, 3]], ids)
+        self.assertTrue(tokenizer.kwargs["add_generation_prompt"])
+
+    def test_grade_tokens_are_distinct_single_tokens(self) -> None:
+        self.assertEqual({0: 10, 1: 11, 2: 12}, grade_token_ids(_Tokenizer()))
+
+    def test_sampling_requests_exact_grade_logprobs(self) -> None:
+        kwargs = pointwise_sampling_kwargs({0: 10, 1: 11, 2: 12}, seed=2026)
+
+        self.assertEqual([10, 11, 12], kwargs["allowed_token_ids"])
+        self.assertEqual([10, 11, 12], kwargs["logprob_token_ids"])
+        self.assertEqual(1, kwargs["max_tokens"])
+        self.assertEqual(0.0, kwargs["temperature"])
+
+    def test_extracts_all_requested_grade_logprobs(self) -> None:
+        output = _Output(
+            [_Completion([{10: _Logprob(-2.0), 11: _Logprob(-1.0), 12: _Logprob(-0.5)}])]
+        )
+
+        values = extract_grade_log_probabilities(
+            output,
+            {0: 10, 1: 11, 2: 12},
+        )
+
+        self.assertEqual({0: -2.0, 1: -1.0, 2: -0.5}, values)
+
+    def test_accumulates_request_prompt_and_output_token_counts(self) -> None:
+        class Completion:
+            token_ids = [4, 5]
+
+        class Output:
+            prompt_token_ids = [1, 2, 3]
+            outputs = [Completion()]
+
+        stats = {"request_count": 2, "prompt_token_count": 7, "output_token_count": 1}
+        update_inference_stats(stats, [Output()])
+        self.assertEqual(
+            {"request_count": 3, "prompt_token_count": 10, "output_token_count": 3},
+            stats,
+        )
+
+
+class ListwiseInferenceAdapterTest(unittest.TestCase):
+    def test_schema_requires_twenty_known_handles_and_defers_uniqueness(self) -> None:
+        handles = [f"C{index:03d}" for index in range(150)]
+
+        schema = listwise_json_schema(handles)
+
+        self.assertEqual(20, schema["minItems"])
+        self.assertEqual(20, schema["maxItems"])
+        self.assertNotIn("uniqueItems", schema)
+        self.assertEqual(handles, schema["items"]["enum"])
+
+
+if __name__ == "__main__":
+    unittest.main()

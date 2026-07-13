@@ -361,18 +361,35 @@ def load_label_experiment_artifacts(
     evaluated = evaluate_label_rankings(rankings, qrels).evaluation
     query_embeddings = np.load(source / "query_embeddings.npy", allow_pickle=False)
     label_embeddings = np.load(source / "label_embeddings.npy", allow_pickle=False)
-    scores = np.zeros((len(query_ids), len(model_ids)), dtype=np.float32)
+    scores = np.full(
+        (len(query_ids), len(model_ids)),
+        np.nan,
+        dtype=np.float32,
+    )
     query_positions = {query_id: index for index, query_id in enumerate(query_ids)}
     model_positions = {model_id: index for index, model_id in enumerate(model_ids)}
+    seen_score_rows: set[tuple[str, str]] = set()
     with (source / "scores.tsv").open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
-            scores[
-                query_positions[row["query_id"]], model_positions[row["model_id"]]
-            ] = float(row["score"])
+            query_id = row["query_id"]
+            model_id = row["model_id"]
+            if query_id not in query_positions or model_id not in model_positions:
+                raise ValueError("score row contains an unknown query or candidate ID")
+            key = (query_id, model_id)
+            if key in seen_score_rows:
+                raise ValueError("score rows contain a duplicate query-candidate pair")
+            value = float(row["score"])
+            if not np.isfinite(value):
+                raise ValueError("score rows must contain only finite values")
+            seen_score_rows.add(key)
+            scores[query_positions[query_id], model_positions[model_id]] = value
     expected_shape = (len(query_ids), len(model_ids))
-    if scores.shape != expected_shape:
-        raise ValueError("loaded score matrix shape is invalid")
+    expected_row_count = len(query_ids) * len(model_ids)
+    if len(seen_score_rows) != expected_row_count or np.isnan(scores).any():
+        raise ValueError(
+            "score rows do not contain the complete query-candidate Cartesian product"
+        )
     validation = validate_trec_run(
         source / "run.trec",
         expected_query_ids=query_ids,
@@ -380,6 +397,23 @@ def load_label_experiment_artifacts(
     )
     if validation["row_count"] != len(query_ids) * len(model_ids):
         raise ValueError("loaded run is incomplete")
+    reconstructed = rank_label_scores(
+        query_embeddings=query_embeddings,
+        label_embeddings=label_embeddings,
+        query_ids=query_ids,
+        model_ids=model_ids,
+    )
+    if not np.allclose(scores, reconstructed.scores, rtol=1e-6, atol=1e-6):
+        raise ValueError("stored scores disagree with stored embeddings")
+    if rankings != reconstructed.rankings:
+        raise ValueError("stored TREC rankings disagree with stored scores")
+    validation_payload = json.loads(
+        (source / "validation.json").read_text(encoding="utf-8")
+    )
+    for name, expected_hash in validation_payload.get("artifact_sha256", {}).items():
+        artifact_path = source / name
+        if not artifact_path.is_file() or _sha256(artifact_path) != expected_hash:
+            raise ValueError(f"artifact hash mismatch: {name}")
     zero_count = sum(item.ndcg_at_k == 0.0 for item in evaluated.per_query.values())
     return LabelExperimentResult(
         config=config,

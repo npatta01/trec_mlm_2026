@@ -227,10 +227,43 @@ class GroupRankSealedEvaluationTest(unittest.TestCase):
         path = self.root / "changed-baseline.json"
         path.write_text(json.dumps(baseline), encoding="utf-8")
 
+        with (
+            patch.object(
+                report_module, "load_frozen_grouprank", return_value=self.phase_a
+            ),
+            patch.object(report_module, "FROZEN_STAGE2_REPORT_SHA256", _sha256(path)),
+        ):
+            with self.assertRaisesRegex(ValueError, "frozen Stage 2 e5_contextual"):
+                report_module.build_grouprank_report(
+                    self.root / "artifact",
+                    judgments_path=JUDGMENTS_PATH,
+                    baseline_report_path=path,
+                )
+
+    def test_frozen_baseline_sha_rejects_valid_looking_top_three_mutation(self) -> None:
+        report_module = _report_module()
+        self.assertEqual(
+            _sha256(BASELINE_REPORT_PATH),
+            report_module.FROZEN_STAGE2_REPORT_SHA256,
+        )
+        baseline = json.loads(BASELINE_REPORT_PATH.read_text(encoding="utf-8"))
+        selection = json.loads(SELECTION_PATH.read_text(encoding="utf-8"))
+        judgments = json.loads(JUDGMENTS_PATH.read_text(encoding="utf-8"))
+        relevant = set(judgments["questions"][0]["roles"]["relevant"])
+        nonrelevant = [
+            candidate_id
+            for candidate_id in selection["questions"][0]["candidate_ids"]
+            if candidate_id not in relevant
+        ][:3]
+        self.assertEqual(3, len(nonrelevant))
+        baseline["questions"][0]["methods"]["e5_contextual"]["top_three"] = nonrelevant
+        path = self.root / "changed-baseline-top-three.json"
+        path.write_text(json.dumps(baseline), encoding="utf-8")
+
         with patch.object(
             report_module, "load_frozen_grouprank", return_value=self.phase_a
         ):
-            with self.assertRaisesRegex(ValueError, "frozen Stage 2 e5_contextual"):
+            with self.assertRaisesRegex(ValueError, "frozen Stage 2 report SHA256"):
                 report_module.build_grouprank_report(
                     self.root / "artifact",
                     judgments_path=JUDGMENTS_PATH,

@@ -20,6 +20,9 @@ from trec_mlm.metrics import EvaluationResult, evaluate_rankings
 
 
 DEFAULT_STAGE2_REPORT_PATH = Path("artifacts/llm_label_ranker/pilot/stage2/report.json")
+FROZEN_STAGE2_REPORT_SHA256 = (
+    "14fda5fdae7d3bc25fbb138f89332e62bc12871d89a4c9b3aa61e510880980a1"
+)
 _METHOD = "grouprank"
 _BASELINE_METHODS = (
     "e5_contextual",
@@ -51,12 +54,19 @@ def _sha256(path: str | Path) -> str:
     return digest.hexdigest()
 
 
-def _read_json_bytes(path: str | Path, *, label: str) -> tuple[dict[str, Any], bytes]:
+def _read_json_bytes(
+    path: str | Path,
+    *,
+    label: str,
+    expected_sha256: str | None = None,
+) -> tuple[dict[str, Any], bytes]:
     source = Path(path)
     try:
         payload = source.read_bytes()
     except OSError as error:
         raise ValueError(f"{label} is missing") from error
+    if expected_sha256 is not None and _sha256_bytes(payload) != expected_sha256:
+        raise ValueError(f"{label} SHA256 changed")
     try:
         value = json.loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -210,6 +220,7 @@ def _load_frozen_baselines(
     report, payload = _read_json_bytes(
         baseline_report_path,
         label="frozen Stage 2 report",
+        expected_sha256=FROZEN_STAGE2_REPORT_SHA256,
     )
     if (
         report.get("version") != 1

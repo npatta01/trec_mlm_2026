@@ -71,10 +71,8 @@ def format_grouprank_messages(
         f"{candidate_to_handle[candidate]} | {candidate} | {_capability(candidate)}"
         for candidate in candidates
     ]
-    user = (
-        "Compare all described LLM experts for the user question. Assign every "
-        "handle one integer score from 0 through 10; higher scores mean the expert "
-        "is more likely to answer the question correctly. Briefly compare every "
+    output_format = (
+        "Briefly compare every "
         "expert inside the reason block, then put only the score object inside the "
         "answer block. Return exactly these two tagged parts in this order, with "
         "nothing outside them:\n"
@@ -88,11 +86,17 @@ def format_grouprank_messages(
         "<integer from 0 through 10>\n"
         "}\n"
         "```\n"
-        "</answer>\n\n"
+        "</answer>"
+    )
+    user = (
+        "Compare all described LLM experts for the user question. Assign every "
+        "handle one integer score from 0 through 10; higher scores mean the expert "
+        "is more likely to answer the question correctly.\n\n"
         f"<question>\n{question.strip()}\n</question>\n"
         "<experts>\n"
         + "\n".join(rows)
-        + "\n</experts>"
+        + "\n</experts>\n\n"
+        + output_format
     )
     return (
         {"role": "system", "content": SYSTEM_PROMPT},

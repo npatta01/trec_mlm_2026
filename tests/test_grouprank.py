@@ -222,10 +222,16 @@ class GroupRankPromptTest(unittest.TestCase):
             "outside them",
             user,
         )
+        question_start = user.index("<question>")
+        experts_start = user.index("<experts>", question_start)
+        experts_end = user.index("</experts>", experts_start)
         reason_start = user.index("<reason>")
         reason_end = user.index("</reason>", reason_start)
         answer_start = user.index("<answer>", reason_end)
         answer_end = user.index("</answer>", answer_start)
+        self.assertLess(question_start, experts_start)
+        self.assertLess(experts_start, experts_end)
+        self.assertLess(experts_end, reason_start)
         self.assertLess(reason_start, reason_end)
         self.assertLess(reason_end, answer_start)
         self.assertLess(answer_start, answer_end)

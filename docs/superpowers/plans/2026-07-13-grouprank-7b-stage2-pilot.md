@@ -8,6 +8,14 @@
 
 **Tech Stack:** Python 3.12, vLLM 0.24, PyTorch/ROCm, Hugging Face Transformers, rootless Podman, JSON/JSONL, pytest, existing TREC metric utilities.
 
+**Post-Task-3 structure amendment:** Independent review approved Task 3 but found
+that its strict execution, atomic persistence, and semantic reload contract already
+make `grouprank_pilot.py` a large focused artifact module. To prevent further
+responsibility growth, Task 4 places smoke-receipt behavior in
+`grouprank_smoke.py`, and Task 5 places sealed evaluation/reporting in
+`grouprank_report.py`. This changes file ownership only; the frozen experiment,
+interfaces, gates, and artifact formats are unchanged.
+
 ## Global Constraints
 
 - Model: `AQ-MedAI/Diver-GroupRank-7B@42a9504b32616f155970d5b7f349b63dc24b3e27`.
@@ -302,11 +310,11 @@ Commit: `git add trec_mlm/grouprank_pilot.py tests/test_grouprank_pilot.py && gi
 
 **Files:**
 - Modify: `trec_mlm/cli.py`
-- Modify: `trec_mlm/grouprank_pilot.py`
-- Modify: `tests/test_grouprank_pilot.py`
+- Create: `trec_mlm/grouprank_smoke.py`
+- Create: `tests/test_grouprank_smoke.py`
 
 **Interfaces:**
-- Produces CLI commands `trec-mlm grouprank-pilot --phase smoke|rank|evaluate` and `write_grouprank_smoke(...)` / `validate_grouprank_smoke(...)`.
+- Produces CLI commands `trec-mlm grouprank-pilot --phase smoke|rank` and `write_grouprank_smoke(...)` / `validate_grouprank_smoke(...)` from `trec_mlm.grouprank_smoke`.
 
 - [ ] **Step 1: Write failing CLI and smoke tests**
 
@@ -314,7 +322,7 @@ Assert `smoke` uses the first frozen group, requires a valid ten-key result, and
 
 - [ ] **Step 2: Verify the CLI tests fail**
 
-Run: `python -m pytest -q tests/test_grouprank_pilot.py -k 'cli or smoke or provenance'`
+Run: `python -m pytest -q tests/test_grouprank_smoke.py -k 'cli or smoke or provenance'`
 
 Expected: parser does not recognize `grouprank-pilot`.
 
@@ -323,14 +331,11 @@ Expected: parser does not recognize `grouprank-pilot`.
 Add arguments:
 
 ```text
-grouprank-pilot --phase smoke|rank|evaluate
+grouprank-pilot --phase smoke|rank
   --selection PATH
   --code-revision SHA
   --output-dir PATH
   [--smoke-receipt PATH]
-  [--judgments PATH]
-  [--report-json PATH]
-  [--report-md PATH]
 ```
 
 `smoke` and `rank` call `preflight_pilot_inputs` before engine loading. `smoke`
@@ -341,21 +346,22 @@ failure receipt.
 
 - [ ] **Step 4: Run CLI and full CPU regression tests**
 
-Run: `python -m pytest -q tests/test_grouprank.py tests/test_grouprank_inference.py tests/test_grouprank_pilot.py tests/test_llm_ranker.py tests/test_llm_ranker_inference.py tests/test_llm_ranker_pilot.py`
+Run: `python -m pytest -q tests/test_grouprank.py tests/test_grouprank_inference.py tests/test_grouprank_pilot.py tests/test_grouprank_smoke.py tests/test_llm_ranker.py tests/test_llm_ranker_inference.py tests/test_llm_ranker_pilot.py`
 
 Expected: all tests pass.
 
-Commit: `git add trec_mlm/cli.py trec_mlm/grouprank_pilot.py tests/test_grouprank_pilot.py && git commit -m 'feat: add guarded GroupRank pilot CLI'`
+Commit: `git add trec_mlm/cli.py trec_mlm/grouprank_smoke.py tests/test_grouprank_smoke.py && git commit -m 'feat: add guarded GroupRank pilot CLI'`
 
 ### Task 5: Add Sealed Evaluation and Result Reporting
 
 **Files:**
-- Modify: `trec_mlm/grouprank_pilot.py`
-- Modify: `tests/test_grouprank_pilot.py`
+- Create: `trec_mlm/grouprank_report.py`
+- Create: `tests/test_grouprank_report.py`
+- Modify: `trec_mlm/cli.py`
 
 **Interfaces:**
 - Consumes: a validated Phase A artifact, `artifacts/llm_label_ranker/pilot/stage2/selection_judgments.json`, and captured baseline data in `artifacts/llm_label_ranker/pilot/stage2/report.json`.
-- Produces: `build_grouprank_report(...) -> dict[str, Any]` and deterministic JSON/Markdown writers.
+- Produces: `build_grouprank_report(...) -> dict[str, Any]` and deterministic JSON/Markdown writers from `trec_mlm.grouprank_report`; extends `grouprank-pilot --phase evaluate` without importing qrels in the smoke/rank branches.
 
 - [ ] **Step 1: Write failing metric, gate, and report tests**
 
@@ -363,7 +369,7 @@ Build fixtures whose relevant ranks have known nDCG@10, MRR, and top-three count
 
 - [ ] **Step 2: Verify reporting tests fail**
 
-Run: `python -m pytest -q tests/test_grouprank_pilot.py -k 'report or metric or gate'`
+Run: `python -m pytest -q tests/test_grouprank_report.py -k 'report or metric or gate'`
 
 Expected: report functions are missing.
 
@@ -371,15 +377,27 @@ Expected: report functions are missing.
 
 Call `load_frozen_grouprank` before opening judgments. Validate that judgment query/candidate inventories exactly match Phase A, then use the existing `evaluate_rankings` utility. Read baseline values from the frozen Stage 2 report and reject any mismatch with 8/12, 0.7232, 0.6361 for E5; 8/12, 0.6648, 0.5585 for Qwen4B; and 5/12, 0.4820, 0.3209 for pointwise.
 
+Extend the same CLI parser with:
+
+```text
+grouprank-pilot --phase evaluate
+  --selection PATH
+  --code-revision SHA
+  --output-dir PHASE_A_DIR
+  --judgments PATH
+  --report-json PATH
+  --report-md PATH
+```
+
 - [ ] **Step 4: Implement deterministic result writers and commit**
 
 Write sorted JSON and a concise Markdown report to `docs/results/2026-07-13-grouprank-7b-stage2-pilot.md`. Label the result qrel-assisted and exploratory and state that no expansion was started.
 
-Run: `python -m pytest -q tests/test_grouprank_pilot.py && python -m pytest -q`
+Run: `python -m pytest -q tests/test_grouprank_report.py && python -m pytest -q`
 
 Expected: GroupRank tests and the full repository suite pass.
 
-Commit: `git add trec_mlm/grouprank_pilot.py tests/test_grouprank_pilot.py && git commit -m 'feat: evaluate GroupRank pilot'`
+Commit: `git add trec_mlm/cli.py trec_mlm/grouprank_report.py tests/test_grouprank_report.py && git commit -m 'feat: evaluate GroupRank pilot'`
 
 ### Task 6: Run the Guarded ROCm Pilot and Capture Results
 

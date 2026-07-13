@@ -68,6 +68,9 @@ POINTWISE_PILOT_DIR = (
 LISTWISE_PILOT_DIR = (
     ROOT / "artifacts/llm_label_ranker/pilot/stage1/listwise"
 )
+STAGE1_REPORT_PATH = (
+    ROOT / "artifacts/llm_label_ranker/pilot/stage1/report.json"
+)
 
 STAGE1_QUERY_IDS = (
     "56fc3b342603e7140040a037",  # issue #11, linguistics
@@ -77,6 +80,29 @@ STAGE1_QUERY_IDS = (
     "5726eb785951b619008f8276",  # embedding failure, bacterial immunity
     "5729068e1d04691400778f8f",  # embedding failure, Parc de la Villette
 )
+STAGE2_QUERY_IDS = (
+    "5727f1163acd2414000df052",
+    "57326d2f0fdd8d15006c6ad5",
+    "5a88b0ef5542994846c1ceb9",
+    "5a8e351c5542990e94052a8b",
+    "5727aad82ca10214002d9341",
+    "5a7276d55542997f827839e7",
+    "5a7a18145542990783324e4f",
+    "5a9091a95542995651fb5190",
+    "5727b7a1ff5b5019007d9348",
+    "5a7f5e6a5542992097ad2f42",
+    "5ab801465542995dae37ea13",
+    "5ab9e3d25542994dbf019889",
+)
+STAGE2_QUERY_STRATA = {
+    query_id: stratum
+    for stratum, query_ids in (
+        ("issue_like_clear", STAGE2_QUERY_IDS[:4]),
+        ("contextual_qwen_success", STAGE2_QUERY_IDS[4:8]),
+        ("contextual_qwen_failure", STAGE2_QUERY_IDS[8:]),
+    )
+    for query_id in query_ids
+}
 
 
 class PilotRankingTest(unittest.TestCase):
@@ -571,6 +597,245 @@ class PilotSelectionTest(unittest.TestCase):
                     candidate_path=CANDIDATE_PATH,
                     qwen_run_path=changed_qwen_run,
                 )
+
+
+class PilotStage2SelectionTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.queries = load_queries_tsv(QUERY_PATH)
+        cls.qrels = load_complete_qrels(
+            QRELS_PATH,
+            expected_query_ids=cls.queries,
+        )
+        cls.candidate_ids = load_candidate_manifest(CANDIDATE_PATH)
+        cls.qwen_rankings = rankings_from_run(QWEN_RUN_PATH)
+
+    @staticmethod
+    def _build() -> tuple[dict[str, object], dict[str, object]]:
+        report = json.loads(STAGE1_REPORT_PATH.read_text(encoding="utf-8"))
+        with patch.object(pilot_module, "build_pilot_report", return_value=report):
+            return pilot_module.build_stage2_selection(
+                stage1_report_path=STAGE1_REPORT_PATH,
+                query_path=QUERY_PATH,
+                qrels_path=QRELS_PATH,
+                candidate_path=CANDIDATE_PATH,
+                qwen_run_path=QWEN_RUN_PATH,
+            )
+
+    def test_stage2_selection_interfaces_exist(self) -> None:
+        for name in (
+            "validate_passed_stage1_report",
+            "build_stage2_selection",
+            "write_stage2_selection",
+        ):
+            with self.subTest(name=name):
+                self.assertTrue(callable(getattr(pilot_module, name, None)))
+
+    def test_stage2_refuses_failed_hash_mutated_or_unrecomputable_stage1_report(
+        self,
+    ) -> None:
+        original = json.loads(STAGE1_REPORT_PATH.read_text(encoding="utf-8"))
+        with patch.object(
+            pilot_module, "build_pilot_report", return_value=original
+        ):
+            passed = pilot_module.validate_passed_stage1_report(STAGE1_REPORT_PATH)
+        self.assertTrue(passed["gate"]["stage1_passed"])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            failed = deepcopy(original)
+            failed["gate"]["stage1_passed"] = False
+            failed_path = root / "failed.json"
+            failed_path.write_text(
+                json.dumps(failed, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            mutated_path = root / "mutated.json"
+            mutated_path.write_bytes(STAGE1_REPORT_PATH.read_bytes() + b"\n")
+
+            for report_path in (failed_path, mutated_path):
+                with self.subTest(report_path=report_path.name):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "^Stage 1 feasibility gate did not pass$",
+                    ):
+                        pilot_module.build_stage2_selection(
+                            stage1_report_path=report_path,
+                            query_path=QUERY_PATH,
+                            qrels_path=QRELS_PATH,
+                            candidate_path=CANDIDATE_PATH,
+                            qwen_run_path=QWEN_RUN_PATH,
+                        )
+
+        changed_recomputation = deepcopy(original)
+        changed_recomputation["method_summaries"]["pointwise"][
+            "top3_relevant_count"
+        ] = 4
+        with patch.object(
+            pilot_module,
+            "build_pilot_report",
+            return_value=changed_recomputation,
+        ):
+            with self.assertRaisesRegex(
+                ValueError,
+                "^Stage 1 feasibility gate did not pass$",
+            ):
+                pilot_module.validate_passed_stage1_report(STAGE1_REPORT_PATH)
+
+    def test_stage2_selection_is_deterministic_qrel_free_and_nonoverlapping(self) -> None:
+        selection, judgments = self._build()
+        repeated_selection, repeated_judgments = self._build()
+
+        self.assertEqual(selection, repeated_selection)
+        self.assertEqual(judgments, repeated_judgments)
+        self.assertEqual(2, selection["stage"])
+        self.assertEqual(2026, selection["seed"])
+        self.assertEqual(
+            STAGE2_QUERY_IDS,
+            tuple(entry["query_id"] for entry in selection["questions"]),
+        )
+        self.assertFalse(set(STAGE1_QUERY_IDS) & set(STAGE2_QUERY_IDS))
+        self.assertEqual(
+            {"queries": _sha256(QUERY_PATH), "candidates": _sha256(CANDIDATE_PATH)},
+            selection["input_sha256"],
+        )
+        self.assertEqual(
+            {"qrels": _sha256(QRELS_PATH), "qwen_run": _sha256(QWEN_RUN_PATH)},
+            judgments["input_sha256"],
+        )
+        serialized_selection = json.dumps(selection, sort_keys=True).lower()
+        for forbidden in ("qrel", "grade", "role", "qwen", "stratum"):
+            self.assertNotIn(forbidden, serialized_selection)
+
+        for entry, judgment in zip(
+            selection["questions"], judgments["questions"], strict=True
+        ):
+            query_id = entry["query_id"]
+            grades = self.qrels[query_id]
+            relevant = [
+                candidate_id
+                for candidate_id, grade in sorted(
+                    grades.items(), key=lambda item: (-item[1], item[0])
+                )
+                if grade > 0
+            ][:2]
+            confounders = [
+                candidate_id
+                for candidate_id in self.qwen_rankings[query_id]
+                if grades[candidate_id] == 0 and candidate_id not in relevant
+            ][:6]
+            excluded = set(relevant) | set(confounders)
+            negatives = sorted(
+                (
+                    candidate_id
+                    for candidate_id in self.candidate_ids
+                    if grades[candidate_id] == 0 and candidate_id not in excluded
+                ),
+                key=lambda candidate_id: hashlib.sha256(
+                    f"2026|{query_id}|{candidate_id}".encode()
+                ).digest(),
+            )[: 20 - len(excluded)]
+
+            self.assertEqual(self.queries[query_id], entry["question"])
+            self.assertEqual(20, len(entry["candidate_ids"]))
+            self.assertEqual(sorted(entry["candidate_ids"]), entry["candidate_ids"])
+            self.assertEqual(
+                {
+                    "relevant": relevant,
+                    "confounder": confounders,
+                    "negative": negatives,
+                },
+                judgment["roles"],
+            )
+            self.assertEqual(
+                {candidate_id: grades[candidate_id] for candidate_id in entry["candidate_ids"]},
+                judgment["grades"],
+            )
+            best_qwen_relevant_rank = min(
+                self.qwen_rankings[query_id].index(candidate_id) + 1
+                for candidate_id in relevant
+            )
+            stratum = STAGE2_QUERY_STRATA[query_id]
+            if stratum == "contextual_qwen_success":
+                self.assertLessEqual(best_qwen_relevant_rank, 3)
+            elif stratum == "contextual_qwen_failure":
+                self.assertGreater(best_qwen_relevant_rank, 3)
+
+        self.assertEqual(
+            {
+                "valid": True,
+                "stage": 2,
+                "question_count": 12,
+                "candidate_count": 20,
+                "pair_count": 240,
+                "manifest_kind": "selection",
+            },
+            validate_pilot_selection(
+                selection,
+                expected_stage=2,
+                expected_candidate_count=20,
+            ),
+        )
+        self.assertEqual(
+            "judgments",
+            validate_pilot_selection(
+                judgments,
+                expected_stage=2,
+                expected_candidate_count=20,
+            )["manifest_kind"],
+        )
+
+    def test_stage2_validator_freezes_shape_and_query_inventory_without_weakening_stage1(
+        self,
+    ) -> None:
+        selection, _judgments = self._build()
+        bad_size = deepcopy(selection)
+        bad_size["questions"][0]["candidate_ids"].pop()
+        with self.assertRaisesRegex(ValueError, "exactly 20 unique candidates"):
+            validate_pilot_selection(
+                bad_size,
+                expected_stage=2,
+                expected_candidate_count=20,
+            )
+
+        changed_stage2 = deepcopy(selection)
+        changed_stage2["questions"][0]["query_id"] = "replacement"
+        with self.assertRaisesRegex(ValueError, "stage 2 fixed query IDs changed"):
+            validate_pilot_selection(
+                changed_stage2,
+                expected_stage=2,
+                expected_candidate_count=20,
+            )
+
+        stage1 = json.loads(
+            (
+                ROOT / "artifacts/llm_label_ranker/pilot/stage1/selection.json"
+            ).read_text(encoding="utf-8")
+        )
+        stage1["questions"][0]["query_id"] = "replacement"
+        with self.assertRaisesRegex(ValueError, "stage 1 fixed query IDs changed"):
+            validate_pilot_selection(
+                stage1,
+                expected_stage=1,
+                expected_candidate_count=12,
+            )
+
+    def test_stage2_writer_emits_stable_separate_manifests(self) -> None:
+        selection, judgments = self._build()
+        with tempfile.TemporaryDirectory() as directory:
+            selection_path, judgments_path = pilot_module.write_stage2_selection(
+                selection,
+                judgments,
+                Path(directory) / "stage2",
+            )
+
+            self.assertEqual(
+                json.dumps(selection, indent=2, sort_keys=True) + "\n",
+                selection_path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                json.dumps(judgments, indent=2, sort_keys=True) + "\n",
+                judgments_path.read_text(encoding="utf-8"),
+            )
 
 
 class PilotPhaseAArtifactTest(unittest.TestCase):

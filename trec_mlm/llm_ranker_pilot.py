@@ -43,6 +43,29 @@ STAGE1_QUERY_IDS = (
     "5726eb785951b619008f8276",
     "5729068e1d04691400778f8f",
 )
+STAGE2_QUERY_IDS = (
+    "5727f1163acd2414000df052",
+    "57326d2f0fdd8d15006c6ad5",
+    "5a88b0ef5542994846c1ceb9",
+    "5a8e351c5542990e94052a8b",
+    "5727aad82ca10214002d9341",
+    "5a7276d55542997f827839e7",
+    "5a7a18145542990783324e4f",
+    "5a9091a95542995651fb5190",
+    "5727b7a1ff5b5019007d9348",
+    "5a7f5e6a5542992097ad2f42",
+    "5ab801465542995dae37ea13",
+    "5ab9e3d25542994dbf019889",
+)
+STAGE2_QUERY_STRATA: Mapping[str, str] = {
+    query_id: stratum
+    for stratum, query_ids in (
+        ("issue_like_clear", STAGE2_QUERY_IDS[:4]),
+        ("contextual_qwen_success", STAGE2_QUERY_IDS[4:8]),
+        ("contextual_qwen_failure", STAGE2_QUERY_IDS[8:]),
+    )
+    for query_id in query_ids
+}
 
 FROZEN_INPUT_SHA256: Mapping[str, str] = {
     "queries": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
@@ -60,6 +83,24 @@ DEFAULT_QWEN_RUN_PATH = Path(
 )
 DEFAULT_OUTPUT_DIR = Path("artifacts/llm_label_ranker/pilot/stage1")
 DEFAULT_SMOKE_RECEIPT_PATH = Path("artifacts/llm_label_ranker/smoke/smoke.json")
+DEFAULT_STAGE1_REPORT_PATH = Path(
+    "artifacts/llm_label_ranker/pilot/stage1/report.json"
+)
+DEFAULT_STAGE1_POINTWISE_DIR = Path(
+    "artifacts/llm_label_ranker/pilot/stage1/pointwise"
+)
+DEFAULT_STAGE1_LISTWISE_DIR = Path(
+    "artifacts/llm_label_ranker/pilot/stage1/listwise"
+)
+DEFAULT_CONTEXTUAL_QWEN4B_DIR = Path(
+    "artifacts/label_sweep_diverse/qwen3_embedding_4b/expert_capability/run1"
+)
+DEFAULT_CONTEXTUAL_E5_DIR = Path(
+    "artifacts/label_sweep_corrected/e5_mistral_7b_instruct/expert_capability/run1"
+)
+FROZEN_STAGE1_REPORT_SHA256 = (
+    "d1582ca85388b2447fa28539f1f3077120d787e984a33ce637d713370e5e38c7"
+)
 
 _PILOT_CORE_FILES = frozenset(
     {
@@ -359,8 +400,9 @@ def validate_pilot_selection(
 
     if not isinstance(payload, Mapping):
         raise ValueError("pilot manifest must be an object")
-    if expected_stage <= 0 or expected_candidate_count <= 0:
-        raise ValueError("expected stage and candidate count must be positive")
+    expected_shapes = {1: 12, 2: 20}
+    if expected_shapes.get(expected_stage) != expected_candidate_count:
+        raise ValueError("expected stage and candidate count do not match the pilot")
     if payload.get("stage") != expected_stage:
         raise ValueError(f"pilot manifest stage must be {expected_stage}")
 
@@ -453,8 +495,11 @@ def validate_pilot_selection(
             )
         if len(role_lists["relevant"]) not in (1, 2):
             raise ValueError("pilot questions require one or two relevant candidates")
-        if len(role_lists["confounder"]) != 4:
-            raise ValueError("pilot questions require exactly four confounders")
+        expected_confounders = 4 if expected_stage == 1 else 6
+        if len(role_lists["confounder"]) != expected_confounders:
+            raise ValueError(
+                f"pilot questions require exactly {expected_confounders} confounders"
+            )
         if set(grades) != set(assigned):
             raise ValueError("sealed grades do not match role candidates")
         if any(
@@ -475,6 +520,8 @@ def validate_pilot_selection(
         raise ValueError("pilot query IDs must be unique")
     if expected_stage == 1 and tuple(query_ids) != STAGE1_QUERY_IDS:
         raise ValueError("stage 1 fixed query IDs changed")
+    if expected_stage == 2 and tuple(query_ids) != STAGE2_QUERY_IDS:
+        raise ValueError("stage 2 fixed query IDs changed")
 
     return {
         "valid": True,
@@ -631,6 +678,207 @@ def write_stage1_selection(
         json.dumps(judgments, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    return selection_path, judgments_path
+
+
+def validate_passed_stage1_report(report_path: str | Path) -> dict[str, Any]:
+    """Validate the frozen Stage 1 feasibility receipt before Stage 2 setup."""
+
+    failure = "Stage 1 feasibility gate did not pass"
+    try:
+        source = Path(report_path)
+        if _sha256(source) != FROZEN_STAGE1_REPORT_SHA256:
+            raise ValueError("Stage 1 report hash changed")
+        report = _load_json_object(source, label="Stage 1 feasibility report")
+        inputs = report.get("recomputation_inputs")
+        if not isinstance(inputs, Mapping):
+            raise ValueError("Stage 1 report recomputation inputs changed")
+        expected_paths = {
+            ("phase_a", "pointwise"): DEFAULT_STAGE1_POINTWISE_DIR,
+            ("phase_a", "listwise"): DEFAULT_STAGE1_LISTWISE_DIR,
+            ("baselines", "qwen4b_contextual"): DEFAULT_CONTEXTUAL_QWEN4B_DIR,
+            ("baselines", "e5_contextual"): DEFAULT_CONTEXTUAL_E5_DIR,
+        }
+        for (group, name), expected_path in expected_paths.items():
+            records = inputs.get(group)
+            record = records.get(name) if isinstance(records, Mapping) else None
+            if (
+                not isinstance(record, Mapping)
+                or Path(str(record.get("path"))).resolve(strict=False)
+                != expected_path.resolve(strict=False)
+            ):
+                raise ValueError("Stage 1 report source path changed")
+        qrel_record = inputs.get("qrels")
+        if (
+            not isinstance(qrel_record, Mapping)
+            or Path(str(qrel_record.get("path"))).resolve(strict=False)
+            != DEFAULT_QRELS_PATH.resolve(strict=False)
+        ):
+            raise ValueError("Stage 1 qrel source path changed")
+
+        recomputed = build_pilot_report(
+            pointwise_dir=DEFAULT_STAGE1_POINTWISE_DIR,
+            listwise_dir=DEFAULT_STAGE1_LISTWISE_DIR,
+            qwen_dir=DEFAULT_CONTEXTUAL_QWEN4B_DIR,
+            e5_dir=DEFAULT_CONTEXTUAL_E5_DIR,
+            qrels_path=DEFAULT_QRELS_PATH,
+        )
+        gate = report.get("gate")
+        if (
+            report != recomputed
+            or not isinstance(gate, Mapping)
+            or gate.get("stage1_passed") is not True
+            or not gate.get("passed_methods")
+        ):
+            raise ValueError("Stage 1 report did not recompute as passed")
+        return report
+    except Exception as error:
+        raise ValueError(failure) from error
+
+
+def build_stage2_selection(
+    *,
+    stage1_report_path: str | Path,
+    query_path: str | Path,
+    qrels_path: str | Path,
+    candidate_path: str | Path,
+    qwen_run_path: str | Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build the frozen Stage 2 prompt inventory and sealed judgments."""
+
+    validate_passed_stage1_report(stage1_report_path)
+    queries = load_queries_tsv(query_path)
+    missing_fixed_queries = sorted(set(STAGE2_QUERY_IDS) - set(queries))
+    if missing_fixed_queries:
+        raise ValueError(f"missing fixed Stage 2 query IDs: {missing_fixed_queries!r}")
+    if set(STAGE1_QUERY_IDS) & set(STAGE2_QUERY_IDS):
+        raise ValueError("Stage 1 and Stage 2 query IDs overlap")
+    qrels = load_complete_qrels(qrels_path, expected_query_ids=queries)
+    candidate_ids = load_candidate_manifest(candidate_path)
+    qwen_rankings = rankings_from_run(qwen_run_path)
+
+    qrel_candidates = set(next(iter(qrels.values())))
+    if qrel_candidates != set(candidate_ids):
+        raise ValueError("candidate manifest does not match qrel candidate universe")
+    if set(qwen_rankings) != set(queries):
+        raise ValueError("Qwen run query universe does not match query input")
+    for query_id, ranking in qwen_rankings.items():
+        if len(ranking) != len(candidate_ids) or set(ranking) != set(candidate_ids):
+            raise ValueError(
+                f"Qwen run candidate universe does not match for query {query_id!r}"
+            )
+
+    entries: list[dict[str, Any]] = []
+    judgment_entries: list[dict[str, Any]] = []
+    for query_id in STAGE2_QUERY_IDS:
+        grades = qrels[query_id]
+        relevant = [
+            candidate_id
+            for candidate_id, grade in sorted(
+                grades.items(), key=lambda item: (-item[1], item[0])
+            )
+            if grade > 0
+        ][:2]
+        if not relevant:
+            raise ValueError(f"fixed query {query_id!r} has no relevant candidates")
+        confounders = [
+            candidate_id
+            for candidate_id in qwen_rankings[query_id]
+            if grades[candidate_id] == 0 and candidate_id not in relevant
+        ][:6]
+        if len(confounders) != 6:
+            raise ValueError(f"fixed query {query_id!r} has fewer than six confounders")
+        excluded = set(relevant) | set(confounders)
+        negatives = sorted(
+            (
+                candidate_id
+                for candidate_id in candidate_ids
+                if grades[candidate_id] == 0 and candidate_id not in excluded
+            ),
+            key=lambda candidate_id: _pilot_hash_order(
+                2026, query_id, candidate_id
+            ),
+        )[: 20 - len(excluded)]
+        selected = sorted([*relevant, *confounders, *negatives])
+        if len(selected) != 20 or len(set(selected)) != 20:
+            raise ValueError(
+                f"fixed query {query_id!r} does not produce 20 unique candidates"
+            )
+        entries.append(
+            {
+                "query_id": query_id,
+                "question": queries[query_id],
+                "candidate_ids": selected,
+            }
+        )
+        judgment_entries.append(
+            {
+                "query_id": query_id,
+                "grades": {
+                    candidate_id: grades[candidate_id]
+                    for candidate_id in selected
+                },
+                "roles": {
+                    "relevant": relevant,
+                    "confounder": confounders,
+                    "negative": negatives,
+                },
+            }
+        )
+
+    selection = {
+        "stage": 2,
+        "seed": 2026,
+        "input_sha256": {
+            "queries": _sha256(query_path),
+            "candidates": _sha256(candidate_path),
+        },
+        "questions": entries,
+    }
+    judgments = {
+        "stage": 2,
+        "input_sha256": {
+            "qrels": _sha256(qrels_path),
+            "qwen_run": _sha256(qwen_run_path),
+        },
+        "questions": judgment_entries,
+    }
+    validate_pilot_selection(
+        selection,
+        expected_stage=2,
+        expected_candidate_count=20,
+    )
+    validate_pilot_selection(
+        judgments,
+        expected_stage=2,
+        expected_candidate_count=20,
+    )
+    return selection, judgments
+
+
+def write_stage2_selection(
+    selection: Mapping[str, Any],
+    judgments: Mapping[str, Any],
+    output_dir: str | Path,
+) -> tuple[Path, Path]:
+    """Write both compact Stage 2 manifests as stable sorted JSON."""
+
+    validate_pilot_selection(
+        selection,
+        expected_stage=2,
+        expected_candidate_count=20,
+    )
+    validate_pilot_selection(
+        judgments,
+        expected_stage=2,
+        expected_candidate_count=20,
+    )
+    destination = Path(output_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    selection_path = destination / "selection.json"
+    judgments_path = destination / "selection_judgments.json"
+    _write_json(selection_path, selection)
+    _write_json(judgments_path, judgments)
     return selection_path, judgments_path
 
 

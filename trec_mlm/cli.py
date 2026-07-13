@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, Sequence
 import json
+from pathlib import Path
+import re
+from typing import Any
 
 from trec_mlm.dense_query_knn import (
     DEFAULT_ENCODERS,
@@ -19,6 +23,58 @@ from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.query_knn import load_complete_qrels, load_development_data
 from trec_mlm.runio import rankings_from_run, validate_trec_run
 from trec_mlm.label_retrieval import encoder_specs_by_key as label_encoder_specs_by_key
+
+
+def _run_pilot_pointwise_messages(
+    llm: Any,
+    messages: Sequence[list[dict[str, str]]],
+    *,
+    grade_tokens: Mapping[int, int],
+    seed: int,
+    use_tqdm: bool = True,
+    stats: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
+    """Run one-token pilot grading while preserving emitted-token diagnostics."""
+
+    from vllm import SamplingParams
+
+    from trec_mlm.llm_ranker_inference import (
+        extract_grade_log_probabilities,
+        pointwise_sampling_kwargs,
+        update_inference_stats,
+    )
+
+    sampling = SamplingParams(
+        **pointwise_sampling_kwargs(grade_tokens, seed=seed)
+    )
+    outputs = llm.chat(
+        list(messages),
+        sampling_params=sampling,
+        use_tqdm=use_tqdm,
+    )
+    if stats is not None:
+        update_inference_stats(stats, outputs)
+
+    records = []
+    for output in outputs:
+        try:
+            emitted = output.outputs[0]
+            emitted_token_id = int(emitted.token_ids[0])
+            emitted_text = emitted.text
+        except (AttributeError, IndexError, TypeError, ValueError) as error:
+            raise ValueError(
+                "vLLM output is missing the emitted grade token"
+            ) from error
+        records.append(
+            {
+                "grade_log_probabilities": extract_grade_log_probabilities(
+                    output, grade_tokens
+                ),
+                "emitted_grade_token_id": emitted_token_id,
+                "emitted_grade_text": emitted_text,
+            }
+        )
+    return records
 
 
 def _neighbor_grid(value: str) -> tuple[int, ...]:
@@ -301,6 +357,21 @@ def build_parser() -> argparse.ArgumentParser:
     llm_ranker.add_argument("--input-dir")
     llm_ranker.add_argument("--qrels")
     llm_ranker.add_argument("--output-dir", required=True)
+
+    llm_ranker_pilot = commands.add_parser(
+        "llm-label-ranker-pilot",
+        help="run one frozen qrel-free LLM ranker feasibility pilot",
+    )
+    llm_ranker_pilot.add_argument(
+        "--stage", type=int, choices=(1, 2), required=True
+    )
+    llm_ranker_pilot.add_argument("--selection", required=True)
+    llm_ranker_pilot.add_argument(
+        "--method", choices=("pointwise", "listwise"), required=True
+    )
+    llm_ranker_pilot.add_argument("--smoke-receipt", required=True)
+    llm_ranker_pilot.add_argument("--code-revision", required=True)
+    llm_ranker_pilot.add_argument("--output-dir", required=True)
 
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
@@ -625,6 +696,113 @@ def main(argv: list[str] | None = None) -> int:
             )
         paths = write_ranker_phase_a_artifacts(result, args.output_dir)
         print(json.dumps({"runtime": result.runtime_metadata, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "llm-label-ranker-pilot":
+        from trec_mlm.artifact_manifest import validate_pilot_smoke_receipt
+        from trec_mlm.llm_ranker_inference import (
+            grade_token_ids,
+            load_ranker_engine,
+        )
+        from trec_mlm.llm_ranker_pilot import (
+            DEFAULT_CANDIDATE_PATH,
+            DEFAULT_QUERY_PATH,
+            DEFAULT_SMOKE_RECEIPT_PATH,
+            run_pilot_listwise_messages,
+            run_pilot_phase_a,
+            validate_pilot_selection,
+            write_pilot_phase_a,
+        )
+
+        selection_path = Path(args.selection)
+        if selection_path.name != "selection.json":
+            raise ValueError("pilot CLI accepts only a qrel-free selection.json")
+        try:
+            selection = json.loads(selection_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError("pilot selection is not valid JSON") from error
+        if not isinstance(selection, dict):
+            raise ValueError("pilot selection must be an object")
+        if selection.get("stage") != args.stage:
+            raise ValueError("pilot CLI stage disagrees with the selection manifest")
+        candidate_count = {1: 12, 2: 20}[args.stage]
+        validate_pilot_selection(
+            selection,
+            expected_stage=args.stage,
+            expected_candidate_count=candidate_count,
+        )
+
+        smoke_path = Path(args.smoke_receipt)
+        if smoke_path.expanduser().resolve(strict=False) != (
+            DEFAULT_SMOKE_RECEIPT_PATH.expanduser().resolve(strict=False)
+        ):
+            raise ValueError("pilot CLI smoke receipt path is not approved")
+        validate_pilot_smoke_receipt(smoke_path)
+        if re.fullmatch(r"[0-9a-f]{40}", args.code_revision) is None:
+            raise ValueError("pilot code revision must be a full 40-hex commit SHA")
+
+        llm, tokenizer, metadata = load_ranker_engine(seed=2026)
+        inference_stats = {
+            "request_count": 0,
+            "prompt_token_count": 0,
+            "output_token_count": 0,
+        }
+        metadata.update(
+            {
+                "code_revision": args.code_revision,
+                "worktree_status": "clean",
+                "query_path": str(DEFAULT_QUERY_PATH),
+                "candidate_path": str(DEFAULT_CANDIDATE_PATH),
+                "smoke_receipt_path": str(DEFAULT_SMOKE_RECEIPT_PATH),
+                "inference_stats": inference_stats,
+            }
+        )
+
+        if args.method == "pointwise":
+            tokens = grade_token_ids(tokenizer)
+            metadata["grade_token_ids"] = tokens
+
+            def infer_pointwise(messages):
+                return _run_pilot_pointwise_messages(
+                    llm,
+                    messages,
+                    grade_tokens=tokens,
+                    seed=2026,
+                    use_tqdm=True,
+                    stats=inference_stats,
+                )
+
+            infer_batch = infer_pointwise
+        else:
+            handles = tuple(
+                f"C{index:02d}" for index in range(candidate_count)
+            )
+
+            def infer_listwise(messages):
+                return run_pilot_listwise_messages(
+                    llm,
+                    messages,
+                    handles=handles,
+                    seed=2026,
+                    use_tqdm=True,
+                    stats=inference_stats,
+                )
+
+            infer_batch = infer_listwise
+
+        result = run_pilot_phase_a(
+            selection_path,
+            method=args.method,
+            infer_batch=infer_batch,
+            runtime_metadata=metadata,
+        )
+        paths = write_pilot_phase_a(result, args.output_dir)
+        print(
+            json.dumps(
+                {"runtime": result.runtime_metadata, "artifacts": paths},
+                indent=2,
+            )
+        )
         return 0
 
     if args.command == "validate-run":

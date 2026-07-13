@@ -8,9 +8,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+from trec_mlm import cli
+from trec_mlm.cli import build_parser, main
 from trec_mlm.label_experiment import load_candidate_manifest
 from trec_mlm.label_retrieval import clean_candidate_label
 from trec_mlm.llm_ranker import SYSTEM_PROMPT, format_pointwise_messages
@@ -975,6 +978,370 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "core artifact set changed"):
             load_frozen_pilot(artifact_dir)
+
+
+class PilotCliTest(unittest.TestCase):
+    def test_cli_requires_qrel_free_phase_a_arguments(self) -> None:
+        parser = build_parser()
+        argv = [
+            "llm-label-ranker-pilot",
+            "--stage",
+            "1",
+            "--selection",
+            "artifacts/llm_label_ranker/pilot/stage1/selection.json",
+            "--method",
+            "pointwise",
+            "--smoke-receipt",
+            "artifacts/llm_label_ranker/smoke/smoke.json",
+            "--code-revision",
+            "a" * 40,
+            "--output-dir",
+            "artifacts/llm_label_ranker/pilot/stage1/pointwise",
+        ]
+
+        args = parser.parse_args(argv)
+
+        self.assertEqual("llm-label-ranker-pilot", args.command)
+        self.assertEqual(1, args.stage)
+        self.assertEqual("pointwise", args.method)
+        for required_option in (
+            "--stage",
+            "--selection",
+            "--method",
+            "--smoke-receipt",
+            "--code-revision",
+            "--output-dir",
+        ):
+            with self.subTest(required_option=required_option):
+                index = argv.index(required_option)
+                without_required = [*argv[:index], *argv[index + 2 :]]
+                with self.assertRaises(SystemExit):
+                    parser.parse_args(without_required)
+
+        for forbidden_option in ("--qrels", "--selection-judgments"):
+            with self.subTest(forbidden_option=forbidden_option):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args([*argv, forbidden_option, "must-not-open"])
+
+    def test_pointwise_adapter_preserves_emitted_token_and_exact_accounting(
+        self,
+    ) -> None:
+        class SamplingParams:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class LLM:
+            def chat(self, messages, *, sampling_params, use_tqdm):
+                self.messages = messages
+                self.sampling_params = sampling_params
+                self.use_tqdm = use_tqdm
+                return [
+                    SimpleNamespace(
+                        prompt_token_ids=[101, 102, 103],
+                        outputs=[
+                            SimpleNamespace(
+                                token_ids=[16],
+                                text="1",
+                                logprobs=[
+                                    {
+                                        15: SimpleNamespace(logprob=-3.0),
+                                        16: SimpleNamespace(logprob=-0.1),
+                                        17: SimpleNamespace(logprob=-4.0),
+                                    }
+                                ],
+                            )
+                        ],
+                    )
+                ]
+
+        vllm = ModuleType("vllm")
+        vllm.SamplingParams = SamplingParams
+        llm = LLM()
+        stats = {
+            "request_count": 0,
+            "prompt_token_count": 0,
+            "output_token_count": 0,
+        }
+        messages = [[{"role": "user", "content": "prompt"}]]
+
+        with patch.dict(sys.modules, {"vllm": vllm}):
+            records = cli._run_pilot_pointwise_messages(
+                llm,
+                messages,
+                grade_tokens={0: 15, 1: 16, 2: 17},
+                seed=2026,
+                use_tqdm=False,
+                stats=stats,
+            )
+
+        self.assertEqual(
+            [
+                {
+                    "grade_log_probabilities": {0: -3.0, 1: -0.1, 2: -4.0},
+                    "emitted_grade_token_id": 16,
+                    "emitted_grade_text": "1",
+                }
+            ],
+            records,
+        )
+        self.assertEqual(
+            {
+                "request_count": 1,
+                "prompt_token_count": 3,
+                "output_token_count": 1,
+            },
+            stats,
+        )
+        self.assertEqual([15, 16, 17], llm.sampling_params.kwargs["allowed_token_ids"])
+        self.assertEqual([15, 16, 17], llm.sampling_params.kwargs["logprob_token_ids"])
+        self.assertEqual(1, llm.sampling_params.kwargs["max_tokens"])
+
+    def test_cli_rejects_wrong_candidate_count_before_engine_load(self) -> None:
+        selection = json.loads(
+            (
+                ROOT
+                / "artifacts/llm_label_ranker/pilot/stage1/selection.json"
+            ).read_text(encoding="utf-8")
+        )
+        inventory = load_candidate_manifest(CANDIDATE_PATH)
+        addition = next(
+            candidate_id
+            for candidate_id in inventory
+            if candidate_id not in selection["questions"][0]["candidate_ids"]
+        )
+        selection["questions"][0]["candidate_ids"] = sorted(
+            [*selection["questions"][0]["candidate_ids"], addition]
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selection_path = root / "selection.json"
+            selection_path.write_text(json.dumps(selection), encoding="utf-8")
+            with patch(
+                "trec_mlm.llm_ranker_inference.load_ranker_engine"
+            ) as load_engine:
+                with self.assertRaisesRegex(ValueError, "exactly 12.*candidates"):
+                    main(
+                        [
+                            "llm-label-ranker-pilot",
+                            "--stage",
+                            "1",
+                            "--selection",
+                            str(selection_path),
+                            "--method",
+                            "pointwise",
+                            "--smoke-receipt",
+                            "artifacts/llm_label_ranker/smoke/smoke.json",
+                            "--code-revision",
+                            "a" * 40,
+                            "--output-dir",
+                            str(root / "output"),
+                        ]
+                    )
+
+        load_engine.assert_not_called()
+
+    def test_cli_preflights_provenance_and_passed_smoke_before_engine_load(
+        self,
+    ) -> None:
+        base = [
+            "llm-label-ranker-pilot",
+            "--stage",
+            "1",
+            "--selection",
+            "artifacts/llm_label_ranker/pilot/stage1/selection.json",
+            "--method",
+            "pointwise",
+            "--smoke-receipt",
+            "artifacts/llm_label_ranker/smoke/smoke.json",
+            "--code-revision",
+            "a" * 40,
+            "--output-dir",
+            "unused",
+        ]
+        mutations = (
+            ("--smoke-receipt", "data/dev/llm_dev_qrels.txt", "not approved"),
+            ("--code-revision", "short-revision", "full 40-hex"),
+        )
+        for option, value, expected in mutations:
+            with self.subTest(option=option):
+                argv = list(base)
+                argv[argv.index(option) + 1] = value
+                with patch(
+                    "trec_mlm.llm_ranker_inference.load_ranker_engine",
+                    side_effect=AssertionError("engine must not load"),
+                ) as load_engine:
+                    with self.assertRaisesRegex(ValueError, expected):
+                        main(argv)
+                load_engine.assert_not_called()
+
+        with (
+            patch(
+                "trec_mlm.artifact_manifest.validate_pilot_smoke_receipt",
+                side_effect=ValueError("smoke receipt did not pass"),
+            ) as validate_smoke,
+            patch(
+                "trec_mlm.llm_ranker_inference.load_ranker_engine",
+                side_effect=AssertionError("engine must not load"),
+            ) as load_engine,
+        ):
+            with self.assertRaisesRegex(ValueError, "did not pass"):
+                main(base)
+        validate_smoke.assert_called_once()
+        load_engine.assert_not_called()
+
+    def test_cli_runs_one_engine_lifecycle_and_writes_only_validated_outputs(
+        self,
+    ) -> None:
+        selection_path = (
+            "artifacts/llm_label_ranker/pilot/stage1/selection.json"
+        )
+        smoke_path = "artifacts/llm_label_ranker/smoke/smoke.json"
+        revision = "a" * 40
+        llm = object()
+        tokenizer = object()
+
+        def engine():
+            return (
+                llm,
+                tokenizer,
+                {
+                    "model_id": MODEL_ID,
+                    "revision": MODEL_REVISION,
+                    "dtype": MODEL_DTYPE,
+                    "seed": 2026,
+                    "vllm_version": "0.24.0",
+                    "torch_version": "2.11.0",
+                    "hip_version": "7.2",
+                    "device_properties": "fixture gfx1151",
+                },
+            )
+
+        def pointwise_infer(
+            observed_llm,
+            messages,
+            *,
+            grade_tokens,
+            seed,
+            use_tqdm,
+            stats,
+        ):
+            self.assertIs(llm, observed_llm)
+            self.assertEqual(72, len(messages))
+            self.assertEqual({0: 15, 1: 16, 2: 17}, grade_tokens)
+            self.assertEqual(2026, seed)
+            self.assertTrue(use_tqdm)
+            stats.update(
+                {
+                    "request_count": 72,
+                    "prompt_token_count": 7200,
+                    "output_token_count": 72,
+                }
+            )
+            return [
+                {
+                    "grade_log_probabilities": {0: -3.0, 1: -2.0, 2: -0.1},
+                    "emitted_grade_token_id": 17,
+                    "emitted_grade_text": "2",
+                }
+                for _ in messages
+            ]
+
+        def listwise_infer(
+            observed_llm,
+            messages,
+            *,
+            handles,
+            seed,
+            use_tqdm,
+            stats,
+        ):
+            self.assertIs(llm, observed_llm)
+            self.assertEqual(18, len(messages))
+            self.assertEqual([f"C{index:02d}" for index in range(12)], list(handles))
+            self.assertEqual(2026, seed)
+            self.assertTrue(use_tqdm)
+            stats.update(
+                {
+                    "request_count": 18,
+                    "prompt_token_count": 3600,
+                    "output_token_count": 216,
+                }
+            )
+            return [json.dumps(list(handles)) for _ in messages]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pointwise_dir = root / "pointwise"
+            listwise_dir = root / "listwise"
+            with (
+                patch(
+                    "trec_mlm.llm_ranker_inference.load_ranker_engine",
+                    side_effect=lambda **_kwargs: engine(),
+                ) as load_engine,
+                patch(
+                    "trec_mlm.llm_ranker_inference.grade_token_ids",
+                    return_value={0: 15, 1: 16, 2: 17},
+                ),
+                patch(
+                    "trec_mlm.cli._run_pilot_pointwise_messages",
+                    side_effect=pointwise_infer,
+                    create=True,
+                ) as run_pointwise,
+                patch(
+                    "trec_mlm.llm_ranker_pilot.run_pilot_listwise_messages",
+                    side_effect=listwise_infer,
+                ) as run_listwise,
+                patch("builtins.print"),
+            ):
+                for method, output_dir in (
+                    ("pointwise", pointwise_dir),
+                    ("listwise", listwise_dir),
+                ):
+                    self.assertEqual(
+                        0,
+                        main(
+                            [
+                                "llm-label-ranker-pilot",
+                                "--stage",
+                                "1",
+                                "--selection",
+                                selection_path,
+                                "--method",
+                                method,
+                                "--smoke-receipt",
+                                smoke_path,
+                                "--code-revision",
+                                revision,
+                                "--output-dir",
+                                str(output_dir),
+                            ]
+                        ),
+                    )
+
+            self.assertEqual(2, load_engine.call_count)
+            run_pointwise.assert_called_once()
+            run_listwise.assert_called_once()
+            pointwise = load_frozen_pilot(pointwise_dir)
+            listwise = load_frozen_pilot(listwise_dir)
+            self.assertEqual(72, len(pointwise.raw_outputs))
+            self.assertEqual(18, len(listwise.raw_outputs))
+            self.assertEqual(
+                {
+                    "request_count": 72,
+                    "prompt_token_count": 7200,
+                    "output_token_count": 72,
+                },
+                pointwise.runtime_metadata["inference_stats"],
+            )
+            self.assertEqual(
+                {
+                    "request_count": 18,
+                    "prompt_token_count": 3600,
+                    "output_token_count": 216,
+                },
+                listwise.runtime_metadata["inference_stats"],
+            )
 
 
 if __name__ == "__main__":

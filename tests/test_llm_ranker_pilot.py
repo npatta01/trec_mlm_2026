@@ -564,6 +564,13 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
             ROOT / "artifacts/llm_label_ranker/pilot/stage1/selection.json",
             self.selection_path,
         )
+        self.path_patcher = patch.multiple(
+            "trec_mlm.llm_ranker_pilot",
+            DEFAULT_QUERY_PATH=self.query_path,
+            DEFAULT_CANDIDATE_PATH=self.candidate_path,
+            DEFAULT_SMOKE_RECEIPT_PATH=self.smoke_path,
+        )
+        self.path_patcher.start()
         self.selection = json.loads(self.selection_path.read_text(encoding="utf-8"))
         self.runtime = {
             "model_id": MODEL_ID,
@@ -573,7 +580,7 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
             "vllm_version": "0.24.0",
             "torch_version": "2.11.0",
             "hip_version": "7.2",
-            "code_revision": "fixture-revision",
+            "code_revision": "a" * 40,
             "worktree_status": "clean",
             "query_path": str(self.query_path),
             "candidate_path": str(self.candidate_path),
@@ -581,6 +588,7 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
         }
 
     def tearDown(self) -> None:
+        self.path_patcher.stop()
         self.temporary.cleanup()
 
     @staticmethod
@@ -624,16 +632,18 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
         path.write_text("".join(lines), encoding="utf-8")
 
     @staticmethod
-    def _rehash_config(artifact_dir: Path) -> None:
+    def _rehash_core(artifact_dir: Path, name: str) -> None:
         receipt_path = artifact_dir / "ranking_receipt.json"
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        receipt["artifact_sha256"]["config.json"] = _sha256(
-            artifact_dir / "config.json"
-        )
+        receipt["artifact_sha256"][name] = _sha256(artifact_dir / name)
         receipt_path.write_text(
             json.dumps(receipt, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+
+    @classmethod
+    def _rehash_config(cls, artifact_dir: Path) -> None:
+        cls._rehash_core(artifact_dir, "config.json")
 
     def test_phase_a_is_qrel_isolated_and_evaluation_changes_only_relevance_ranks(
         self,
@@ -719,6 +729,72 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
                 runtime_metadata=self.runtime,
             )
 
+    def test_phase_a_rejects_unapproved_paths_before_opening_them(self) -> None:
+        qrels_path = self.root / "qrels-must-never-open.txt"
+        qrels_path.write_text("sensitive qrel fixture\n", encoding="utf-8")
+        mutations = {
+            "query_path": {"query_path": str(qrels_path)},
+            "candidate_path": {"candidate_path": str(qrels_path)},
+            "smoke_receipt_path": {"smoke_receipt_path": str(qrels_path)},
+            "unknown metadata": {"apparently_safe_note": str(qrels_path)},
+        }
+        for label, changed in mutations.items():
+            with self.subTest(label=label):
+                runtime = {**self.runtime, **changed}
+                with patch.object(Path, "open") as opened:
+                    with self.assertRaisesRegex(ValueError, "approved|schema"):
+                        run_pilot_phase_a(
+                            self.selection,
+                            method="pointwise",
+                            infer_batch=self._pointwise_infer,
+                            runtime_metadata=runtime,
+                        )
+                opened.assert_not_called()
+
+    def test_runner_enforces_stage_shape_and_clean_full_revision(self) -> None:
+        stage1_twenty = deepcopy(self.selection)
+        inventory = load_candidate_manifest(self.candidate_path)
+        for entry in stage1_twenty["questions"]:
+            additions = [
+                candidate_id
+                for candidate_id in inventory
+                if candidate_id not in entry["candidate_ids"]
+            ][:8]
+            entry["candidate_ids"] = sorted([*entry["candidate_ids"], *additions])
+        with self.assertRaisesRegex(ValueError, "Stage 1.*12 candidates"):
+            run_pilot_phase_a(
+                stage1_twenty,
+                method="pointwise",
+                infer_batch=self._pointwise_infer,
+                runtime_metadata=self.runtime,
+            )
+        stage1_five = deepcopy(self.selection)
+        stage1_five["questions"].pop()
+        with self.assertRaisesRegex(ValueError, "Stage 1.*6 queries"):
+            run_pilot_phase_a(
+                stage1_five,
+                method="pointwise",
+                infer_batch=self._pointwise_infer,
+                runtime_metadata=self.runtime,
+            )
+
+        for field, value, expected in (
+            ("code_revision", "a" * 39, "40-hex"),
+            ("code_revision", "not-a-commit", "40-hex"),
+            ("worktree_status", "dirty", "exactly 'clean'"),
+            ("seed", "2026", "seed.*integer"),
+            ("vllm_version", 24, "vLLM version.*string"),
+            ("query_path", self.query_path, "query path.*string"),
+        ):
+            with self.subTest(field=field, value=value):
+                with self.assertRaisesRegex(ValueError, expected):
+                    run_pilot_phase_a(
+                        self.selection,
+                        method="pointwise",
+                        infer_batch=self._pointwise_infer,
+                        runtime_metadata={**self.runtime, field: value},
+                    )
+
     def test_loader_rejects_every_mutated_core_file_and_prompt_hash(self) -> None:
         _result, artifact_dir, _paths = self._run_and_write()
         core_names = (
@@ -772,6 +848,7 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
             "dtype": ("dtype", "bfloat16"),
             "seed": ("seed", 2027),
             "code revision": ("code_revision", "not_recorded"),
+            "worktree status": ("worktree_status", "dirty"),
         }
         for expected, (field, value) in mutations.items():
             with self.subTest(field=field):
@@ -787,6 +864,107 @@ class PilotPhaseAArtifactTest(unittest.TestCase):
                 self._rehash_config(changed_dir)
                 with self.assertRaisesRegex(ValueError, expected):
                     load_frozen_pilot(changed_dir)
+
+        for field, value in (
+            ("code_revision", "b" * 40),
+            ("worktree_status", "dirty"),
+        ):
+            with self.subTest(runtime_agreement=field):
+                changed_dir = self.root / f"changed-runtime-{field}-agreement"
+                shutil.copytree(artifact_dir, changed_dir)
+                runtime_path = changed_dir / "runtime.json"
+                runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+                runtime[field] = value
+                runtime_path.write_text(
+                    json.dumps(runtime, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                self._rehash_core(changed_dir, "runtime.json")
+                with self.assertRaisesRegex(ValueError, field.replace("_", " ")):
+                    load_frozen_pilot(changed_dir)
+
+    def test_loader_recomputes_receipt_and_runtime_counts(self) -> None:
+        _result, artifact_dir, _paths = self._run_and_write()
+        receipt_path = artifact_dir / "ranking_receipt.json"
+        original_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        for field in ("query_count", "candidate_count", "row_count"):
+            with self.subTest(receipt_field=field):
+                changed = deepcopy(original_receipt)
+                changed[field] += 1
+                receipt_path.write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "receipt counts"):
+                    load_frozen_pilot(artifact_dir)
+        receipt_path.write_text(
+            json.dumps(original_receipt, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        for field in ("prompt_count", "request_count", "pair_count"):
+            with self.subTest(runtime_field=field):
+                changed_dir = self.root / f"changed-runtime-{field}"
+                shutil.copytree(artifact_dir, changed_dir)
+                runtime_path = changed_dir / "runtime.json"
+                runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+                runtime[field] = 999
+                runtime_path.write_text(
+                    json.dumps(runtime, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                self._rehash_core(changed_dir, "runtime.json")
+                with self.assertRaisesRegex(ValueError, field.replace("_", " ")):
+                    load_frozen_pilot(changed_dir)
+
+    def test_loader_validates_every_stored_grade_probability(self) -> None:
+        _result, artifact_dir, _paths = self._run_and_write()
+        raw_path = artifact_dir / "raw_outputs.jsonl"
+        rows = [
+            json.loads(line)
+            for line in raw_path.read_text(encoding="utf-8").splitlines()
+        ]
+        rows[0]["grade_probabilities"]["0"] += 0.25
+        raw_path.write_text(
+            "".join(
+                json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+                for row in rows
+            ),
+            encoding="utf-8",
+        )
+        self._rehash_core(artifact_dir, "raw_outputs.jsonl")
+
+        with self.assertRaisesRegex(ValueError, "stored grade probability"):
+            load_frozen_pilot(artifact_dir)
+
+    def test_listwise_artifact_round_trip_preserves_all_eighteen_calls(self) -> None:
+        def infer_listwise(messages):
+            outputs = []
+            for item in messages:
+                expert_rows = item[-1]["content"].split("<experts>\n", 1)[1].split(
+                    "\n</experts>", 1
+                )[0]
+                handles = [
+                    row.split(" | ", 1)[0] for row in expert_rows.splitlines()
+                ]
+                outputs.append(json.dumps(handles))
+            return outputs
+
+        result = run_pilot_phase_a(
+            self.selection_path,
+            method="listwise",
+            infer_batch=infer_listwise,
+            runtime_metadata=self.runtime,
+        )
+        artifact_dir = self.root / "listwise-phase-a"
+        write_pilot_phase_a(result, artifact_dir)
+
+        frozen = load_frozen_pilot(artifact_dir)
+
+        self.assertEqual(18, len(frozen.prompts))
+        self.assertEqual(18, len(frozen.raw_outputs))
+        self.assertTrue(
+            all(record["used_fallback"] is False for record in frozen.raw_outputs)
+        )
+        self.assertEqual(result.scores, frozen.scores)
+        self.assertEqual(result.rankings, frozen.rankings)
 
     def test_loader_requires_exact_core_artifact_inventory(self) -> None:
         _result, artifact_dir, _paths = self._run_and_write()

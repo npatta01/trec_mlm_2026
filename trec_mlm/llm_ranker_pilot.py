@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import time
 from typing import Any
 
@@ -88,6 +89,27 @@ _PILOT_CONFIG_KEYS = frozenset(
     }
 )
 _PILOT_GRADE_TOKEN_IDS = {0: 15, 1: 16, 2: 17}
+_PILOT_STAGE_SHAPES = {1: (6, 12), 2: (12, 20)}
+_COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+_RUNTIME_INPUT_FIELDS = frozenset(
+    {
+        "model_id",
+        "revision",
+        "dtype",
+        "seed",
+        "vllm_version",
+        "torch_version",
+        "hip_version",
+        "code_revision",
+        "worktree_status",
+        "query_path",
+        "candidate_path",
+        "smoke_receipt_path",
+    }
+)
+_OPTIONAL_RUNTIME_INPUT_FIELDS = frozenset(
+    {"device_properties", "grade_token_ids", "inference_stats"}
+)
 
 _SELECTION_TOP_LEVEL_KEYS = frozenset(
     {"stage", "seed", "input_sha256", "questions"}
@@ -558,6 +580,151 @@ def write_stage1_selection(
     return selection_path, judgments_path
 
 
+def _stage_shape(stage: object) -> tuple[int, int]:
+    if not isinstance(stage, int) or isinstance(stage, bool):
+        raise ValueError("pilot selection stage must be an integer")
+    try:
+        return _PILOT_STAGE_SHAPES[stage]
+    except KeyError as error:
+        raise ValueError("pilot selection stage must be 1 or 2") from error
+
+
+def _require_stage_shape(payload: Mapping[str, Any]) -> tuple[int, int]:
+    stage = payload.get("stage")
+    query_count, candidate_count = _stage_shape(stage)
+    questions = payload.get("questions")
+    if (
+        not isinstance(questions, list)
+        or len(questions) != query_count
+        or any(
+            not isinstance(entry, Mapping)
+            or not isinstance(entry.get("candidate_ids"), list)
+            or len(entry["candidate_ids"]) != candidate_count
+            for entry in questions
+        )
+    ):
+        raise ValueError(
+            f"Stage {stage} requires exactly {query_count} queries and "
+            f"{candidate_count} candidates per query"
+        )
+    return query_count, candidate_count
+
+
+def _normalize_approved_path(
+    value: object,
+    *,
+    approved: str | Path,
+    label: str,
+) -> str:
+    if type(value) is not str:
+        raise ValueError(f"pilot runtime {label} path must be a string")
+    normalized = Path(value).expanduser().resolve(strict=False)
+    normalized_approved = Path(approved).expanduser().resolve(strict=False)
+    if normalized != normalized_approved:
+        raise ValueError(f"pilot runtime {label} path is not approved")
+    return str(normalized_approved)
+
+
+def _validate_inference_stats(payload: object) -> dict[str, int]:
+    if type(payload) is not dict or set(payload) != {
+        "request_count",
+        "prompt_token_count",
+        "output_token_count",
+    }:
+        raise ValueError("pilot runtime inference stats schema changed")
+    for field, value in payload.items():
+        if type(value) is not int or value < 0:
+            raise ValueError(f"pilot runtime inference stats {field} must be an integer")
+    return payload
+
+
+def _validate_runtime_metadata_before_io(
+    runtime_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(runtime_metadata, Mapping):
+        raise ValueError("pilot runtime metadata must be an object")
+    fields = set(runtime_metadata)
+    if any(
+        "qrel" in str(field).lower() or "judgment" in str(field).lower()
+        for field in fields
+    ):
+        raise ValueError("pilot Phase A does not accept qrel or judgment metadata")
+    allowed = _RUNTIME_INPUT_FIELDS | _OPTIONAL_RUNTIME_INPUT_FIELDS
+    if fields - allowed or not _RUNTIME_INPUT_FIELDS.issubset(fields):
+        raise ValueError("pilot runtime metadata schema changed")
+
+    runtime = dict(runtime_metadata)
+    for field, label in (
+        ("model_id", "model ID"),
+        ("revision", "model revision"),
+        ("dtype", "dtype"),
+        ("vllm_version", "vLLM version"),
+        ("torch_version", "Torch version"),
+        ("hip_version", "HIP version"),
+        ("code_revision", "code revision"),
+        ("worktree_status", "worktree status"),
+    ):
+        value = runtime[field]
+        if type(value) is not str or not value.strip():
+            raise ValueError(f"pilot runtime {label} must be a non-empty string")
+    if type(runtime["seed"]) is not int:
+        raise ValueError("pilot runtime seed must be an integer")
+    for field, expected in (
+        ("model_id", MODEL_ID),
+        ("revision", MODEL_REVISION),
+        ("dtype", MODEL_DTYPE),
+        ("seed", 2026),
+    ):
+        if runtime[field] != expected:
+            label = "model revision" if field == "revision" else field
+            raise ValueError(f"pilot runtime {label} changed")
+    if _COMMIT_SHA_RE.fullmatch(runtime["code_revision"]) is None:
+        raise ValueError("pilot code revision must be a full 40-hex commit SHA")
+    if runtime["worktree_status"] != "clean":
+        raise ValueError("pilot worktree status must be exactly 'clean'")
+
+    runtime["query_path"] = _normalize_approved_path(
+        runtime["query_path"], approved=DEFAULT_QUERY_PATH, label="query"
+    )
+    runtime["candidate_path"] = _normalize_approved_path(
+        runtime["candidate_path"],
+        approved=DEFAULT_CANDIDATE_PATH,
+        label="candidate",
+    )
+    runtime["smoke_receipt_path"] = _normalize_approved_path(
+        runtime["smoke_receipt_path"],
+        approved=DEFAULT_SMOKE_RECEIPT_PATH,
+        label="smoke receipt",
+    )
+
+    if "device_properties" in runtime and (
+        type(runtime["device_properties"]) is not str
+        or not runtime["device_properties"].strip()
+    ):
+        raise ValueError("pilot runtime device properties must be a non-empty string")
+    if "grade_token_ids" in runtime:
+        grade_tokens = runtime["grade_token_ids"]
+        if not isinstance(grade_tokens, Mapping):
+            raise ValueError("pilot runtime grade token IDs changed")
+        try:
+            normalized_tokens = {
+                int(grade): token_id for grade, token_id in grade_tokens.items()
+            }
+        except (TypeError, ValueError) as error:
+            raise ValueError("pilot runtime grade token IDs changed") from error
+        if (
+            normalized_tokens != _PILOT_GRADE_TOKEN_IDS
+            or any(type(value) is not int for value in grade_tokens.values())
+        ):
+            raise ValueError("pilot runtime grade token IDs changed")
+        runtime["grade_token_ids"] = normalized_tokens
+    if "inference_stats" in runtime:
+        runtime["inference_stats"] = _validate_inference_stats(
+            runtime["inference_stats"]
+        )
+    return runtime
+
+
 def _load_phase_a_selection(
     selection: Mapping[str, Any] | str | Path,
 ) -> dict[str, Any]:
@@ -584,16 +751,12 @@ def _load_phase_a_selection(
         or frozenset(questions[0]) != _SELECTION_ENTRY_KEYS
     ):
         raise ValueError("Phase A requires a qrel-free selection")
-    candidate_ids = questions[0].get("candidate_ids")
-    if not isinstance(candidate_ids, list):
-        raise ValueError("Phase A requires a qrel-free selection")
-    stage = payload.get("stage")
-    if not isinstance(stage, int) or isinstance(stage, bool):
-        raise ValueError("pilot selection stage must be an integer")
+    _query_count, candidate_count = _require_stage_shape(payload)
+    stage = payload["stage"]
     summary = validate_pilot_selection(
         payload,
         expected_stage=stage,
-        expected_candidate_count=len(candidate_ids),
+        expected_candidate_count=candidate_count,
     )
     if summary["manifest_kind"] != "selection":
         raise ValueError("Phase A requires a qrel-free selection")
@@ -634,45 +797,11 @@ def _pilot_runtime_config(
     if method not in {"pointwise", "listwise"}:
         raise ValueError("pilot method must be 'pointwise' or 'listwise'")
     runtime = dict(runtime_metadata)
-    if any(
-        "qrel" in str(field).lower() or "judgment" in str(field).lower()
-        for field in runtime
-    ):
-        raise ValueError("pilot Phase A does not accept qrel or judgment metadata")
-    for field, expected in (
-        ("model_id", MODEL_ID),
-        ("revision", MODEL_REVISION),
-        ("dtype", MODEL_DTYPE),
-        ("seed", 2026),
-    ):
-        if runtime.get(field) != expected:
-            label = "model revision" if field == "revision" else field
-            raise ValueError(f"pilot runtime {label} changed")
-    for field, label in (
-        ("vllm_version", "vLLM version"),
-        ("torch_version", "Torch version"),
-        ("hip_version", "HIP version"),
-    ):
-        value = runtime.get(field)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"pilot runtime {label} is required")
-
-    code_revision = runtime.get("code_revision")
-    if (
-        not isinstance(code_revision, str)
-        or not code_revision.strip()
-        or code_revision == "not_recorded"
-    ):
-        raise ValueError("pilot code revision is required")
-    worktree_status = runtime.get("worktree_status", "not_recorded")
-    if not isinstance(worktree_status, str) or not worktree_status.strip():
-        raise ValueError("pilot worktree status is required")
-
-    query_path = str(runtime.get("query_path", DEFAULT_QUERY_PATH))
-    candidate_path = str(runtime.get("candidate_path", DEFAULT_CANDIDATE_PATH))
-    smoke_path = str(
-        runtime.get("smoke_receipt_path", DEFAULT_SMOKE_RECEIPT_PATH)
-    )
+    code_revision = runtime["code_revision"]
+    worktree_status = runtime["worktree_status"]
+    query_path = runtime["query_path"]
+    candidate_path = runtime["candidate_path"]
+    smoke_path = runtime["smoke_receipt_path"]
     input_sha256 = _validate_current_pilot_inputs(
         selection,
         query_path=query_path,
@@ -681,6 +810,10 @@ def _pilot_runtime_config(
     smoke = validate_pilot_smoke_receipt(smoke_path)
     runtime.update(
         {
+            "version": 1,
+            "qrel_free_phase": True,
+            "stage": selection["stage"],
+            "input_sha256": input_sha256,
             "query_path": query_path,
             "candidate_path": candidate_path,
             "smoke_receipt_path": smoke_path,
@@ -756,6 +889,21 @@ def _pointwise_output_record(
     )
 
 
+def _expected_execution_counts(
+    selection: Mapping[str, Any], *, method: str
+) -> dict[str, int]:
+    query_count, candidate_count = _require_stage_shape(selection)
+    pair_count = query_count * candidate_count
+    request_count = pair_count if method == "pointwise" else query_count * 3
+    return {
+        "query_count": query_count,
+        "candidate_count": candidate_count,
+        "pair_count": pair_count,
+        "request_count": request_count,
+        "prompt_count": request_count,
+    }
+
+
 def run_pilot_phase_a(
     selection: Mapping[str, Any] | str | Path,
     *,
@@ -765,11 +913,12 @@ def run_pilot_phase_a(
 ) -> PilotPhaseAResult:
     """Run one compact pilot using only its frozen qrel-free selection."""
 
+    validated_runtime = _validate_runtime_metadata_before_io(runtime_metadata)
     frozen_selection = _load_phase_a_selection(selection)
     runtime, config = _pilot_runtime_config(
         frozen_selection,
         method=method,
-        runtime_metadata=runtime_metadata,
+        runtime_metadata=validated_runtime,
     )
     prompts: list[dict[str, Any]] = []
     messages: list[list[dict[str, str]]] = []
@@ -817,6 +966,12 @@ def run_pilot_phase_a(
                 )
                 messages.append(formatted)
                 keys.append((query_id, rotation))
+
+    execution_counts = _expected_execution_counts(
+        frozen_selection, method=method
+    )
+    if len(prompts) != execution_counts["prompt_count"]:
+        raise ValueError("pilot prompt count disagrees with the stage contract")
 
     started = time.perf_counter()
     inferred = list(infer_batch(messages))
@@ -885,8 +1040,9 @@ def run_pilot_phase_a(
         {
             "elapsed_seconds": elapsed,
             "method": method,
-            "prompt_count": len(prompts),
-            "pair_count": sum(len(values) for values in scores.values()),
+            "prompt_count": execution_counts["prompt_count"],
+            "request_count": execution_counts["request_count"],
+            "pair_count": execution_counts["pair_count"],
         }
     )
     return PilotPhaseAResult(
@@ -1078,6 +1234,27 @@ def _scores_from_raw_outputs(
                 query_id=query_id,
                 candidate_id=candidate_id,
             )
+            stored_probabilities = raw.get("grade_probabilities")
+            if not isinstance(stored_probabilities, Mapping) or set(
+                stored_probabilities
+            ) != {"0", "1", "2"}:
+                raise ValueError("pointwise stored grade probability schema changed")
+            for grade in (0, 1, 2):
+                stored_probability = stored_probabilities[str(grade)]
+                if (
+                    isinstance(stored_probability, bool)
+                    or not isinstance(stored_probability, (int, float))
+                    or not math.isfinite(float(stored_probability))
+                    or not math.isclose(
+                        float(stored_probability),
+                        record["grade_probabilities"][str(grade)],
+                        rel_tol=1e-12,
+                        abs_tol=1e-12,
+                    )
+                ):
+                    raise ValueError(
+                        f"pointwise stored grade probability {grade} changed"
+                    )
             if not math.isclose(
                 float(raw.get("expected_grade", math.nan)),
                 record["expected_grade"],
@@ -1203,12 +1380,25 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
             label = "model revision" if field == "model_revision" else field
             raise ValueError(f"pilot {label} changed")
     code_revision = config.get("code_revision")
-    if (
-        not isinstance(code_revision, str)
-        or not code_revision.strip()
-        or code_revision == "not_recorded"
-    ):
+    if not isinstance(code_revision, str) or _COMMIT_SHA_RE.fullmatch(
+        code_revision
+    ) is None:
         raise ValueError("pilot code revision changed")
+    if config.get("worktree_status") != "clean":
+        raise ValueError("pilot worktree status changed")
+    approved_query_path = _normalize_approved_path(
+        config.get("query_path"), approved=DEFAULT_QUERY_PATH, label="query"
+    )
+    approved_candidate_path = _normalize_approved_path(
+        config.get("candidate_path"),
+        approved=DEFAULT_CANDIDATE_PATH,
+        label="candidate",
+    )
+    approved_smoke_path = _normalize_approved_path(
+        config.get("smoke_receipt_path"),
+        approved=DEFAULT_SMOKE_RECEIPT_PATH,
+        label="smoke receipt",
+    )
 
     selection = _load_phase_a_selection(source / "selection.json")
     if config.get("stage") != selection["stage"] or receipt.get("stage") != selection[
@@ -1217,8 +1407,8 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
         raise ValueError("pilot stage changed")
     input_sha256 = _validate_current_pilot_inputs(
         selection,
-        query_path=config["query_path"],
-        candidate_path=config["candidate_path"],
+        query_path=approved_query_path,
+        candidate_path=approved_candidate_path,
     )
     if (
         config.get("input_sha256") != input_sha256
@@ -1226,7 +1416,7 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
     ):
         raise ValueError("pilot recorded input SHA256 changed")
 
-    smoke_path = Path(config["smoke_receipt_path"])
+    smoke_path = Path(approved_smoke_path)
     if _sha256(smoke_path) != config.get("smoke_receipt_sha256"):
         raise ValueError("smoke receipt SHA256 changed")
     smoke = validate_pilot_smoke_receipt(smoke_path)
@@ -1237,16 +1427,88 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
         raise ValueError("smoke receipt SHA256 changed")
 
     runtime = _load_json_object(source / "runtime.json", label="pilot runtime")
+    required_runtime_fields = _RUNTIME_INPUT_FIELDS | {
+        "version",
+        "qrel_free_phase",
+        "stage",
+        "input_sha256",
+        "smoke_receipt_sha256",
+        "elapsed_seconds",
+        "method",
+        "prompt_count",
+        "request_count",
+        "pair_count",
+    }
+    allowed_runtime_fields = required_runtime_fields | _OPTIONAL_RUNTIME_INPUT_FIELDS
+    if set(runtime) - allowed_runtime_fields or not required_runtime_fields.issubset(
+        runtime
+    ):
+        raise ValueError("pilot runtime metadata schema changed")
+    if type(runtime.get("version")) is not int or runtime["version"] != 1:
+        raise ValueError("pilot runtime version changed")
+    if (
+        type(runtime.get("qrel_free_phase")) is not bool
+        or runtime["qrel_free_phase"] is not True
+    ):
+        raise ValueError("pilot runtime qrel-free phase changed")
+    if type(runtime.get("stage")) is not int:
+        raise ValueError("pilot runtime stage changed")
+    for field in ("prompt_count", "request_count", "pair_count"):
+        if type(runtime.get(field)) is not int:
+            raise ValueError(f"pilot runtime {field.replace('_', ' ')} changed")
+    elapsed_seconds = runtime.get("elapsed_seconds")
+    if (
+        isinstance(elapsed_seconds, bool)
+        or not isinstance(elapsed_seconds, (int, float))
+        or not math.isfinite(float(elapsed_seconds))
+        or elapsed_seconds < 0
+    ):
+        raise ValueError("pilot runtime elapsed seconds changed")
+    for field, label in (
+        ("vllm_version", "vLLM version"),
+        ("torch_version", "Torch version"),
+        ("hip_version", "HIP version"),
+    ):
+        if type(runtime.get(field)) is not str or not runtime[field].strip():
+            raise ValueError(f"pilot runtime {label} changed")
+    if "device_properties" in runtime and (
+        type(runtime["device_properties"]) is not str
+        or not runtime["device_properties"].strip()
+    ):
+        raise ValueError("pilot runtime device properties changed")
+    if "grade_token_ids" in runtime:
+        grade_tokens = runtime["grade_token_ids"]
+        if not isinstance(grade_tokens, Mapping):
+            raise ValueError("pilot runtime grade token IDs changed")
+        try:
+            normalized_grade_tokens = {
+                int(grade): token_id for grade, token_id in grade_tokens.items()
+            }
+        except (TypeError, ValueError) as error:
+            raise ValueError("pilot runtime grade token IDs changed") from error
+        if (
+            normalized_grade_tokens != _PILOT_GRADE_TOKEN_IDS
+            or any(type(value) is not int for value in grade_tokens.values())
+        ):
+            raise ValueError("pilot runtime grade token IDs changed")
+    if "inference_stats" in runtime:
+        _validate_inference_stats(runtime["inference_stats"])
+
     runtime_expected = {
+        "version": config["version"],
+        "qrel_free_phase": config["qrel_free_phase"],
+        "stage": config["stage"],
         "model_id": config["model_id"],
         "revision": config["model_revision"],
         "dtype": config["dtype"],
         "seed": config["seed"],
         "code_revision": config["code_revision"],
+        "worktree_status": config["worktree_status"],
         "query_path": config["query_path"],
         "candidate_path": config["candidate_path"],
         "smoke_receipt_path": config["smoke_receipt_path"],
         "smoke_receipt_sha256": config["smoke_receipt_sha256"],
+        "input_sha256": config["input_sha256"],
         "method": method,
     }
     for field, expected in runtime_expected.items():
@@ -1255,17 +1517,23 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
                 "_", " "
             )
             raise ValueError(f"pilot runtime {label} changed")
-    for field, label in (
-        ("vllm_version", "vLLM version"),
-        ("torch_version", "Torch version"),
-        ("hip_version", "HIP version"),
+
+    execution_counts = _expected_execution_counts(selection, method=method)
+    for field in ("prompt_count", "request_count", "pair_count"):
+        if runtime[field] != execution_counts[field]:
+            raise ValueError(f"pilot runtime {field.replace('_', ' ')} changed")
+    if "inference_stats" in runtime and (
+        runtime["inference_stats"]["request_count"]
+        != execution_counts["request_count"]
     ):
-        if not isinstance(runtime.get(field), str) or not runtime[field].strip():
-            raise ValueError(f"pilot runtime {label} changed")
+        raise ValueError("pilot runtime inference stats request count changed")
 
     prompts = _load_jsonl(source / "prompts.jsonl", label="pilot prompts")
     expected_prompts = _expected_pilot_prompts(selection, method=method)
-    if prompts != expected_prompts:
+    if (
+        len(prompts) != execution_counts["prompt_count"]
+        or prompts != expected_prompts
+    ):
         raise ValueError("pilot prompt content changed")
     raw_outputs = _load_jsonl(
         source / "raw_outputs.jsonl", label="pilot raw outputs"
@@ -1312,13 +1580,11 @@ def load_frozen_pilot(artifact_dir: str | Path) -> PilotPhaseAResult:
         if rankings[query_id] != expected_ranking:
             raise ValueError("pilot ranking disagrees with scores")
 
-    query_count = len(selection["questions"])
-    candidate_count = len(selection["questions"][0]["candidate_ids"])
     if (
         receipt.get("method") != method
-        or receipt.get("query_count") != query_count
-        or receipt.get("candidate_count") != candidate_count
-        or receipt.get("row_count") != query_count * candidate_count
+        or receipt.get("query_count") != execution_counts["query_count"]
+        or receipt.get("candidate_count") != execution_counts["candidate_count"]
+        or receipt.get("row_count") != execution_counts["pair_count"]
     ):
         raise ValueError("pilot ranking receipt counts changed")
     return PilotPhaseAResult(

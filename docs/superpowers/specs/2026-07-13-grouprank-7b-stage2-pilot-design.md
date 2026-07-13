@@ -35,7 +35,12 @@ comparable with contextual E5, contextual Qwen4B, and pointwise Qwen.
 Adapt GroupRank's official passage-ranking prompt only where needed to describe
 LLM experts. For each question, the prompt asks which described experts are most
 likely to answer the question correctly and requests an integer score from 0 to
-10 for every presented handle.
+10 for every presented handle. The response protocol is the checkpoint's strict
+two-part envelope: exactly one `<reason>...</reason>` block followed by exactly
+one `<answer>...</answer>` block, with nothing outside them. The answer contains
+either a bare JSON object or that object inside one optional `json` code fence.
+The prompt contains an output-format skeleton, but no semantically scored expert
+example.
 
 Use the model's official groupwise structure:
 
@@ -77,6 +82,16 @@ Every raw generation is persisted before semantic parsing. Parsing must detect
 duplicate JSON keys and require exactly the ten expected handles, with one
 integer score from 0 through 10 per handle. Missing, extra, duplicated,
 non-integer, boolean, or out-of-range values make that request unscorable.
+
+The first real smoke receipt at
+`artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke.json` is a preserved
+protocol-failure artifact: the model emitted one reasoning `<answer>` followed
+by a second JSON `<answer>`. Its SHA-256 is
+`7a11c925bd3728fc17595849ab3291409be273a91ec1ee097c4bee662314f3d5`, and it
+remains immutable. After aligning the prompt and strict parser to the official
+envelope, one explicit operator retry may write `smoke_protocol_v2.json`. This
+is not an automatic runtime retry, and the rank phase may proceed only by
+validating that distinct passed receipt.
 
 Do not repair semantic failures, substitute zeros, or synthesize fallback
 rankings. If any request fails, persist all raw outputs and a terminal failure

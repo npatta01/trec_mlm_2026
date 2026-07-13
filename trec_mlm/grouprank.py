@@ -74,9 +74,21 @@ def format_grouprank_messages(
     user = (
         "Compare all described LLM experts for the user question. Assign every "
         "handle one integer score from 0 through 10; higher scores mean the expert "
-        "is more likely to answer the question correctly. You may explain the "
-        "comparison first. Finish with exactly one JSON object containing every "
-        "handle inside one final <answer> block.\n\n"
+        "is more likely to answer the question correctly. Briefly compare every "
+        "expert inside the reason block, then put only the score object inside the "
+        "answer block. Return exactly these two tagged parts in this order, with "
+        "nothing outside them:\n"
+        "<reason>\n"
+        "Brief comparison of all ten experts.\n"
+        "</reason>\n"
+        "<answer>\n"
+        "```json\n"
+        "{\n"
+        '  "<each presented handle exactly once>": '
+        "<integer from 0 through 10>\n"
+        "}\n"
+        "```\n"
+        "</answer>\n\n"
         f"<question>\n{question.strip()}\n</question>\n"
         "<experts>\n"
         + "\n".join(rows)
@@ -212,24 +224,38 @@ def parse_grouprank_scores(
     *,
     expected_handles: Sequence[str],
 ) -> dict[str, int]:
-    """Parse one strict ten-key score object from the final answer block."""
+    """Parse one strict ten-key score object from the official envelope."""
 
     expected = _validate_expected_handles(expected_handles)
     if (
         not isinstance(raw, str)
+        or raw.count("<reason>") != 1
+        or raw.count("</reason>") != 1
         or raw.count("<answer>") != 1
         or raw.count("</answer>") != 1
     ):
-        raise ValueError("GroupRank output must contain one final <answer> block")
+        raise ValueError("GroupRank output must use the official GroupRank envelope")
     match = re.fullmatch(
-        r".*<answer>\s*(.*?)\s*</answer>\s*",
+        r"<reason>(.*?)</reason>\s*<answer>(.*?)</answer>",
         raw,
         flags=re.DOTALL,
     )
     if match is None:
-        raise ValueError("GroupRank output must contain one final <answer> block")
+        raise ValueError("GroupRank output must use the official GroupRank envelope")
+    answer = match.group(2).strip()
+    if "```" in answer:
+        fenced = re.fullmatch(
+            r"```json[ \t]*\r?\n(.*?)\r?\n```",
+            answer,
+            flags=re.DOTALL,
+        )
+        if fenced is None:
+            raise ValueError(
+                "GroupRank output must use the official GroupRank envelope"
+            )
+        answer = fenced.group(1)
     try:
-        pairs = json.loads(match.group(1), object_pairs_hook=lambda values: values)
+        pairs = json.loads(answer, object_pairs_hook=lambda values: values)
     except json.JSONDecodeError as error:
         raise ValueError("GroupRank answer must be valid JSON") from error
     if not isinstance(pairs, list) or any(

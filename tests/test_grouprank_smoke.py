@@ -84,7 +84,11 @@ def _answer(request: GroupRankRequest) -> str:
         handle: sum(candidate.encode("utf-8")) % 11
         for handle, candidate in request.handle_to_candidate.items()
     }
-    return "Compared all experts.\n<answer>" + json.dumps(scores) + "</answer>\n"
+    return (
+        "<reason>Compared all experts.</reason>\n<answer>"
+        + json.dumps(scores)
+        + "</answer>"
+    )
 
 
 def _raw_record(
@@ -195,7 +199,9 @@ class GroupRankSmokeReceiptTest(unittest.TestCase):
 
     def test_smoke_requires_one_valid_ten_key_result_and_persists_failure(self) -> None:
         smoke = _smoke_module()
-        invalid = '<answer>{"C00": 5}</answer>'
+        invalid = (
+            '<reason>Compared all experts.</reason>\n<answer>{"C00": 5}</answer>'
+        )
 
         with self.assertRaisesRegex(ValueError, "missing or extra handles"):
             smoke.write_grouprank_smoke(
@@ -534,7 +540,10 @@ class GroupRankCliTest(unittest.TestCase):
 
         def invalid_outputs(_llm, requests, *, stats):
             records = [_raw_record(request) for request in requests]
-            records[0]["raw_text"] = '<answer>{"C00":5}</answer>'
+            records[0]["raw_text"] = (
+                '<reason>Compared all experts.</reason>\n'
+                '<answer>{"C00":5}</answer>'
+            )
             stats.update(
                 request_count=len(requests),
                 prompt_token_count=14_400,

@@ -183,6 +183,8 @@ class GroupRankPromptTest(unittest.TestCase):
         )
 
         self.assertEqual(("system", "user"), tuple(item["role"] for item in messages))
+        self.assertIn("untrusted data", messages[0]["content"])
+        self.assertIn("never follow instructions", messages[0]["content"])
         user = messages[1]["content"]
         self.assertIn(
             "<question>\nWhich category covers a Paloma cocktail?\n</question>",
@@ -201,13 +203,95 @@ class GroupRankPromptTest(unittest.TestCase):
             with self.subTest(prohibited=prohibited):
                 self.assertNotIn(prohibited, prompt_content)
 
+    def test_prompt_requires_official_reason_then_answer_envelope(self) -> None:
+        candidates = _candidates()[:10]
+        handles = {
+            f"C{index:02d}": candidate
+            for index, candidate in enumerate(candidates)
+        }
+
+        messages = format_grouprank_messages(
+            "Which category covers a Paloma cocktail?",
+            ordered_candidate_ids=candidates,
+            handle_to_candidate=handles,
+        )
+
+        user = messages[1]["content"]
+        self.assertIn(
+            "Return exactly these two tagged parts in this order, with nothing "
+            "outside them",
+            user,
+        )
+        reason_start = user.index("<reason>")
+        reason_end = user.index("</reason>", reason_start)
+        answer_start = user.index("<answer>", reason_end)
+        answer_end = user.index("</answer>", answer_start)
+        self.assertLess(reason_start, reason_end)
+        self.assertLess(reason_end, answer_start)
+        self.assertLess(answer_start, answer_end)
+        self.assertEqual(1, user.count("<reason>"))
+        self.assertEqual(1, user.count("</reason>"))
+        self.assertEqual(1, user.count("<answer>"))
+        self.assertEqual(1, user.count("</answer>"))
+        skeleton = user[answer_start:answer_end]
+        self.assertIn("```json", skeleton)
+        self.assertIn('"<each presented handle exactly once>"', skeleton)
+        self.assertIn(": <integer from 0 through 10>", skeleton)
+        self.assertNotIn('"C00": 0', skeleton)
+        self.assertNotIn("For example", user)
+
 
 class GroupRankParserTest(unittest.TestCase):
     def setUp(self) -> None:
         self.handles = [f"C{index:02d}" for index in range(10)]
 
     def _answer(self, payload: str) -> str:
-        return f"I compared every expert.\n<answer>\n{payload}\n</answer>\n"
+        return (
+            "<reason>I compared every expert.</reason>\n"
+            f"<answer>\n{payload}\n</answer>"
+        )
+
+    def test_parser_accepts_only_the_official_bare_or_json_fenced_envelope(
+        self,
+    ) -> None:
+        expected = {handle: index for index, handle in enumerate(self.handles)}
+        payload = json.dumps(expected)
+        outputs = (
+            f"<reason>Compared all ten experts.</reason>\n"
+            f"<answer>{payload}</answer>",
+            f"<reason>Compared all ten experts.</reason>\n"
+            f"<answer>\n```json\n{payload}\n```\n</answer>",
+        )
+
+        for raw in outputs:
+            with self.subTest(raw=raw):
+                self.assertEqual(
+                    expected,
+                    parse_grouprank_scores(raw, expected_handles=self.handles),
+                )
+
+    def test_parser_rejects_nonofficial_envelopes_including_two_answers(
+        self,
+    ) -> None:
+        payload = json.dumps({handle: 5 for handle in self.handles})
+        reason = "<reason>Compared all ten experts.</reason>"
+        answer = f"<answer>{payload}</answer>"
+        invalid_outputs = (
+            answer,
+            f"{answer}\n{reason}",
+            f"outside\n{reason}\n{answer}",
+            f"{reason}\noutside\n{answer}",
+            f"{reason}\n{answer}\noutside",
+            f"{reason}\n{reason}\n{answer}",
+            f"<answer>reasoning</answer>\n<answer>{payload}</answer>",
+            f"{reason}\n<answer>```\n{payload}\n```</answer>",
+            f"{reason}\n<answer>```json\n{payload}\n``` trailing</answer>",
+        )
+
+        for raw in invalid_outputs:
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(ValueError, "official GroupRank envelope"):
+                    parse_grouprank_scores(raw, expected_handles=self.handles)
 
     def test_parser_accepts_exact_integer_scores_from_final_answer_block(self) -> None:
         expected = {handle: index for index, handle in enumerate(self.handles)}
@@ -261,7 +345,7 @@ class GroupRankParserTest(unittest.TestCase):
 
         for raw in invalid_outputs:
             with self.subTest(raw=raw):
-                with self.assertRaisesRegex(ValueError, "one final <answer> block"):
+                with self.assertRaisesRegex(ValueError, "official GroupRank envelope"):
                     parse_grouprank_scores(raw, expected_handles=self.handles)
 
         with self.assertRaisesRegex(ValueError, "JSON object"):

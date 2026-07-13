@@ -69,7 +69,11 @@ def _answer(request: GroupRankRequest) -> str:
         handle: sum(candidate.encode("utf-8")) % 11
         for handle, candidate in request.handle_to_candidate.items()
     }
-    return "Compared every expert.\n<answer>" + json.dumps(scores) + "</answer>\n"
+    return (
+        "<reason>Compared every expert.</reason>\n<answer>"
+        + json.dumps(scores)
+        + "</answer>"
+    )
 
 
 def _raw_record(
@@ -240,7 +244,9 @@ class GroupRankFailurePersistenceTest(unittest.TestCase):
                         ]
                         pairs.append(f'"{next(iter(request.handle_to_candidate))}":6')
                         records[0]["raw_text"] = (
-                            "<answer>{" + ",".join(pairs) + "}</answer>"
+                            "<reason>Compared every expert.</reason>\n<answer>{"
+                            + ",".join(pairs)
+                            + "}</answer>"
                         )
                     else:
                         records[0]["finish_reason"] = "length"

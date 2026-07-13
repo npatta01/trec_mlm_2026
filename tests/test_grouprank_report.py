@@ -79,7 +79,11 @@ def _phase_a_fixture() -> tuple[GroupRankPhaseAResult, tuple[int, ...]]:
                 "group": request.group,
                 "ordered_candidate_ids": list(request.ordered_candidate_ids),
                 "handle_to_candidate": dict(request.handle_to_candidate),
-                "raw_text": "<answer>" + json.dumps(scores) + "</answer>",
+                "raw_text": (
+                    "<reason>Compared all experts.</reason>\n<answer>"
+                    + json.dumps(scores)
+                    + "</answer>"
+                ),
                 "prompt_token_count": 300,
                 "output_token_count": 80,
                 "finish_reason": "stop",

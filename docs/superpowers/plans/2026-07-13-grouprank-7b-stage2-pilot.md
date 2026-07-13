@@ -94,7 +94,27 @@ Use a duplicate-preserving object hook before constructing a dictionary:
 
 ```python
 def parse_grouprank_scores(raw: str, *, expected_handles: Sequence[str]) -> dict[str, int]:
-    pairs = json.loads(raw, object_pairs_hook=lambda values: values)
+    if any(
+        raw.count(tag) != 1
+        for tag in ("<reason>", "</reason>", "<answer>", "</answer>")
+    ):
+        raise ValueError("GroupRank output must use the official GroupRank envelope")
+    match = re.fullmatch(
+        r"<reason>(.*?)</reason>\s*<answer>(.*?)</answer>",
+        raw,
+        flags=re.DOTALL,
+    )
+    if match is None:
+        raise ValueError("GroupRank output must use the official GroupRank envelope")
+    answer = match.group(2).strip()
+    if "```" in answer:
+        fenced = re.fullmatch(
+            r"```json[ \t]*\r?\n(.*?)\r?\n```", answer, flags=re.DOTALL
+        )
+        if fenced is None:
+            raise ValueError("GroupRank output must use the official GroupRank envelope")
+        answer = fenced.group(1)
+    pairs = json.loads(answer, object_pairs_hook=lambda values: values)
     if not isinstance(pairs, list) or any(not isinstance(pair, tuple) for pair in pairs):
         raise ValueError("GroupRank answer must be a JSON object")
     keys = [key for key, _ in pairs]
@@ -110,7 +130,12 @@ def parse_grouprank_scores(raw: str, *, expected_handles: Sequence[str]) -> dict
     return result
 ```
 
-Extract only the JSON object inside the model's final `<answer>` block before calling this parser; reject absent/multiple final answer blocks rather than scanning arbitrary reasoning text.
+Require exactly one `<reason>` block followed by exactly one `<answer>` block,
+with nothing outside them. Extract bare JSON or one optional `json`-fenced JSON
+object from the answer. Reject absent, reordered, or repeated blocks and malformed
+fences rather than scanning arbitrary text, truncating, or selecting the last
+block. The prompt must show this output skeleton without a semantically scored
+expert exemplar.
 
 Return a deterministic fixed-key JSON Schema with every expected handle required,
 integer bounds 0–10, and `additionalProperties: false`. This schema documents and
@@ -424,15 +449,22 @@ podman ps --format '{{.ID}} {{.Names}} {{.Status}} {{.Image}}'
 
 Expected: both devices are accessible, at least 35 GiB memory is available, memory/IO PSI `avg10` is below 1.00, and no other ROCm inference container is active. Otherwise stop and report the preflight rather than downloading or running.
 
-- [ ] **Step 2: Pull the 7B checkpoint through the smoke run**
+- [ ] **Step 2: Run the single protocol-correction smoke retry**
 
-Launch the pinned image rootlessly with this exact command. It preserves the validated devices, supplementary groups, shared IPC, cache, repository, and read-only git-common-dir mounts. Do not set offline mode for this first smoke.
+The original strict smoke failed because its raw generation contained two
+`<answer>` blocks. Preserve
+`artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke.json` byte-for-byte.
+After the official `<reason>` then `<answer>` protocol correction is committed,
+launch the pinned image rootlessly for one explicit operator retry using the
+distinct `smoke_protocol_v2.json` receipt below. This is not runtime retry
+behavior. The command preserves the validated devices, supplementary groups,
+shared IPC, cache, repository, and read-only git-common-dir mounts.
 
 ```bash
 IMAGE='docker.io/vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28'
 REPO="$(pwd -P)"
 GIT_COMMON="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)"
-NAME="trec-grouprank7b-smoke-$(git rev-parse --short HEAD)"
+NAME="trec-grouprank7b-smoke-protocol-v2-$(git rev-parse --short HEAD)"
 podman run --name "$NAME" \
   --entrypoint /bin/bash \
   --device /dev/kfd --device /dev/dri \
@@ -445,7 +477,7 @@ podman run --name "$NAME" \
     --phase smoke \
     --selection artifacts/llm_label_ranker/pilot/stage2/selection.json \
     --code-revision "$(git rev-parse HEAD)" \
-    --output-dir artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke.json'
+    --output-dir artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke_protocol_v2.json'
 ```
 
 Expected: the 15.2 GB checkpoint resolves to the frozen revision, ROCm loads it in BF16, one ten-candidate response validates, and the smoke receipt reports `passed: true`.
@@ -470,7 +502,7 @@ podman run --name "$NAME" \
   'python -m trec_mlm.cli grouprank-pilot \
     --phase rank \
     --selection artifacts/llm_label_ranker/pilot/stage2/selection.json \
-    --smoke-receipt artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke.json \
+    --smoke-receipt artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/smoke_protocol_v2.json \
     --code-revision "$(git rev-parse HEAD)" \
     --output-dir artifacts/llm_label_ranker/pilot/stage2/grouprank_7b/rank'
 ```

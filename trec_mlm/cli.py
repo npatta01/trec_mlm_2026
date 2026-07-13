@@ -18,6 +18,7 @@ from trec_mlm.experiment import (
 from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.query_knn import load_complete_qrels, load_development_data
 from trec_mlm.runio import rankings_from_run, validate_trec_run
+from trec_mlm.label_retrieval import encoder_specs_by_key as label_encoder_specs_by_key
 
 
 def _neighbor_grid(value: str) -> tuple[int, ...]:
@@ -203,6 +204,81 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/source_query_first",
     )
 
+    label = commands.add_parser(
+        "label-retrieval",
+        help="run one frozen zero-shot expert-label encoder",
+    )
+    label.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    label.add_argument("--qrels", default="data/dev/llm_dev_qrels.txt")
+    label.add_argument(
+        "--candidates",
+        default="reports/trec_2026_discovery_profile_audit.json",
+    )
+    label.add_argument(
+        "--dense-per-query",
+        default="reports/trec_2026_dense_query_knn_per_query.tsv",
+    )
+    label.add_argument(
+        "--encoder",
+        choices=("mpnet_label_control", *label_encoder_specs_by_key()),
+        required=True,
+    )
+    label.add_argument(
+        "--label-representation",
+        choices=("bare", "expert_capability"),
+        default="bare",
+    )
+    label.add_argument("--batch-size", type=int, default=32)
+    label.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    label.add_argument("--seed", type=int, default=2026)
+    label.add_argument("--run-id")
+    label.add_argument("--output-dir", required=True)
+
+    label_summary = commands.add_parser(
+        "label-sweep-summary",
+        help="compare saved label runs and apply the frozen stage gate",
+    )
+    label_summary.add_argument("--baseline-dir", required=True)
+    label_summary.add_argument(
+        "--model-result",
+        action="append",
+        default=[],
+        metavar="ENCODER=DIR",
+    )
+    label_summary.add_argument(
+        "--repeat-result",
+        action="append",
+        default=[],
+        metavar="ENCODER=DIR",
+        help="independent repeat artifact for the matching model result",
+    )
+    label_summary.add_argument("--maximum-zero-ndcg", type=int, default=131)
+    label_summary.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    label_summary.add_argument("--seed", type=int, default=2026)
+    label_summary.add_argument("--output-dir", required=True)
+
+    diversity_summary = commands.add_parser(
+        "label-diversity-summary",
+        help="compare exploratory small/diverse label runs",
+    )
+    diversity_summary.add_argument("--baseline-dir", required=True)
+    diversity_summary.add_argument("--e5-reference-dir", required=True)
+    diversity_summary.add_argument(
+        "--condition-result",
+        action="append",
+        default=[],
+        metavar="CONDITION=DIR",
+    )
+    diversity_summary.add_argument(
+        "--repeat-result",
+        action="append",
+        default=[],
+        metavar="CONDITION=DIR",
+    )
+    diversity_summary.add_argument("--bootstrap-resamples", type=int, default=10_000)
+    diversity_summary.add_argument("--seed", type=int, default=2026)
+    diversity_summary.add_argument("--output-dir", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -322,6 +398,121 @@ def main(argv: list[str] | None = None) -> int:
         result = run_source_query_experiment(config)
         paths = write_source_query_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-retrieval":
+        from trec_mlm.label_experiment import (
+            LabelExperimentConfig,
+            run_label_experiment,
+            write_label_experiment_artifacts,
+        )
+
+        config = LabelExperimentConfig(
+            query_path=args.queries,
+            qrels_path=args.qrels,
+            candidate_path=args.candidates,
+            encoder_key=args.encoder,
+            label_representation=args.label_representation,
+            dense_per_query_path=args.dense_per_query,
+            bootstrap_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+            batch_size=args.batch_size,
+            run_id=args.run_id,
+        )
+        result = run_label_experiment(config)
+        paths = write_label_experiment_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-sweep-summary":
+        from trec_mlm.label_experiment import (
+            build_sweep_summary,
+            load_label_experiment_artifacts,
+            write_sweep_summary,
+        )
+        from trec_mlm.response_experiment import load_dense_per_query_reference
+
+        model_results = {}
+        for value in args.model_result:
+            if "=" not in value:
+                raise SystemExit("--model-result must use ENCODER=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in model_results:
+                raise SystemExit(
+                    "--model-result entries must have unique ENCODER=DIR values"
+                )
+            model_results[key] = load_label_experiment_artifacts(directory)
+        repeat_results = {}
+        for value in args.repeat_result:
+            if "=" not in value:
+                raise SystemExit("--repeat-result must use ENCODER=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in repeat_results:
+                raise SystemExit(
+                    "--repeat-result entries must have unique ENCODER=DIR values"
+                )
+            if key not in model_results:
+                raise SystemExit("--repeat-result ENCODER must match --model-result")
+            repeat_results[key] = load_label_experiment_artifacts(directory)
+        baseline_result = load_label_experiment_artifacts(args.baseline_dir)
+        dense_reference = load_dense_per_query_reference(
+            baseline_result.config.dense_per_query_path,
+            expected_query_ids=baseline_result.query_ids,
+        )
+        summary = build_sweep_summary(
+            baseline=baseline_result,
+            model_results=model_results,
+            repeat_results=repeat_results,
+            dense_reference=dense_reference,
+            maximum_zero_ndcg=args.maximum_zero_ndcg,
+            n_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+        )
+        paths = write_sweep_summary(summary, args.output_dir)
+        print(json.dumps({"summary": summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-diversity-summary":
+        from trec_mlm.label_experiment import (
+            build_diversity_summary,
+            load_label_experiment_artifacts,
+            write_diversity_summary,
+        )
+
+        condition_results = {}
+        for value in args.condition_result:
+            if "=" not in value:
+                raise SystemExit("--condition-result must use CONDITION=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in condition_results:
+                raise SystemExit(
+                    "--condition-result entries must have unique CONDITION=DIR values"
+                )
+            condition_results[key] = load_label_experiment_artifacts(directory)
+        repeat_results = {}
+        for value in args.repeat_result:
+            if "=" not in value:
+                raise SystemExit("--repeat-result must use CONDITION=DIR")
+            key, directory = value.split("=", maxsplit=1)
+            if not key or not directory or key in repeat_results:
+                raise SystemExit(
+                    "--repeat-result entries must have unique CONDITION=DIR values"
+                )
+            repeat_results[key] = load_label_experiment_artifacts(directory)
+        if set(repeat_results) != set(condition_results):
+            raise SystemExit(
+                "--repeat-result conditions must exactly match --condition-result"
+            )
+        summary = build_diversity_summary(
+            baseline=load_label_experiment_artifacts(args.baseline_dir),
+            e5_reference=load_label_experiment_artifacts(args.e5_reference_dir),
+            model_results=condition_results,
+            repeat_results=repeat_results,
+            n_resamples=args.bootstrap_resamples,
+            seed=args.seed,
+        )
+        paths = write_diversity_summary(summary, args.output_dir)
+        print(json.dumps({"summary": summary, "artifacts": paths}, indent=2))
         return 0
 
     if args.command == "validate-run":

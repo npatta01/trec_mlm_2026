@@ -46,9 +46,9 @@ and `search_document: {label_document}`.
 
 ## Inference contracts
 
-Every embedding is generated in BF16 where the model and ROCm runtime support it,
-converted to float32 for artifact storage and scoring, and L2-normalized before cosine
-similarity. Qwen and Jina use the pinned vLLM ROCm image. BGE-M3 and Nomic use their
+Every small/diverse embedding is generated in FP32 because independent BF16 loads on
+this gfx1151 ROCm host failed reference parity and repeatability. Embeddings remain
+L2-normalized before cosine similarity. Qwen and Jina use the pinned vLLM ROCm image. BGE-M3 and Nomic use their
 official Transformers-compatible pooling inside the same image: normalized dense CLS
 for BGE-M3 and attention-mask mean pooling followed by the official layer-normalize
 and L2-normalize sequence for full-dimensional Nomic output.

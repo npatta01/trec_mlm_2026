@@ -73,6 +73,34 @@ The executed, mobile-friendly analysis is in
 For a phone-friendly, read-only view, open
 [`reports/trec_2026_query_knn_baseline.html`](reports/trec_2026_query_knn_baseline.html).
 
+## Inspect a Completed Run
+
+The repository-local `$inspect-query-results` skill builds a simple, self-contained
+query explorer after an experiment finishes. Ask Codex to use the skill with an artifact
+directory, for example:
+
+```text
+Use $inspect-query-results for artifacts/dense_query_knn_baseline.
+```
+
+The equivalent direct command is:
+
+```bash
+python3 .agents/skills/inspect-query-results/scripts/build_query_explorer.py \
+  --run-dir artifacts/dense_query_knn_baseline
+```
+
+The builder prefers `predictions.tsv`, joins the query text and saved candidate behavior
+profiles, optionally samples related historical responses, and writes
+`query_explorer.html` inside the selected artifact directory. Run it without
+`--run-dir` to select the newest unambiguous prediction artifact automatically. Add
+`--no-responses` for a faster profile-only explorer. The page shows the top 10
+candidates per query by default; change that with `--top-candidates`. Completed
+development runs automatically add ground-truth grades, per-query nDCG@10 versus its
+ideal value, all positively labeled LLMs and their system ranks, first relevant rank, and
+weakest/failure query filters when their config points to available qrels. Runs without
+labels retain the same query, score, and profile workflow.
+
 ## Baseline 2: Frozen Dense Query Retrieval
 
 Install the optional CPU-only embedding stack and run the preregistered nested grid:
@@ -311,6 +339,7 @@ which expected files are present locally and whether their byte sizes match the 
 | Path | Purpose |
 |---|---|
 | `data/dev/` | Source notes, manifest, tracked development files, and ignored large files |
+| `.agents/skills/` | Repository-local Codex skills, including the post-run query explorer |
 | `notebooks/` | Executable exploration and validation notebooks |
 | `reports/` | Literature reviews and reader-friendly baseline reports |
 | `trec_mlm/` | Baseline ranking, evaluation metrics, and TREC run tooling |

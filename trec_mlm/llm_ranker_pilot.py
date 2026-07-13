@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 from trec_mlm.label_experiment import load_candidate_manifest
+from trec_mlm.llm_ranker import SYSTEM_PROMPT, _capability
+from trec_mlm.llm_ranker_inference import run_listwise_messages
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
 from trec_mlm.runio import rankings_from_run
 
@@ -46,6 +48,138 @@ _JUDGMENT_TOP_LEVEL_KEYS = frozenset({"stage", "input_sha256", "questions"})
 _SELECTION_ENTRY_KEYS = frozenset({"query_id", "question", "candidate_ids"})
 _JUDGMENT_ENTRY_KEYS = frozenset({"query_id", "grades", "roles"})
 _ROLE_KEYS = ("relevant", "confounder", "negative")
+
+
+def pilot_handles(candidate_ids: Sequence[str]) -> dict[str, str]:
+    """Assign stable two-digit handles to a twelve- or twenty-candidate pilot."""
+
+    ordered = sorted(candidate_ids)
+    if len(ordered) not in (12, 20) or len(set(ordered)) != len(ordered):
+        raise ValueError("pilot ranking requires 12 or 20 unique candidates")
+    return {f"C{index:02d}": candidate for index, candidate in enumerate(ordered)}
+
+
+def _pilot_hash_order(seed: int, query_id: str, candidate_id: str) -> bytes:
+    return hashlib.sha256(f"{seed}|{query_id}|{candidate_id}".encode()).digest()
+
+
+def balanced_pilot_orders(
+    *,
+    query_id: str,
+    candidate_ids: Sequence[str],
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Return three deterministic orders balanced across three pilot regions."""
+
+    candidates = tuple(candidate_ids)
+    if len(candidates) not in (12, 20) or len(set(candidates)) != len(candidates):
+        raise ValueError("pilot ranking requires 12 or 20 unique candidates")
+    base = sorted(
+        candidates,
+        key=lambda candidate: _pilot_hash_order(2026, query_id, candidate),
+    )
+    quotient, remainder = divmod(len(base), 3)
+    group_sizes = [quotient + (region < remainder) for region in range(3)]
+    groups: list[list[str]] = []
+    offset = 0
+    for size in group_sizes:
+        groups.append(base[offset : offset + size])
+        offset += size
+
+    orders: list[tuple[str, ...]] = []
+    for rotation, seed in enumerate((2026, 2027, 2028)):
+        cycled = tuple(groups[(rotation + region) % 3] for region in range(3))
+        orders.append(
+            tuple(
+                candidate
+                for group in cycled
+                for candidate in sorted(
+                    group,
+                    key=lambda item: _pilot_hash_order(seed, query_id, item),
+                )
+            )
+        )
+    return tuple(orders)  # type: ignore[return-value]
+
+
+def format_pilot_listwise_messages(
+    question: str,
+    *,
+    ordered_candidate_ids: Sequence[str],
+    handle_to_candidate: Mapping[str, str],
+) -> list[dict[str, str]]:
+    """Create one complete-ranking prompt for a twelve- or twenty-label pilot."""
+
+    if not question.strip():
+        raise ValueError("question must be non-empty")
+    candidate_count = len(ordered_candidate_ids)
+    if (
+        candidate_count not in (12, 20)
+        or len(set(ordered_candidate_ids)) != candidate_count
+    ):
+        raise ValueError("pilot listwise prompt requires 12 or 20 unique candidates")
+    candidate_to_handle = {
+        candidate: handle for handle, candidate in handle_to_candidate.items()
+    }
+    if (
+        len(candidate_to_handle) != candidate_count
+        or set(ordered_candidate_ids) != set(candidate_to_handle)
+    ):
+        raise ValueError("pilot listwise order and handle inventory disagree")
+    rows = [
+        f"{candidate_to_handle[candidate]} | {candidate} | {_capability(candidate)}"
+        for candidate in ordered_candidate_ids
+    ]
+    user = (
+        f"Rank all {candidate_count} experts from most to least likely to answer the "
+        "question correctly. Return only a JSON array containing every handle exactly "
+        "once, best first.\n\n"
+        f"<question>\n{question.strip()}\n</question>\n"
+        "<experts>\n"
+        + "\n".join(rows)
+        + "\n</experts>"
+    )
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user},
+    ]
+
+
+def parse_complete_pilot_ranking(
+    raw_output: str,
+    *,
+    valid_handles: Mapping[str, str] | Sequence[str],
+) -> list[str]:
+    """Parse one exact complete pilot ranking without synthesizing fallback ranks."""
+
+    payload = json.loads(raw_output)
+    expected = set(valid_handles)
+    if not isinstance(payload, list) or len(payload) != len(expected):
+        raise ValueError("pilot ranking must contain every handle exactly once")
+    if len(set(payload)) != len(payload) or set(payload) != expected:
+        raise ValueError("pilot ranking has duplicates, omissions, or unknown handles")
+    return payload
+
+
+def run_pilot_listwise_messages(
+    llm: Any,
+    messages: Sequence[list[dict[str, str]]],
+    *,
+    handles: Mapping[str, str] | Sequence[str],
+    seed: int = 2026,
+    use_tqdm: bool = True,
+    stats: dict[str, int] | None = None,
+) -> list[str]:
+    """Run structured generation constrained to every pilot handle."""
+
+    return run_listwise_messages(
+        llm,
+        messages,
+        handles=handles,
+        selection_count=len(handles),
+        seed=seed,
+        use_tqdm=use_tqdm,
+        stats=stats,
+    )
 
 
 def _sha256(path: str | Path) -> str:

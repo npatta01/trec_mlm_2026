@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import sys
+from types import ModuleType, SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from trec_mlm.llm_ranker_inference import (
     chat_template_input_ids,
@@ -9,6 +12,7 @@ from trec_mlm.llm_ranker_inference import (
     grade_token_ids,
     listwise_json_schema,
     pointwise_sampling_kwargs,
+    run_listwise_messages,
     update_inference_stats,
 )
 
@@ -97,6 +101,73 @@ class ListwiseInferenceAdapterTest(unittest.TestCase):
         self.assertEqual(20, schema["maxItems"])
         self.assertNotIn("uniqueItems", schema)
         self.assertEqual(handles, schema["items"]["enum"])
+
+    def test_schema_supports_complete_twelve_handle_pilot_rankings(self) -> None:
+        handles = [f"C{index:02d}" for index in range(12)]
+
+        schema = listwise_json_schema(handles, selection_count=len(handles))
+
+        self.assertEqual(12, schema["minItems"])
+        self.assertEqual(12, schema["maxItems"])
+        self.assertEqual(handles, schema["items"]["enum"])
+
+    def test_runner_preserves_canonical_default_and_accepts_pilot_count(self) -> None:
+        class StructuredOutputsParams:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class SamplingParams:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        vllm = ModuleType("vllm")
+        vllm.SamplingParams = SamplingParams
+        sampling_params = ModuleType("vllm.sampling_params")
+        sampling_params.StructuredOutputsParams = StructuredOutputsParams
+
+        class LLM:
+            def chat(self, messages, *, sampling_params, use_tqdm):
+                self.messages = messages
+                self.sampling_params = sampling_params
+                self.use_tqdm = use_tqdm
+                return [SimpleNamespace(outputs=[SimpleNamespace(text='["C00"]')])]
+
+        messages = [[{"role": "user", "content": "prompt"}]]
+        with patch.dict(
+            sys.modules,
+            {"vllm": vllm, "vllm.sampling_params": sampling_params},
+        ):
+            canonical_llm = LLM()
+            canonical_handles = [f"C{index:03d}" for index in range(150)]
+            self.assertEqual(
+                ['["C00"]'],
+                run_listwise_messages(
+                    canonical_llm,
+                    messages,
+                    handles=canonical_handles,
+                    use_tqdm=False,
+                ),
+            )
+            canonical_schema = canonical_llm.sampling_params.kwargs[
+                "structured_outputs"
+            ].kwargs["json"]
+            self.assertEqual(20, canonical_schema["minItems"])
+            self.assertEqual(20, canonical_schema["maxItems"])
+
+            pilot_llm = LLM()
+            pilot_handles = [f"C{index:02d}" for index in range(12)]
+            run_listwise_messages(
+                pilot_llm,
+                messages,
+                handles=pilot_handles,
+                selection_count=len(pilot_handles),
+                use_tqdm=False,
+            )
+            pilot_schema = pilot_llm.sampling_params.kwargs[
+                "structured_outputs"
+            ].kwargs["json"]
+            self.assertEqual(12, pilot_schema["minItems"])
+            self.assertEqual(12, pilot_schema["maxItems"])
 
 
 if __name__ == "__main__":

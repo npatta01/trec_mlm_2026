@@ -80,17 +80,25 @@ def extract_grade_log_probabilities(
     return values
 
 
-def listwise_json_schema(handles: Sequence[str]) -> dict[str, Any]:
-    """Return the exact top-20 handle array schema."""
+def listwise_json_schema(
+    handles: Sequence[str],
+    *,
+    selection_count: int = 20,
+) -> dict[str, Any]:
+    """Return an exact-size handle array schema, defaulting to canonical top-20."""
 
     values = list(handles)
-    if len(values) != 150 or len(set(values)) != 150:
-        raise ValueError("listwise schema requires 150 unique handles")
+    if (
+        selection_count <= 0
+        or selection_count > len(values)
+        or len(set(values)) != len(values)
+    ):
+        raise ValueError("listwise schema requires enough unique handles")
     return {
         "type": "array",
         "items": {"type": "string", "enum": values},
-        "minItems": 20,
-        "maxItems": 20,
+        "minItems": selection_count,
+        "maxItems": selection_count,
     }
 
 
@@ -177,11 +185,12 @@ def run_listwise_messages(
     messages: Sequence[list[dict[str, str]]],
     *,
     handles: Sequence[str],
+    selection_count: int = 20,
     seed: int = 2026,
     use_tqdm: bool = True,
     stats: dict[str, int] | None = None,
 ) -> list[str]:
-    """Run structured top-20 generation for preformatted chat messages."""
+    """Run structured exact-size generation for preformatted chat messages."""
 
     from vllm import SamplingParams
     from vllm.sampling_params import StructuredOutputsParams
@@ -190,7 +199,9 @@ def run_listwise_messages(
         temperature=0.0,
         seed=seed,
         max_tokens=256,
-        structured_outputs=StructuredOutputsParams(json=listwise_json_schema(handles)),
+        structured_outputs=StructuredOutputsParams(
+            json=listwise_json_schema(handles, selection_count=selection_count)
+        ),
     )
     outputs = llm.chat(
         list(messages),

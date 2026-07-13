@@ -27,10 +27,11 @@
 - Create: `trec_mlm/llm_ranker_pilot.py`
 - Create: `tests/test_llm_ranker_pilot.py`
 - Create: `artifacts/llm_label_ranker/pilot/stage1/selection.json`
+- Create: `artifacts/llm_label_ranker/pilot/stage1/selection_judgments.json`
 
 **Interfaces:**
 - Consumes: queries, complete qrels, candidate manifest, and contextual Qwen4B `run.trec`.
-- Produces: `build_stage1_selection(*, query_path, qrels_path, candidate_path, qwen_run_path) -> dict[str, Any]` and `validate_pilot_selection(payload, *, expected_stage, expected_candidate_count) -> dict[str, Any]`.
+- Produces: `build_stage1_selection(*, query_path, qrels_path, candidate_path, qwen_run_path) -> tuple[dict[str, Any], dict[str, Any]]` and `validate_pilot_selection(payload, *, expected_stage, expected_candidate_count) -> dict[str, Any]`.
 
 - [ ] **Step 1: Write failing deterministic-selection tests**
 
@@ -48,8 +49,10 @@ STAGE1_QUERY_IDS = (
 ```
 
 Assert that every entry contains one or two highest-grade labels, four qrel-zero Qwen4B
-false-positive confounders, deterministic SHA256 negatives, exactly twelve unique labels,
-question text, selection roles, source hashes, and no grade in any prompt-facing field.
+false-positive confounders, deterministic SHA256 negatives, and exactly twelve unique
+labels. `selection.json` contains question text, candidate IDs, and non-qrel source hashes
+only. `selection_judgments.json` contains roles, grades, qrel hash, and Qwen run hash;
+neither roles nor grades may occur in the Phase A manifest.
 
 - [ ] **Step 2: Run the selection tests and verify the missing module failure**
 
@@ -68,6 +71,7 @@ def build_stage1_selection(*, query_path, qrels_path, candidate_path, qwen_run_p
     candidate_ids = load_candidate_manifest(candidate_path)
     qwen_rankings = rankings_from_run(qwen_run_path)
     entries = []
+    judgment_entries = []
     for query_id in STAGE1_QUERY_IDS:
         grades = qrels[query_id]
         relevant = [
@@ -99,6 +103,12 @@ def build_stage1_selection(*, query_path, qrels_path, candidate_path, qwen_run_p
                 "query_id": query_id,
                 "question": queries[query_id],
                 "candidate_ids": sorted([*relevant, *confounders, *negatives]),
+            }
+        )
+        judgment_entries.append(
+            {
+                "query_id": query_id,
+                "grades": {candidate_id: grades[candidate_id] for candidate_id in entries[-1]["candidate_ids"]},
                 "roles": {
                     "relevant": relevant,
                     "confounder": confounders,
@@ -106,7 +116,10 @@ def build_stage1_selection(*, query_path, qrels_path, candidate_path, qwen_run_p
                 },
             }
         )
-    return {"stage": 1, "seed": 2026, "questions": entries}
+    return (
+        {"stage": 1, "seed": 2026, "questions": entries},
+        {"stage": 1, "questions": judgment_entries},
+    )
 ```
 
 Reject missing fixed queries, wrong candidate universes, fewer than one relevant label,
@@ -115,8 +128,10 @@ role overlap, non-12 candidate sets, and changed input hashes.
 - [ ] **Step 4: Generate and inspect the Stage 1 manifest**
 
 Run a small module entry point that writes sorted JSON to
-`artifacts/llm_label_ranker/pilot/stage1/selection.json`. Confirm six questions, 72 total
-question-candidate pairs, and the expected relevant labels for the two issue examples.
+`artifacts/llm_label_ranker/pilot/stage1/selection.json` and
+`selection_judgments.json`. Confirm six questions and 72 total question-candidate pairs
+from the qrel-free manifest, then confirm the sealed manifest has the expected relevant
+labels for the two issue examples.
 
 - [ ] **Step 5: Run tests and commit**
 
@@ -217,7 +232,8 @@ Expected: failures show absent pilot artifacts and weak smoke/input enforcement.
 
 - [ ] **Step 3: Implement Phase A and exact receipt validation**
 
-Phase A accepts the frozen selection manifest and inference callbacks but no qrel path.
+Phase A accepts only the frozen qrel-free `selection.json` and inference callbacks. It
+must not accept or open `selection_judgments.json` or a qrel path.
 Write these required files:
 
 ```text
@@ -336,6 +352,7 @@ continue to Task 6 without changing prompts, model, scoring, or candidate constr
 
 **Files:**
 - Create: `artifacts/llm_label_ranker/pilot/stage2/selection.json`
+- Create: `artifacts/llm_label_ranker/pilot/stage2/selection_judgments.json`
 - Create: `artifacts/llm_label_ranker/pilot/stage2/pointwise/`
 - Create: `artifacts/llm_label_ranker/pilot/stage2/listwise/`
 - Create: `docs/results/2026-07-13-llm-ranker-stage2-pilot.md`

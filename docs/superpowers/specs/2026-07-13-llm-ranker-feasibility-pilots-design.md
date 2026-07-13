@@ -44,8 +44,11 @@ For each question, freeze twelve unique candidates:
   the question or relevant label; and
 - enough deterministic negative labels to reach twelve candidates.
 
-Use qrels only to construct and assess the pilot set. Do not include qrel grades,
-responses, discovery profiles, or expert exemplars in prompts.
+Write two separately hashed manifests. `selection.json` contains only query IDs, question
+text, candidate IDs, and non-qrel source hashes; it is the only manifest Phase A may
+open. `selection_judgments.json` contains qrel-derived roles and grades and remains
+unavailable until reporting. Do not include qrel grades, responses, discovery profiles,
+or expert exemplars in prompts.
 
 ### Inference
 
@@ -101,7 +104,7 @@ decision automatically.
 
 ## Deliverables
 
-- one frozen Stage 1 selection manifest;
+- one frozen qrel-free Stage 1 selection manifest and one sealed judgment manifest;
 - qrel-free raw pointwise and listwise artifacts;
 - one question-level feasibility report and plain-language decision receipt;
 - Stage 2 artifacts only if the Stage 1 rule passes; and

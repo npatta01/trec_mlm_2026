@@ -111,6 +111,34 @@ class ListwiseInferenceAdapterTest(unittest.TestCase):
         self.assertEqual(12, schema["maxItems"])
         self.assertEqual(handles, schema["items"]["enum"])
 
+    def test_schema_rejects_unsupported_complete_thirteen_handle_ranking(self) -> None:
+        handles = [f"C{index:02d}" for index in range(13)]
+
+        with self.assertRaisesRegex(ValueError, "supports only"):
+            listwise_json_schema(handles, selection_count=len(handles))
+
+    def test_schema_rejects_noncanonical_default_handle_counts(self) -> None:
+        for handle_count in range(21, 150):
+            with self.subTest(handle_count=handle_count):
+                handles = [f"C{index:03d}" for index in range(handle_count)]
+
+                with self.assertRaisesRegex(ValueError, "supports only"):
+                    listwise_json_schema(handles)
+
+    def test_schema_rejects_other_handle_and_selection_count_mismatches(self) -> None:
+        for handle_count, selection_count in ((12, 20), (20, 12), (150, 150)):
+            with self.subTest(
+                handle_count=handle_count,
+                selection_count=selection_count,
+            ):
+                handles = [f"C{index:03d}" for index in range(handle_count)]
+
+                with self.assertRaisesRegex(ValueError, "supports only"):
+                    listwise_json_schema(
+                        handles,
+                        selection_count=selection_count,
+                    )
+
     def test_runner_preserves_canonical_default_and_accepts_pilot_count(self) -> None:
         class StructuredOutputsParams:
             def __init__(self, **kwargs):

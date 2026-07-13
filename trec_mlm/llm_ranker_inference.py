@@ -89,11 +89,13 @@ def listwise_json_schema(
 
     values = list(handles)
     if (
-        selection_count <= 0
-        or selection_count > len(values)
+        (len(values), selection_count) not in ((150, 20), (12, 12), (20, 20))
         or len(set(values)) != len(values)
     ):
-        raise ValueError("listwise schema requires enough unique handles")
+        raise ValueError(
+            "listwise schema supports only 150 handles selecting 20, "
+            "12 selecting 12, or 20 selecting 20, all with unique handles"
+        )
     return {
         "type": "array",
         "items": {"type": "string", "enum": values},

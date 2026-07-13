@@ -9,8 +9,11 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
+import shutil
+import tempfile
 import time
 from typing import Any
 
@@ -234,6 +237,27 @@ class PilotPhaseAResult:
         """Compatibility name used by the canonical ranker result."""
 
         return self.raw_outputs
+
+
+@dataclass(frozen=True, slots=True)
+class PilotPhaseAFailureResult:
+    """Qrel-free raw generations from an unscorable listwise attempt."""
+
+    selection: dict[str, Any]
+    method: str
+    prompts: tuple[dict[str, Any], ...]
+    raw_outputs: tuple[dict[str, Any], ...]
+    runtime_metadata: dict[str, Any]
+    config: dict[str, Any]
+    failure: dict[str, Any]
+
+
+class PilotListwiseParseFailure(ValueError):
+    """Raised only after all listwise generations are retained in memory."""
+
+    def __init__(self, message: str, result: PilotPhaseAFailureResult) -> None:
+        super().__init__(message)
+        self.result = result
 
 
 def pilot_handles(candidate_ids: Sequence[str]) -> dict[str, str]:
@@ -1325,6 +1349,15 @@ def run_pilot_phase_a(
     elapsed = time.perf_counter() - started
     if len(inferred) != len(messages):
         raise ValueError("pilot inference returned the wrong number of outputs")
+    runtime.update(
+        {
+            "elapsed_seconds": elapsed,
+            "method": method,
+            "prompt_count": execution_counts["prompt_count"],
+            "request_count": execution_counts["request_count"],
+            "pair_count": execution_counts["pair_count"],
+        }
+    )
 
     raw_outputs: list[dict[str, Any]] = []
     scores: dict[str, dict[str, float]] = {
@@ -1346,6 +1379,8 @@ def run_pilot_phase_a(
             raw_outputs.append(record)
             scores[query_id][candidate_id] = score
     else:
+        failure_raw_outputs: list[dict[str, Any]] = []
+        first_failure: tuple[str, str, int, ValueError | json.JSONDecodeError] | None = None
         for key, output in zip(keys, inferred, strict=True):
             query_id, rotation = key
             if not isinstance(rotation, int):  # pragma: no cover - type guard
@@ -1358,9 +1393,30 @@ def run_pilot_phase_a(
                     output, valid_handles=handles
                 )
             except (json.JSONDecodeError, ValueError) as error:
-                raise ValueError(
-                    f"pilot listwise parse failure for {query_id}/{rotation}: {error}"
-                ) from error
+                validation_error = str(error)
+                if first_failure is None:
+                    message = (
+                        f"pilot listwise parse failure for {query_id}/{rotation}: "
+                        f"{validation_error}"
+                    )
+                    first_failure = (message, query_id, rotation, error)
+                failure_raw_outputs.append(
+                    {
+                        "query_id": query_id,
+                        "rotation": rotation,
+                        "raw_output": output,
+                        "validation_error": validation_error,
+                    }
+                )
+                continue
+            failure_raw_outputs.append(
+                {
+                    "query_id": query_id,
+                    "rotation": rotation,
+                    "raw_output": output,
+                    "validation_error": None,
+                }
+            )
             selected_candidates = [handles[handle] for handle in parsed_handles]
             for rank, candidate_id in enumerate(selected_candidates, start=1):
                 scores[query_id][candidate_id] += 1.0 / (60 + rank)
@@ -1376,6 +1432,24 @@ def run_pilot_phase_a(
                 }
             )
 
+        if first_failure is not None:
+            message, query_id, rotation, cause = first_failure
+            failure_result = PilotPhaseAFailureResult(
+                selection=frozen_selection,
+                method=method,
+                prompts=tuple(prompts),
+                raw_outputs=tuple(failure_raw_outputs),
+                runtime_metadata=runtime,
+                config=config,
+                failure={
+                    "error_type": "ValueError",
+                    "error_message": message,
+                    "query_id": query_id,
+                    "rotation": rotation,
+                },
+            )
+            raise PilotListwiseParseFailure(message, failure_result) from cause
+
     rankings = {
         query_id: sorted(
             query_scores,
@@ -1383,15 +1457,6 @@ def run_pilot_phase_a(
         )
         for query_id, query_scores in scores.items()
     }
-    runtime.update(
-        {
-            "elapsed_seconds": elapsed,
-            "method": method,
-            "prompt_count": execution_counts["prompt_count"],
-            "request_count": execution_counts["request_count"],
-            "pair_count": execution_counts["pair_count"],
-        }
-    )
     return PilotPhaseAResult(
         selection=frozen_selection,
         method=method,
@@ -1478,6 +1543,81 @@ def write_pilot_phase_a(
     return {
         name: str(destination / name)
         for name in (*sorted(_PILOT_CORE_FILES), "ranking_receipt.json")
+    }
+
+
+def write_pilot_phase_a_failure(
+    result: PilotPhaseAFailureResult,
+    output_dir: str | Path,
+) -> dict[str, str]:
+    """Atomically persist raw generations without inventing a failed ranking."""
+
+    if result.method != "listwise" or not result.raw_outputs:
+        raise ValueError("pilot failure writer requires listwise raw outputs")
+    if not any(row.get("validation_error") is not None for row in result.raw_outputs):
+        raise ValueError("pilot failure writer requires a parse failure")
+    if any(
+        "selected_handles" in row or "selected_candidate_ids" in row
+        for row in result.raw_outputs
+    ):
+        raise ValueError("pilot failure raw outputs cannot contain selected rankings")
+
+    destination = Path(output_dir)
+    if destination.exists():
+        raise ValueError("pilot failure destination already exists")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent)
+    )
+    artifact_names = (
+        "config.json",
+        "prompts.jsonl",
+        "raw_outputs.jsonl",
+        "runtime.json",
+        "selection.json",
+    )
+    try:
+        _write_json(temporary / "config.json", result.config)
+        _write_json(temporary / "selection.json", result.selection)
+        _write_jsonl(temporary / "prompts.jsonl", result.prompts)
+        _write_jsonl(temporary / "raw_outputs.jsonl", result.raw_outputs)
+        _write_json(temporary / "runtime.json", result.runtime_metadata)
+        artifact_sha256 = {
+            name: _sha256(temporary / name) for name in artifact_names
+        }
+        receipt = {
+            "version": 1,
+            "artifact_type": "pilot_phase_a_failure",
+            "qrel_free_phase": True,
+            "method": "listwise",
+            "stage": result.selection["stage"],
+            "disposition": "unscorable_parse_failure",
+            "rankings_available": False,
+            "scores_available": False,
+            "inventory": [*artifact_names, "failure_receipt.json"],
+            "artifact_sha256": artifact_sha256,
+            "code_revision": result.config["code_revision"],
+            "smoke_receipt_sha256": result.config["smoke_receipt_sha256"],
+            "execution": {
+                "planned_request_count": len(result.prompts),
+                "persisted_raw_output_count": len(result.raw_outputs),
+                "parse_failure_count": sum(
+                    row["validation_error"] is not None
+                    for row in result.raw_outputs
+                ),
+                "rankings_available": False,
+                "scores_available": False,
+            },
+            "failure": result.failure,
+        }
+        _write_json(temporary / "failure_receipt.json", receipt)
+        os.replace(temporary, destination)
+    except BaseException:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    return {
+        name: str(destination / name)
+        for name in (*artifact_names, "failure_receipt.json")
     }
 
 
@@ -2284,6 +2424,32 @@ def _unavailable_stage2_metrics() -> dict[str, Any]:
     }
 
 
+def _stage2_pointwise_outcome(
+    pointwise: Mapping[str, Any],
+) -> dict[str, Any]:
+    relevant_ranks = pointwise["relevant_ranks"]
+    best_label, best_rank = min(
+        relevant_ranks.items(), key=lambda item: (item[1], item[0])
+    )
+    if best_rank <= 3:
+        classification = "top3_hit"
+    elif best_rank <= 5:
+        classification = "near_miss_rank_4_or_5"
+    else:
+        classification = "deep_miss_rank_6_plus"
+    leaders = ", ".join(pointwise["top_three"])
+    return {
+        "rule_based": True,
+        "classification": classification,
+        "best_relevant_label": best_label,
+        "best_relevant_rank": best_rank,
+        "evidence": (
+            f"Best relevant label {best_label} was rank {best_rank}; pointwise "
+            f"top three were {leaders}."
+        ),
+    }
+
+
 def build_stage2_pointwise_report(
     *,
     pointwise_dir: str | Path,
@@ -2308,6 +2474,15 @@ def build_stage2_pointwise_report(
     selection_sha256 = _sha256(Path(pointwise_dir) / "selection.json")
     if failure_receipt.get("selection", {}).get("sha256") != selection_sha256:
         raise ValueError("Stage 2 pointwise/failure selections disagree")
+    code_revision = pointwise.config["code_revision"]
+    if failure_receipt.get("code_revision") != code_revision:
+        raise ValueError("Stage 2 pointwise/failure code revision disagrees")
+    smoke_receipt_sha256 = pointwise.config["smoke_receipt_sha256"]
+    if (
+        failure_receipt.get("smoke_receipt", {}).get("sha256")
+        != smoke_receipt_sha256
+    ):
+        raise ValueError("Stage 2 pointwise/failure smoke receipt disagrees")
 
     all_queries = load_queries_tsv(DEFAULT_QUERY_PATH)
     complete_qrels = load_complete_qrels(qrels_path, expected_query_ids=all_queries)
@@ -2398,6 +2573,11 @@ def build_stage2_pointwise_report(
             "top3_relevant": None,
             "availability": "unavailable",
         }
+        pointwise_vs_baseline = {
+            method: per_method["pointwise"]["best_relevant_rank"]
+            - per_method[method]["best_relevant_rank"]
+            for method in ("qwen4b_contextual", "e5_contextual")
+        }
         question_rows.append(
             {
                 "query_id": query_id,
@@ -2406,6 +2586,10 @@ def build_stage2_pointwise_report(
                 "qrel_assisted": True,
                 "relevant_grades": relevant_grades,
                 "methods": per_method,
+                "pointwise_vs_baseline_best_rank_delta": pointwise_vs_baseline,
+                "pointwise_outcome": _stage2_pointwise_outcome(
+                    per_method["pointwise"]
+                ),
             }
         )
 
@@ -2449,6 +2633,44 @@ def build_stage2_pointwise_report(
     failure_sha256 = _sha256(
         Path(listwise_failure_dir) / "failure_receipt.json"
     )
+    embedding_methods = ("qwen4b_contextual", "e5_contextual")
+    benchmark_method = max(
+        embedding_methods,
+        key=lambda method: (
+            metrics[method]["ndcg_at_10"],
+            metrics[method]["top3_relevant_count"],
+            method,
+        ),
+    )
+    best_top3 = metrics[benchmark_method]["top3_relevant_count"]
+    best_ndcg = metrics[benchmark_method]["ndcg_at_10"]
+    gate_conditions = {
+        "top3_not_lower": {
+            "pointwise": metrics["pointwise"]["top3_relevant_count"],
+            "best_embedding_baseline": best_top3,
+            "passes": metrics["pointwise"]["top3_relevant_count"] >= best_top3,
+        },
+        "ndcg_not_lower": {
+            "pointwise": metrics["pointwise"]["ndcg_at_10"],
+            "best_embedding_baseline": best_ndcg,
+            "passes": metrics["pointwise"]["ndcg_at_10"] >= best_ndcg,
+        },
+    }
+    scaled_gate = {
+        "name": "scaled_pointwise_feasibility",
+        "predeclared_for_this_report": True,
+        "frozen_before_stage2_execution": False,
+        "exploratory_post_hoc": True,
+        "heuristic_not_statistical_test": True,
+        "benchmark_method": benchmark_method,
+        "rule": (
+            "Expand only if pointwise top-three relevant count is at least the "
+            "best embedding baseline and pointwise overall nDCG@10 is not lower "
+            "than the best embedding baseline."
+        ),
+        "conditions": gate_conditions,
+        "passes": all(condition["passes"] for condition in gate_conditions.values()),
+    }
     decision_text = (
         "Stage 2 pointwise evidence is complete, but on this qrel-assisted "
         f"diagnostic it placed a relevant label in the top three for "
@@ -2470,6 +2692,11 @@ def build_stage2_pointwise_report(
         "question_count": query_count,
         "candidate_count_per_question": candidate_count,
         "selection_sha256": selection_sha256,
+        "matching_provenance": {
+            "code_revision": code_revision,
+            "smoke_receipt_sha256": smoke_receipt_sha256,
+            "matches": True,
+        },
         "method_status": {
             "pointwise": "complete",
             "listwise": "unscorable",
@@ -2479,6 +2706,7 @@ def build_stage2_pointwise_report(
         "metrics": metrics,
         "strata": strata,
         "questions": question_rows,
+        "scaled_feasibility_gate": scaled_gate,
         "listwise_failure": {
             "receipt_sha256": failure_sha256,
             "disposition": failure_receipt["disposition"],
@@ -2499,6 +2727,7 @@ def build_stage2_pointwise_report(
             "pointwise": "complete",
             "listwise": "unscorable_final_attempt",
             "automatic_continuation": False,
+            "scaled_pointwise_expansion_allowed": scaled_gate["passes"],
             "plain_language": decision_text,
         },
         "recomputation_inputs": {
@@ -2526,6 +2755,7 @@ def render_stage2_pointwise_report_markdown(report: Mapping[str, Any]) -> str:
         raise ValueError("Stage 2 report is incomplete")
     metrics = report["metrics"]
     failure = report["listwise_failure"]
+    gate = report["scaled_feasibility_gate"]
     lines = [
         "# LLM Expert-Label Ranker: Stage 2 Pilot",
         "",
@@ -2564,6 +2794,20 @@ def render_stage2_pointwise_report_markdown(report: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Scaled feasibility gate",
+            "",
+            f"**Result: {'PASS' if gate['passes'] else 'FAIL'}.**",
+            "",
+            "This heuristic was predeclared for this report but was not frozen before Stage 2 execution. It is exploratory and post-hoc, not a statistical test or confirmatory decision rule.",
+            "",
+            gate["rule"],
+            f"The benchmark selected by overall nDCG@10 is `{gate['benchmark_method']}`.",
+            "",
+            "| Condition | Pointwise | Best embedding baseline | Pass |",
+            "| --- | ---: | ---: | --- |",
+            f"| Relevant label in top 3 | {gate['conditions']['top3_not_lower']['pointwise']}/12 | {gate['conditions']['top3_not_lower']['best_embedding_baseline']}/12 | {'yes' if gate['conditions']['top3_not_lower']['passes'] else 'no'} |",
+            f"| Overall nDCG@10 | {gate['conditions']['ndcg_not_lower']['pointwise']:.4f} | {gate['conditions']['ndcg_not_lower']['best_embedding_baseline']:.4f} | {'yes' if gate['conditions']['ndcg_not_lower']['passes'] else 'no'} |",
+            "",
             "## Strata",
             "",
             "| Stratum | Method | nDCG@10 | MRR | Relevant in top 3 |",
@@ -2592,6 +2836,41 @@ def render_stage2_pointwise_report_markdown(report: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Question-level comparison",
+            "",
+            "Best-rank deltas are pointwise minus baseline, so negative favors pointwise. Miss labels are deterministic rules based on the pointwise best relevant rank: top-3 hit, near miss at ranks 4–5, or deep miss at rank 6+.",
+            "",
+            "| Query | Stratum | Relevant labels | Pointwise best / top 3 | Qwen4B best / top 3 | E5 best / top 3 | P−Q4 / P−E5 | Rule-based outcome |",
+            "| --- | --- | --- | --- | --- | --- | ---: | --- |",
+        ]
+    )
+    for row in report["questions"]:
+        methods = row["methods"]
+        relevant = ", ".join(
+            f"{candidate_id} ({grade:g})"
+            for candidate_id, grade in row["relevant_grades"].items()
+        )
+        method_cells = []
+        for method in (
+            "pointwise",
+            "qwen4b_contextual",
+            "e5_contextual",
+        ):
+            item = methods[method]
+            method_cells.append(
+                f"{item['best_relevant_rank']} / {', '.join(item['top_three'])}"
+            )
+        deltas = row["pointwise_vs_baseline_best_rank_delta"]
+        outcome = row["pointwise_outcome"]
+        lines.append(
+            f"| `{row['query_id']}` | {row['stratum']} | {relevant} | "
+            f"{method_cells[0]} | {method_cells[1]} | {method_cells[2]} | "
+            f"{deltas['qwen4b_contextual']} / {deltas['e5_contextual']} | "
+            f"{outcome['classification']}: {outcome['evidence']} |"
+        )
+    lines.extend(
+        [
+            "",
             "## Terminal listwise failure",
             "",
             f"- Receipt SHA-256: `{failure['receipt_sha256']}`",
@@ -2601,11 +2880,14 @@ def render_stage2_pointwise_report_markdown(report: Mapping[str, Any]) -> str:
             f"- Exact error: `{failure['error_message']}`",
             "",
             "The log proves request processing reached 36/36, not that 35 usable outputs existed. The program raised before any raw output or ranking artifact was persisted.",
+            "The new failure writer applies only to future attempts. It cannot recover outputs from this incident, whose honest persisted raw-output count remains zero.",
             "",
             "## Recalculation receipt",
             "",
             f"- Pointwise receipt SHA-256: `{report['recomputation_inputs']['phase_a']['pointwise']['ranking_receipt_sha256']}`",
             f"- Frozen selection SHA-256: `{report['selection_sha256']}`",
+            f"- Matching code revision: `{report['matching_provenance']['code_revision']}`",
+            f"- Matching smoke receipt SHA-256: `{report['matching_provenance']['smoke_receipt_sha256']}`",
             f"- Qrels SHA-256: `{report['recomputation_inputs']['qrels']['sha256']}`",
             "",
         ]

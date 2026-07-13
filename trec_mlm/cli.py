@@ -753,10 +753,12 @@ def main(argv: list[str] | None = None) -> int:
             DEFAULT_CANDIDATE_PATH,
             DEFAULT_QUERY_PATH,
             DEFAULT_SMOKE_RECEIPT_PATH,
+            PilotListwiseParseFailure,
             preflight_pilot_inputs,
             run_pilot_listwise_messages,
             run_pilot_phase_a,
             write_pilot_phase_a,
+            write_pilot_phase_a_failure,
         )
 
         selection_path = Path(args.selection)
@@ -829,12 +831,26 @@ def main(argv: list[str] | None = None) -> int:
 
             infer_batch = infer_listwise
 
-        result = run_pilot_phase_a(
-            selection,
-            method=args.method,
-            infer_batch=infer_batch,
-            runtime_metadata=metadata,
-        )
+        try:
+            result = run_pilot_phase_a(
+                selection,
+                method=args.method,
+                infer_batch=infer_batch,
+                runtime_metadata=metadata,
+            )
+        except PilotListwiseParseFailure as error:
+            paths = write_pilot_phase_a_failure(error.result, args.output_dir)
+            print(
+                json.dumps(
+                    {
+                        "disposition": "unscorable_parse_failure",
+                        "failure": error.result.failure,
+                        "artifacts": paths,
+                    },
+                    indent=2,
+                )
+            )
+            raise
         paths = write_pilot_phase_a(result, args.output_dir)
         print(
             json.dumps(

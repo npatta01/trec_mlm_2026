@@ -191,6 +191,135 @@ class TerminalListwiseFailureTest(unittest.TestCase):
             self.assertFalse((output / "rankings.json").exists())
             self.assertFalse((output / "scores.tsv").exists())
 
+    def test_future_cli_persists_all_raw_generations_before_nonzero_exit(self) -> None:
+        llm = object()
+        tokenizer = object()
+        valid = json.dumps([f"C{index:02d}" for index in range(12)])
+        invalid = '["C00","C00"]'
+
+        def engine(**_kwargs):
+            return (
+                llm,
+                tokenizer,
+                {
+                    "model_id": "Qwen/Qwen3-4B-Instruct-2507",
+                    "revision": "cdbee75f17c01a7cc42f958dc650907174af0554",
+                    "dtype": "float32",
+                    "seed": 2026,
+                    "gpu_memory_utilization": 0.30,
+                    "max_model_len": 8192,
+                    "attention_backend": "TRITON_ATTN",
+                    "vllm_version": "0.24.0",
+                    "torch_version": "2.11.0",
+                    "hip_version": "7.2",
+                    "device_properties": "fixture gfx1151",
+                },
+            )
+
+        def infer(
+            observed_llm,
+            messages,
+            *,
+            handles,
+            seed,
+            use_tqdm,
+            stats,
+        ):
+            self.assertIs(llm, observed_llm)
+            self.assertEqual(18, len(messages))
+            stats.update(
+                {
+                    "request_count": 18,
+                    "prompt_token_count": 3600,
+                    "output_token_count": 216,
+                }
+            )
+            return [invalid, *([valid] * 17)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "listwise_failure"
+            with (
+                patch(
+                    "trec_mlm.llm_ranker_inference.load_ranker_engine",
+                    side_effect=engine,
+                ),
+                patch(
+                    "trec_mlm.artifact_manifest.validate_pilot_smoke_receipt",
+                    return_value={"passed": True},
+                ),
+                patch(
+                    "trec_mlm.llm_ranker_pilot.validate_pilot_smoke_receipt",
+                    side_effect=lambda path: {"receipt_sha256": pilot._sha256(path)},
+                ),
+                patch(
+                    "trec_mlm.cli._verify_git_launch_provenance",
+                    return_value="clean",
+                ),
+                patch(
+                    "trec_mlm.llm_ranker_pilot.run_pilot_listwise_messages",
+                    side_effect=infer,
+                ),
+                patch.object(
+                    pilot,
+                    "load_complete_qrels",
+                    side_effect=AssertionError("qrels must remain unopened"),
+                ) as qrels,
+            ):
+                with self.assertRaisesRegex(ValueError, "parse failure"):
+                    cli.main(
+                        [
+                            "llm-label-ranker-pilot",
+                            "--stage",
+                            "1",
+                            "--selection",
+                            "artifacts/llm_label_ranker/pilot/stage1/selection.json",
+                            "--method",
+                            "listwise",
+                            "--smoke-receipt",
+                            "artifacts/llm_label_ranker/smoke/smoke.json",
+                            "--code-revision",
+                            "a" * 40,
+                            "--output-dir",
+                            str(output),
+                        ]
+                    )
+            qrels.assert_not_called()
+            self.assertEqual(
+                {
+                    "config.json",
+                    "failure_receipt.json",
+                    "prompts.jsonl",
+                    "raw_outputs.jsonl",
+                    "runtime.json",
+                    "selection.json",
+                },
+                {path.name for path in output.iterdir()},
+            )
+            rows = [json.loads(line) for line in (output / "raw_outputs.jsonl").read_text().splitlines()]
+            self.assertEqual(18, len(rows))
+            self.assertEqual(invalid, rows[0]["raw_output"])
+            self.assertIsNotNone(rows[0]["validation_error"])
+            self.assertTrue(
+                all("selected_handles" not in row and "selected_candidate_ids" not in row for row in rows)
+            )
+            receipt = json.loads((output / "failure_receipt.json").read_text())
+            self.assertEqual("unscorable_parse_failure", receipt["disposition"])
+            self.assertEqual(18, receipt["execution"]["persisted_raw_output_count"])
+            self.assertFalse(receipt["execution"]["rankings_available"])
+            self.assertFalse((output / "ranking_receipt.json").exists())
+            self.assertFalse((output / "rankings.json").exists())
+            self.assertFalse((output / "scores.tsv").exists())
+
+    def test_current_incident_remains_an_honest_zero_raw_output_capture(self) -> None:
+        source = ROOT / "artifacts/llm_label_ranker/pilot/stage2/listwise_failure"
+        self.assertEqual(
+            "d83ebfb60a7a5ea6b1d209ec99f2720b324b6872c751ab482bd2c3ce8493a2f8",
+            pilot._sha256(source / "failure_receipt.json"),
+        )
+        receipt = pilot.validate_terminal_listwise_failure(source)
+        self.assertEqual(0, receipt["execution"]["persisted_raw_output_count"])
+
 
 class Stage2PointwiseReportTest(unittest.TestCase):
     def test_downstream_inputs_stay_unopened_until_both_terminals_validate(self) -> None:
@@ -247,6 +376,28 @@ class Stage2PointwiseReportTest(unittest.TestCase):
             self.assertEqual(
                 ERROR_MESSAGE, report["listwise_failure"]["error_message"]
             )
+            self.assertEqual(
+                {
+                    "code_revision": CODE_REVISION,
+                    "smoke_receipt_sha256": "a88525a22ff51ec67600fd1e3e5ac3d7553feb48d3c01bab831a7232729b36b3",
+                    "matches": True,
+                },
+                report["matching_provenance"],
+            )
+            gate = report["scaled_feasibility_gate"]
+            self.assertFalse(gate["frozen_before_stage2_execution"])
+            self.assertFalse(gate["passes"])
+            self.assertFalse(gate["conditions"]["top3_not_lower"]["passes"])
+            self.assertFalse(gate["conditions"]["ndcg_not_lower"]["passes"])
+            self.assertTrue(
+                all(
+                    set(row["pointwise_vs_baseline_best_rank_delta"])
+                    == {"qwen4b_contextual", "e5_contextual"}
+                    and row["pointwise_outcome"]["classification"]
+                    in {"top3_hit", "near_miss_rank_4_or_5", "deep_miss_rank_6_plus"}
+                    for row in report["questions"]
+                )
+            )
             self.assertEqual(5, report["metrics"]["pointwise"]["top3_relevant_count"])
             self.assertEqual(
                 8, report["metrics"]["qwen4b_contextual"]["top3_relevant_count"]
@@ -266,6 +417,52 @@ class Stage2PointwiseReportTest(unittest.TestCase):
             markdown = markdown_path.read_text()
             self.assertIn("Listwise | unscorable | unavailable", markdown)
             self.assertIn("not that 35 usable outputs existed", markdown)
+            self.assertIn("## Scaled feasibility gate", markdown)
+            self.assertIn("## Question-level comparison", markdown)
+            self.assertEqual(1, markdown.count("| Query | Stratum | Relevant labels |"))
+            self.assertTrue(all(f"`{query_id}`" in markdown for query_id in pilot.STAGE2_QUERY_IDS))
+
+    def test_provenance_mismatch_blocks_qrels_and_baselines(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            failure = Path(directory) / "failure"
+            receipt = _capture(failure)
+            cases = (
+                ("code_revision", "b" * 40, "code revision"),
+                ("smoke", "0" * 64, "smoke receipt"),
+            )
+            for field, value, message in cases:
+                with self.subTest(field=field):
+                    mutated = json.loads(json.dumps(receipt))
+                    if field == "code_revision":
+                        mutated["code_revision"] = value
+                    else:
+                        mutated["smoke_receipt"]["sha256"] = value
+                    with (
+                        patch.object(
+                            pilot,
+                            "validate_terminal_listwise_failure",
+                            return_value=mutated,
+                        ),
+                        patch.object(
+                            pilot,
+                            "load_complete_qrels",
+                            side_effect=AssertionError("qrels opened too early"),
+                        ) as qrels,
+                        patch(
+                            "trec_mlm.label_experiment.load_label_experiment_artifacts",
+                            side_effect=AssertionError("baseline opened too early"),
+                        ) as baselines,
+                    ):
+                        with self.assertRaisesRegex(ValueError, message):
+                            pilot.build_stage2_pointwise_report(
+                                pointwise_dir=POINTWISE_DIR,
+                                listwise_failure_dir=failure,
+                                qwen_dir=QWEN_CONTEXT_DIR,
+                                e5_dir=E5_CONTEXT_DIR,
+                                qrels_path=QRELS_PATH,
+                            )
+                    qrels.assert_not_called()
+                    baselines.assert_not_called()
 
     def test_stage1_report_behavior_is_unchanged(self) -> None:
         self.assertFalse(

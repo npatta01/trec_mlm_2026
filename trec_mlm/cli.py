@@ -409,15 +409,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     grouprank_pilot = commands.add_parser(
         "grouprank-pilot",
-        help="smoke-test or run the frozen qrel-free GroupRank pilot",
+        help="smoke-test, run, or post-hoc evaluate the frozen GroupRank pilot",
     )
     grouprank_pilot.add_argument(
-        "--phase", choices=("smoke", "rank"), required=True
+        "--phase", choices=("smoke", "rank", "evaluate"), required=True
     )
     grouprank_pilot.add_argument("--selection", required=True)
     grouprank_pilot.add_argument("--code-revision", required=True)
     grouprank_pilot.add_argument("--output-dir", required=True)
     grouprank_pilot.add_argument("--smoke-receipt")
+    grouprank_pilot.add_argument("--judgments")
+    grouprank_pilot.add_argument("--report-json")
+    grouprank_pilot.add_argument("--report-md")
 
     failure_capture = commands.add_parser(
         "llm-label-ranker-failure-capture",
@@ -755,6 +758,36 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "grouprank-pilot":
+        if args.phase == "evaluate":
+            if not args.judgments or not args.report_json or not args.report_md:
+                raise SystemExit(
+                    "evaluate phase requires --judgments, --report-json, and --report-md"
+                )
+            if args.smoke_receipt is not None:
+                raise SystemExit("evaluate phase does not accept --smoke-receipt")
+            from trec_mlm.grouprank_report import (
+                build_grouprank_report,
+                write_grouprank_report,
+            )
+
+            report = build_grouprank_report(
+                Path(args.output_dir),
+                judgments_path=Path(args.judgments),
+                selection_path=Path(args.selection),
+                code_revision=args.code_revision,
+            )
+            paths = write_grouprank_report(
+                report,
+                report_path=Path(args.report_json),
+                markdown_path=Path(args.report_md),
+            )
+            print(json.dumps({"report": report, "artifacts": paths}, indent=2))
+            return 0
+
+        if args.judgments or args.report_json or args.report_md:
+            raise SystemExit(
+                "smoke and rank phases do not accept evaluation report arguments"
+            )
         from trec_mlm.grouprank import build_group_requests
         from trec_mlm.grouprank_inference import (
             load_grouprank_engine,

@@ -162,7 +162,7 @@ def load_ranker_engine(
         "max_model_len": MAX_MODEL_LEN,
         "attention_backend": ATTENTION_BACKEND,
         "vllm_version": vllm.__version__,
-        "torch_version": torch.__version__,
+        "torch_version": str(torch.__version__),
         "hip_version": torch.version.hip,
         "device_properties": str(torch.cuda.get_device_properties(0)),
     }

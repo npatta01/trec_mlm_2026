@@ -45,6 +45,9 @@ class _Output:
 
 class PointwiseInferenceAdapterTest(unittest.TestCase):
     def test_engine_loader_honors_and_records_explicit_memory_budget(self) -> None:
+        class TorchVersion(str):
+            pass
+
         class Cuda:
             @staticmethod
             def is_available():
@@ -55,7 +58,7 @@ class PointwiseInferenceAdapterTest(unittest.TestCase):
                 return "fixture gfx1151"
 
         torch = ModuleType("torch")
-        torch.__version__ = "2.11.0"
+        torch.__version__ = TorchVersion("2.11.0")
         torch.cuda = Cuda()
         torch.version = SimpleNamespace(hip="7.2")
 
@@ -95,6 +98,7 @@ class PointwiseInferenceAdapterTest(unittest.TestCase):
         self.assertEqual(0.30, metadata["gpu_memory_utilization"])
         self.assertEqual(MAX_MODEL_LEN, metadata["max_model_len"])
         self.assertEqual(ATTENTION_BACKEND, metadata["attention_backend"])
+        self.assertIs(str, type(metadata["torch_version"]))
 
     def test_chat_template_extracts_input_ids_from_batch_encoding(self) -> None:
         class Tokenizer:

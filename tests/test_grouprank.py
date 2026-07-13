@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 import hashlib
 import json
 import unittest
@@ -329,6 +329,42 @@ class GroupRankAggregationTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "one score set per request"):
             aggregate_grouprank_scores(requests, parsed_scores[:-1])
+
+    def test_aggregation_rejects_cross_repetition_candidate_swaps(self) -> None:
+        requests = list(build_group_requests(_selection()))
+        for index, request in enumerate(requests):
+            mapping = dict(request.handle_to_candidate)
+            if (
+                request.query_id == "q00"
+                and request.repetition == 666
+                and "Biology" in mapping.values()
+            ):
+                handle = next(
+                    handle
+                    for handle, candidate in mapping.items()
+                    if candidate == "Biology"
+                )
+                mapping[handle] = "Arts"
+                requests[index] = replace(request, handle_to_candidate=mapping)
+            elif (
+                request.query_id == "q00"
+                and request.repetition == 667
+                and "Arts" in mapping.values()
+            ):
+                handle = next(
+                    handle
+                    for handle, candidate in mapping.items()
+                    if candidate == "Arts"
+                )
+                mapping[handle] = "Biology"
+                requests[index] = replace(request, handle_to_candidate=mapping)
+        parsed_scores = [
+            {handle: 5 for handle in request.handle_to_candidate}
+            for request in requests
+        ]
+
+        with self.assertRaisesRegex(ValueError, "exactly once per repetition"):
+            aggregate_grouprank_scores(requests, parsed_scores)
 
 
 if __name__ == "__main__":

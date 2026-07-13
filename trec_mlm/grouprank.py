@@ -274,11 +274,15 @@ def aggregate_grouprank_scores(
         lambda: defaultdict(list)
     )
     query_requests: dict[str, set[tuple[int, int]]] = defaultdict(set)
+    repetition_candidates: dict[tuple[str, int], list[str]] = defaultdict(list)
     for request, scores in zip(requests, parsed_scores, strict=True):
         if set(scores) != set(request.handle_to_candidate):
             raise ValueError("GroupRank score handles disagree with the request")
         query_requests[request.query_id].add((request.repetition, request.group))
         for handle, candidate in request.handle_to_candidate.items():
+            repetition_candidates[(request.query_id, request.repetition)].append(
+                candidate
+            )
             value = scores[handle]
             if (
                 isinstance(value, bool)
@@ -299,6 +303,25 @@ def aggregate_grouprank_scores(
         keys != expected_request_keys for keys in query_requests.values()
     ):
         raise ValueError("GroupRank aggregation requires four requests per query")
+    for query_id in query_requests:
+        candidate_sets: list[set[str]] = []
+        for repetition in GROUPING_SEEDS:
+            candidates = repetition_candidates[(query_id, repetition)]
+            candidate_set = set(candidates)
+            if (
+                len(candidates) != _CANDIDATE_COUNT
+                or len(candidate_set) != _CANDIDATE_COUNT
+            ):
+                raise ValueError(
+                    "GroupRank aggregation requires each candidate exactly once "
+                    "per repetition"
+                )
+            candidate_sets.append(candidate_set)
+        if candidate_sets[0] != candidate_sets[1]:
+            raise ValueError(
+                "GroupRank aggregation requires each candidate exactly once per "
+                "repetition"
+            )
 
     candidate_scores: dict[str, dict[str, float]] = {}
     rankings: dict[str, list[str]] = {}

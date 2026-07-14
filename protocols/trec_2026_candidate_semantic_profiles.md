@@ -445,6 +445,50 @@ the production ranking path.
 - bootstrap, win/tie/loss, zero transition, density slice, question-type, Phase 0,
   and final decision logic.
 
+## Amendment: pass-one qrel-free viability gate
+
+Approved by advisor on 2026-07-14 before pass-one output inspection. The frozen
+amendment receipt has SHA-256
+`77c15ad341561ac19245e9fe810cff2f609baa1f70c8a11057cf1dd3d4f408a6`.
+Pause after the first full Stage 1 pass. Keep qrels absent, unmounted, and unopened;
+freeze and hash exactly one `profile_only` ranking; use dense and contextual E5 only
+as comparison references; do not inspect fusion rankings or select weights. Execute
+the gate once with seed 2026 and do not alter thresholds after inspection.
+
+Continue requires validated hashes and exact 322/150/182764/7759 inventories;
+little-endian C-contiguous float32 arrays; finite nonzero rows with maximum norm error
+at most `1e-5`; at least 10 records and a profile per candidate; overall/per-candidate
+full truncation at most 1%/5% and any truncation at most 50%/75%; within-candidate
+exact record duplicates at most 0.1%; at least 95% of candidates with eight occupied
+clusters and none below two; largest cluster share at most 0.80; normalized occupancy
+entropy median/minimum at least 0.65/0.35; singleton clusters at most 25%; supported
+cluster median dispersion in `[1e-4, 0.40]`, p95 at most 0.60, and zero dispersion at
+most 1%; no exact duplicate centroids; centroid cosine at least 0.9999 for at most 1%
+of all within-candidate pairs and 20% per candidate; symmetric nearest-other centroid
+Chamfer separation median at least 0.005 and at least 95% of candidates at least
+0.001.
+
+The frozen ranking must have at least 306 unique full rankings, 258 unique top-10
+lists, no identical top-10 group above 16, at least 15 unique top-1 candidates,
+effective top-1 count at least 10, maximum top-1 share at most 10%, top-10 coverage
+at least 90 candidates, and no candidate in more than 50% of top tens. Median/p05
+per-query score range must be at least 0.05/0.01, median top gap above `1e-5`, and
+exact top ties at most 1%. Versus each reference, mean top-10 Jaccard must be at most
+0.80 and at least 80% of queries must differ. Report Jaccard, RBO with `p=0.9`, and
+full-rank correlation without optimization. For any candidate winning at least 5%
+of queries, assigned-query mean pairwise cosine must reach the 75th percentile of
+10,000 same-size random subsets under seed 2026.
+
+`continue` requires every threshold and is the only decision permitting repeat two.
+`revise` applies when integrity and leakage pass but a non-severe geometry,
+truncation, separation, or sensitivity threshold fails. `stop` applies on leakage or
+integrity/inventory/numeric/coverage failure, or severe collapse: fewer than 50
+unique top tens, effective top-1 below 3, median separation below `1e-4`, more than
+25% of candidates dominated by near-identical centroids, or mean top-10 Jaccard at
+least 0.90 against both references. Report pass-one cost and project repeat two at
+the same GPU-hours and bytes with a +/-10% time range. Repeat two cannot improve the
+ranking; its only value is deterministic confirmation that unlocks qrel evaluation.
+
 ## Deliverables
 
 - this locked protocol and a config-driven implementation;

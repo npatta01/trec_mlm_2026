@@ -217,6 +217,46 @@ def build_parser() -> argparse.ArgumentParser:
     label.add_argument("--run-id", default="contextual_e5_labels")
     label.add_argument("--output-dir", required=True)
 
+    profile_construct = commands.add_parser(
+        "profile-construct",
+        help="construct and freeze candidate semantic profiles without qrels",
+    )
+    profile_construct.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    profile_construct.add_argument("--discovery", required=True)
+    profile_construct.add_argument(
+        "--candidates", default="reports/trec_2026_discovery_profile_audit.json"
+    )
+    profile_construct.add_argument("--dense-artifact", required=True)
+    profile_construct.add_argument("--e5-artifact", required=True)
+    profile_construct.add_argument("--output-dir", required=True)
+
+    profile_validate = commands.add_parser(
+        "profile-validate", help="validate an immutable profile construction"
+    )
+    profile_validate.add_argument("--construction", required=True)
+
+    profile_repeat = commands.add_parser(
+        "profile-repeat-check", help="compare two frozen profile constructions"
+    )
+    profile_repeat.add_argument("--first", required=True)
+    profile_repeat.add_argument("--second", required=True)
+    profile_repeat.add_argument("--receipt", required=True)
+
+    profile_evaluate = commands.add_parser(
+        "profile-evaluate", help="evaluate already-frozen profile rankings"
+    )
+    profile_evaluate.add_argument("--construction", required=True)
+    profile_evaluate.add_argument("--qrels", required=True)
+    profile_evaluate.add_argument("--repeat-receipt")
+    profile_evaluate.add_argument("--output-dir", required=True)
+
+    profile_report = commands.add_parser(
+        "profile-report", help="build accessible profile experiment reports"
+    )
+    profile_report.add_argument("--evaluation", required=True)
+    profile_report.add_argument("--markdown", required=True)
+    profile_report.add_argument("--html", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -355,6 +395,84 @@ def main(argv: list[str] | None = None) -> int:
         result = run_label_experiment(config)
         paths = write_label_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "profile-construct":
+        from trec_mlm.profile_experiment import (
+            ProfileExperimentConfig,
+            run_profile_experiment,
+            write_profile_artifacts,
+        )
+
+        config = ProfileExperimentConfig(
+            query_path=args.queries,
+            discovery_path=args.discovery,
+            candidate_path=args.candidates,
+            dense_artifact_path=args.dense_artifact,
+            e5_artifact_path=args.e5_artifact,
+        )
+        result = run_profile_experiment(config)
+        paths = write_profile_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.metadata, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "profile-validate":
+        from trec_mlm.profile_experiment import load_profile_artifacts
+
+        result = load_profile_artifacts(args.construction)
+        print(
+            json.dumps(
+                {
+                    "status": "passed",
+                    "query_count": len(result.query_ids),
+                    "candidate_count": len(result.candidate_ids),
+                    "aggregate_sha256": result.manifest["aggregate_sha256"],
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if args.command == "profile-repeat-check":
+        from pathlib import Path
+        from trec_mlm.profile_experiment import compare_profile_repeats
+
+        receipt = compare_profile_repeats(args.first, args.second)
+        destination = Path(args.receipt)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(receipt, indent=2))
+        return 0
+
+    if args.command == "profile-evaluate":
+        from trec_mlm.profile_evaluation import (
+            ProfileEvaluationConfig,
+            evaluate_profile_artifacts,
+            write_profile_evaluation,
+        )
+
+        payload = evaluate_profile_artifacts(
+            ProfileEvaluationConfig(
+                construction_path=args.construction,
+                qrels_path=args.qrels,
+                repeat_receipt_path=args.repeat_receipt,
+            )
+        )
+        paths = write_profile_evaluation(payload, args.output_dir)
+        print(
+            json.dumps(
+                {"receipt": payload["profile_receipt"], "artifacts": paths}, indent=2
+            )
+        )
+        return 0
+
+    if args.command == "profile-report":
+        from scripts.build_candidate_profile_report import build_report
+
+        build_report(args.evaluation, args.markdown, args.html)
+        print(json.dumps({"markdown": args.markdown, "html": args.html}, indent=2))
         return 0
 
     if args.command == "validate-run":

@@ -101,6 +101,56 @@ ideal value, all positively labeled LLMs and their system ranks, first relevant 
 weakest/failure query filters when their config points to available qrels. Runs without
 labels retain the same query, score, and profile workflow.
 
+## Candidate-aware Semantic Profiles
+
+Issue 12 is governed by the bounded, advisor-approved protocol in
+[`protocols/trec_2026_candidate_semantic_profiles.md`](protocols/trec_2026_candidate_semantic_profiles.md).
+Construction is config-driven and qrel-free: it filters and exactly deduplicates each
+candidate's historical responses, encodes them with the pinned E5-Mistral runtime,
+builds deterministic multi-vector profiles, and freezes all six permitted rankings.
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+uv run --extra dense trec-mlm profile-construct \
+  --queries data/dev/llm_dev_data.tsv \
+  --discovery /path/to/llm_discovery_data.json \
+  --candidates reports/trec_2026_discovery_profile_audit.json \
+  --dense-artifact /path/to/dense_query_knn_baseline \
+  --e5-artifact /path/to/contextual_e5_clean/final_run1 \
+  --output-dir artifacts/candidate_semantic_profiles/run1
+
+uv run --extra dense trec-mlm profile-validate \
+  --construction artifacts/candidate_semantic_profiles/run1
+```
+
+Run the same construction independently as `run2`, then require an exact repeat
+receipt before evaluation:
+
+```bash
+uv run --extra dense trec-mlm profile-repeat-check \
+  --first artifacts/candidate_semantic_profiles/run1 \
+  --second artifacts/candidate_semantic_profiles/run2 \
+  --receipt artifacts/candidate_semantic_profiles/repeat_receipt.json
+
+# Qrels enter for the first time here, after ranking hashes are locked.
+uv run --extra dense trec-mlm profile-evaluate \
+  --construction artifacts/candidate_semantic_profiles/run1 \
+  --repeat-receipt artifacts/candidate_semantic_profiles/repeat_receipt.json \
+  --qrels data/dev/llm_dev_qrels.txt \
+  --output-dir artifacts/candidate_semantic_profiles/evaluation
+
+uv run trec-mlm profile-report \
+  --evaluation artifacts/candidate_semantic_profiles/evaluation/evaluation.json \
+  --markdown reports/trec_2026_candidate_semantic_profiles.md \
+  --html reports/trec_2026_candidate_semantic_profiles.html
+```
+
+The sole promotion test is the frozen 1:1 RRF fusion of query-kNN and candidate
+profiles against the frozen query-kNN baseline. The contextual E5 and alternative
+fusion rankings are controls or preregistered ablations. Qrel-trained dense retrieval
+is an explicitly conditional downstream phase and is not part of profile construction,
+ranking, fusion, or this promotion decision.
+
 ## Baseline 2: Frozen Dense Query Retrieval
 
 Install the optional CPU-only embedding stack and run the preregistered nested grid:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import fields
+import hashlib
 import inspect
 import json
 from pathlib import Path
@@ -13,12 +14,18 @@ import numpy as np
 from trec_mlm import cli
 from trec_mlm.label_experiment import (
     LabelExperimentConfig,
+    _run_label_experiment_with_embeddings,
     load_label_experiment_artifacts,
     run_label_experiment,
     write_label_experiment_artifacts,
 )
 from trec_mlm.label_inference import ROCM_IMAGE
-from trec_mlm.label_retrieval import CONTEXTUAL_E5_SPEC, LabelScoreResult
+from trec_mlm.label_retrieval import (
+    CONTEXTUAL_E5_SPEC,
+    LabelScoreResult,
+    format_document,
+    format_query,
+)
 
 
 def _metadata(
@@ -26,6 +33,7 @@ def _metadata(
     *,
     batch_size: int = 2,
     seed: int = 7,
+    input_sha256: str,
 ) -> dict[str, object]:
     return {
         "backend": "transformers",
@@ -38,13 +46,13 @@ def _metadata(
         "pooling": CONTEXTUAL_E5_SPEC.pooling,
         "embedding_dimension": CONTEXTUAL_E5_SPEC.embedding_dimension,
         "input_count": input_count,
-        "input_sha256": "fixture-input-hash",
+        "input_sha256": input_sha256,
         "transformers_version": "fixture",
         "torch_version": "fixture",
         "hip_version": "fixture",
-        "device": "cuda_rocm",
+        "device": "rocm_hip",
         "device_properties": "gfx1151 fixture",
-        "container_image": ROCM_IMAGE,
+        "required_container_image": ROCM_IMAGE,
         "parameter_count": 7_110_000_000,
         "peak_memory_allocated_bytes": 1,
         "peak_memory_reserved_bytes": 2,
@@ -59,6 +67,15 @@ def _metadata(
         "max_length": 512,
         "encoding_seconds": 1.0,
     }
+
+
+def _hash_texts(texts: tuple[str, ...]) -> str:
+    digest = hashlib.sha256()
+    for text in texts:
+        encoded = text.encode("utf-8")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
 
 
 class QrelFreeLabelExperimentTest(unittest.TestCase):
@@ -85,16 +102,25 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
         self.label_embeddings[0, 0] = 1.0
         self.label_embeddings[1, 0] = 1.0
         self.label_embeddings[2, 1] = 1.0
+        self.input_sha256 = _hash_texts(
+            (
+                format_query("Question one?"),
+                format_query("Question two?"),
+                format_document("Alpha_topic"),
+                format_document("Beta_topic"),
+                format_document("Gamma"),
+            )
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
     def _run(self):
-        return run_label_experiment(
+        return _run_label_experiment_with_embeddings(
             self.config,
             query_embeddings=self.query_embeddings,
             label_embeddings=self.label_embeddings,
-            encoder_metadata=_metadata(5),
+            encoder_metadata=_metadata(5, input_sha256=self.input_sha256),
         )
 
     def test_config_and_public_apis_contain_no_qrel_boundary(self) -> None:
@@ -106,6 +132,9 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
             load_label_experiment_artifacts,
         ):
             self.assertNotIn("qrel", str(inspect.signature(function)).lower())
+        self.assertEqual(
+            ["config"], list(inspect.signature(run_label_experiment).parameters)
+        )
         self.assertEqual(
             "e5_mistral_7b_contextual", self.config.encoder_key
         )
@@ -123,7 +152,7 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
 
     def test_fixed_model_and_representation_cannot_be_changed(self) -> None:
         with self.assertRaisesRegex(ValueError, "encoder_key"):
-            run_label_experiment(
+            _run_label_experiment_with_embeddings(
                 LabelExperimentConfig(
                     query_path=str(self.queries),
                     candidate_path=str(self.candidates),
@@ -131,10 +160,10 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
                 ),
                 query_embeddings=self.query_embeddings,
                 label_embeddings=self.label_embeddings,
-                encoder_metadata=_metadata(5),
+                encoder_metadata=_metadata(5, input_sha256=self.input_sha256),
             )
         with self.assertRaisesRegex(ValueError, "label_representation"):
-            run_label_experiment(
+            _run_label_experiment_with_embeddings(
                 LabelExperimentConfig(
                     query_path=str(self.queries),
                     candidate_path=str(self.candidates),
@@ -142,7 +171,7 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
                 ),
                 query_embeddings=self.query_embeddings,
                 label_embeddings=self.label_embeddings,
-                encoder_metadata=_metadata(5),
+                encoder_metadata=_metadata(5, input_sha256=self.input_sha256),
             )
 
     def test_writer_is_atomic_complete_and_loader_recomputes_the_result(self) -> None:
@@ -217,15 +246,45 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
             load_label_experiment_artifacts(destination)
 
-        metadata = _metadata(5)
+        metadata = _metadata(5, input_sha256=self.input_sha256)
         del metadata["resolved_model_revision"]
         with self.assertRaisesRegex(ValueError, "provenance"):
-            run_label_experiment(
+            _run_label_experiment_with_embeddings(
                 self.config,
                 query_embeddings=self.query_embeddings,
                 label_embeddings=self.label_embeddings,
                 encoder_metadata=metadata,
             )
+
+        metadata = _metadata(5, input_sha256="definitely-wrong")
+        with self.assertRaisesRegex(ValueError, "input_sha256"):
+            _run_label_experiment_with_embeddings(
+                self.config,
+                query_embeddings=self.query_embeddings,
+                label_embeddings=self.label_embeddings,
+                encoder_metadata=metadata,
+            )
+
+    def test_loader_validates_human_readable_prediction_ranks(self) -> None:
+        destination = self.root / "artifact"
+        write_label_experiment_artifacts(self._run(), destination)
+        predictions = destination / "predictions.tsv"
+        lines = predictions.read_text().splitlines()
+        columns = lines[1].split("\t")
+        columns[-1] = "2"
+        lines[1] = "\t".join(columns)
+        predictions.write_text("\n".join(lines) + "\n")
+        validation_path = destination / "validation.json"
+        validation = json.loads(validation_path.read_text())
+        validation["artifact_sha256"]["predictions.tsv"] = hashlib.sha256(
+            predictions.read_bytes()
+        ).hexdigest()
+        validation_path.write_text(
+            json.dumps(validation, indent=2, sort_keys=True) + "\n"
+        )
+
+        with self.assertRaisesRegex(ValueError, "prediction ranks"):
+            load_label_experiment_artifacts(destination)
 
 
 class FullInventoryContractTest(unittest.TestCase):
@@ -246,7 +305,11 @@ class FullInventoryContractTest(unittest.TestCase):
             label_embeddings = np.zeros((150, 4096), dtype=np.float32)
             query_embeddings[np.arange(322), np.arange(322)] = 1.0
             label_embeddings[np.arange(150), np.arange(150)] = 1.0
-            result = run_label_experiment(
+            formatted_inputs = tuple(
+                [format_query(f"Question {index}?") for index in range(322)]
+                + [format_document(f"C{index:03d}") for index in range(150)]
+            )
+            result = _run_label_experiment_with_embeddings(
                 LabelExperimentConfig(
                     query_path=str(query_path),
                     candidate_path=str(candidate_path),
@@ -255,7 +318,12 @@ class FullInventoryContractTest(unittest.TestCase):
                 ),
                 query_embeddings=query_embeddings,
                 label_embeddings=label_embeddings,
-                encoder_metadata=_metadata(472, batch_size=32, seed=2026),
+                encoder_metadata=_metadata(
+                    472,
+                    batch_size=32,
+                    seed=2026,
+                    input_sha256=_hash_texts(formatted_inputs),
+                ),
             )
             paths = write_label_experiment_artifacts(result, root / "artifact")
 

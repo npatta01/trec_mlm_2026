@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -13,6 +14,7 @@ from trec_mlm.label_inference import (
     encode_label_inputs,
     last_token_pool,
     snapshot_revision_from_path,
+    validate_rocm_runtime,
 )
 
 
@@ -93,6 +95,25 @@ class E5EncodingDispatchTest(unittest.TestCase):
             "3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28",
             ROCM_IMAGE,
         )
+
+    def test_runtime_requires_hip_and_an_amd_gcn_device(self) -> None:
+        properties = SimpleNamespace(gcnArchName="gfx1151")
+        runtime = SimpleNamespace(
+            version=SimpleNamespace(hip="7.2"),
+            cuda=SimpleNamespace(
+                is_available=lambda: True,
+                get_device_properties=lambda index: properties,
+            ),
+        )
+
+        self.assertIs(properties, validate_rocm_runtime(runtime))
+        runtime.version.hip = None
+        with self.assertRaisesRegex(RuntimeError, "HIP"):
+            validate_rocm_runtime(runtime)
+        runtime.version.hip = "7.2"
+        properties.gcnArchName = ""
+        with self.assertRaisesRegex(RuntimeError, "AMD"):
+            validate_rocm_runtime(runtime)
 
     def test_snapshot_revision_is_recovered_from_resolved_tokenizer_path(self) -> None:
         revision = "d62cc4417be0e3289c03dd459d1ef2d137e2554e"

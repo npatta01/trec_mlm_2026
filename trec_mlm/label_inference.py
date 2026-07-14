@@ -24,6 +24,20 @@ ROCM_IMAGE = (
 )
 
 
+def validate_rocm_runtime(torch_module: Any) -> Any:
+    """Verify that the active Torch device is an AMD HIP runtime."""
+
+    if not torch_module.cuda.is_available():
+        raise RuntimeError("E5 ROCm inference requires an available HIP device")
+    if not getattr(torch_module.version, "hip", None):
+        raise RuntimeError("E5 ROCm inference requires a Torch HIP build")
+    properties = torch_module.cuda.get_device_properties(0)
+    architecture = getattr(properties, "gcnArchName", "")
+    if not isinstance(architecture, str) or not architecture.startswith("gfx"):
+        raise RuntimeError("E5 ROCm inference requires an AMD GCN device")
+    return properties
+
+
 def snapshot_revision_from_path(path: str | Path) -> str:
     """Recover the immutable Hub commit from a resolved snapshot file path."""
 
@@ -149,8 +163,7 @@ def _encode_contextual_e5(
         from transformers.utils.hub import cached_file
     except ImportError as error:  # pragma: no cover - container integration path
         raise RuntimeError("E5 inference requires torch and transformers") from error
-    if not torch.cuda.is_available():
-        raise RuntimeError("E5 ROCm inference requires an available HIP device")
+    device_properties = validate_rocm_runtime(torch)
 
     spec = CONTEXTUAL_E5_SPEC
     torch.manual_seed(seed)
@@ -250,9 +263,9 @@ def _encode_contextual_e5(
         "transformers_version": importlib.metadata.version("transformers"),
         "torch_version": torch.__version__,
         "hip_version": torch.version.hip,
-        "device": "cuda_rocm",
-        "device_properties": str(torch.cuda.get_device_properties(0)),
-        "container_image": ROCM_IMAGE,
+        "device": "rocm_hip",
+        "device_properties": str(device_properties),
+        "required_container_image": ROCM_IMAGE,
         "parameter_count": int(parameter_count),
         "peak_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
         "peak_memory_reserved_bytes": int(torch.cuda.max_memory_reserved()),
@@ -284,4 +297,5 @@ __all__ = [
     "encode_label_inputs",
     "last_token_pool",
     "snapshot_revision_from_path",
+    "validate_rocm_runtime",
 ]

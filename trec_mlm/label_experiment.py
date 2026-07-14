@@ -63,7 +63,7 @@ _REQUIRED_RUNTIME_FIELDS = frozenset(
         "hip_version",
         "device",
         "device_properties",
-        "container_image",
+        "required_container_image",
         "parameter_count",
         "peak_memory_allocated_bytes",
         "peak_memory_reserved_bytes",
@@ -134,12 +134,36 @@ def load_candidate_manifest(path: str | Path) -> tuple[str, ...]:
 
 def run_label_experiment(
     config: LabelExperimentConfig,
+) -> LabelExperimentResult:
+    """Format, encode, and rank without accepting judgments or embeddings."""
+
+    return _run_label_experiment(config)
+
+
+def _run_label_experiment_with_embeddings(
+    config: LabelExperimentConfig,
+    *,
+    query_embeddings: NDArray[np.floating[Any]],
+    label_embeddings: NDArray[np.floating[Any]],
+    encoder_metadata: Mapping[str, Any],
+) -> LabelExperimentResult:
+    """Private deterministic fixture boundary for tests and archival parity."""
+
+    return _run_label_experiment(
+        config,
+        query_embeddings=query_embeddings,
+        label_embeddings=label_embeddings,
+        encoder_metadata=encoder_metadata,
+    )
+
+
+def _run_label_experiment(
+    config: LabelExperimentConfig,
     *,
     query_embeddings: NDArray[np.floating[Any]] | None = None,
     label_embeddings: NDArray[np.floating[Any]] | None = None,
     encoder_metadata: Mapping[str, Any] | None = None,
 ) -> LabelExperimentResult:
-    """Format, encode, and rank without accepting judgment data."""
 
     _validate_config(config)
     if (query_embeddings is None) != (label_embeddings is None):
@@ -150,6 +174,9 @@ def run_label_experiment(
     candidate_ids = load_candidate_manifest(config.candidate_path)
     formatted_queries = tuple(format_query(text) for text in query_texts)
     formatted_documents = tuple(format_document(item) for item in candidate_ids)
+    formatted_input_sha256 = _hash_texts(
+        (*formatted_queries, *formatted_documents)
+    )
 
     if query_embeddings is None or label_embeddings is None:
         from trec_mlm.label_inference import encode_label_inputs
@@ -167,6 +194,7 @@ def run_label_experiment(
         metadata,
         config=config,
         expected_input_count=len(query_ids) + len(candidate_ids),
+        expected_input_sha256=formatted_input_sha256,
     )
     scored = rank_label_scores(
         query_embeddings=query_embeddings,
@@ -245,7 +273,7 @@ def _write_artifact_files(result: LabelExperimentResult, destination: Path) -> N
         "qrel_free": True,
         **asdict(result.config),
         "encoder_spec": asdict(result.encoder_spec),
-        "container_image": ROCM_IMAGE,
+        "required_container_image": ROCM_IMAGE,
         "input_sha256": {
             result.config.query_path: _sha256(Path(result.config.query_path)),
             result.config.candidate_path: _sha256(Path(result.config.candidate_path)),
@@ -386,6 +414,7 @@ def load_label_experiment_artifacts(
         config_payload.get("artifact_type") != "contextual_e5_label_ranking"
         or config_payload.get("version") != _ARTIFACT_VERSION
         or config_payload.get("qrel_free") is not True
+        or config_payload.get("required_container_image") != ROCM_IMAGE
         or not config_payload.get("code_revision")
         or not isinstance(config_payload.get("source_code_sha256"), dict)
     ):
@@ -456,13 +485,15 @@ def load_label_experiment_artifacts(
     )
     if run_validation.get("row_count") != len(query_ids) * len(candidate_ids):
         raise ValueError("TREC run is incomplete")
-    prediction_scores = _load_prediction_scores(
+    prediction_scores, prediction_rankings = _load_prediction_scores(
         source / "predictions.tsv",
         query_ids=query_ids,
         candidate_ids=candidate_ids,
     )
     if not np.allclose(prediction_scores, stored_scores, rtol=0.0, atol=1e-6):
         raise ValueError("prediction scores disagree with binary scores")
+    if prediction_rankings != stored_scored.rankings:
+        raise ValueError("prediction ranks disagree with stored scores")
     if not np.allclose(stored_scores, reconstructed.scores, rtol=0.0, atol=1e-6):
         raise ValueError("stored scores disagree with stored embeddings")
     metadata = _read_json(source / "encoder_metadata.json")
@@ -470,6 +501,9 @@ def load_label_experiment_artifacts(
         metadata,
         config=config,
         expected_input_count=len(query_ids) + len(candidate_ids),
+        expected_input_sha256=_hash_texts(
+            (*formatted_queries, *formatted_documents)
+        ),
     )
     return LabelExperimentResult(
         config=config,
@@ -500,12 +534,15 @@ def _load_prediction_scores(
     *,
     query_ids: tuple[str, ...],
     candidate_ids: tuple[str, ...],
-) -> NDArray[np.float32]:
+) -> tuple[NDArray[np.float32], dict[str, list[str]]]:
     query_positions = {query_id: index for index, query_id in enumerate(query_ids)}
     candidate_positions = {
         candidate_id: index for index, candidate_id in enumerate(candidate_ids)
     }
     scores = np.full((len(query_ids), len(candidate_ids)), np.nan, dtype=np.float32)
+    ranked_candidates: dict[str, list[str | None]] = {
+        query_id: [None] * len(candidate_ids) for query_id in query_ids
+    }
     seen: set[tuple[str, str]] = set()
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
@@ -524,11 +561,30 @@ def _load_prediction_scores(
             value = float(row["score"])
             if not np.isfinite(value):
                 raise ValueError("prediction scores must be finite")
+            try:
+                rank = int(row["rank"])
+            except ValueError as error:
+                raise ValueError("prediction ranks must be integers") from error
+            if (
+                row["rank"] != str(rank)
+                or not 1 <= rank <= len(candidate_ids)
+                or ranked_candidates[query_id][rank - 1] is not None
+            ):
+                raise ValueError("prediction ranks are invalid or duplicated")
             seen.add(key)
             scores[query_positions[query_id], candidate_positions[candidate_id]] = value
+            ranked_candidates[query_id][rank - 1] = candidate_id
     if len(seen) != scores.size or np.isnan(scores).any():
         raise ValueError("predictions are not a complete Cartesian product")
-    return scores
+    if any(
+        any(candidate is None for candidate in row)
+        for row in ranked_candidates.values()
+    ):
+        raise ValueError("prediction ranks are incomplete")
+    return scores, {
+        query_id: [str(candidate) for candidate in row]
+        for query_id, row in ranked_candidates.items()
+    }
 
 
 def _validate_config(config: LabelExperimentConfig) -> None:
@@ -547,6 +603,7 @@ def _validate_encoder_metadata(
     *,
     config: LabelExperimentConfig,
     expected_input_count: int,
+    expected_input_sha256: str,
 ) -> None:
     if not _REQUIRED_RUNTIME_FIELDS.issubset(metadata):
         raise ValueError("encoder provenance is incomplete")
@@ -561,8 +618,9 @@ def _validate_encoder_metadata(
         "pooling": CONTEXTUAL_E5_SPEC.pooling,
         "embedding_dimension": CONTEXTUAL_E5_SPEC.embedding_dimension,
         "input_count": expected_input_count,
-        "container_image": ROCM_IMAGE,
-        "device": "cuda_rocm",
+        "input_sha256": expected_input_sha256,
+        "required_container_image": ROCM_IMAGE,
+        "device": "rocm_hip",
         "batch_size": config.batch_size,
         "seed": config.seed,
         "padding_side": "left",

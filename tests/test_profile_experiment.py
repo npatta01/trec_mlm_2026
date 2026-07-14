@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from trec_mlm.profile_experiment import (
+    OFFICIAL_DISCOVERY_SHA256,
     FROZEN_RANKING_KEYS,
     ProfileExperimentConfig,
     ProfileExperimentResult,
@@ -18,6 +19,7 @@ from trec_mlm.profile_experiment import (
     run_profile_experiment,
     write_profile_artifacts,
 )
+from trec_mlm import profile_experiment
 from trec_mlm.profile_retrieval import ProfileScoreResult
 
 
@@ -26,6 +28,15 @@ CANDIDATE_IDS = ("A", "B", "C")
 DENSE = {"q1": ["A", "B", "C"], "q2": ["C", "B", "A"]}
 E5 = {"q1": ["B", "A", "C"], "q2": ["A", "C", "B"]}
 PROFILE = {"q1": ["C", "A", "B"], "q2": ["B", "C", "A"]}
+
+
+def _refresh_manifest(root: Path, relative_path: str) -> None:
+    path = root / relative_path
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"][relative_path] = profile_experiment._sha256(path)
+    manifest["aggregate_sha256"] = profile_experiment._aggregate_hash(manifest["files"])
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 def _result() -> ProfileExperimentResult:
@@ -58,6 +69,7 @@ def _result() -> ProfileExperimentResult:
         fusion_scores=frozen.scores,
         metadata={"qrel_free": True, "fixture": True},
         profile_payload={"A": {"coverage": 1}, "B": {"coverage": 1}, "C": {"coverage": 1}},
+        source_rankings={"dense_reference": DENSE, "contextual_e5_control": E5},
     )
 
 
@@ -70,6 +82,12 @@ def test_public_construction_boundary_contains_no_qrels() -> None:
         freeze_profile_rankings,
     ):
         assert "qrel" not in str(inspect.signature(function)).lower()
+
+
+def test_official_discovery_digest_is_frozen() -> None:
+    assert OFFICIAL_DISCOVERY_SHA256 == (
+        "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25"
+    )
 
 
 def test_frozen_ranking_matrix_has_one_primary_and_fixed_ablations() -> None:
@@ -87,6 +105,7 @@ def test_atomic_artifact_round_trip_and_hash_validation(tmp_path: Path) -> None:
     assert set(paths) >= {"config.json", "manifest.json", "validation.json"}
     loaded = load_profile_artifacts(destination)
     assert loaded.rankings == _result().rankings
+    assert loaded.source_rankings["dense_reference"] == DENSE
     np.testing.assert_array_equal(loaded.profile_scores, _result().profile_scores)
     assert loaded.manifest["qrel_free"] is True
     assert loaded.manifest["aggregate_sha256"]
@@ -96,6 +115,25 @@ def test_atomic_artifact_round_trip_and_hash_validation(tmp_path: Path) -> None:
     ranking_path = destination / "rankings" / "profile_only.json"
     ranking_path.write_text("{}")
     with pytest.raises(ValueError, match="hash mismatch"):
+        load_profile_artifacts(destination)
+
+
+def test_loader_rejects_files_not_closed_by_manifest(tmp_path: Path) -> None:
+    destination = tmp_path / "artifact"
+    write_profile_artifacts(_result(), destination)
+    (destination / "unlisted.txt").write_text("mutation")
+    with pytest.raises(ValueError, match="file inventory"):
+        load_profile_artifacts(destination)
+
+
+def test_loader_rejects_nonfinite_profile_scores_even_after_rehash(tmp_path: Path) -> None:
+    destination = tmp_path / "artifact"
+    write_profile_artifacts(_result(), destination)
+    scores = np.load(destination / "profile_scores.npy", allow_pickle=False)
+    scores[0, 0] = np.nan
+    np.save(destination / "profile_scores.npy", scores)
+    _refresh_manifest(destination, "profile_scores.npy")
+    with pytest.raises(ValueError, match="profile scores must be finite"):
         load_profile_artifacts(destination)
 
 

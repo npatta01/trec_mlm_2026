@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.build_candidate_profile_report import build_report
 from trec_mlm.cli import build_parser
 
@@ -60,13 +62,24 @@ def test_construction_cli_has_no_qrel_option() -> None:
 def test_only_profile_evaluate_accepts_qrels() -> None:
     parser = build_parser()
     args = parser.parse_args(
-        ["profile-evaluate", "--construction", "run", "--qrels", "qrels", "--output-dir", "eval"]
+        [
+            "profile-evaluate", "--construction", "run", "--qrels", "qrels",
+            "--repeat-receipt", "repeat.json", "--output-dir", "eval",
+        ]
     )
     assert args.qrels == "qrels"
     repeat = parser.parse_args(
         ["profile-repeat-check", "--first", "one", "--second", "two", "--receipt", "receipt.json"]
     )
     assert not any("qrel" in key for key in vars(repeat))
+
+
+def test_profile_evaluate_requires_repeat_receipt() -> None:
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["profile-evaluate", "--construction", "run", "--qrels", "qrels", "--output-dir", "eval"]
+        )
 
 
 def test_report_is_deterministic_standalone_and_accessible(tmp_path: Path) -> None:

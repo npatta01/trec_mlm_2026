@@ -48,6 +48,9 @@ from trec_mlm.runio import (
 
 
 ARTIFACT_VERSION = 1
+OFFICIAL_DISCOVERY_SHA256 = (
+    "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25"
+)
 FROZEN_RANKING_KEYS = (
     "profile_only",
     "dense_e5_equal",
@@ -94,6 +97,7 @@ class ProfileExperimentResult:
     fusion_scores: dict[str, NDArray[np.float32]]
     metadata: dict[str, Any]
     profile_payload: dict[str, Any]
+    source_rankings: dict[str, dict[str, list[str]]]
     query_embeddings: NDArray[np.float32] | None = None
     record_embeddings: NDArray[np.float32] | None = None
     label_question_embeddings: NDArray[np.float32] | None = None
@@ -108,6 +112,7 @@ class LoadedProfileArtifacts:
     winning_centroid_ids: NDArray[np.int32]
     rankings: dict[str, dict[str, list[str]]]
     fusion_scores: dict[str, NDArray[np.float32]]
+    source_rankings: dict[str, dict[str, list[str]]]
     manifest: dict[str, Any]
     root: Path
 
@@ -194,6 +199,8 @@ def run_profile_experiment(config: ProfileExperimentConfig) -> ProfileExperiment
     query_texts = tuple(queries.values())
     candidate_ids = load_candidate_manifest(config.candidate_path)
     corpus = load_discovery_records(config.discovery_path, candidate_ids)
+    if corpus.source_sha256 != OFFICIAL_DISCOVERY_SHA256:
+        raise ValueError("discovery source SHA-256 differs from the frozen protocol")
     filtered = filter_and_deduplicate_records(corpus, candidate_ids)
     flat_records = tuple(
         record
@@ -310,6 +317,12 @@ def run_profile_experiment(config: ProfileExperimentConfig) -> ProfileExperiment
             "source_question_count": len(source_query_ids),
         },
         profile_payload=profile_payload,
+        source_rankings={
+            "dense_reference": {key: list(value) for key, value in dense_rankings.items()},
+            "contextual_e5_control": {
+                key: list(value) for key, value in e5.rankings.items()
+            },
+        },
         query_embeddings=query_embeddings,
         record_embeddings=record_embeddings,
         label_question_embeddings=label_question_embeddings,
@@ -400,6 +413,10 @@ def write_profile_artifacts(
             if values is not None:
                 np.save(staging / name, values)
         (staging / "scores").mkdir(parents=True, exist_ok=True)
+        for key, ranking in result.source_rankings.items():
+            _validate_complete_rankings(ranking, result.query_ids, result.candidate_ids)
+            _write_json(staging / "rankings" / f"{key}.json", ranking)
+            write_trec_run(staging / "runs" / f"{key}.trec", ranking, run_id=key)
         for key in FROZEN_RANKING_KEYS:
             _write_json(staging / "rankings" / f"{key}.json", result.rankings[key])
             np.save(staging / "scores" / f"{key}.npy", result.fusion_scores[key])
@@ -466,6 +483,13 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
     hashes = manifest.get("files")
     if not isinstance(hashes, dict) or manifest.get("aggregate_sha256") != _aggregate_hash(hashes):
         raise ValueError("profile manifest aggregate hash changed")
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.name != "manifest.json"
+    }
+    if actual_files != set(hashes):
+        raise ValueError("profile artifact file inventory differs from manifest")
     for name, expected in hashes.items():
         if _sha256(root / name) != expected:
             raise ValueError(f"artifact hash mismatch: {name}")
@@ -481,8 +505,18 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
     winners = np.load(root / "winning_centroid_ids.npy", allow_pickle=False)
     if profile_scores.shape != (len(query_ids), len(candidate_ids)) or winners.shape != profile_scores.shape:
         raise ValueError("profile score shape changed")
+    if not np.isfinite(profile_scores).all():
+        raise ValueError("profile scores must be finite")
     rankings: dict[str, dict[str, list[str]]] = {}
     scores: dict[str, NDArray[np.float32]] = {}
+    source_rankings: dict[str, dict[str, list[str]]] = {}
+    for key in ("dense_reference", "contextual_e5_control"):
+        source_rankings[key] = json.loads(
+            (root / "rankings" / f"{key}.json").read_text(encoding="utf-8")
+        )
+        _validate_complete_rankings(source_rankings[key], query_ids, candidate_ids)
+        if rankings_from_run(root / "runs" / f"{key}.trec") != source_rankings[key]:
+            raise ValueError(f"TREC run disagrees with source ranking {key!r}")
     for key in FROZEN_RANKING_KEYS:
         rankings[key] = json.loads(
             (root / "rankings" / f"{key}.json").read_text(encoding="utf-8")
@@ -503,7 +537,7 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
             raise ValueError(f"frozen scores disagree with ranking {key!r}")
     return LoadedProfileArtifacts(
         config, query_ids, candidate_ids, np.asarray(profile_scores, dtype=np.float32),
-        np.asarray(winners, dtype=np.int32), rankings, scores, manifest, root
+        np.asarray(winners, dtype=np.int32), rankings, scores, source_rankings, manifest, root
     )
 
 

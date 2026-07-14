@@ -2,15 +2,57 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from types import SimpleNamespace
 
 from trec_mlm.profile_evaluation import (
+    ProfileEvaluationConfig,
+    evaluate_profile_artifacts,
     paired_interval,
     phase0_decision,
     profile_decision,
     question_type,
     win_tie_loss,
     zero_transitions,
+    write_profile_evaluation,
+    evaluation_systems,
 )
+
+
+def test_evaluation_refuses_to_open_construction_without_repeat_receipt(
+    tmp_path,
+) -> None:
+    config = ProfileEvaluationConfig(
+        construction_path=str(tmp_path / "construction"),
+        qrels_path=str(tmp_path / "qrels.txt"),
+        repeat_receipt_path=None,
+    )
+    with pytest.raises(ValueError, match="repeat receipt is required"):
+        evaluate_profile_artifacts(config)
+
+
+def test_evaluation_writer_refuses_output_inside_construction(tmp_path) -> None:
+    construction = tmp_path / "construction"
+    construction.mkdir()
+    with pytest.raises(ValueError, match="outside construction"):
+        write_profile_evaluation(
+            {"status": "evaluated"},
+            construction / "evaluation",
+            construction_path=construction,
+        )
+
+
+def test_evaluation_systems_use_only_manifest_locked_rankings() -> None:
+    construction = SimpleNamespace(
+        source_rankings={
+            "dense_reference": {"q": ["A", "B"]},
+            "contextual_e5_control": {"q": ["B", "A"]},
+        },
+        rankings={"profile_only": {"q": ["A", "B"]}},
+    )
+    assert evaluation_systems(construction) == {
+        **construction.source_rankings,
+        **construction.rankings,
+    }
 
 
 def test_paired_interval_uses_pcg64_2026_percentiles() -> None:

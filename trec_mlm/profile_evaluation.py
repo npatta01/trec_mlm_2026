@@ -21,7 +21,6 @@ from trec_mlm.profile_experiment import (
     load_profile_artifacts,
 )
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
-from trec_mlm.runio import rankings_from_run
 
 
 BOOTSTRAP_RESAMPLES = 10_000
@@ -213,6 +212,12 @@ def _metric_maps(result: EvaluationResult) -> tuple[dict[str, float], dict[str, 
     )
 
 
+def evaluation_systems(construction: Any) -> dict[str, dict[str, list[str]]]:
+    """Return only rankings locked inside the validated construction."""
+
+    return {**construction.source_rankings, **construction.rankings}
+
+
 def _mean_difference(
     baseline: Mapping[str, float], candidate: Mapping[str, float], query_ids: list[str]
 ) -> float:
@@ -222,6 +227,8 @@ def _mean_difference(
 def evaluate_profile_artifacts(config: ProfileEvaluationConfig) -> dict[str, Any]:
     """Open qrels only after validating the immutable construction manifest."""
 
+    if config.repeat_receipt_path is None:
+        raise ValueError("repeat receipt is required before qrels may be loaded")
     construction = load_profile_artifacts(config.construction_path)
     before_manifest = json.dumps(construction.manifest, sort_keys=True)
     qrels = load_complete_qrels(config.qrels_path)
@@ -229,10 +236,7 @@ def evaluate_profile_artifacts(config: ProfileEvaluationConfig) -> dict[str, Any
         raise ValueError("qrel query inventory differs from frozen construction")
     if tuple(next(iter(qrels.values()))) != construction.candidate_ids:
         raise ValueError("qrel candidate inventory differs from frozen construction")
-    dense_root = Path(construction.config.dense_artifact_path)
-    dense_run = dense_root / "run.trec" if dense_root.is_dir() else dense_root
-    dense_rankings = rankings_from_run(dense_run)
-    systems = {"dense_reference": dense_rankings, **construction.rankings}
+    systems = evaluation_systems(construction)
     evaluations = {name: evaluate_rankings(ranking, qrels, k=10) for name, ranking in systems.items()}
     dense_ndcg, dense_rr = _metric_maps(evaluations["dense_reference"])
     comparisons: dict[str, Any] = {}
@@ -321,10 +325,19 @@ def evaluate_profile_artifacts(config: ProfileEvaluationConfig) -> dict[str, Any
     }
 
 
-def write_profile_evaluation(payload: Mapping[str, Any], output_dir: str | Path) -> dict[str, str]:
+def write_profile_evaluation(
+    payload: Mapping[str, Any],
+    output_dir: str | Path,
+    *,
+    construction_path: str | Path,
+) -> dict[str, str]:
     """Atomically write evaluation and decision JSON outside construction."""
 
     destination = Path(output_dir)
+    construction = Path(construction_path).resolve()
+    resolved_destination = destination.resolve()
+    if resolved_destination == construction or construction in resolved_destination.parents:
+        raise ValueError("evaluation output must be outside construction")
     if destination.exists():
         raise FileExistsError(f"evaluation output already exists: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)

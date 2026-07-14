@@ -247,7 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     profile_evaluate.add_argument("--construction", required=True)
     profile_evaluate.add_argument("--qrels", required=True)
-    profile_evaluate.add_argument("--repeat-receipt")
+    profile_evaluate.add_argument("--repeat-receipt", required=True)
     profile_evaluate.add_argument("--output-dir", required=True)
 
     profile_report = commands.add_parser(
@@ -460,7 +460,9 @@ def main(argv: list[str] | None = None) -> int:
                 repeat_receipt_path=args.repeat_receipt,
             )
         )
-        paths = write_profile_evaluation(payload, args.output_dir)
+        paths = write_profile_evaluation(
+            payload, args.output_dir, construction_path=args.construction
+        )
         print(
             json.dumps(
                 {"receipt": payload["profile_receipt"], "artifacts": paths}, indent=2

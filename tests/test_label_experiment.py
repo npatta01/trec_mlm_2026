@@ -14,6 +14,7 @@ import numpy as np
 from trec_mlm import cli
 from trec_mlm.label_experiment import (
     LabelExperimentConfig,
+    _load_label_experiment_artifacts,
     _run_label_experiment_with_embeddings,
     load_label_experiment_artifacts,
     run_label_experiment,
@@ -202,6 +203,37 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
         self.assertTrue(validation["qrel_free"])
         with self.assertRaisesRegex(FileExistsError, "exists"):
             write_label_experiment_artifacts(self._run(), destination)
+
+    def test_frozen_legacy_provenance_requires_explicit_private_compatibility(self) -> None:
+        destination = self.root / "legacy_artifact"
+        write_label_experiment_artifacts(self._run(), destination)
+        config_path = destination / "config.json"
+        config_payload = json.loads(config_path.read_text())
+        config_payload["container_image"] = config_payload.pop(
+            "required_container_image"
+        )
+        config_path.write_text(json.dumps(config_payload, sort_keys=True) + "\n")
+        metadata_path = destination / "encoder_metadata.json"
+        metadata_payload = json.loads(metadata_path.read_text())
+        metadata_payload["container_image"] = metadata_payload.pop(
+            "required_container_image"
+        )
+        metadata_payload["device"] = "cuda_rocm"
+        metadata_path.write_text(json.dumps(metadata_payload, sort_keys=True) + "\n")
+        validation_path = destination / "validation.json"
+        validation = json.loads(validation_path.read_text())
+        for name in ("config.json", "encoder_metadata.json"):
+            validation["artifact_sha256"][name] = hashlib.sha256(
+                (destination / name).read_bytes()
+            ).hexdigest()
+        validation_path.write_text(json.dumps(validation, sort_keys=True) + "\n")
+
+        with self.assertRaisesRegex(ValueError, "resolved config contract"):
+            load_label_experiment_artifacts(destination)
+        loaded = _load_label_experiment_artifacts(
+            destination, allow_frozen_legacy_provenance=True
+        )
+        self.assertEqual(("q1", "q2"), loaded.query_ids)
 
     def test_loader_tolerates_cross_blas_noise_but_preserves_stored_ranks(self) -> None:
         result = self._run()

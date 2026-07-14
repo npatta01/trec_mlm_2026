@@ -393,6 +393,16 @@ def load_label_experiment_artifacts(
 ) -> LabelExperimentResult:
     """Load an artifact only after hashes and derived rankings validate."""
 
+    return _load_label_experiment_artifacts(artifact_dir)
+
+
+def _load_label_experiment_artifacts(
+    artifact_dir: str | Path,
+    *,
+    allow_frozen_legacy_provenance: bool = False,
+) -> LabelExperimentResult:
+    """Load artifacts, optionally admitting the externally frozen legacy schema."""
+
     source = Path(artifact_dir)
     validation = _read_json(source / "validation.json")
     if (
@@ -410,11 +420,19 @@ def load_label_experiment_artifacts(
             raise ValueError(f"artifact hash mismatch: {name}")
 
     config_payload = _read_json(source / "config.json")
+    legacy_provenance = (
+        allow_frozen_legacy_provenance
+        and config_payload.get("required_container_image") is None
+        and config_payload.get("container_image") == ROCM_IMAGE
+    )
     if (
         config_payload.get("artifact_type") != "contextual_e5_label_ranking"
         or config_payload.get("version") != _ARTIFACT_VERSION
         or config_payload.get("qrel_free") is not True
-        or config_payload.get("required_container_image") != ROCM_IMAGE
+        or (
+            config_payload.get("required_container_image") != ROCM_IMAGE
+            and not legacy_provenance
+        )
         or not config_payload.get("code_revision")
         or not isinstance(config_payload.get("source_code_sha256"), dict)
     ):
@@ -497,8 +515,21 @@ def load_label_experiment_artifacts(
     if not np.allclose(stored_scores, reconstructed.scores, rtol=0.0, atol=1e-6):
         raise ValueError("stored scores disagree with stored embeddings")
     metadata = _read_json(source / "encoder_metadata.json")
+    metadata_to_validate = metadata
+    if legacy_provenance:
+        if (
+            metadata.get("required_container_image") is not None
+            or metadata.get("container_image") != ROCM_IMAGE
+            or metadata.get("device") != "cuda_rocm"
+        ):
+            raise ValueError("legacy encoder provenance changed")
+        metadata_to_validate = {
+            **metadata,
+            "required_container_image": metadata["container_image"],
+            "device": "rocm_hip",
+        }
     _validate_encoder_metadata(
-        metadata,
+        metadata_to_validate,
         config=config,
         expected_input_count=len(query_ids) + len(candidate_ids),
         expected_input_sha256=_hash_texts(

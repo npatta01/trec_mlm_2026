@@ -16,8 +16,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from trec_mlm.label_experiment import (
+    _load_label_experiment_artifacts,
     load_candidate_manifest,
-    load_label_experiment_artifacts,
 )
 from trec_mlm.label_inference import ROCM_IMAGE, _encode_contextual_e5
 from trec_mlm.label_retrieval import CONTEXTUAL_E5_SPEC, format_query
@@ -238,6 +238,14 @@ def run_profile_inference_artifact(
         format_profile_document(record.question, record.response)
         for record in flat_records
     )
+    e5_validation = Path(config.e5_artifact_path) / "validation.json"
+    if _sha256(e5_validation) != FROZEN_E5_VALIDATION_SHA256:
+        raise ValueError("contextual E5 validation differs from frozen control")
+    e5 = _load_label_experiment_artifacts(
+        config.e5_artifact_path, allow_frozen_legacy_provenance=True
+    )
+    if e5.query_ids != tuple(queries) or e5.candidate_ids != candidate_ids:
+        raise ValueError("contextual E5 inventory differs from inference inputs")
     query_embeddings, record_embeddings, profile_metadata = encode_profile_inputs(
         formatted_queries=formatted_queries,
         formatted_documents=formatted_documents,
@@ -252,13 +260,6 @@ def run_profile_inference_artifact(
     label_question_embeddings, label_metadata = _encode_contextual_e5(
         formatted_label_questions, batch_size=PROFILE_BATCH_SIZE, seed=config.seed
     )
-    e5_validation = Path(config.e5_artifact_path) / "validation.json"
-    if _sha256(e5_validation) != FROZEN_E5_VALIDATION_SHA256:
-        raise ValueError("contextual E5 validation differs from frozen control")
-    e5 = load_label_experiment_artifacts(config.e5_artifact_path)
-    if e5.query_ids != tuple(queries) or e5.candidate_ids != candidate_ids:
-        raise ValueError("contextual E5 inventory differs from inference inputs")
-
     records: list[dict[str, Any]] = []
     audits: dict[str, dict[str, Any]] = {}
     cursor = 0

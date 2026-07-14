@@ -144,7 +144,11 @@ The study separates implementation defects from negative method results:
   snapshot path directly. A second test caught cross-BLAS tail-order drift when
   recomputing float32 dot products on a different host library. The final format
   persists the exact float32 score matrix, verifies a recomputation within
-  `1e-6`, and validates rankings against the exact persisted scores.
+  `1e-6`, and validates rankings against the exact persisted scores. The final
+  advisor review also removed embedding injection from the public runner,
+  required runtime metadata to match the exact formatted-input hash, verified a
+  Torch HIP build on an AMD `gfx` device, and added semantic validation of the
+  human-readable prediction ranks.
 
 ## What is retained in the final branch
 
@@ -184,9 +188,10 @@ trec-mlm label-retrieval \
   --output-dir artifacts/contextual_e5
 ```
 
-There is no encoder switch, representation switch, sweep command, or qrel
-argument in this ranking path. If development judgments are available, the
-resulting frozen TREC run can be inspected separately:
+There is no encoder switch, representation switch, sweep command, qrel argument,
+or public embedding-injection hook in this ranking path. If development
+judgments are available, the resulting frozen TREC run can be inspected
+separately:
 
 ```bash
 trec-mlm score-run \
@@ -212,16 +217,21 @@ post-ranking transformation and cannot alter embeddings, scores, or rankings.
 | Numeric contract | BF16 inference; full 4096 dimensions; normalized last-token pooling; cosine similarity |
 | Ranking contract | All 150 candidates; descending score; exact ties by candidate ID |
 | Seed and batch | Seed 2026; batch size 32 |
-| Container | `vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28` |
+| Required container image | `vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28` |
 
 Although the image includes vLLM, E5 uses its official Transformers
-last-token-pooling implementation inside that pinned ROCm environment.
+last-token-pooling implementation inside that digest-pinned ROCm environment.
+The artifact records this digest as a required reproducibility contract rather
+than pretending it can cryptographically attest its own OCI image from inside
+the container. Runtime generation separately verifies a Torch HIP build and an
+AMD `gfx` device.
 
 ## Final clean-run verification
 
-Two fresh processes ran the retained implementation at source commit
-`b79784f74576994c8ff09659fa2c7fdcc35e243c`. Both artifacts recorded a clean
-worktree. The independent loader validated both complete directories.
+Two fresh processes ran the advisor-reviewed implementation from clean artifact
+commit `5bb68a24b17f33e937bd84f4c692c983a6f49afa` (implementation fix commit
+`a142b3f`). Both artifacts recorded a clean worktree. The independent loader
+validated both complete directories.
 
 | Check | Result |
 | --- | --- |
@@ -235,8 +245,9 @@ worktree. The independent loader validated both complete directories.
 | Scores identical | Yes |
 | Maximum absolute score difference | 0.0 |
 | Post-hoc nDCG@10 / MRR | 0.3347215379757303 / 0.38656649577390506 |
+| Automated suite | 126 tests and 11 subtests passed |
 
-Runtime provenance was identical except for timing: 36.03 and 37.20 seconds.
+Runtime provenance was identical except for timing: 36.73 and 37.26 seconds.
 Both runs used Transformers 5.12.1, PyTorch `2.11.0+gitd0c8b1f`, HIP
 7.2.53211, BF16, and gfx1151 ROCm. The model had 7,110,660,096 parameters. Peak
 allocated/reserved memory was 15,065,729,536 / 16,252,928,000 bytes. All 472
@@ -250,8 +261,8 @@ Input and implementation hashes:
 | Candidate manifest | `4a770b919024dffd1cffe85edd2f0219aeec31cdbb2a96d1005861fa1bf03f91` |
 | All formatted E5 inputs | `c0b8f381a064a4f4a361830ecaad363d936c85f711622b0352ced27dbef7653e` |
 | `label_retrieval.py` | `5228a70af7f60105af4317530377f29aaed5b4e9e895fea67a27e8ed3a2f44c6` |
-| `label_inference.py` | `4239bac6c886126900231c203c80ec8dbdaf17c252e42b290f381de89fcd95ef` |
-| `label_experiment.py` | `85c232f7ab73816af2c1a9144b98788cc6fbf16fb481a2514e9321965c0c378b` |
+| `label_inference.py` | `c7def72cb291a72d8033c02cbbd32f94c28f5d3afd9ffa5bc028f3719ca8e9e4` |
+| `label_experiment.py` | `4aba3cad56eff57e89c8d8d7c4b9f009f371d7a69cce36d174b63a295b711279` |
 
 Hashes common to both final runs:
 
@@ -268,10 +279,10 @@ Run-specific receipts differ only where run ID or timing is recorded:
 
 | Artifact | Final run 1 | Final run 2 |
 | --- | --- | --- |
-| Config | `ffea7471a3ea9527ba308c368221fe093dbf8d9100a48f1d786af754c8d5f2d5` | `a0e804fd59df194ad8b4c03275c5783946518d37b46d7b87b6bb1b30e7bb5d59` |
-| Encoder metadata | `f7371759236846744d6dba094134fa0f7b10c492a0319e83cc6a341f6465a405` | `ba7cdf9ad80e5ab36f83eb13a6f16c12c5e4d5e9240d9ec13dbaccd6d7056c5d` |
-| TREC run | `c8c830d842dfd1f68bc9ee83e8aaef31828f639600254752e6ee1b8be7bf2d74` | `79cdc59a06d4f39c135cceee67634d86f6dc178b699e27f9f2c57483ab0baf9b` |
-| Validation receipt | `0049f337106aa0bafa183d43cb8bd08f6426ffc2bb3a4d9d3991f5fb46806c35` | `87e70ca671ebae6558a6729f9c49287ae8b81ee50d703c025d420b532f1439a1` |
+| Config | `941c0df09fdb72ada87e06b9228e848220ae01a47436b7e0af7ed6bc08536bf4` | `558647e683f3535347eef26d1918a7aa4eb1f6fcae65a0893d39a9966fa8e52f` |
+| Encoder metadata | `1bbbdc3b53111d3c8a1386beb159c6af761fb3e61d0286f0ca06a11a4fbea147` | `477be83960ad87e806a715027e47bbed49306e124ba636c0ae965324d85dfb75` |
+| TREC run | `2ecefabf448c1b99a19a69a7157407751620c0660196b8897519b785a69646c0` | `262d095fd066b683517f43d10fc4f513d9c8b4b81a5110260dabc2d46111dae2` |
+| Validation receipt | `1bc7a6a666279f20a5f03bcbf9ccfdb4f8161d68dd14e046451ceefd350a98a0` | `c929738b3bc7952a48ea042328549877ae760319fb7289d9b30141b5ee27d5ec` |
 
 ## Historical E5 parity and limitations
 

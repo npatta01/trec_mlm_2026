@@ -162,13 +162,17 @@ def build_profile_token_ids(
         if len(response_prefixes) != len(texts):
             raise ValueError("response prefix inventory differs from text inventory")
         active = [(index, value) for index, value in enumerate(response_prefixes) if value is not None]
-        prefix_rows = tokenizer(
-            [value for _, value in active],
-            add_special_tokens=True,
-            padding=False,
-            truncation=False,
-            max_length=None,
-        )["input_ids"]
+        prefix_rows = (
+            tokenizer(
+                [value for _, value in active],
+                add_special_tokens=True,
+                padding=False,
+                truncation=False,
+                max_length=None,
+            )["input_ids"]
+            if active
+            else []
+        )
         prefix_lengths = [len(canonical(row, len(row) + 1)) for row in prefix_rows]
         classifications: list[str | None] = [None] * len(texts)
         for (index, _), prefix in zip(active, prefix_lengths, strict=True):

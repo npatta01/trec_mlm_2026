@@ -49,6 +49,7 @@ class FakeTokenizer:
         truncation: bool,
         max_length: int | None = None,
     ) -> dict[str, list[list[int]]]:
+        assert texts
         assert add_special_tokens is True
         assert padding is False
         output = [list(self.rows[text]) for text in texts]
@@ -90,6 +91,15 @@ def test_token_builder_right_truncates_and_appends_exactly_one_eos() -> None:
     assert metadata["maximum_untruncated_tokens"] == 601
     assert metadata["maximum_encoded_tokens"] == 512
     assert metadata["truncated_input_count"] == 1
+
+
+def test_token_builder_accepts_query_only_batch_with_no_response_prefixes() -> None:
+    tokenizer = FakeTokenizer({"query": [10, 11, 2]})
+    rows, metadata = build_profile_token_ids(
+        tokenizer, ("query",), response_prefixes=(None,)
+    )
+    assert rows == [[10, 11, 2]]
+    assert metadata["response_truncation"] == [None]
     assert metadata["terminal_token_id"] == 2
 
 

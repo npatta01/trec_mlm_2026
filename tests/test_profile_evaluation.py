@@ -15,6 +15,9 @@ from trec_mlm.profile_evaluation import (
     zero_transitions,
     write_profile_evaluation,
     evaluation_systems,
+    validate_repeat_receipt,
+    summarize_slice,
+    reportable_system_names,
 )
 
 
@@ -53,6 +56,98 @@ def test_evaluation_systems_use_only_manifest_locked_rankings() -> None:
         **construction.source_rankings,
         **construction.rankings,
     }
+
+
+def test_repeat_receipt_must_bind_current_construction_and_all_checks() -> None:
+    payload = {
+        "status": "passed",
+        "first_aggregate_sha256": "run1",
+        "second_aggregate_sha256": "run2",
+        "rankings_identical": True,
+        "canonical_profile_files_identical": True,
+        "maximum_absolute_score_difference": 0.0,
+        "tolerance": 1e-5,
+        "integrity_checks": {
+            "inventories": True,
+            "formatted_inputs": True,
+            "memberships_centroids_annotations_winners": True,
+            "source_and_frozen_rankings": True,
+            "embedding_and_score_tolerance": True,
+            "inference_repeat_gate": True,
+        },
+        "inference_repeat_receipt": {
+            "status": "passed",
+            "first_aggregate_sha256": "infer1",
+            "second_aggregate_sha256": "infer2",
+            "maximum_absolute_embedding_difference": 0.0,
+            "tolerance": 1e-5,
+            "integrity_checks": {
+                "canonical_inputs_and_rankings_identical": True,
+                "metadata_and_token_audits_identical": True,
+                "embedding_tolerance": True,
+            },
+        },
+    }
+    assert validate_repeat_receipt(payload, "run1") == payload
+    with pytest.raises(ValueError, match="does not bind"):
+        validate_repeat_receipt(payload, "other")
+    with pytest.raises(ValueError, match="failed integrity"):
+        validate_repeat_receipt(
+            {
+                **payload,
+                "integrity_checks": {
+                    **payload["integrity_checks"],
+                    "embedding_and_score_tolerance": False,
+                },
+            },
+            "run1",
+        )
+
+
+def test_slice_summary_reports_metrics_and_dense_deltas() -> None:
+    metrics = {
+        "dense_reference": ({"q1": 0.0, "q2": 0.4}, {"q1": 0.0, "q2": 0.5}),
+        "dense_profile_equal": ({"q1": 0.2, "q2": 0.6}, {"q1": 0.1, "q2": 0.7}),
+    }
+    result = summarize_slice(metrics, ["q1", "q2"])
+    assert result["query_count"] == 2
+    assert result["systems"]["dense_reference"]["ndcg_at_10"] == pytest.approx(0.2)
+    assert result["systems"]["dense_profile_equal"]["ndcg_at_10_delta"] == pytest.approx(0.2)
+    assert result["systems"]["dense_profile_equal"]["mrr_delta"] == pytest.approx(0.15)
+
+
+def test_evaluation_writer_emits_complete_reviewable_artifacts(tmp_path) -> None:
+    construction = tmp_path / "construction"
+    construction.mkdir()
+    payload = {
+        "status": "evaluated",
+        "construction_aggregate_sha256": "abc",
+        "construction_unchanged": True,
+        "phase0_receipt": {"decision": "pass"},
+        "profile_receipt": {"decision": "promote"},
+        "comparisons": {"profile_only": {"zero_transitions": {"zero_both": 1}}},
+        "per_query": {
+            "dense_reference": {
+                "q1": {"ndcg_at_k": 0.5, "reciprocal_rank": 1.0}
+            }
+        },
+    }
+    paths = write_profile_evaluation(
+        payload, tmp_path / "evaluation", construction_path=construction
+    )
+    assert set(paths) >= {
+        "evaluation.json",
+        "per_query.tsv",
+        "comparisons.json",
+        "zero_transitions.json",
+        "construction_integrity_receipt.json",
+    }
+
+
+def test_three_way_fusion_is_reportable_only_after_phase0_passes() -> None:
+    systems = ("dense_reference", "dense_profile_e5_equal", "profile_only")
+    assert "dense_profile_e5_equal" in reportable_system_names(systems, "pass")
+    assert "dense_profile_e5_equal" not in reportable_system_names(systems, "fail")
 
 
 def test_paired_interval_uses_pcg64_2026_percentiles() -> None:
@@ -144,6 +239,7 @@ def test_profile_decision_promote_diagnostic_reject_and_invalid() -> None:
         ("...WHO wrote it?", "who"),
         ("¿Dónde está?", "other"),
         ("Name the author", "other"),
+        ("2026 what changed?", "other"),
     ],
 )
 def test_question_type_classifier_is_frozen(text: str, expected: str) -> None:

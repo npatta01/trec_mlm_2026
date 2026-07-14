@@ -28,6 +28,23 @@ PROFILE_BATCH_SIZE = 8
 PROFILE_SEED = 2026
 PROFILE_MAX_LENGTH = 512
 PROFILE_EOS_TOKEN_ID = 2
+PROFILE_TORCH_VERSION = "2.11.0+gitd0c8b1f"
+PROFILE_HIP_VERSION = "7.2.53211"
+PROFILE_TRANSFORMERS_VERSION = "5.12.1"
+PROFILE_DEVICE_ARCHITECTURE = "gfx1151"
+
+
+def classify_response_truncation(
+    prefix_tokens: int, full_tokens: int, *, max_length: int = PROFILE_MAX_LENGTH
+) -> str:
+    """Classify whether truncation removes some or all response content."""
+
+    if prefix_tokens < 0 or full_tokens < prefix_tokens:
+        raise ValueError("token counts are inconsistent")
+    content_budget = max_length - 1
+    if full_tokens <= max_length:
+        return "none"
+    return "full" if prefix_tokens >= content_budget else "partial"
 
 
 def format_profile_query(question: str) -> str:
@@ -68,12 +85,35 @@ def validate_profile_runtime_options(*, batch_size: int, seed: int) -> None:
         raise ValueError(f"profile seed must be {PROFILE_SEED}")
 
 
+def validate_profile_runtime_identity(
+    torch_module: Any, *, transformers_version: str
+) -> None:
+    """Reject package/runtime drift from the frozen ROCm encoder contract."""
+
+    if str(torch_module.__version__) != PROFILE_TORCH_VERSION:
+        raise RuntimeError("profile Torch version differs from frozen contract")
+    if str(torch_module.version.hip) != PROFILE_HIP_VERSION:
+        raise RuntimeError("profile HIP version differs from frozen contract")
+    if transformers_version != PROFILE_TRANSFORMERS_VERSION:
+        raise RuntimeError("profile Transformers version differs from frozen contract")
+
+
+def validate_profile_device_identity(properties: Any) -> None:
+    """Require the exact preregistered AMD architecture, not merely any ROCm GPU."""
+
+    if getattr(properties, "gcnArchName", None) != PROFILE_DEVICE_ARCHITECTURE:
+        raise RuntimeError(
+            f"profile inference requires {PROFILE_DEVICE_ARCHITECTURE}"
+        )
+
+
 def build_profile_token_ids(
     tokenizer: Any,
     texts: Sequence[str],
     *,
     max_length: int = PROFILE_MAX_LENGTH,
-) -> tuple[list[list[int]], dict[str, int]]:
+    response_prefixes: Sequence[str | None] | None = None,
+) -> tuple[list[list[int]], dict[str, Any]]:
     """Right-truncate content and append exactly one terminal E5 EOS."""
 
     if not texts:
@@ -112,12 +152,31 @@ def build_profile_token_ids(
     encoded = [canonical(row, max_length) for row in truncated_rows]
     if any(len(row) > max_length or row[-1] != PROFILE_EOS_TOKEN_ID for row in encoded):
         raise AssertionError("profile EOS/truncation construction failed")
-    return encoded, {
+    metadata: dict[str, Any] = {
         "terminal_token_id": PROFILE_EOS_TOKEN_ID,
         "maximum_untruncated_tokens": max(raw_lengths),
         "maximum_encoded_tokens": max(map(len, encoded)),
         "truncated_input_count": sum(length > max_length for length in raw_lengths),
     }
+    if response_prefixes is not None:
+        if len(response_prefixes) != len(texts):
+            raise ValueError("response prefix inventory differs from text inventory")
+        active = [(index, value) for index, value in enumerate(response_prefixes) if value is not None]
+        prefix_rows = tokenizer(
+            [value for _, value in active],
+            add_special_tokens=True,
+            padding=False,
+            truncation=False,
+            max_length=None,
+        )["input_ids"]
+        prefix_lengths = [len(canonical(row, len(row) + 1)) for row in prefix_rows]
+        classifications: list[str | None] = [None] * len(texts)
+        for (index, _), prefix in zip(active, prefix_lengths, strict=True):
+            classifications[index] = classify_response_truncation(
+                prefix, raw_lengths[index], max_length=max_length
+            )
+        metadata["response_truncation"] = classifications
+    return encoded, metadata
 
 
 def normalize_persisted_embeddings(values: Any) -> NDArray[np.float32]:
@@ -147,14 +206,27 @@ def encode_profile_inputs(
     if not formatted_queries or not formatted_documents:
         raise ValueError("profile queries and documents must both be non-empty")
     combined, metadata = _encode_profile_texts(
-        (*formatted_queries, *formatted_documents), batch_size=batch_size, seed=seed
+        (*formatted_queries, *formatted_documents),
+        batch_size=batch_size,
+        seed=seed,
+        response_prefixes=(
+            *(None for _ in formatted_queries),
+            *(
+                text.split("\nResponse: ", maxsplit=1)[0] + "\nResponse: "
+                for text in formatted_documents
+            ),
+        ),
     )
     count = len(formatted_queries)
     return combined[:count], combined[count:], metadata
 
 
 def _encode_profile_texts(
-    texts: Sequence[str], *, batch_size: int, seed: int
+    texts: Sequence[str],
+    *,
+    batch_size: int,
+    seed: int,
+    response_prefixes: Sequence[str | None] | None = None,
 ) -> tuple[NDArray[np.float32], dict[str, Any]]:
     try:
         import torch
@@ -164,7 +236,12 @@ def _encode_profile_texts(
     except ImportError as error:  # pragma: no cover - container integration
         raise RuntimeError("profile inference requires torch and transformers") from error
 
+    transformers_version = importlib.metadata.version("transformers")
+    validate_profile_runtime_identity(
+        torch, transformers_version=transformers_version
+    )
     properties = validate_rocm_runtime(torch)
+    validate_profile_device_identity(properties)
     torch.manual_seed(seed)
     torch.cuda.reset_peak_memory_stats()
     spec = CONTEXTUAL_E5_SPEC
@@ -201,10 +278,18 @@ def _encode_profile_texts(
     maximum_tokens = 0
     maximum_untruncated = 0
     truncated_count = 0
+    response_truncation: list[str] = []
     with torch.inference_mode():
         for start in range(0, len(texts), batch_size):
             batch = list(texts[start : start + batch_size])
-            sequences, token_metadata = build_profile_token_ids(tokenizer, batch)
+            batch_prefixes = (
+                response_prefixes[start : start + batch_size]
+                if response_prefixes is not None
+                else None
+            )
+            sequences, token_metadata = build_profile_token_ids(
+                tokenizer, batch, response_prefixes=batch_prefixes
+            )
             padded = tokenizer.pad(
                 {
                     "input_ids": sequences,
@@ -220,6 +305,11 @@ def _encode_profile_texts(
                 maximum_untruncated, token_metadata["maximum_untruncated_tokens"]
             )
             truncated_count += token_metadata["truncated_input_count"]
+            response_truncation.extend(
+                item
+                for item in token_metadata.get("response_truncation", ())
+                if item is not None
+            )
             padded = {name: value.to("cuda") for name, value in padded.items()}
             output = model(**padded)
             pooled = functional.normalize(
@@ -255,6 +345,7 @@ def _encode_profile_texts(
         "maximum_observed_tokens": maximum_tokens,
         "maximum_untruncated_tokens": maximum_untruncated,
         "truncated_input_count": truncated_count,
+        "document_response_truncation": response_truncation,
         "parameter_count": int(sum(parameter.numel() for parameter in model.parameters())),
         "peak_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
         "peak_memory_reserved_bytes": int(torch.cuda.max_memory_reserved()),
@@ -262,22 +353,26 @@ def _encode_profile_texts(
         "device_properties": str(properties),
         "torch_version": str(torch.__version__),
         "hip_version": str(torch.version.hip),
-        "transformers_version": importlib.metadata.version("transformers"),
+        "transformers_version": transformers_version,
         "encoding_seconds": time.perf_counter() - started,
     }
 
 
 __all__ = [
     "PROFILE_BATCH_SIZE",
+    "PROFILE_DEVICE_ARCHITECTURE",
     "PROFILE_EOS_TOKEN_ID",
     "PROFILE_MAX_LENGTH",
     "PROFILE_SEED",
     "PROFILE_TASK_INSTRUCTION",
     "build_profile_token_ids",
+    "classify_response_truncation",
     "encode_profile_inputs",
     "format_profile_document",
     "format_profile_query",
     "hash_formatted_inputs",
     "normalize_persisted_embeddings",
     "validate_profile_runtime_options",
+    "validate_profile_runtime_identity",
+    "validate_profile_device_identity",
 ]

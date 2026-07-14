@@ -105,31 +105,60 @@ labels retain the same query, score, and profile workflow.
 
 Issue 12 is governed by the bounded, advisor-approved protocol in
 [`protocols/trec_2026_candidate_semantic_profiles.md`](protocols/trec_2026_candidate_semantic_profiles.md).
-Construction is config-driven and qrel-free: it filters and exactly deduplicates each
-candidate's historical responses, encodes them with the pinned E5-Mistral runtime,
-builds deterministic multi-vector profiles, and freezes all six permitted rankings.
+Construction is config-driven and qrel-free. The approved two-stage boundary encodes
+with the pinned E5-Mistral ROCm image, then consumes that immutable inference artifact
+under the pinned Python 3.13 clustering environment to build deterministic multi-vector
+profiles and freeze all six permitted rankings.
+
+The full inference command refuses to start without the passing, qrel-free `gfx1151`
+smoke-repeat receipt. Run it in rootless Podman without mounting qrels:
 
 ```bash
+podman run --rm --device /dev/kfd --device /dev/dri \
+  --security-opt label=disable --network none \
+  -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONPATH=/code \
+  -v "$PWD/trec_mlm:/code/trec_mlm:ro" \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface:ro" \
+  -v "$PWD/data/dev/llm_dev_data.tsv:/inputs/queries.tsv:ro" \
+  -v "$PWD/reports/trec_2026_discovery_profile_audit.json:/inputs/candidates.json:ro" \
+  -v "/path/to/llm_discovery_data.json:/inputs/llm_discovery_data.json:ro" \
+  -v "/path/to/contextual_e5:/inputs/contextual_e5:ro" \
+  -v "$PWD/artifacts/candidate_semantic_profiles:/outputs:rw" \
+  docker.io/vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28 \
+  python -m trec_mlm.cli profile-infer \
+  --queries /inputs/queries.tsv \
+  --discovery /inputs/llm_discovery_data.json \
+  --candidates /inputs/candidates.json \
+  --e5-artifact /inputs/contextual_e5 \
+  --smoke-repeat-receipt /outputs/smoke_repeat_receipt.json \
+  --output-dir /outputs/inference1
+
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 uv run --extra dense trec-mlm profile-construct \
   --queries data/dev/llm_dev_data.tsv \
   --discovery /path/to/llm_discovery_data.json \
   --candidates reports/trec_2026_discovery_profile_audit.json \
   --dense-artifact /path/to/dense_query_knn_baseline \
-  --e5-artifact /path/to/contextual_e5_clean/final_run1 \
+  --inference-artifact artifacts/candidate_semantic_profiles/inference1 \
   --output-dir artifacts/candidate_semantic_profiles/run1
 
 uv run --extra dense trec-mlm profile-validate \
   --construction artifacts/candidate_semantic_profiles/run1
 ```
 
-Run the same construction independently as `run2`, then require an exact repeat
-receipt before evaluation:
+Rerun both stages independently as `inference2` and `run2`; run 2 may not reuse run 1
+embeddings. Require the Stage 1 and construction repeat receipts before evaluation:
 
 ```bash
+uv run --extra dense trec-mlm profile-infer-repeat-check \
+  --first artifacts/candidate_semantic_profiles/inference1 \
+  --second artifacts/candidate_semantic_profiles/inference2 \
+  --receipt artifacts/candidate_semantic_profiles/inference_repeat_receipt.json
+
 uv run --extra dense trec-mlm profile-repeat-check \
   --first artifacts/candidate_semantic_profiles/run1 \
   --second artifacts/candidate_semantic_profiles/run2 \
+  --inference-repeat-receipt artifacts/candidate_semantic_profiles/inference_repeat_receipt.json \
   --receipt artifacts/candidate_semantic_profiles/repeat_receipt.json
 
 # Qrels enter for the first time here, after ranking hashes are locked.
@@ -147,9 +176,9 @@ uv run trec-mlm profile-report \
 
 The sole promotion test is the frozen 1:1 RRF fusion of query-kNN and candidate
 profiles against the frozen query-kNN baseline. The contextual E5 and alternative
-fusion rankings are controls or preregistered ablations. Qrel-trained dense retrieval
-is an explicitly conditional downstream phase and is not part of profile construction,
-ranking, fusion, or this promotion decision.
+fusion rankings are controls or preregistered ablations. The dense input was trained
+with fold-local qrels before this study and is consumed as an already-frozen ranking;
+profile construction, profile scoring, and the fixed RRF arithmetic do not load qrels.
 
 ## Baseline 2: Frozen Dense Query Retrieval
 

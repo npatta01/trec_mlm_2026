@@ -6,6 +6,13 @@
 
 **Architecture:** Keep qrel-free construction in three focused modules: pure profile mathematics and deterministic clustering, pinned ROCm inference, and atomic artifact orchestration. Put qrel loading and all effectiveness calculations in a separate evaluation module that consumes an immutable construction manifest read-only. Reuse the existing run I/O, metrics, contextual-E5 contracts, discovery loader, CLI style, report conventions, and post-run query-explorer skill.
 
+**Approved execution amendment:** The pinned ROCm image uses Python 3.12/NumPy 2.1,
+while clustering is locked to Python 3.13.9/NumPy 2.5.1. Therefore inference and
+construction run as two qrel-free, hash-locked stages exactly as specified in the
+protocol's “Locked two-stage execution boundary.” Both stages are repeated fresh;
+construction consumes persisted inference arrays without transformation, and qrels
+remain unavailable until both repeat gates pass.
+
 **Tech Stack:** Python 3.13.9, NumPy 2.5.1, SciPy 1.18.0, scikit-learn 1.9.0, Transformers 5.12.1 in the pinned ROCm image, PyTorch HIP, pytest, Markdown, standalone accessible HTML.
 
 ## Global Constraints

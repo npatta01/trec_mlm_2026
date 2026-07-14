@@ -110,6 +110,7 @@ Use the retained contextual E5 checkpoint and runtime:
 | Revision | `d62cc4417be0e3289c03dd459d1ef2d137e2554e` |
 | License | MIT |
 | Container | `vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28` |
+| Container Python / NumPy | `3.12.13` / `2.1.3` |
 | Backend | Transformers on ROCm, not the vLLM server |
 | Torch runtime | `2.11.0+gitd0c8b1f`, HIP `7.2.53211` |
 | Transformers | `5.12.1` |
@@ -164,6 +165,47 @@ scores within `1e-5`. Failure stops the experiment and requires an explicit prot
 amendment; it cannot trigger a silent batch-size or model fallback.
 
 ## Deterministic candidate-specific clustering
+
+### Locked two-stage execution boundary
+
+The ROCm image and clustering environment are intentionally different and must not be
+collapsed into one Python process. Run two qrel-free, hash-locked stages:
+
+1. `profile-infer` runs only formatting, tokenization, and E5 embedding in the pinned
+   ROCm image. It writes an atomic inference artifact containing input inventories,
+   exact formatted strings and hashes, target-query embeddings, the 182,764 ordered
+   record embeddings, the 7,759 ordered supporting-question embeddings, the 150
+   ordered label-document embeddings, the ordered label inventory, truncation audits,
+   encoder/runtime metadata, source hashes, and a complete manifest. The supporting-
+   question and label-document arrays are authoritative for annotation reconstruction;
+   Stage 2 recomputes and validates the complete question-to-label cosine matrix.
+   It does not import scikit-learn and cannot accept qrels, dense rankings, fusion
+   weights, or evaluation options.
+2. `profile-construct` runs under the clustering environment pinned below. It validates
+   the entire inference manifest, rechecks official input hashes and formatted-input
+   correspondence, then performs only clustering, annotation, profile scoring, and the
+   already-fixed ranking/fusion construction. It consumes persisted inference arrays
+   without re-encoding, recasting, renormalizing, or reordering. Each array is NumPy
+   `.npy`, little-endian float32, C-contiguous, non-pickle data loaded with
+   `allow_pickle=False`; its exact shape and ordered row-ID mapping are manifest-locked
+   and validated before clustering. It cannot encode or accept qrels.
+
+The construction manifest embeds the validated inference aggregate hash and copies all
+inference inventories/arrays needed for standalone semantic reconstruction. Copied
+inference files must be byte-identical to their inference-manifest counterparts. Both
+full repeats rerun both stages in fresh processes; run 2 may not reuse run 1 inference.
+Before comparing constructions, the Stage 1 repeat gate requires identical inventories,
+row mappings, formatted strings and hashes, token/truncation audits, shapes, and dtypes.
+For each corresponding embedding array, require maximum absolute element difference
+`<=1e-5`; all values must be finite and normalized, and the downstream gate still
+requires identical memberships, centroids, annotations, winners, and rankings. Qrels
+remain absent from both stages and may be opened only after both inference artifacts
+and both completed construction artifacts pass their respective repeat receipts.
+
+Every inference and construction aggregate digest is SHA-256 over the canonical JSON
+encoding of the lexicographically ordered list of `(relative_path, byte_size, sha256)`
+entries, excluding `manifest.json` itself. A consumer recomputes file inventory, byte
+sizes, individual hashes, and the aggregate digest before reading any array.
 
 Run clustering separately for each candidate. Records from another candidate never
 participate in a candidate's fit.

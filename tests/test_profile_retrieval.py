@@ -13,6 +13,7 @@ from trec_mlm.profile_retrieval import (
     filter_and_deduplicate_records,
     reciprocal_rank_fusion,
     score_profiles,
+    validate_clustering_runtime_identity,
 )
 from trec_mlm.response_retrieval import DiscoveryRecord
 
@@ -36,6 +37,22 @@ def _profile(candidate: str, centroids: list[list[float]]) -> CandidateProfile:
         requested_clusters=len(centroids),
         enforce_thread_contract=False,
     )
+
+
+def test_clustering_runtime_identity_is_exact() -> None:
+    validate_clustering_runtime_identity(
+        python_version="3.13.9",
+        numpy_version="2.5.1",
+        scipy_version="1.18.0",
+        sklearn_version="1.9.0",
+    )
+    with pytest.raises(RuntimeError, match="clustering runtime"):
+        validate_clustering_runtime_identity(
+            python_version="3.12.13",
+            numpy_version="2.5.1",
+            scipy_version="1.18.0",
+            sklearn_version="1.9.0",
+        )
 
 
 def test_basic_filter_and_raw_exact_dedup_are_candidate_local() -> None:

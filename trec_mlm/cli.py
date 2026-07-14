@@ -217,6 +217,26 @@ def build_parser() -> argparse.ArgumentParser:
     label.add_argument("--run-id", default="contextual_e5_labels")
     label.add_argument("--output-dir", required=True)
 
+    profile_infer = commands.add_parser(
+        "profile-infer",
+        help="encode and lock profile inputs in the pinned ROCm environment",
+    )
+    profile_infer.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    profile_infer.add_argument("--discovery", required=True)
+    profile_infer.add_argument(
+        "--candidates", default="reports/trec_2026_discovery_profile_audit.json"
+    )
+    profile_infer.add_argument("--e5-artifact", required=True)
+    profile_infer.add_argument("--smoke-repeat-receipt", required=True)
+    profile_infer.add_argument("--output-dir", required=True)
+
+    profile_infer_repeat = commands.add_parser(
+        "profile-infer-repeat-check", help="compare two frozen profile inference stages"
+    )
+    profile_infer_repeat.add_argument("--first", required=True)
+    profile_infer_repeat.add_argument("--second", required=True)
+    profile_infer_repeat.add_argument("--receipt", required=True)
+
     profile_construct = commands.add_parser(
         "profile-construct",
         help="construct and freeze candidate semantic profiles without qrels",
@@ -227,7 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--candidates", default="reports/trec_2026_discovery_profile_audit.json"
     )
     profile_construct.add_argument("--dense-artifact", required=True)
-    profile_construct.add_argument("--e5-artifact", required=True)
+    profile_construct.add_argument("--inference-artifact", required=True)
     profile_construct.add_argument("--output-dir", required=True)
 
     profile_validate = commands.add_parser(
@@ -240,6 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     profile_repeat.add_argument("--first", required=True)
     profile_repeat.add_argument("--second", required=True)
+    profile_repeat.add_argument("--inference-repeat-receipt", required=True)
     profile_repeat.add_argument("--receipt", required=True)
 
     profile_evaluate = commands.add_parser(
@@ -397,6 +418,41 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
         return 0
 
+    if args.command == "profile-infer":
+        from trec_mlm.profile_inference_artifact import (
+            ProfileInferenceArtifactConfig,
+            run_profile_inference_artifact,
+            write_profile_inference_artifacts,
+        )
+
+        result = run_profile_inference_artifact(
+            ProfileInferenceArtifactConfig(
+                query_path=args.queries,
+                discovery_path=args.discovery,
+                candidate_path=args.candidates,
+                e5_artifact_path=args.e5_artifact,
+                smoke_repeat_receipt_path=args.smoke_repeat_receipt,
+            )
+        )
+        paths = write_profile_inference_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.metadata, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "profile-infer-repeat-check":
+        from pathlib import Path
+        from trec_mlm.profile_inference_artifact import (
+            compare_profile_inference_repeats,
+        )
+
+        receipt = compare_profile_inference_repeats(args.first, args.second)
+        destination = Path(args.receipt)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(receipt, indent=2))
+        return 0
+
     if args.command == "profile-construct":
         from trec_mlm.profile_experiment import (
             ProfileExperimentConfig,
@@ -409,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
             discovery_path=args.discovery,
             candidate_path=args.candidates,
             dense_artifact_path=args.dense_artifact,
-            e5_artifact_path=args.e5_artifact,
+            inference_artifact_path=args.inference_artifact,
         )
         result = run_profile_experiment(config)
         paths = write_profile_artifacts(result, args.output_dir)
@@ -437,7 +493,9 @@ def main(argv: list[str] | None = None) -> int:
         from pathlib import Path
         from trec_mlm.profile_experiment import compare_profile_repeats
 
-        receipt = compare_profile_repeats(args.first, args.second)
+        receipt = compare_profile_repeats(
+            args.first, args.second, args.inference_repeat_receipt
+        )
         destination = Path(args.receipt)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(

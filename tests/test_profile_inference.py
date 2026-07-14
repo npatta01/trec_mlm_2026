@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -10,11 +11,24 @@ from trec_mlm.profile_inference import (
     PROFILE_SEED,
     PROFILE_TASK_INSTRUCTION,
     build_profile_token_ids,
+    classify_response_truncation,
     format_profile_document,
     format_profile_query,
     normalize_persisted_embeddings,
     validate_profile_runtime_options,
+    validate_profile_runtime_identity,
+    validate_profile_device_identity,
 )
+
+
+@pytest.mark.parametrize(
+    ("prefix_tokens", "full_tokens", "expected"),
+    [(40, 100, "none"), (40, 700, "partial"), (511, 700, "full")],
+)
+def test_response_truncation_distinguishes_partial_and_full(
+    prefix_tokens: int, full_tokens: int, expected: str
+) -> None:
+    assert classify_response_truncation(prefix_tokens, full_tokens) == expected
 
 
 class FakeTokenizer:
@@ -79,6 +93,23 @@ def test_token_builder_right_truncates_and_appends_exactly_one_eos() -> None:
     assert metadata["terminal_token_id"] == 2
 
 
+def test_token_builder_emits_per_document_truncation_audit() -> None:
+    tokenizer = FakeTokenizer(
+        {
+            "partial": list(range(700)),
+            "partial-prefix": list(range(40)),
+            "full": list(range(700)),
+            "full-prefix": list(range(511)),
+        }
+    )
+    _, metadata = build_profile_token_ids(
+        tokenizer,
+        ("partial", "full"),
+        response_prefixes=("partial-prefix", "full-prefix"),
+    )
+    assert metadata["response_truncation"] == ["partial", "full"]
+
+
 def test_token_builder_validates_frozen_tokenizer_contract() -> None:
     tokenizer = FakeTokenizer({"x": [1]})
     tokenizer.padding_side = "right"
@@ -108,6 +139,26 @@ def test_runtime_options_are_not_tunable() -> None:
         validate_profile_runtime_options(batch_size=16, seed=PROFILE_SEED)
     with pytest.raises(ValueError, match="seed"):
         validate_profile_runtime_options(batch_size=PROFILE_BATCH_SIZE, seed=7)
+
+
+def test_runtime_identity_requires_exact_torch_hip_and_transformers() -> None:
+    torch = SimpleNamespace(
+        __version__="2.11.0+gitd0c8b1f", version=SimpleNamespace(hip="7.2.53211")
+    )
+    validate_profile_runtime_identity(torch, transformers_version="5.12.1")
+    with pytest.raises(RuntimeError, match="Torch version"):
+        validate_profile_runtime_identity(
+            SimpleNamespace(__version__="other", version=torch.version),
+            transformers_version="5.12.1",
+        )
+    with pytest.raises(RuntimeError, match="Transformers version"):
+        validate_profile_runtime_identity(torch, transformers_version="other")
+
+
+def test_device_identity_requires_exact_gfx1151_architecture() -> None:
+    validate_profile_device_identity(SimpleNamespace(gcnArchName="gfx1151"))
+    with pytest.raises(RuntimeError, match="gfx1151"):
+        validate_profile_device_identity(SimpleNamespace(gcnArchName="gfx1100"))
 
 
 def test_formatted_input_hash_is_length_framed() -> None:

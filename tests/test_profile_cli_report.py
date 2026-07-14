@@ -38,6 +38,17 @@ def _evaluation() -> dict:
         "phase0_receipt": {"decision": "pass", "checks": {}, "values": {}},
         "profile_receipt": {"decision": "promote", "gates": {}, "values": {}},
         "three_way_reportable": True,
+        "construction_summary": {
+            "record_count": 182764,
+            "available_candidate_count": 150,
+            "partial_response_truncation": 12,
+            "full_response_truncation": 3,
+            "encoding_seconds": 99.0,
+            "peak_memory_allocated_bytes": 14800000000,
+            "discovery_sha256": "b" * 64,
+            "dense_run_sha256": "c" * 64,
+            "e5_validation_sha256": "d" * 64,
+        },
     }
 
 
@@ -50,13 +61,29 @@ def test_construction_cli_has_no_qrel_option() -> None:
             "--discovery", "d.json",
             "--candidates", "c.json",
             "--dense-artifact", "dense",
-            "--e5-artifact", "e5",
+            "--inference-artifact", "inference",
             "--output-dir", "out",
         ]
     )
     assert not any("qrel" in key for key in vars(args))
     assert not hasattr(args, "batch_size")
     assert not hasattr(args, "weights")
+
+
+def test_profile_infer_is_qrel_free_and_fixed() -> None:
+    args = build_parser().parse_args(
+        [
+            "profile-infer",
+            "--queries", "q.tsv",
+            "--discovery", "d.json",
+            "--candidates", "c.json",
+            "--e5-artifact", "e5",
+            "--smoke-repeat-receipt", "smoke.json",
+            "--output-dir", "out",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(args))
+    assert not hasattr(args, "batch_size")
 
 
 def test_only_profile_evaluate_accepts_qrels() -> None:
@@ -69,7 +96,11 @@ def test_only_profile_evaluate_accepts_qrels() -> None:
     )
     assert args.qrels == "qrels"
     repeat = parser.parse_args(
-        ["profile-repeat-check", "--first", "one", "--second", "two", "--receipt", "receipt.json"]
+        [
+            "profile-repeat-check", "--first", "one", "--second", "two",
+            "--inference-repeat-receipt", "inference.json",
+            "--receipt", "receipt.json",
+        ]
     )
     assert not any("qrel" in key for key in vars(repeat))
 
@@ -96,9 +127,15 @@ def test_report_is_deterministic_standalone_and_accessible(tmp_path: Path) -> No
     assert "# Candidate-aware semantic profiles" in first_md
     assert "promote" in first_md.lower()
     assert "Zero-query transitions" in first_md
+    assert "Promotion gates" in first_md
+    assert "Density slices" in first_md
+    assert "Question-type slices" in first_md
+    assert "Runtime and coverage" in first_md
+    assert "Limitations" in first_md
     assert '<a class="skip-link" href="#main">Skip to main content</a>' in first_html
     assert '<main id="main">' in first_html
     assert "focus-visible" in first_html
     assert "<table>" in first_html and "<caption>" in first_html
+    assert "Promotion gates" in first_html and "Density slices" in first_html
     assert "<script" not in first_html
     assert "http://" not in first_html and "https://" not in first_html

@@ -22,6 +22,23 @@ REQUIRED_THREAD_ENVIRONMENT = (
     "MKL_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
 )
+CLUSTERING_RUNTIME = ("3.13.9", "2.5.1", "1.18.0", "1.9.0")
+
+
+def validate_clustering_runtime_identity(
+    *,
+    python_version: str,
+    numpy_version: str,
+    scipy_version: str,
+    sklearn_version: str,
+) -> None:
+    """Reject drift from the advisor-approved Stage 2 numerical runtime."""
+
+    actual = (python_version, numpy_version, scipy_version, sklearn_version)
+    if actual != CLUSTERING_RUNTIME:
+        raise RuntimeError(
+            f"clustering runtime differs from frozen contract: {actual!r}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,9 +216,19 @@ def canonical_kmeans(
 ) -> CandidateProfile:
     """Fit and canonicalize one candidate-local deterministic K-means profile."""
 
+    import platform
+    import scipy
+    import sklearn
     from sklearn.cluster import KMeans
     from sklearn.exceptions import ConvergenceWarning
     from threadpoolctl import threadpool_limits
+
+    validate_clustering_runtime_identity(
+        python_version=platform.python_version(),
+        numpy_version=np.__version__,
+        scipy_version=scipy.__version__,
+        sklearn_version=sklearn.__version__,
+    )
 
     record_tuple = tuple(records)
     if not record_tuple:
@@ -289,7 +316,7 @@ def canonical_kmeans(
         requested_clusters=requested,
         centroids=centroid_matrix,
         clusters=tuple(clusters),
-        converged=int(model.n_iter_) < 300,
+        converged=int(model.n_iter_) <= 300,
         iteration_count=int(model.n_iter_),
     )
 

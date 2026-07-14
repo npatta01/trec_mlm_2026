@@ -12,6 +12,7 @@ from trec_mlm.label_inference import (
     build_e5_token_ids,
     encode_label_inputs,
     last_token_pool,
+    snapshot_revision_from_path,
 )
 
 
@@ -92,6 +93,19 @@ class E5EncodingDispatchTest(unittest.TestCase):
             "3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28",
             ROCM_IMAGE,
         )
+
+    def test_snapshot_revision_is_recovered_from_resolved_tokenizer_path(self) -> None:
+        revision = "d62cc4417be0e3289c03dd459d1ef2d137e2554e"
+
+        self.assertEqual(
+            revision,
+            snapshot_revision_from_path(
+                "/cache/models--intfloat--e5-mistral-7b-instruct/"
+                f"snapshots/{revision}/tokenizer_config.json"
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "snapshot"):
+            snapshot_revision_from_path("/cache/tokenizer_config.json")
 
     def test_fixed_backend_encodes_once_and_splits_queries_from_labels(self) -> None:
         encoded = np.asarray(

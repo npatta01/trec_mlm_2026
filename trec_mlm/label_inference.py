@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 import hashlib
 import importlib.metadata
+from pathlib import Path
 import time
 from typing import Any
 
@@ -21,6 +22,21 @@ ROCM_IMAGE = (
     "vllm/vllm-openai-rocm@sha256:"
     "3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28"
 )
+
+
+def snapshot_revision_from_path(path: str | Path) -> str:
+    """Recover the immutable Hub commit from a resolved snapshot file path."""
+
+    parts = Path(path).parts
+    try:
+        revision = parts[parts.index("snapshots") + 1]
+    except (ValueError, IndexError) as error:
+        raise ValueError("resolved file is not inside a Hub snapshot") from error
+    if len(revision) != 40 or any(
+        character not in "0123456789abcdef" for character in revision
+    ):
+        raise ValueError("resolved Hub snapshot revision is not a commit hash")
+    return revision
 
 
 def last_token_pool(last_hidden_states: Any, attention_mask: Any) -> Any:
@@ -130,6 +146,7 @@ def _encode_contextual_e5(
         import torch
         import torch.nn.functional as functional
         from transformers import AutoModel, AutoTokenizer
+        from transformers.utils.hub import cached_file
     except ImportError as error:  # pragma: no cover - container integration path
         raise RuntimeError("E5 inference requires torch and transformers") from error
     if not torch.cuda.is_available():
@@ -145,6 +162,20 @@ def _encode_contextual_e5(
         padding_side="left",
         trust_remote_code=False,
     )
+    tokenizer_config_path = cached_file(
+        spec.model_id,
+        "tokenizer_config.json",
+        revision=spec.revision,
+        local_files_only=True,
+    )
+    if tokenizer_config_path is None:
+        raise RuntimeError("could not resolve the pinned E5 tokenizer snapshot")
+    tokenizer_revision = snapshot_revision_from_path(tokenizer_config_path)
+    if tokenizer_revision != spec.revision:
+        raise RuntimeError(
+            "resolved E5 tokenizer revision differs from the frozen revision: "
+            f"{tokenizer_revision!r}"
+        )
     model = AutoModel.from_pretrained(
         spec.model_id,
         revision=spec.revision,
@@ -204,7 +235,6 @@ def _encode_contextual_e5(
             "E5 embedding shape differs from the frozen contract: "
             f"{matrix.shape!r}"
         )
-    tokenizer_revision = getattr(tokenizer, "init_kwargs", {}).get("_commit_hash")
     return matrix, {
         "backend": "transformers",
         "model_id": spec.model_id,
@@ -253,4 +283,5 @@ __all__ = [
     "build_e5_token_ids",
     "encode_label_inputs",
     "last_token_pool",
+    "snapshot_revision_from_path",
 ]

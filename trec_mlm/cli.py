@@ -203,6 +203,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/source_query_first",
     )
 
+    label = commands.add_parser(
+        "label-retrieval",
+        help="run the selected qrel-free contextual E5 label ranker",
+    )
+    label.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
+    label.add_argument(
+        "--candidates",
+        default="reports/trec_2026_discovery_profile_audit.json",
+    )
+    label.add_argument("--batch-size", type=int, default=32)
+    label.add_argument("--seed", type=int, default=2026)
+    label.add_argument("--run-id", default="contextual_e5_labels")
+    label.add_argument("--output-dir", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -321,6 +335,25 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = run_source_query_experiment(config)
         paths = write_source_query_experiment_artifacts(result, args.output_dir)
+        print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
+        return 0
+
+    if args.command == "label-retrieval":
+        from trec_mlm.label_experiment import (
+            LabelExperimentConfig,
+            run_label_experiment,
+            write_label_experiment_artifacts,
+        )
+
+        config = LabelExperimentConfig(
+            query_path=args.queries,
+            candidate_path=args.candidates,
+            batch_size=args.batch_size,
+            seed=args.seed,
+            run_id=args.run_id,
+        )
+        result = run_label_experiment(config)
+        paths = write_label_experiment_artifacts(result, args.output_dir)
         print(json.dumps({"summary": result.summary, "artifacts": paths}, indent=2))
         return 0
 

@@ -44,6 +44,7 @@ from trec_mlm.profile_inference_artifact import (
     OFFICIAL_RECORD_COUNT,
     ProfileInferenceArtifactResult,
     load_profile_inference_artifacts,
+    ordered_source_questions,
 )
 from trec_mlm.query_knn import load_queries_tsv
 from trec_mlm.response_retrieval import load_discovery_records
@@ -335,12 +336,7 @@ def run_profile_experiment(config: ProfileExperimentConfig) -> ProfileExperiment
     formatted_records = tuple(
         format_profile_document(record.question, record.response) for record in flat_records
     )
-    unique_questions: dict[str, str] = {}
-    for record in flat_records:
-        previous = unique_questions.setdefault(record.source_query_id, record.question)
-        if previous != record.question:
-            raise ValueError("source query ID maps to multiple questions")
-    expected_label_question_ids = tuple(sorted(unique_questions))
+    expected_label_question_ids, unique_questions = ordered_source_questions(corpus)
     formatted_label_questions = tuple(
         format_query(unique_questions[item]) for item in expected_label_question_ids
     )

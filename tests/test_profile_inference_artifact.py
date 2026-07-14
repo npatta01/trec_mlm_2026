@@ -4,6 +4,7 @@ from dataclasses import fields, replace
 import hashlib
 import inspect
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -13,6 +14,7 @@ from trec_mlm.profile_inference_artifact import (
     ProfileInferenceArtifactResult,
     compare_profile_inference_repeats,
     load_profile_inference_artifacts,
+    ordered_source_questions,
     run_profile_inference_artifact,
     validate_profile_smoke_receipt,
     write_profile_inference_artifacts,
@@ -107,6 +109,17 @@ def test_full_inference_requires_exact_qrel_free_gfx1151_smoke_receipt() -> None
     changed = {**_smoke_receipt(), "device_architecture": "gfx1100"}
     with pytest.raises(ValueError, match="smoke receipt"):
         validate_profile_smoke_receipt(changed)
+
+
+def test_label_question_inventory_includes_raw_questions_with_no_usable_response() -> None:
+    corpus = (
+        SimpleNamespace(source_query_id="s2", query_text="second", response=None),
+        SimpleNamespace(source_query_id="s1", query_text="first", response="usable"),
+        SimpleNamespace(source_query_id="s2", query_text="second", response="usable"),
+    )
+    identifiers, questions = ordered_source_questions(corpus)
+    assert identifiers == ("s1", "s2")
+    assert questions == {"s1": "first", "s2": "second"}
     changed = {**_smoke_receipt(), "rankings_or_qrels_used": True}
     with pytest.raises(ValueError, match="smoke receipt"):
         validate_profile_smoke_receipt(changed)

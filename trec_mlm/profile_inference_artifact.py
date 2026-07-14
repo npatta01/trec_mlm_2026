@@ -200,6 +200,18 @@ def validate_profile_smoke_receipt(payload: Mapping[str, Any]) -> None:
         raise ValueError("profile smoke receipt does not prove two fresh runs")
 
 
+def ordered_source_questions(corpus: Any) -> tuple[tuple[str, ...], dict[str, str]]:
+    """Return every raw discovery question, including those with no usable response."""
+
+    questions: dict[str, str] = {}
+    for record in corpus:
+        previous = questions.setdefault(record.source_query_id, record.query_text)
+        if previous != record.query_text:
+            raise ValueError("source query ID maps to multiple raw questions")
+    identifiers = tuple(sorted(questions))
+    return identifiers, questions
+
+
 def run_profile_inference_artifact(
     config: ProfileInferenceArtifactConfig,
 ) -> ProfileInferenceArtifactResult:
@@ -233,12 +245,7 @@ def run_profile_inference_artifact(
         seed=config.seed,
     )
     truncation = profile_metadata.pop("document_response_truncation")
-    unique_questions: dict[str, str] = {}
-    for record in flat_records:
-        prior = unique_questions.setdefault(record.source_query_id, record.question)
-        if prior != record.question:
-            raise ValueError("source query ID maps to multiple questions")
-    label_question_ids = tuple(sorted(unique_questions))
+    label_question_ids, unique_questions = ordered_source_questions(corpus)
     formatted_label_questions = tuple(
         format_query(unique_questions[item]) for item in label_question_ids
     )
@@ -521,6 +528,7 @@ __all__ = [
     "ProfileInferenceArtifactResult",
     "compare_profile_inference_repeats",
     "load_profile_inference_artifacts",
+    "ordered_source_questions",
     "run_profile_inference_artifact",
     "validate_profile_smoke_receipt",
     "write_profile_inference_artifacts",

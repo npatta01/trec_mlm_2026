@@ -108,12 +108,32 @@ def rank_label_scores(
         raise ValueError("query and label embedding dimensions must match")
 
     scores = np.asarray(queries @ labels.T, dtype=np.float32)
+    return rank_score_matrix(
+        scores=scores,
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+    )
+
+
+def rank_score_matrix(
+    *,
+    scores: FloatArray,
+    query_ids: Sequence[str],
+    candidate_ids: Sequence[str],
+) -> LabelScoreResult:
+    """Rank a persisted score matrix without repeating its dot products."""
+
+    values = np.asarray(scores, dtype=np.float32)
+    if values.shape != (len(query_ids), len(candidate_ids)):
+        raise ValueError("score shape does not match query and candidate IDs")
+    if not np.isfinite(values).all():
+        raise ValueError("scores must contain only finite values")
     names = np.asarray(candidate_ids)
     rankings: dict[str, list[str]] = {}
     for index, query_id in enumerate(query_ids):
-        order = np.lexsort((names, -scores[index]))
+        order = np.lexsort((names, -values[index]))
         rankings[query_id] = [candidate_ids[int(position)] for position in order]
-    return LabelScoreResult(scores=scores, rankings=rankings)
+    return LabelScoreResult(scores=values, rankings=rankings)
 
 
 __all__ = [
@@ -126,4 +146,5 @@ __all__ = [
     "format_query",
     "normalize_embedding_rows",
     "rank_label_scores",
+    "rank_score_matrix",
 ]

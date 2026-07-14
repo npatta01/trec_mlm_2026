@@ -18,7 +18,7 @@ from trec_mlm.label_experiment import (
     write_label_experiment_artifacts,
 )
 from trec_mlm.label_inference import ROCM_IMAGE
-from trec_mlm.label_retrieval import CONTEXTUAL_E5_SPEC
+from trec_mlm.label_retrieval import CONTEXTUAL_E5_SPEC, LabelScoreResult
 
 
 def _metadata(
@@ -156,6 +156,7 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
                 "inputs.json",
                 "query_embeddings.npy",
                 "label_embeddings.npy",
+                "scores.npy",
                 "predictions.tsv",
                 "rankings.json",
                 "run.trec",
@@ -172,6 +173,29 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
         self.assertTrue(validation["qrel_free"])
         with self.assertRaisesRegex(FileExistsError, "exists"):
             write_label_experiment_artifacts(self._run(), destination)
+
+    def test_loader_tolerates_cross_blas_noise_but_preserves_stored_ranks(self) -> None:
+        result = self._run()
+        destination = self.root / "artifact"
+        write_label_experiment_artifacts(result, destination)
+        perturbed_scores = result.scores.copy()
+        perturbed_scores[0, 1] += 5e-7
+        perturbed_rankings = {
+            **result.rankings,
+            "q1": ["Beta_topic", "Alpha_topic", "Gamma"],
+        }
+
+        with mock.patch(
+            "trec_mlm.label_experiment.rank_label_scores",
+            return_value=LabelScoreResult(
+                scores=perturbed_scores,
+                rankings=perturbed_rankings,
+            ),
+        ):
+            loaded = load_label_experiment_artifacts(destination)
+
+        self.assertEqual(result.rankings, loaded.rankings)
+        np.testing.assert_allclose(result.scores, loaded.scores, rtol=0.0, atol=1e-6)
 
     def test_writer_leaves_no_partial_destination_when_a_write_fails(self) -> None:
         destination = self.root / "broken"

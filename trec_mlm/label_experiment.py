@@ -27,6 +27,7 @@ from trec_mlm.label_retrieval import (
     format_document,
     format_query,
     rank_label_scores,
+    rank_score_matrix,
 )
 from trec_mlm.query_knn import load_queries_tsv
 from trec_mlm.runio import rankings_from_run, validate_trec_run, write_trec_run
@@ -39,6 +40,7 @@ _CORE_FILES = (
     "inputs.json",
     "query_embeddings.npy",
     "label_embeddings.npy",
+    "scores.npy",
     "predictions.tsv",
     "rankings.json",
     "run.trec",
@@ -302,6 +304,7 @@ def _write_artifact_files(result: LabelExperimentResult, destination: Path) -> N
     )
     np.save(destination / "query_embeddings.npy", result.query_embeddings)
     np.save(destination / "label_embeddings.npy", result.label_embeddings)
+    np.save(destination / "scores.npy", result.scores)
     _write_json(destination / "rankings.json", result.rankings)
 
     candidate_positions = {
@@ -418,6 +421,7 @@ def load_label_experiment_artifacts(
 
     query_embeddings = np.load(source / "query_embeddings.npy", allow_pickle=False)
     label_embeddings = np.load(source / "label_embeddings.npy", allow_pickle=False)
+    stored_scores = np.load(source / "scores.npy", allow_pickle=False)
     expected_query_shape = (len(query_ids), CONTEXTUAL_E5_SPEC.embedding_dimension)
     expected_label_shape = (
         len(candidate_ids),
@@ -427,17 +431,24 @@ def load_label_experiment_artifacts(
         raise ValueError("query embedding shape changed")
     if label_embeddings.shape != expected_label_shape:
         raise ValueError("label embedding shape changed")
+    if stored_scores.shape != (len(query_ids), len(candidate_ids)):
+        raise ValueError("score shape changed")
     reconstructed = rank_label_scores(
         query_embeddings=query_embeddings,
         label_embeddings=label_embeddings,
         query_ids=query_ids,
         candidate_ids=candidate_ids,
     )
+    stored_scored = rank_score_matrix(
+        scores=stored_scores,
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+    )
     rankings = _read_json(source / "rankings.json")
-    if rankings != reconstructed.rankings:
-        raise ValueError("stored rankings disagree with stored embeddings")
-    if rankings_from_run(source / "run.trec") != reconstructed.rankings:
-        raise ValueError("TREC run disagrees with stored embeddings")
+    if rankings != stored_scored.rankings:
+        raise ValueError("stored rankings disagree with stored scores")
+    if rankings_from_run(source / "run.trec") != stored_scored.rankings:
+        raise ValueError("TREC run disagrees with stored scores")
     run_validation = validate_trec_run(
         source / "run.trec",
         expected_query_ids=query_ids,
@@ -445,11 +456,13 @@ def load_label_experiment_artifacts(
     )
     if run_validation.get("row_count") != len(query_ids) * len(candidate_ids):
         raise ValueError("TREC run is incomplete")
-    stored_scores = _load_prediction_scores(
+    prediction_scores = _load_prediction_scores(
         source / "predictions.tsv",
         query_ids=query_ids,
         candidate_ids=candidate_ids,
     )
+    if not np.allclose(prediction_scores, stored_scores, rtol=0.0, atol=1e-6):
+        raise ValueError("prediction scores disagree with binary scores")
     if not np.allclose(stored_scores, reconstructed.scores, rtol=0.0, atol=1e-6):
         raise ValueError("stored scores disagree with stored embeddings")
     metadata = _read_json(source / "encoder_metadata.json")
@@ -468,8 +481,8 @@ def load_label_experiment_artifacts(
         formatted_documents=formatted_documents,
         query_embeddings=np.asarray(query_embeddings, dtype=np.float32),
         label_embeddings=np.asarray(label_embeddings, dtype=np.float32),
-        scores=reconstructed.scores,
-        rankings=reconstructed.rankings,
+        scores=stored_scored.scores,
+        rankings=stored_scored.rankings,
         encoder_metadata=metadata,
         summary={
             "status": "ranked",

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
+from datetime import datetime
 import copy
 import hashlib
 import inspect
 import json
+import os
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
 import numpy as np
@@ -26,6 +29,12 @@ from trec_mlm.profile_multiresolution import (
 
 AUDIT_FINAL_ROOT = "artifacts/candidate_semantic_profiles/run1_record_id_v2_auditfinal"
 AUDIT_FINAL_AGGREGATE = "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
+
+
+def _set_locked_manifest_mtime(root: Path) -> None:
+    seconds = int(datetime.fromisoformat("2026-07-15T12:41:18-04:00").timestamp())
+    nanoseconds = seconds * 1_000_000_000 + 692_102_441
+    os.utime(root / "manifest.json", ns=(nanoseconds, nanoseconds))
 
 
 def test_config_rejects_protocol_drift_and_public_api_is_qrel_free() -> None:
@@ -687,6 +696,7 @@ def test_assessor_produces_complete_supplemental_receipt(
     (root / "manifest.json").write_text(
         json.dumps({"aggregate_sha256": "a" * 64}), encoding="utf-8"
     )
+    _set_locked_manifest_mtime(root)
     controls = {
         "query_knn": result.dense_rankings,
         "contextual_e5": result.dense_rankings,
@@ -716,9 +726,23 @@ def test_assessor_produces_complete_supplemental_receipt(
     }
     assert receipt["control_sources"] == sources
     assert receipt["execution_provenance"]["artifact_aggregate_sha256"] == "a" * 64
+    assert (
+        receipt["execution_provenance"]["construction_completed_at"]
+        == module.PASS_ONE_CONSTRUCTION_COMPLETED_AT
+    )
     assert receipt["failed_query_sensitivity_thresholds"]
     assert receipt["decision"] == "reject-invalid"
     assert receipt["repeat_authorized"] is False
+
+    copied = tmp_path / "copied-artifact"
+    shutil.copytree(root, copied, copy_function=shutil.copy)
+    assert (copied / "manifest.json").read_bytes() == (root / "manifest.json").read_bytes()
+    changed_ns = (copied / "manifest.json").stat().st_mtime_ns + 1_000_000_000
+    os.utime(copied / "manifest.json", ns=(changed_ns, changed_ns))
+    with pytest.raises(ValueError, match="locked construction completion timestamp"):
+        module._assess_multiresolution_viability(
+            result, require_official_coverage=False, root=copied
+        )
 
     incomplete = dict(receipt)
     del incomplete["execution_provenance"]
@@ -781,6 +805,7 @@ def test_receipt_validator_recomputes_authoritative_artifact_evidence(
     (root / "manifest.json").write_text(
         json.dumps({"aggregate_sha256": "a" * 64}), encoding="utf-8"
     )
+    _set_locked_manifest_mtime(root)
     controls = {
         "query_knn": result.dense_rankings,
         "contextual_e5": result.dense_rankings,

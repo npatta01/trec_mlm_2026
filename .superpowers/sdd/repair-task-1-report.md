@@ -213,3 +213,65 @@ persisted artifact path.
   flags, and `stop-query-sensitivity` never reaching construction.
 - No frozen artifact, real untracked receipt, qrel, or repeat construction was
   modified or opened during the repair.
+
+## Review Important repair: locked construction completion timestamp
+
+The follow-up review found that the prior repair treated the mutable
+`manifest.json` mtime as authoritative receipt data. The persisted assessment
+could therefore emit a different `construction_completed_at` after an
+otherwise byte-identical artifact was copied.
+
+### Timestamp RED
+
+The regression test first created a byte-identical copied artifact with an
+altered manifest mtime and required persisted assessment to reject it:
+
+```text
+$ PYTHONPATH=. pytest tests/test_profile_multiresolution.py -q
+1 failed, 77 passed in 0.56s
+
+E Failed: DID NOT RAISE <class 'ValueError'>
+```
+
+### Timestamp GREEN and verification
+
+The implementation now normalizes the observed manifest mtime only to
+corroborate the locked pass-one timestamp. Any mismatch is rejected, while
+provenance always emits the non-overridable
+`PASS_ONE_CONSTRUCTION_COMPLETED_AT` constant. Receipt validation recomputes
+the same persisted assessment and exact-compares the locked provenance.
+
+Read-only corroboration against the real frozen artifact:
+
+```text
+$ PYTHONPATH=. python - <<'PY'
+from pathlib import Path
+from trec_mlm.profile_multiresolution import _manifest_completion_timestamp
+print(_manifest_completion_timestamp(Path('artifacts/multiresolution_profiles/issue18_pr17head')))
+PY
+2026-07-15T12:41:18.692102441-04:00
+```
+
+Focused tests and lint:
+
+```text
+$ PYTHONPATH=. pytest tests/test_profile_multiresolution.py -q
+78 passed in 0.53s
+$ ruff check trec_mlm/profile_multiresolution.py tests/test_profile_multiresolution.py
+All checks passed!
+$ git diff --check
+# no output
+```
+
+Full-suite integration status remains exactly the four known Task-2 fixture
+failures:
+
+```text
+$ .venv/bin/python -c 'import sys; sys.path.append("/home/npatta01/anaconda3/lib/python3.13/site-packages"); import pytest; raise SystemExit(pytest.main(["-q"]))'
+299 passed, 4 failed in 8.21s
+```
+
+The failure inventory is unchanged: the four
+`tests/test_profile_multiresolution_evaluation.py` fixtures still pass an
+aggregate string where authoritative validation requires a persisted artifact
+path. No frozen artifact, receipt, or qrel was modified.

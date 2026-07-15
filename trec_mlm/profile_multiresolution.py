@@ -1071,7 +1071,6 @@ def _execution_provenance(
     artifact_aggregate_sha256: str,
     *,
     receipt_generated_at: str | None = None,
-    construction_completed_at: str = PASS_ONE_CONSTRUCTION_COMPLETED_AT,
 ) -> dict[str, Any]:
     generated = receipt_generated_at or datetime.now(timezone.utc).isoformat()
     return {
@@ -1079,7 +1078,7 @@ def _execution_provenance(
         "command": PASS_ONE_COMMAND,
         "thread_environment": dict(PASS_ONE_THREAD_ENVIRONMENT),
         "dependency_versions": dict(PASS_ONE_DEPENDENCY_VERSIONS),
-        "construction_completed_at": construction_completed_at,
+        "construction_completed_at": PASS_ONE_CONSTRUCTION_COMPLETED_AT,
         "artifact_aggregate_sha256": artifact_aggregate_sha256,
         "receipt_generated_at": generated,
     }
@@ -1092,10 +1091,15 @@ def _manifest_completion_timestamp(root: Path) -> str:
         ZoneInfo("America/New_York")
     )
     offset = local.strftime("%z")
-    return (
+    observed = (
         local.strftime("%Y-%m-%dT%H:%M:%S")
         + f".{fractional:09d}{offset[:3]}:{offset[3:]}"
     )
+    if observed != PASS_ONE_CONSTRUCTION_COMPLETED_AT:
+        raise ValueError(
+            "manifest mtime differs from locked construction completion timestamp"
+        )
+    return PASS_ONE_CONSTRUCTION_COMPLETED_AT
 
 
 def _viability_decision(
@@ -1510,6 +1514,7 @@ def _assess_multiresolution_viability(
     )
     control_sources, controls = _load_control_rankings(result, root)
     control_comparisons = _control_comparisons(result.rankings, controls)
+    _manifest_completion_timestamp(root)
     source_elapsed = _source_elapsed_seconds(source_root)
     artifact_elapsed = PASS_ONE_ELAPSED_SECONDS
     storage_ratio = (
@@ -1535,7 +1540,6 @@ def _assess_multiresolution_viability(
         "execution_provenance": _execution_provenance(
             artifact_aggregate,
             receipt_generated_at=receipt_generated_at,
-            construction_completed_at=_manifest_completion_timestamp(root),
         ),
         "cost_evidence": {
             "issue12_construction_storage_bytes": source_bytes,

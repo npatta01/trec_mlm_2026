@@ -450,6 +450,175 @@ def test_nonnumeric_declared_dtype_is_rejected_by_both_hashers(dtype: str) -> No
         )
 
 
+@pytest.mark.parametrize(
+    ("dtype", "value"),
+    (
+        ("<f16", 1.25),
+        ("<c8", complex(1.0, -2.0)),
+        ("<c16", complex(float("inf"), float("nan"))),
+    ),
+)
+def test_extended_and_complex_dtypes_are_rejected_by_both_hashers(
+    dtype: str, value: complex | float
+) -> None:
+    array = np.asarray([[value]], dtype=dtype)
+    with pytest.raises(ValueError, match="protocol-safe exact numeric scalar dtype"):
+        logical_array_sha256(
+            array,
+            tag="inner-validation-score",
+            dtype=dtype,
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+    with pytest.raises(ValueError, match="protocol-safe exact numeric scalar dtype"):
+        StreamingLogicalArrayHasher(
+            tag="inner-validation-score",
+            dtype=dtype,
+            shape=(1, 1),
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    ("f4", "f8", "u2", "=f4", "=f8", "=u2"),
+)
+def test_native_and_equal_endian_dtype_spellings_are_rejected(dtype: str) -> None:
+    value = np.ones((1, 1))
+    with pytest.raises(ValueError, match="protocol-safe exact numeric scalar dtype"):
+        logical_array_sha256(
+            value,
+            tag="inner-validation-score",
+            dtype=dtype,
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+    with pytest.raises(ValueError, match="protocol-safe exact numeric scalar dtype"):
+        StreamingLogicalArrayHasher(
+            tag="inner-validation-score",
+            dtype=dtype,
+            shape=(1, 1),
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+
+
+def test_dtype_object_is_not_an_exact_declared_string() -> None:
+    declared = np.dtype("<f8")
+    with pytest.raises(ValueError, match="protocol-safe exact numeric scalar dtype"):
+        logical_array_sha256(
+            np.ones((1, 1)),
+            tag="inner-validation-score",
+            dtype=declared,  # type: ignore[arg-type]
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+    with pytest.raises(ValueError, match="protocol-safe exact numeric scalar dtype"):
+        StreamingLogicalArrayHasher(
+            tag="inner-validation-score",
+            dtype=declared,  # type: ignore[arg-type]
+            shape=(1, 1),
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+
+
+@pytest.mark.parametrize(
+    ("tag", "dtype", "value", "rows", "columns"),
+    (
+        ("canonical-centers", "<f4", [[1.25]], (0,), ()),
+        ("inner-validation-score", "<f8", [[1.25]], ("q1",), ("m1",)),
+        ("inner-validation-rank", "<u2", [[1]], ("q1",), ("m1",)),
+    ),
+)
+def test_exact_protocol_dtypes_match_between_materialized_and_streamed_hashes(
+    tag: str,
+    dtype: str,
+    value: list[list[float | int]],
+    rows: tuple[str | int, ...],
+    columns: tuple[str | int, ...],
+) -> None:
+    array = np.asarray(value)
+    materialized = logical_array_sha256(
+        array,
+        tag=tag,
+        dtype=dtype,
+        row_inventory=rows,
+        column_inventory=columns,
+    )
+    streamed = StreamingLogicalArrayHasher(
+        tag=tag,
+        dtype=dtype,
+        shape=(1, 1),
+        row_inventory=rows,
+        column_inventory=columns,
+    )
+    streamed.update_row(array[0])
+    assert streamed.hexdigest() == materialized
+
+
+class _TupleSubclass(tuple[int, int]):
+    pass
+
+
+@pytest.mark.parametrize(
+    "shape",
+    (
+        (),
+        (1,),
+        (1, 1, 1),
+        [1, 1],
+        _TupleSubclass((1, 1)),
+        (True, 1),
+        (1, False),
+        (-1, 1),
+        (1, -1),
+        (1.0, 1),
+        (1, np.int64(1)),
+        ("1", 1),
+        (1, None),
+    ),
+)
+def test_streaming_hash_rejects_nonexact_or_negative_shape(shape: object) -> None:
+    with pytest.raises(
+        ValueError, match="shape must be exactly a tuple of two nonnegative ints"
+    ):
+        StreamingLogicalArrayHasher(
+            tag="inner-validation-score",
+            dtype="<f8",
+            shape=shape,  # type: ignore[arg-type]
+            row_inventory=("q1",),
+            column_inventory=("m1",),
+        )
+
+
+@pytest.mark.parametrize("shape", ((0, 0), (0, 2), (2, 0), (2, 2)))
+def test_valid_streaming_shapes_match_materialized_domain(
+    shape: tuple[int, int],
+) -> None:
+    rows = tuple(f"q{index}" for index in range(shape[0]))
+    columns = tuple(f"m{index}" for index in range(shape[1]))
+    value = np.zeros(shape, dtype="<f8")
+    materialized = logical_array_sha256(
+        value,
+        tag="inner-validation-score",
+        dtype="<f8",
+        row_inventory=rows,
+        column_inventory=columns,
+    )
+    streamed = StreamingLogicalArrayHasher(
+        tag="inner-validation-score",
+        dtype="<f8",
+        shape=shape,
+        row_inventory=rows,
+        column_inventory=columns,
+    )
+    for row in value:
+        streamed.update_row(row)
+    assert streamed.hexdigest() == materialized
+
+
 def _streaming_hasher(
     *, shape: tuple[int, int] = (2, 2)
 ) -> StreamingLogicalArrayHasher:

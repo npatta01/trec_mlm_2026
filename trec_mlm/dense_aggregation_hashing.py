@@ -19,6 +19,7 @@ _LOGICAL_TAGS = {
     "full-development-score",
     "full-development-rank",
 }
+_LOGICAL_DTYPES = {"<f4", "<f8", "<u2"}
 _SCORE_RANK_TAGS = _LOGICAL_TAGS - {"canonical-centers"}
 
 
@@ -47,18 +48,27 @@ def framed_sha256(tag: str, *payloads: bytes) -> str:
 
 
 def _declared_numeric_dtype(dtype: str) -> np.dtype[Any]:
-    declared = np.dtype(dtype)
+    if type(dtype) is not str or dtype not in _LOGICAL_DTYPES:
+        raise ValueError(
+            "declared dtype must be a protocol-safe exact numeric scalar dtype: "
+            "<f4, <f8, or <u2"
+        )
+    return np.dtype(dtype)
+
+
+def _validate_stream_shape(shape: object) -> tuple[int, int]:
     if (
-        declared.hasobject
-        or declared.fields is not None
-        or declared.kind not in "iufc"
+        type(shape) is not tuple
+        or len(shape) != 2
+        or type(shape[0]) is not int
+        or type(shape[1]) is not int
+        or shape[0] < 0
+        or shape[1] < 0
     ):
         raise ValueError(
-            "declared dtype must be a deterministic numeric scalar dtype"
+            "streamed shape must be exactly a tuple of two nonnegative ints"
         )
-    if declared.str[0] not in ("<", "|"):
-        raise ValueError(f"dtype must be explicitly little-endian: {dtype}")
-    return declared
+    return shape
 
 
 def _validate_shape_and_inventories(
@@ -128,25 +138,26 @@ class StreamingLogicalArrayHasher:
         row_inventory: Sequence[str | int],
         column_inventory: Sequence[str | int],
     ) -> None:
+        validated_shape = _validate_stream_shape(shape)
         if tag not in _LOGICAL_TAGS:
             raise ValueError(f"unsupported logical-array tag: {tag}")
         self._dtype = _declared_numeric_dtype(dtype)
         _validate_shape_and_inventories(
             tag=tag,
-            shape=shape,
+            shape=validated_shape,
             row_inventory=row_inventory,
             column_inventory=column_inventory,
         )
-        self._shape = shape
+        self._shape = validated_shape
         self._row_count = 0
         self._byte_count = 0
-        self._expected_bytes = math.prod(shape) * self._dtype.itemsize
+        self._expected_bytes = math.prod(validated_shape) * self._dtype.itemsize
         self._digest = hashlib.sha256()
         self._digest.update(_HASH_PREFIX)
         for payload in (
             tag.encode("ascii"),
             self._dtype.str.encode("ascii"),
-            canonical_json(list(shape)),
+            canonical_json(list(validated_shape)),
             canonical_json(list(row_inventory)),
             canonical_json(list(column_inventory)),
         ):

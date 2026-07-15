@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import replace
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -32,7 +34,7 @@ def _rankings() -> dict[str, dict[str, list[str]]]:
     }
 
 
-def _valid_viability_receipt() -> dict:
+def _valid_viability_receipt(*, decision: str = "continue") -> dict:
     cluster_values = {
         "candidate_occupied_cluster_retention": 1.0,
         "largest_cluster_share": 0.2,
@@ -89,17 +91,33 @@ def _valid_viability_receipt() -> dict:
         "ranking_score_consistency": True,
         "normalized_centroids": True,
     }
-    return {
+    failed_query_sensitivity = (
+        ["maximum_top1_candidate_share"]
+        if decision == "stop-query-sensitivity"
+        else []
+    )
+    failed_incremental = (
+        ["incremental_mean_top10_jaccard"]
+        if decision == "stop-no-incremental-value"
+        else []
+    )
+    failed_integrity = ["finite_scores"] if decision == "reject-invalid" else []
+    receipt = {
         "artifact_type": "issue18_multiresolution_viability_receipt",
         "version": 1,
         "qrel_free": True,
         "artifact_aggregate_sha256": "a" * 64,
-        "decision": "continue",
+        "decision": decision,
         "thresholds": thresholds,
         "integrity_checks": integrity,
-        "failed_thresholds": [],
-        "failed_integrity_thresholds": [],
-        "failed_incremental_thresholds": [],
+        "failed_thresholds": [
+            *failed_integrity,
+            *failed_query_sensitivity,
+            *failed_incremental,
+        ],
+        "failed_integrity_thresholds": failed_integrity,
+        "failed_query_sensitivity_thresholds": failed_query_sensitivity,
+        "failed_incremental_thresholds": failed_incremental,
         "cluster_diagnostics": {
             f"k{k}": {"candidate_count": 150, **cluster_values} for k in (5, 10, 20)
         },
@@ -121,11 +139,60 @@ def _valid_viability_receipt() -> dict:
             "wall_time_at_most_four_times_issue12": True,
             "repeat_cost_authorized": True,
         },
-        "repeat_authorized": True,
+        "control_sources": {
+            name: {
+                "ranking_name": ranking_name,
+                "ranking_file": f"rankings/{ranking_name}.json",
+                "ranking_sha256": character * 64,
+                "source_aggregate_sha256": MultiResolutionConfig().source_aggregate_sha256,
+                "query_count": 2,
+                "candidate_count": 2,
+                "query_inventory_sha256": "d" * 64,
+                "candidate_inventory_sha256": "e" * 64,
+            }
+            for name, ranking_name, character in (
+                ("query_knn", "dense_reference", "b"),
+                ("contextual_e5", "contextual_e5_control", "c"),
+            )
+        },
+        "control_comparisons": {
+            system: {
+                control: {
+                    "mean_top10_jaccard": 1.0,
+                    "top10_difference_query_share": 0.0,
+                    "mean_top10_overlap_count": 2.0,
+                    "mean_common_top10_absolute_rank_displacement": 0.0,
+                }
+                for control in ("query_knn", "contextual_e5")
+            }
+            for system in EXPECTED_SYSTEMS
+        },
+        "execution_provenance": {
+            "execution_code_commit": "f" * 40,
+            "command": "locked synthetic construction",
+            "thread_environment": {
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "OPENBLAS_NUM_THREADS": "1",
+            },
+            "dependency_versions": {
+                "python": "3.13.9",
+                "numpy": "2.5.1",
+                "scipy": "1.18.0",
+                "scikit-learn": "1.9.0",
+            },
+            "construction_completed_at": "2026-07-15T12:41:18.692102441-04:00",
+            "artifact_aggregate_sha256": "a" * 64,
+            "receipt_generated_at": datetime.now(timezone.utc).isoformat(),
+        },
+        "repeat_authorized": decision == "continue",
     }
+    return receipt
 
 
-def _construction(tmp_path: Path) -> tuple[Path, SimpleNamespace, SimpleNamespace]:
+def _construction(
+    tmp_path: Path, *, decision: str = "continue"
+) -> tuple[Path, SimpleNamespace, SimpleNamespace]:
     root = tmp_path / "construction"
     root.mkdir()
     manifest = {
@@ -163,13 +230,24 @@ def _construction(tmp_path: Path) -> tuple[Path, SimpleNamespace, SimpleNamespac
     )
     (tmp_path / "qrels").write_text("q1 0 A 0\n", encoding="utf-8")
     (tmp_path / "viability.json").write_text(
-        json.dumps(_valid_viability_receipt(), sort_keys=True) + "\n",
+        json.dumps(_valid_viability_receipt(decision=decision), sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return root, multi, source
 
 
-def _patch_loaders(monkeypatch: pytest.MonkeyPatch, multi, source) -> None:
+def _patch_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+    multi,
+    source,
+    *,
+    authoritative_receipt: dict | None = None,
+) -> None:
+    canonical = copy.deepcopy(
+        authoritative_receipt
+        if authoritative_receipt is not None
+        else json.loads((source.root.parent / "viability.json").read_text())
+    )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation.load_multiresolution_artifact",
         lambda _: multi,
@@ -184,6 +262,14 @@ def _patch_loaders(monkeypatch: pytest.MonkeyPatch, multi, source) -> None:
             "q1": {"A": 0.0, "B": 1.0},
             "q2": {"A": 1.0, "B": 0.0},
         },
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution._manifest_completion_timestamp",
+        lambda _root: "2026-07-15T12:41:18.692102441-04:00",
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution.assess_multiresolution_viability",
+        lambda _root, *, receipt_generated_at=None: copy.deepcopy(canonical),
     )
 
 
@@ -246,6 +332,97 @@ def test_missing_or_forged_receipt_cannot_touch_qrels(
         )
 
 
+@pytest.mark.parametrize(
+    "decision", ("stop-query-sensitivity", "stop-no-incremental-value")
+)
+def test_valid_stop_receipt_authorizes_one_diagnostic_evaluation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+) -> None:
+    root, multi, source = _construction(tmp_path, decision=decision)
+    receipt = json.loads((tmp_path / "viability.json").read_text())
+    _patch_loaders(
+        monkeypatch, multi, source, authoritative_receipt=receipt
+    )
+
+    payload = evaluate_multiresolution(
+        root,
+        tmp_path / "viability.json",
+        tmp_path / "qrels",
+        tmp_path / "evaluation.json",
+    )
+
+    assert payload["viability_decision"] == decision
+    assert payload["diagnostic_only"] is True
+    assert receipt["repeat_authorized"] is False
+
+
+def test_authoritative_reject_invalid_receipt_cannot_touch_qrels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path, decision="reject-invalid")
+    receipt = json.loads((tmp_path / "viability.json").read_text())
+    _patch_loaders(
+        monkeypatch, multi, source, authoritative_receipt=receipt
+    )
+    qrels_path = tmp_path / "qrels"
+    original_sha256 = __import__(
+        "trec_mlm.profile_multiresolution_evaluation", fromlist=["_sha256"]
+    )._sha256
+
+    def guarded_sha256(path):
+        if Path(path) == qrels_path:
+            raise AssertionError("reject-invalid receipt touched qrels")
+        return original_sha256(path)
+
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation._sha256", guarded_sha256
+    )
+    with pytest.raises(ValueError, match="authorize diagnostic evaluation"):
+        evaluate_multiresolution(
+            root,
+            tmp_path / "viability.json",
+            qrels_path,
+            tmp_path / "evaluation.json",
+        )
+
+
+def test_receipt_bytes_are_rechecked_after_validation_before_qrel_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path)
+    _patch_loaders(monkeypatch, multi, source)
+    receipt_path = tmp_path / "viability.json"
+    qrels_path = tmp_path / "qrels"
+    original_validator = validate_viability_receipt
+    original_sha256 = __import__(
+        "trec_mlm.profile_multiresolution_evaluation", fromlist=["_sha256"]
+    )._sha256
+
+    def validate_then_change(payload, artifact_path):
+        validated = original_validator(payload, artifact_path)
+        receipt_path.write_bytes(receipt_path.read_bytes() + b" ")
+        return validated
+
+    def guarded_sha256(path):
+        if Path(path) == qrels_path:
+            raise AssertionError("qrels were hashed before receipt-byte recheck")
+        return original_sha256(path)
+
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_viability_receipt",
+        validate_then_change,
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation._sha256", guarded_sha256
+    )
+    with pytest.raises(RuntimeError, match="receipt changed before qrels"):
+        evaluate_multiresolution(
+            root, receipt_path, qrels_path, tmp_path / "evaluation.json"
+        )
+
+
 def test_qrel_inventory_validation_requires_exact_queries_and_candidates() -> None:
     qrels = {"q1": {"A": 1.0, "B": 0.0}, "q2": {"A": 0.0, "B": 1.0}}
     validate_multiresolution_qrel_inventories(
@@ -287,6 +464,38 @@ def test_evaluation_rejects_qrel_file_change_while_loading(
             tmp_path / "qrels",
             tmp_path / "output.json",
         )
+
+
+def test_evaluation_rechecks_receipt_bytes_after_diagnostic_computation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path)
+    _patch_loaders(monkeypatch, multi, source)
+    receipt_path = tmp_path / "viability.json"
+    evaluation_module = __import__(
+        "trec_mlm.profile_multiresolution_evaluation", fromlist=["evaluate_rankings"]
+    )
+    original_evaluate = evaluation_module.evaluate_rankings
+    changed = False
+
+    def evaluate_then_change(*args, **kwargs):
+        nonlocal changed
+        result = original_evaluate(*args, **kwargs)
+        if not changed:
+            receipt_path.write_bytes(receipt_path.read_bytes() + b" ")
+            changed = True
+        return result
+
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.evaluate_rankings",
+        evaluate_then_change,
+    )
+    output = tmp_path / "evaluation.json"
+    with pytest.raises(RuntimeError, match="receipt changed during evaluation"):
+        evaluate_multiresolution(
+            root, receipt_path, tmp_path / "qrels", output
+        )
+    assert not output.exists()
 
 
 def test_evaluation_reports_every_frozen_system_paired_evidence_and_track_a(
@@ -370,14 +579,18 @@ def test_evaluation_detects_any_construction_change_and_keeps_output_external(
         )
 
 
-def test_viability_receipt_must_authorize_and_bind_evaluation() -> None:
-    receipt = _valid_viability_receipt()
-    assert validate_viability_receipt(receipt, "a" * 64) == receipt
-    with pytest.raises(ValueError, match="authorize"):
-        validate_viability_receipt({**receipt, "decision": "reject-invalid"}, "a" * 64)
-    with pytest.raises(ValueError, match="bind"):
-        validate_viability_receipt(receipt, "b" * 64)
-    with pytest.raises(ValueError, match="schema"):
+def test_viability_receipt_must_strictly_bind_persisted_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path)
+    receipt = json.loads((tmp_path / "viability.json").read_text())
+    _patch_loaders(monkeypatch, multi, source, authoritative_receipt=receipt)
+    assert validate_viability_receipt(receipt, root) == receipt
+    with pytest.raises(ValueError, match="authoritative"):
+        validate_viability_receipt(
+            {**receipt, "artifact_aggregate_sha256": "b" * 64}, root
+        )
+    with pytest.raises(ValueError, match="authoritative"):
         validate_viability_receipt(
             {
                 "artifact_type": "issue18_multiresolution_viability_receipt",
@@ -386,12 +599,12 @@ def test_viability_receipt_must_authorize_and_bind_evaluation() -> None:
                 "artifact_aggregate_sha256": "a" * 64,
                 "decision": "continue",
             },
-            "a" * 64,
+            root,
         )
     changed = json.loads(json.dumps(receipt))
     changed["thresholds"]["largest_cluster_share"]["passed"] = False
-    with pytest.raises(ValueError, match="inconsistent"):
-        validate_viability_receipt(changed, "a" * 64)
+    with pytest.raises(ValueError, match="authoritative"):
+        validate_viability_receipt(changed, root)
 
 
 def test_cli_has_only_sealed_paths_and_no_tuning_options() -> None:

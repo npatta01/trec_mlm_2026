@@ -25,6 +25,9 @@ from trec_mlm.query_knn import load_complete_qrels
 
 EVALUATION_VERSION = 1
 TRACK_A_SYSTEM = "dense_profile_profile_heavy"
+DIAGNOSTIC_EVALUATION_DECISIONS = frozenset(
+    {"continue", "stop-query-sensitivity", "stop-no-incremental-value"}
+)
 
 
 def _sha256(path: Path) -> str:
@@ -80,13 +83,18 @@ def validate_multiresolution_qrel_inventories(
 
 
 def validate_viability_receipt(
-    payload: Mapping[str, Any], artifact_aggregate_sha256: str
+    payload: Mapping[str, Any], artifact_path: str | Path
 ) -> Mapping[str, Any]:
     """Expose the centralized strict receipt validator for evaluation callers."""
 
-    return validate_multiresolution_viability_receipt(
-        payload, artifact_aggregate_sha256
-    )
+    return validate_multiresolution_viability_receipt(payload, artifact_path)
+
+
+def _authorize_diagnostic_evaluation(receipt: Mapping[str, Any]) -> str:
+    decision = receipt.get("decision")
+    if decision not in DIAGNOSTIC_EVALUATION_DECISIONS:
+        raise ValueError("viability receipt does not authorize diagnostic evaluation")
+    return str(decision)
 
 
 def _metrics_payload(result: EvaluationResult) -> dict[str, Any]:
@@ -211,7 +219,8 @@ def evaluate_multiresolution(
     receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed while it was being loaded")
-    validate_viability_receipt(receipt, manifest["aggregate_sha256"])
+    validated_receipt = validate_viability_receipt(receipt, artifact_root)
+    viability_decision = _authorize_diagnostic_evaluation(validated_receipt)
 
     source = load_profile_artifacts(construction.config.construction_path)
     track_a_rankings = _track_a_rankings(construction, source)
@@ -249,6 +258,7 @@ def evaluate_multiresolution(
         "promotion_permitted": False,
         "construction_aggregate_sha256": manifest["aggregate_sha256"],
         "source_issue12_aggregate_sha256": construction.config.source_aggregate_sha256,
+        "viability_decision": viability_decision,
         "viability_receipt_sha256": receipt_sha256,
         "qrels_sha256": qrels_sha256,
         "query_count": len(construction.query_ids),

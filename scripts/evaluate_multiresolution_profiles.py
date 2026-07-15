@@ -34,10 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         receipt = json.loads(Path(args.viability_receipt).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("invalid viability receipt") from error
-    manifest = json.loads(
-        (Path(args.artifact) / "manifest.json").read_text(encoding="utf-8")
-    )
-    validate_viability_receipt(receipt, manifest.get("aggregate_sha256"))
+    validate_viability_receipt(receipt, args.artifact)
     payload = evaluate_multiresolution(
         args.artifact, args.viability_receipt, args.qrels, args.output
     )

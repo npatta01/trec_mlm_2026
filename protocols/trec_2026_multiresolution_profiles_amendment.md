@@ -113,3 +113,26 @@ Artifacts use a distinct `issue18_pr17head` identifier and preserve:
 After PR #17 merges, these artifacts retain their original provenance. A
 rebased rerun receives a new identifier and is compared rather than silently
 replacing this run.
+
+## Qrel-free viability repair amendment (2026-07-15)
+
+Pass one completed with frozen artifact aggregate
+`2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9` while
+qrels remained sealed. Advisor review found the artifact valid but the receipt
+procedurally incomplete. The user approved this bounded repair before further
+implementation.
+
+- Preserve the frozen artifact and every ranking hash; do not run the repeat.
+- Add qrel-free rank-overlap and diversity comparisons for all eight systems
+  against both query-kNN and the separately frozen contextual-E5 control.
+- Correct localized dominance/query-sensitivity failure to
+  `stop-query-sensitivity`; do not describe it as insufficient distinctness.
+- Add actual execution-code, command, deterministic environment, dependency,
+  timestamp, source-control, and artifact-hash provenance to the receipt.
+- Permit the preregistered one-time diagnostic evaluation after a strictly
+  valid non-integrity stop. Only repeat authorization remains conditional on
+  `continue`; `reject-invalid` continues to prohibit evaluation.
+- Obtain advisor review of the repair before opening qrels.
+
+The complete repair design is locked in
+`docs/superpowers/specs/2026-07-15-issue18-viability-repair-design.md`.

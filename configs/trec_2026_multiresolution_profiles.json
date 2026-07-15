@@ -1,0 +1,14 @@
+{
+  "construction_path": "artifacts/candidate_semantic_profiles/run1_record_id_v2_final",
+  "output_root": "artifacts/multiresolution_profiles/issue18_pr17head",
+  "resolutions": [
+    5,
+    10,
+    20
+  ],
+  "top_count": 2,
+  "seed": 2026,
+  "rrf_k": 60,
+  "source_commit": "2db10261bac607d7f8c67c0aa0c01728484a42f9",
+  "source_aggregate_sha256": "9bd4a81b3d3c83dbd3903d6a285f152b297cfb81a22c5a8a0ef31d0b323f35c1"
+}

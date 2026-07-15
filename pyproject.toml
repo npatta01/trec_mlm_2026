@@ -17,6 +17,12 @@ dense = [
     "sentence-transformers>=5.1.0,<6",
     "torch>=2.7.0",
 ]
+dense-aggregation = [
+    "numpy==2.5.1; python_version >= '3.12'",
+    "scipy==1.18.0; python_version >= '3.12'",
+    "scikit-learn==1.9.0",
+    "threadpoolctl==3.6.0",
+]
 response = [
     "bm25s==0.3.9",
     "PyStemmer==3.1.0",
@@ -24,6 +30,7 @@ response = [
 
 [project.scripts]
 trec-mlm = "trec_mlm.cli:main"
+trec-mlm-dense-aggregation = "trec_mlm.dense_aggregation_entrypoint:main"
 
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]

@@ -2624,6 +2624,12 @@ dense = [
     { name = "torch", version = "2.13.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.13.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
+dense-aggregation = [
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "scikit-learn" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "threadpoolctl" },
+]
 response = [
     { name = "bm25s" },
     { name = "pystemmer" },
@@ -2636,12 +2642,16 @@ requires-dist = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "nbconvert", specifier = ">=7.16.6" },
     { name = "numpy", specifier = ">=2.1.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'dense-aggregation'", specifier = "==2.5.1" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pystemmer", marker = "extra == 'response'", specifier = "==3.1.0" },
+    { name = "scikit-learn", marker = "extra == 'dense-aggregation'", specifier = "==1.9.0" },
+    { name = "scipy", marker = "python_full_version >= '3.12' and extra == 'dense-aggregation'", specifier = "==1.18.0" },
     { name = "sentence-transformers", marker = "extra == 'dense'", specifier = ">=5.1.0,<6" },
+    { name = "threadpoolctl", marker = "extra == 'dense-aggregation'", specifier = "==3.6.0" },
     { name = "torch", marker = "extra == 'dense'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cpu" },
 ]
-provides-extras = ["dense", "response"]
+provides-extras = ["dense", "dense-aggregation", "response"]
 
 [[package]]
 name = "typer"

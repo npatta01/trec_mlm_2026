@@ -97,6 +97,7 @@ EXPECTED_VERSIONS = {
     "scikit_learn": "1.9.0",
 }
 EXPECTED_IMPLEMENTATION_FILES = (
+    "scripts/export_fixed_mpnet_k50_control.py",
     "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
     "trec_mlm/dense_aggregation_cache.py",
@@ -108,6 +109,7 @@ EXPECTED_IMPLEMENTATION_FILES = (
     "trec_mlm/dense_aggregation_feasibility.py",
     "trec_mlm/dense_aggregation_hashing.py",
     "trec_mlm/dense_aggregation_runtime.py",
+    "trec_mlm/legacy_dense_control.py",
 )
 EXPECTED_DEPENDENCY_FILES = (
     "trec_mlm/dense_query_knn.py",
@@ -833,7 +835,11 @@ def test_source_file_categories_are_exact_safe_complete_and_disjoint() -> None:
             for path in (REPO_ROOT / "trec_mlm").glob("dense_aggregation*.py")
         )
     )
-    assert aggregation_modules == IMPLEMENTATION_FILES
+    assert aggregation_modules == tuple(
+        path
+        for path in IMPLEMENTATION_FILES
+        if path.startswith("trec_mlm/dense_aggregation")
+    )
 
 
 def test_exact_runtime_contract_accepts_only_pinned_values() -> None:

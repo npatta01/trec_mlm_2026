@@ -137,7 +137,7 @@ print(json.dumps({"cli": cli_modules, "worker": worker_modules}))
         "trec_mlm.dense_aggregation",
         "trec_mlm.dense_aggregation_experiment",
         "trec_mlm.dense_aggregation_evaluation",
-        "trec_mlm.dense_aggregation_legacy_control",
+        "trec_mlm.legacy_dense_control",
     }
     assert forbidden_modules.isdisjoint(imported["worker"])
 

@@ -59,6 +59,7 @@ _FROZEN_EMBEDDING_BYTE_LIMIT = 4 * 1024 * 1024
 
 
 IMPLEMENTATION_FILES: tuple[str, ...] = (
+    "scripts/export_fixed_mpnet_k50_control.py",
     "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
     "trec_mlm/dense_aggregation_cache.py",
@@ -70,6 +71,7 @@ IMPLEMENTATION_FILES: tuple[str, ...] = (
     "trec_mlm/dense_aggregation_feasibility.py",
     "trec_mlm/dense_aggregation_hashing.py",
     "trec_mlm/dense_aggregation_runtime.py",
+    "trec_mlm/legacy_dense_control.py",
 )
 DEPENDENCY_SOURCE_FILES: tuple[str, ...] = (
     "trec_mlm/dense_query_knn.py",

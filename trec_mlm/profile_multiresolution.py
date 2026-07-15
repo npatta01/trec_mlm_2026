@@ -1004,18 +1004,30 @@ def _validate_frozen_manifest(
     return manifest, entries
 
 
-def _capture_frozen_tree_token(root: str | Path) -> FrozenTreeToken:
+def _capture_frozen_tree_token(
+    root: str | Path,
+    *,
+    expected_aggregate_sha256: str,
+    validated_manifest: Mapping[str, Any],
+    validated_entries: Mapping[str, Mapping[str, Any]],
+) -> FrozenTreeToken:
     path = Path(root)
     manifest_path = path / "manifest.json"
     manifest = _read_json(manifest_path)
     entries = manifest.get("files")
     aggregate = manifest.get("aggregate_sha256")
-    if not isinstance(entries, dict) or not isinstance(aggregate, str):
-        raise ValueError("cannot capture invalid frozen tree token")
+    if (
+        manifest != validated_manifest
+        or entries != validated_entries
+        or aggregate != expected_aggregate_sha256
+        or not isinstance(entries, dict)
+        or _aggregate_hash(entries) != expected_aggregate_sha256
+    ):
+        raise ValueError("frozen tree changed during token capture")
     return FrozenTreeToken(
         root=path.resolve(),
         manifest_sha256=_sha256(manifest_path),
-        aggregate_sha256=aggregate,
+        aggregate_sha256=expected_aggregate_sha256,
         entries=tuple(
             (name, int(entries[name]["byte_size"]), str(entries[name]["sha256"]))
             for name in sorted(entries)
@@ -1023,7 +1035,9 @@ def _capture_frozen_tree_token(root: str | Path) -> FrozenTreeToken:
     )
 
 
-def validate_frozen_tree_token(token: FrozenTreeToken) -> None:
+def validate_frozen_tree_token(
+    token: FrozenTreeToken, *, expected_aggregate_sha256: str
+) -> None:
     """Require the exact manifest bytes, inventory, sizes, and hashes in one token."""
 
     root = token.root
@@ -1044,12 +1058,13 @@ def validate_frozen_tree_token(token: FrozenTreeToken) -> None:
         if item.is_file() and item.relative_to(root).as_posix() != "manifest.json"
     }
     if (
-        manifest_sha256 != token.manifest_sha256
+        token.aggregate_sha256 != expected_aggregate_sha256
+        or manifest_sha256 != token.manifest_sha256
         or not isinstance(entries, dict)
         or entries != token_entries
         or actual != set(token_entries)
-        or manifest.get("aggregate_sha256") != token.aggregate_sha256
-        or _aggregate_hash(entries) != token.aggregate_sha256
+        or manifest.get("aggregate_sha256") != expected_aggregate_sha256
+        or _aggregate_hash(entries) != expected_aggregate_sha256
     ):
         raise ValueError("frozen tree manifest token changed")
     for name, expected in token_entries.items():
@@ -1136,7 +1151,12 @@ def _load_issue12_source_snapshot(path: str | Path) -> Issue12SourceSnapshot:
         version=2,
         aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
     )
-    tree_token = _capture_frozen_tree_token(root)
+    tree_token = _capture_frozen_tree_token(
+        root,
+        expected_aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+        validated_manifest=manifest,
+        validated_entries=entries,
+    )
     if _read_json(root / "config.json") != ISSUE12_SOURCE_CONFIG:
         raise ValueError("issue-12 source config differs from the exact locked config")
     inputs = _read_json(root / "inputs.json")
@@ -1195,7 +1215,10 @@ def _load_issue12_source_snapshot(path: str | Path) -> Issue12SourceSnapshot:
         scores=scores,
         tree_token=tree_token,
     )
-    validate_frozen_tree_token(tree_token)
+    validate_frozen_tree_token(
+        tree_token,
+        expected_aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+    )
     return snapshot
 
 
@@ -1210,7 +1233,10 @@ def validate_issue12_source_snapshot(snapshot: Issue12SourceSnapshot) -> None:
         or len(snapshot.tree_token.entries) != len(snapshot.manifest.get("files", {}))
     ):
         raise ValueError("issue-12 source manifest token changed")
-    validate_frozen_tree_token(snapshot.tree_token)
+    validate_frozen_tree_token(
+        snapshot.tree_token,
+        expected_aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+    )
 
 
 def _validate_stored_profile_schema(
@@ -1344,7 +1370,12 @@ def load_issue18_frozen_snapshot(path: str | Path) -> MultiResolutionResult:
         aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
         expected_files=_expected_artifact_files(),
     )
-    artifact_token = _capture_frozen_tree_token(root)
+    artifact_token = _capture_frozen_tree_token(
+        root,
+        expected_aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
+        validated_manifest=_manifest,
+        validated_entries=entries,
+    )
 
     config_values = asdict(MultiResolutionConfig())
     config_values["resolutions"] = list(config_values["resolutions"])
@@ -1501,7 +1532,10 @@ def load_issue18_frozen_snapshot(path: str | Path) -> MultiResolutionResult:
         raise ValueError("stored C0 content differs directly from issue-12")
 
     validate_issue12_source_snapshot(source_snapshot)
-    validate_frozen_tree_token(artifact_token)
+    validate_frozen_tree_token(
+        artifact_token,
+        expected_aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
+    )
     return MultiResolutionResult(
         config=config,
         source_aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,

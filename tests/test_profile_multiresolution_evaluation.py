@@ -264,7 +264,7 @@ def _patch_loaders(
     )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation.validate_frozen_tree_token",
-        lambda _: None,
+        lambda *_args, **_kwargs: None,
     )
 
     def validate_receipt(payload, _artifact, **_kwargs):
@@ -346,9 +346,16 @@ def test_artifact_mutation_after_loader_return_is_rejected_before_qrels(
         ),
         encoding="utf-8",
     )
-    multi.artifact_token = multiresolution._capture_frozen_tree_token(root)
+    validated_manifest = json.loads((root / "manifest.json").read_text())
+    multi.artifact_token = multiresolution._capture_frozen_tree_token(
+        root,
+        expected_aggregate_sha256=empty_aggregate,
+        validated_manifest=validated_manifest,
+        validated_entries={},
+    )
     original_validate_token = multiresolution.validate_frozen_tree_token
     _patch_loaders(monkeypatch, multi, source)
+    monkeypatch.setattr(module, "ISSUE18_FROZEN_AGGREGATE_SHA256", empty_aggregate)
     monkeypatch.setattr(module, "validate_frozen_tree_token", original_validate_token)
 
     def load_then_mutate(_path):
@@ -783,7 +790,7 @@ def test_evaluation_detects_any_construction_change(
 
     calls = 0
 
-    def fail_second_validation(_token):
+    def fail_second_validation(_token, **_kwargs):
         nonlocal calls
         calls += 1
         if calls == 2:

@@ -170,6 +170,65 @@ def test_frozen_manifest_rejects_alternate_self_consistent_aggregate(
         )
 
 
+def test_token_capture_rejects_self_consistent_tree_swapped_after_validation(
+    tmp_path: Path,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    original = tmp_path / "original.txt"
+    original.write_text("original\n", encoding="utf-8")
+    original_entries = {
+        "original.txt": {
+            "byte_size": original.stat().st_size,
+            "sha256": hashlib.sha256(original.read_bytes()).hexdigest(),
+        }
+    }
+    original_aggregate = module._aggregate_hash(original_entries)
+    original_manifest = {
+        "artifact_type": "issue18_multiresolution_profile_manifest",
+        "version": 1,
+        "qrel_free": True,
+        "files": original_entries,
+        "aggregate_sha256": original_aggregate,
+    }
+    (tmp_path / "manifest.json").write_text(
+        json.dumps(original_manifest, sort_keys=True), encoding="utf-8"
+    )
+    validated_manifest, validated_entries = module._validate_frozen_manifest(
+        tmp_path,
+        artifact_type="issue18_multiresolution_profile_manifest",
+        version=1,
+        aggregate_sha256=original_aggregate,
+        expected_files={"original.txt"},
+    )
+
+    original.unlink()
+    alternate = tmp_path / "alternate.txt"
+    alternate.write_text("alternate\n", encoding="utf-8")
+    alternate_entries = {
+        "alternate.txt": {
+            "byte_size": alternate.stat().st_size,
+            "sha256": hashlib.sha256(alternate.read_bytes()).hexdigest(),
+        }
+    }
+    alternate_manifest = {
+        **original_manifest,
+        "files": alternate_entries,
+        "aggregate_sha256": module._aggregate_hash(alternate_entries),
+    }
+    (tmp_path / "manifest.json").write_text(
+        json.dumps(alternate_manifest, sort_keys=True), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="changed during token capture"):
+        module._capture_frozen_tree_token(
+            tmp_path,
+            expected_aggregate_sha256=original_aggregate,
+            validated_manifest=validated_manifest,
+            validated_entries=validated_entries,
+        )
+
+
 @pytest.mark.parametrize(
     "relative_path",
     (
@@ -223,7 +282,12 @@ def test_issue12_snapshot_token_detects_every_direct_bound_file_change(
     )
     monkeypatch.setattr(module, "EVALUATED_CONSTRUCTION_PATH", str(tmp_path))
     monkeypatch.setattr(module, "EVALUATED_CONSTRUCTION_AGGREGATE_SHA256", aggregate)
-    token = module._capture_frozen_tree_token(tmp_path)
+    token = module._capture_frozen_tree_token(
+        tmp_path,
+        expected_aggregate_sha256=aggregate,
+        validated_manifest=json.loads((tmp_path / "manifest.json").read_text()),
+        validated_entries=entries,
+    )
     snapshot = SimpleNamespace(
         root=tmp_path,
         tree_token=token,

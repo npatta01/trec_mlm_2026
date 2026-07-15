@@ -15,6 +15,7 @@ from trec_mlm.metrics import EvaluationResult, evaluate_rankings
 from trec_mlm.profile_evaluation import paired_interval, win_tie_loss, zero_transitions
 from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
+    ISSUE18_FROZEN_AGGREGATE_SHA256,
     ISSUE18_FROZEN_ARTIFACT_PATH,
     load_issue18_frozen_snapshot,
     validate_frozen_tree_token,
@@ -218,7 +219,10 @@ def evaluate_multiresolution(
     track_a_rankings = _track_a_rankings(construction, source)
 
     validate_issue12_source_snapshot(source)
-    validate_frozen_tree_token(artifact_token)
+    validate_frozen_tree_token(
+        artifact_token,
+        expected_aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
+    )
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed before qrels were opened")
     qrels_sha256 = _sha256(qrels_file)
@@ -298,7 +302,10 @@ def evaluate_multiresolution(
     }
 
     try:
-        validate_frozen_tree_token(artifact_token)
+        validate_frozen_tree_token(
+            artifact_token,
+            expected_aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
+        )
     except (OSError, ValueError) as error:
         raise RuntimeError("construction changed during evaluation") from error
     if _sha256(receipt_path) != receipt_sha256:

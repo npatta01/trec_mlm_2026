@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
+import copy
 import hashlib
 import inspect
 import json
@@ -422,8 +423,8 @@ def test_loader_rejects_extra_schema_keys(
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     if target_name != "manifest.json":
         _refresh_manifest(destination, target_name)
-    with pytest.raises(ValueError, match="schema"):
-        load_multiresolution_artifact(destination)
+        with pytest.raises(ValueError, match="schema"):
+            load_multiresolution_artifact(destination)
 
 
 def _diagnostic_fixture(tmp_path: Path):
@@ -721,8 +722,103 @@ def test_assessor_produces_complete_supplemental_receipt(
 
     incomplete = dict(receipt)
     del incomplete["execution_provenance"]
-    with pytest.raises(ValueError, match="schema"):
-        validate_multiresolution_viability_receipt(incomplete, "a" * 64)
+    with pytest.raises(ValueError, match="authoritative"):
+        validate_multiresolution_viability_receipt(incomplete, root)
+
+
+@pytest.mark.parametrize(
+    ("field", "mutate"),
+    (
+        (
+            "ranking diagnostics",
+            lambda receipt: receipt["ranking_diagnostics"]["c0_max_k10"].__setitem__(
+                "unique_top10_rankings", 999
+            ),
+        ),
+        (
+            "control sources",
+            lambda receipt: receipt["control_sources"]["contextual_e5"].__setitem__(
+                "query_inventory_sha256", "f" * 64
+            ),
+        ),
+        (
+            "control comparisons",
+            lambda receipt: receipt["control_comparisons"]["c0_max_k10"][
+                "query_knn"
+            ].__setitem__("mean_top10_jaccard", 0.123),
+        ),
+        (
+            "cost evidence",
+            lambda receipt: receipt["cost_evidence"].__setitem__(
+                "multiresolution_artifact_storage_bytes", 999
+            ),
+        ),
+        (
+            "provenance",
+            lambda receipt: receipt["execution_provenance"].__setitem__(
+                "execution_code_commit", "f" * 40
+            ),
+        ),
+        (
+            "provenance timestamp",
+            lambda receipt: receipt["execution_provenance"].__setitem__(
+                "receipt_generated_at", "not-a-timestamp"
+            ),
+        ),
+    ),
+)
+def test_receipt_validator_recomputes_authoritative_artifact_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    mutate,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    result = _diagnostic_fixture(tmp_path)
+    root = tmp_path / "artifact"
+    root.mkdir()
+    (root / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64}), encoding="utf-8"
+    )
+    controls = {
+        "query_knn": result.dense_rankings,
+        "contextual_e5": result.dense_rankings,
+    }
+    inventory = {
+        "query_count": len(result.query_ids),
+        "candidate_count": len(result.candidate_ids),
+        "query_inventory_sha256": module._length_framed_hash(result.query_ids),
+        "candidate_inventory_sha256": module._length_framed_hash(result.candidate_ids),
+    }
+    sources = {
+        name: {
+            "ranking_name": "dense_reference" if name == "query_knn" else "contextual_e5_control",
+            "ranking_file": "rankings/dense_reference.json" if name == "query_knn" else "rankings/contextual_e5_control.json",
+            "ranking_sha256": ("b" if name == "query_knn" else "c") * 64,
+            "source_aggregate_sha256": AUDIT_FINAL_AGGREGATE,
+            **inventory,
+        }
+        for name in module.CONTROL_NAMES
+    }
+    monkeypatch.setattr(module, "load_multiresolution_artifact", lambda path: result)
+    monkeypatch.setattr(module, "_load_control_rankings", lambda *_args: (sources, controls))
+    monkeypatch.setattr(module, "_tree_bytes", lambda path: 100 if path == root else 50)
+    monkeypatch.setattr(module, "_source_elapsed_seconds", lambda _path: 10.0)
+    canonical = module._assess_multiresolution_viability(
+        result, require_official_coverage=True, root=root
+    )
+    assert validate_multiresolution_viability_receipt(canonical, root) == canonical
+
+    tampered = copy.deepcopy(canonical)
+    mutate(tampered)
+    with pytest.raises(ValueError, match="authoritative"):
+        validate_multiresolution_viability_receipt(tampered, root)
+
+
+def test_receipt_validator_requires_persisted_artifact(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="persisted artifact"):
+        validate_multiresolution_viability_receipt({}, tmp_path / "missing")
 
 
 @pytest.mark.parametrize(
@@ -841,7 +937,11 @@ def _official_viability_fixture(tmp_path: Path):
 
 
 def test_public_viability_rejects_nonofficial_coverage(tmp_path: Path) -> None:
-    receipt = assess_multiresolution_viability(_diagnostic_fixture(tmp_path))
+    from trec_mlm import profile_multiresolution as module
+
+    receipt = module._assess_multiresolution_viability(
+        _diagnostic_fixture(tmp_path), require_official_coverage=True
+    )
     assert receipt["decision"] == "reject-invalid"
     assert "official_322_by_150_coverage" in receipt["failed_integrity_thresholds"]
 
@@ -872,7 +972,11 @@ def test_public_viability_rejects_component_and_ranking_score_drift(
         rankings = dict(result.rankings)
         del rankings["x1_multires_top2_dense_equal"]
         result = replace(result, rankings=rankings)
-    receipt = assess_multiresolution_viability(result)
+    from trec_mlm import profile_multiresolution as module
+
+    receipt = module._assess_multiresolution_viability(
+        result, require_official_coverage=True
+    )
     assert receipt["decision"] == "reject-invalid"
     expected = (
         "component_score_schema"
@@ -882,6 +986,11 @@ def test_public_viability_rejects_component_and_ranking_score_drift(
         else "complete_rankings"
     )
     assert expected in receipt["failed_integrity_thresholds"]
+
+
+def test_public_viability_requires_persisted_artifact(tmp_path: Path) -> None:
+    with pytest.raises(TypeError, match="persisted artifact"):
+        assess_multiresolution_viability(_diagnostic_fixture(tmp_path))
 
 
 @pytest.mark.parametrize("system", EXPECTED_SYSTEMS)
@@ -1093,7 +1202,8 @@ def test_cli_existing_canonical_artifact_repairs_receipt_without_reconstruction(
 
 
 @pytest.mark.parametrize(
-    "receipt_kind", ("absent", "invalid", "noncontinue", "overbudget")
+    "receipt_kind",
+    ("absent", "invalid", "noncontinue", "stop-query-sensitivity", "overbudget"),
 )
 def test_cli_repeat_construction_is_blocked_before_construct_without_authorization(
     tmp_path: Path,
@@ -1118,6 +1228,9 @@ def test_cli_repeat_construction_is_blocked_before_construct_without_authorizati
             payload = _authorization_receipt(authorized=True)
             if receipt_kind == "noncontinue":
                 payload["decision"] = "stop-no-incremental-value"
+            elif receipt_kind == "stop-query-sensitivity":
+                payload["decision"] = "stop-query-sensitivity"
+                payload["repeat_authorized"] = False
             else:
                 payload["cost_evidence"]["wall_time_ratio"] = 4.01
             authorization.write_text(json.dumps(payload))
@@ -1164,7 +1277,7 @@ def test_cli_forged_minimal_first_artifact_cannot_authorize_repeat(
         "construct_multiresolution",
         lambda config: pytest.fail("forged first artifact authorized construction"),
     )
-    with pytest.raises(ValueError, match="manifest schema"):
+    with pytest.raises(ValueError, match="invalid first viability receipt"):
         script.main(
             [
                 "--config", str(config_path),
@@ -1203,6 +1316,12 @@ def test_cli_strict_valid_first_artifact_authorizes_noncanonical_construction(
         "_run_construction",
         lambda args, config: called.append((args, config)) or 0,
     )
+    validated = []
+    monkeypatch.setattr(
+        script,
+        "validate_multiresolution_viability_receipt",
+        lambda payload, artifact: validated.append((payload, artifact)) or payload,
+    )
     assert script.main(
         [
             "--config", str(config_path),
@@ -1211,6 +1330,7 @@ def test_cli_strict_valid_first_artifact_authorizes_noncanonical_construction(
         ]
     ) == 0
     assert len(called) == 1
+    assert validated == [(_authorization_receipt(authorized=True, aggregate_sha256=aggregate), str(first))]
 
 
 def test_cli_strict_but_noncanonical_first_artifact_cannot_authorize_repeat(
@@ -1235,6 +1355,11 @@ def test_cli_strict_but_noncanonical_first_artifact_cannot_authorize_repeat(
         script,
         "_run_construction",
         lambda args, config: pytest.fail("noncanonical first artifact authorized repeat"),
+    )
+    monkeypatch.setattr(
+        script,
+        "validate_multiresolution_viability_receipt",
+        lambda payload, artifact: payload,
     )
     with pytest.raises(ValueError, match="canonical pass-one"):
         script.main(
@@ -1268,6 +1393,11 @@ def test_cli_repeat_comparison_mode_never_constructs(
         script,
         "load_multiresolution_artifact",
         lambda path: type("Loaded", (), {"config": MultiResolutionConfig()})(),
+    )
+    monkeypatch.setattr(
+        script,
+        "validate_multiresolution_viability_receipt",
+        lambda payload, artifact: payload,
     )
     monkeypatch.setattr(
         script,
@@ -1310,6 +1440,11 @@ def test_cli_refuses_unbound_authorization_before_comparison(
         "load_multiresolution_artifact",
         lambda path: type("Loaded", (), {"config": MultiResolutionConfig()})(),
     )
+    monkeypatch.setattr(
+        script,
+        "validate_multiresolution_viability_receipt",
+        lambda payload, artifact: payload,
+    )
     with pytest.raises(ValueError, match="bind"):
         script.main(
             [
@@ -1333,6 +1468,11 @@ def test_cli_refuses_repeat_comparison_without_viability_and_cost_authorization(
         script,
         "compare_multiresolution_artifacts",
         lambda first, second: pytest.fail("unauthorized repeat was compared"),
+    )
+    monkeypatch.setattr(
+        script,
+        "validate_multiresolution_viability_receipt",
+        lambda payload, artifact: payload,
     )
     with pytest.raises(ValueError, match="authorize"):
         script.main(

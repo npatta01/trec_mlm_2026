@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 from dataclasses import fields
 import json
-import math
 from pathlib import Path
 import time
 
@@ -16,6 +15,7 @@ from trec_mlm.profile_multiresolution import (
     compare_multiresolution_artifacts,
     construct_multiresolution,
     load_multiresolution_artifact,
+    validate_multiresolution_viability_receipt,
     write_multiresolution_artifact,
     write_multiresolution_receipt,
 )
@@ -74,16 +74,13 @@ def _load_repeat_authorization(args: argparse.Namespace) -> dict[str, object]:
         )
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("invalid first viability receipt") from error
+    try:
+        validate_multiresolution_viability_receipt(
+            authorization, args.first_artifact
+        )
+    except ValueError as error:
+        raise ValueError("invalid first viability receipt") from error
     cost = authorization.get("cost_evidence")
-    storage_ratio = cost.get("storage_ratio") if isinstance(cost, dict) else None
-    wall_time_ratio = cost.get("wall_time_ratio") if isinstance(cost, dict) else None
-    ratios_valid = all(
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-        and 0.0 <= value <= 4.0
-        for value in (storage_ratio, wall_time_ratio)
-    )
     authorized = (
         authorization.get("artifact_type")
         == "issue18_multiresolution_viability_receipt"
@@ -92,7 +89,6 @@ def _load_repeat_authorization(args: argparse.Namespace) -> dict[str, object]:
         and authorization.get("decision") == "continue"
         and authorization.get("repeat_authorized") is True
         and isinstance(cost, dict)
-        and ratios_valid
         and cost.get("storage_at_most_four_times_issue12") is True
         and cost.get("wall_time_at_most_four_times_issue12") is True
         and cost.get("repeat_cost_authorized") is True

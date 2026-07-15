@@ -136,3 +136,80 @@ Task 2 owns those receipt fixtures and evaluation authorization semantics.
   artifact aggregate are locked in provenance validation.
 - Known dependent concern is limited to the four old-schema Task-2 evaluation
   fixtures listed above.
+
+## Review-rejection repair (authoritative validation)
+
+The first Task-1 implementation was rejected because strict validation still
+allowed an optional-artifact path and derived too much truth from editable
+receipt fields. Commit `1915464` is therefore superseded by the follow-up
+repair documented here.
+
+### Review RED
+
+New tests first required a persisted artifact, exact authoritative
+recomputation, and removal of complete-looking in-memory controls:
+
+```text
+$ PYTHONPATH=. pytest tests/test_profile_multiresolution.py -q
+7 failed, 69 passed in 0.70s
+```
+
+The failures demonstrated all three rejected behaviors: the validator still
+accepted an aggregate string without a persisted artifact, tampered receipt
+evidence was not checked against a recomputed receipt, and the public assessor
+still accepted an in-memory `MultiResolutionResult`.
+
+A subsequent timestamp-specific RED test proved that an arbitrary editable
+`receipt_generated_at` value could be mirrored into recomputed output:
+
+```text
+$ PYTHONPATH=. pytest tests/test_profile_multiresolution.py -q
+1 failed, 77 passed in 0.56s
+```
+
+### Review GREEN
+
+The final focused verification after the repair:
+
+```text
+$ PYTHONPATH=. pytest tests/test_profile_multiresolution.py -q
+78 passed in 0.54s
+$ ruff check trec_mlm/profile_multiresolution.py scripts/run_multiresolution_profiles.py tests/test_profile_multiresolution.py
+All checks passed!
+$ git diff --check
+# no output
+```
+
+The full-suite result is:
+
+```text
+$ .venv/bin/python -c 'import sys; sys.path.append("/home/npatta01/anaconda3/lib/python3.13/site-packages"); import pytest; raise SystemExit(pytest.main(["-q"]))'
+299 passed, 4 failed in 7.78s
+```
+
+The four failures remain exactly the dependent Task-2 old-schema evaluation
+fixtures listed earlier in this report. They now fail because Task 2 still
+passes an aggregate string where authoritative validation requires the
+persisted artifact path.
+
+### Review repair details
+
+- `validate_multiresolution_viability_receipt(payload, artifact_path)` now
+  requires an existing artifact directory, strictly loads it, recomputes the
+  complete canonical receipt, and exact-compares the supplied payload.
+- Thresholds, cluster/ranking diagnostics, failure lists, decision, control
+  sources, inventory digests, all control comparisons, aggregate, cost, and
+  locked provenance are consequently derived from authoritative inputs.
+- Receipt-generation time must be timezone-aware, no earlier than the manifest
+  completion time, and not in the future. The construction completion time is
+  recomputed from the manifest's nanosecond mtime; the frozen artifact yields
+  exactly `2026-07-15T12:41:18.692102441-04:00`.
+- Public `assess_multiresolution_viability` rejects in-memory results. The
+  internal in-memory function now returns only a clearly named diagnostic and
+  omits controls, provenance, cost, artifact binding, and repeat authorization.
+- The repeat construction/comparison gate invokes full artifact-backed strict
+  validation before checking `continue` and cost authorization. Tests cover
+  forged/missing artifacts, tampered authoritative fields, omitted repeat
+  flags, and `stop-query-sensitivity` never reaching construction.
+- No frozen artifact, real untracked receipt, qrel, or repeat construction was
+  modified or opened during the repair.

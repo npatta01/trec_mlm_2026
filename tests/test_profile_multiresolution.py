@@ -98,6 +98,44 @@ def test_issue18_frozen_loader_is_nonconstructive_and_pins_exact_snapshot(
     )
 
 
+def test_real_frozen_assessment_avoids_every_reconstruction_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trec_mlm import profile_experiment
+    from trec_mlm import profile_multiresolution as module
+    from trec_mlm import profile_retrieval
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("frozen assessment invoked reconstruction")
+
+    for owner, names in (
+        (
+            module,
+            (
+                "construct_multiresolution",
+                "canonical_kmeans",
+                "score_profiles",
+                "_freeze_systems",
+                "reciprocal_rank_fusion",
+                "load_profile_artifacts",
+                "_recompute_profile_centroid",
+                "_rank_scores",
+            ),
+        ),
+        (
+            profile_experiment,
+            ("load_profile_artifacts", "score_profiles", "_recompute_profile_centroid"),
+        ),
+        (profile_retrieval, ("canonical_kmeans", "score_profiles", "reciprocal_rank_fusion")),
+    ):
+        for name in names:
+            monkeypatch.setattr(owner, name, forbidden, raising=False)
+
+    receipt = module.assess_multiresolution_viability(ISSUE18_ROOT)
+    assert receipt["artifact_aggregate_sha256"] == ISSUE18_AGGREGATE
+    assert receipt["qrel_free"] is True
+
+
 def test_issue18_frozen_loader_rejects_noncanonical_root(tmp_path: Path) -> None:
     from trec_mlm import profile_multiresolution as module
 
@@ -685,7 +723,8 @@ def test_control_sources_bind_exact_hashes_and_inventories(
             "contextual_e5_control": contextual,
         },
     )
-    monkeypatch.setattr(module, "load_profile_artifacts", lambda _path: source)
+    monkeypatch.setattr(module, "validate_issue12_source_snapshot", lambda _source: None)
+    result = replace(result, source_snapshot=source)
 
     sources, controls = module._load_control_rankings(result, artifact_root)
     assert set(sources) == {"query_knn", "contextual_e5"}
@@ -737,7 +776,8 @@ def test_control_sources_reject_inventory_or_hash_mismatch(
             "contextual_e5_control": result.dense_rankings,
         },
     )
-    monkeypatch.setattr(module, "load_profile_artifacts", lambda _path: source)
+    monkeypatch.setattr(module, "validate_issue12_source_snapshot", lambda _source: None)
+    result = replace(result, source_snapshot=source)
     with pytest.raises(ValueError, match="inventory|hash"):
         module._load_control_rankings(result, artifact_root)
 
@@ -1191,6 +1231,32 @@ def test_receipt_serialization_is_atomic_finite_and_refuses_overwrite(
         write_multiresolution_receipt(payload, destination)
     with pytest.raises(ValueError, match="finite"):
         write_multiresolution_receipt({"maximum": float("nan")}, tmp_path / "bad.json")
+
+
+def test_receipt_atomic_commit_preserves_file_created_during_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    destination = tmp_path / "receipt.json"
+    attacker = b"attacker-owned\n"
+    original_replace = module.os.replace
+    original_link = module.os.link
+
+    def race_replace(source, target):
+        Path(target).write_bytes(attacker)
+        return original_replace(source, target)
+
+    def race_link(source, target):
+        Path(target).write_bytes(attacker)
+        return original_link(source, target)
+
+    monkeypatch.setattr(module.os, "replace", race_replace)
+    monkeypatch.setattr(module.os, "link", race_link)
+
+    with pytest.raises(FileExistsError):
+        write_multiresolution_receipt({"status": "valid"}, destination)
+    assert destination.read_bytes() == attacker
 
 
 def test_cli_accepts_only_qrel_free_viability_and_repeat_receipts() -> None:

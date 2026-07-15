@@ -248,13 +248,24 @@ def _patch_loaders(
         if authoritative_receipt is not None
         else json.loads((source.root.parent / "viability.json").read_text())
     )
+    multi.source_snapshot = source
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation.load_issue18_frozen_snapshot",
         lambda _: multi,
     )
     monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation._load_issue12_evaluation_rankings",
-        lambda _: source,
+        "trec_mlm.profile_multiresolution_evaluation.validate_issue12_source_snapshot",
+        lambda _: None,
+    )
+
+    def validate_receipt(payload, _artifact, **_kwargs):
+        if payload != canonical:
+            raise ValueError("viability receipt differs from authoritative artifact evidence")
+        return payload
+
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_viability_receipt",
+        validate_receipt,
     )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation._validate_sealed_paths",
@@ -303,6 +314,77 @@ def test_invalid_or_unfrozen_artifact_is_rejected_before_qrels(
             tmp_path / "out.json",
         )
     assert opened is False
+
+
+def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trec_mlm import profile_experiment
+    from trec_mlm import profile_multiresolution as multiresolution
+    from trec_mlm import profile_multiresolution_evaluation as module
+    from trec_mlm import profile_retrieval
+
+    artifact = Path("artifacts/multiresolution_profiles/issue18_pr17head")
+    receipt = Path("reports/trec_2026_issue18_pr17head_viability.json")
+    qrels = Path("data/dev/llm_dev_qrels.txt")
+    output = Path("reports/trec_2026_issue18_pr17head_evaluation.json")
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("evaluation invoked reconstruction")
+
+    for owner, names in (
+        (
+            multiresolution,
+            (
+                "construct_multiresolution",
+                "canonical_kmeans",
+                "score_profiles",
+                "_freeze_systems",
+                "reciprocal_rank_fusion",
+                "load_profile_artifacts",
+                "_recompute_profile_centroid",
+                "_rank_scores",
+            ),
+        ),
+        (
+            profile_experiment,
+            ("load_profile_artifacts", "score_profiles", "_recompute_profile_centroid"),
+        ),
+        (profile_retrieval, ("canonical_kmeans", "score_profiles", "reciprocal_rank_fusion")),
+    ):
+        for name in names:
+            monkeypatch.setattr(owner, name, forbidden, raising=False)
+    monkeypatch.setattr(
+        module, "_load_issue12_evaluation_rankings", forbidden, raising=False
+    )
+
+    authoritative = multiresolution.assess_multiresolution_viability(artifact)
+    receipt_bytes = (
+        json.dumps(authoritative, sort_keys=True, allow_nan=False) + "\n"
+    ).encode()
+    original_read_bytes = Path.read_bytes
+
+    def read_authoritative(path: Path) -> bytes:
+        if path.resolve() == receipt.resolve():
+            return receipt_bytes
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_authoritative)
+
+    original_sha256 = module._sha256
+
+    def stop_at_qrels(path: Path) -> str:
+        if Path(path).resolve() == qrels.resolve():
+            raise RuntimeError("authorized qrel boundary reached")
+        if Path(path).resolve() == receipt.resolve():
+            return hashlib.sha256(receipt_bytes).hexdigest()
+        return original_sha256(path)
+
+    monkeypatch.setattr(module, "_sha256", stop_at_qrels)
+    monkeypatch.setattr(module, "load_complete_qrels", forbidden)
+
+    with pytest.raises(RuntimeError, match="authorized qrel boundary reached"):
+        evaluate_multiresolution(artifact, receipt, qrels, output)
 
 
 @pytest.mark.parametrize("receipt_payload", (None, {"decision": "continue"}))
@@ -409,7 +491,7 @@ def test_receipt_bytes_are_rechecked_after_validation_before_qrel_hash(
         "trec_mlm.profile_multiresolution_evaluation", fromlist=["_sha256"]
     )._sha256
 
-    def validate_then_change(payload, artifact_path):
+    def validate_then_change(payload, artifact_path, **_kwargs):
         validated = original_validator(payload, artifact_path)
         receipt_path.write_bytes(receipt_path.read_bytes() + b" ")
         return validated
@@ -586,24 +668,77 @@ def test_evaluation_reports_every_frozen_system_paired_evidence_and_track_a(
     assert json.loads(output.read_text()) == payload
 
 
+def test_evaluation_revalidates_one_source_snapshot_before_and_after_qrels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path)
+    _patch_loaders(monkeypatch, multi, source)
+    validations: list[object] = []
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_issue12_source_snapshot",
+        lambda snapshot: validations.append(snapshot),
+    )
+
+    evaluate_multiresolution(
+        root,
+        tmp_path / "viability.json",
+        tmp_path / "qrels",
+        tmp_path / "evaluation.json",
+    )
+
+    assert validations == [source, source]
+
+
+def test_post_evaluation_source_token_failure_prevents_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path)
+    _patch_loaders(monkeypatch, multi, source)
+    calls = 0
+
+    def fail_second_validation(_snapshot):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ValueError("source token changed")
+
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_issue12_source_snapshot",
+        fail_second_validation,
+    )
+    output = tmp_path / "evaluation.json"
+
+    with pytest.raises(RuntimeError, match="source changed during evaluation"):
+        evaluate_multiresolution(
+            root,
+            tmp_path / "viability.json",
+            tmp_path / "qrels",
+            output,
+        )
+    assert not output.exists()
+
+
 def test_evaluation_detects_any_construction_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, multi, source = _construction(tmp_path)
 
+    from trec_mlm import profile_multiresolution_evaluation as module
+
+    original_snapshot = module._construction_snapshot
     calls = 0
 
-    def mutate_after_load(_):
+    def mutate_before_second_snapshot(path):
         nonlocal calls
         calls += 1
         if calls == 2:
             (root / "manifest.json").write_text("changed\n")
-        return multi
+        return original_snapshot(path)
 
     _patch_loaders(monkeypatch, multi, source)
     monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation.load_issue18_frozen_snapshot",
-        mutate_after_load,
+        "trec_mlm.profile_multiresolution_evaluation._construction_snapshot",
+        mutate_before_second_snapshot,
     )
     with pytest.raises(RuntimeError, match="construction changed"):
         evaluate_multiresolution(
@@ -705,3 +840,29 @@ def test_evaluation_refuses_existing_canonical_output(
 
     with pytest.raises(FileExistsError, match="already exists"):
         module._validate_sealed_paths(*paths)
+
+
+def test_evaluation_atomic_commit_preserves_file_created_during_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_mlm import profile_multiresolution_evaluation as module
+
+    destination = tmp_path / "evaluation.json"
+    attacker = b"attacker-owned\n"
+    original_replace = module.os.replace
+    original_link = module.os.link
+
+    def race_replace(source, target):
+        Path(target).write_bytes(attacker)
+        return original_replace(source, target)
+
+    def race_link(source, target):
+        Path(target).write_bytes(attacker)
+        return original_link(source, target)
+
+    monkeypatch.setattr(module.os, "replace", race_replace)
+    monkeypatch.setattr(module.os, "link", race_link)
+
+    with pytest.raises(FileExistsError):
+        module._write_evaluation({"status": "valid"}, destination)
+    assert destination.read_bytes() == attacker

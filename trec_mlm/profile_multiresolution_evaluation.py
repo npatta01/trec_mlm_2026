@@ -14,14 +14,12 @@ from typing import Any
 from trec_mlm.metrics import EvaluationResult, evaluate_rankings
 from trec_mlm.profile_evaluation import paired_interval, win_tie_loss, zero_transitions
 from trec_mlm.profile_multiresolution import (
-    EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
-    EVALUATED_CONSTRUCTION_PATH,
     EXPECTED_SYSTEMS,
     ISSUE18_FROZEN_ARTIFACT_PATH,
     load_issue18_frozen_snapshot,
+    validate_issue12_source_snapshot,
     validate_multiresolution_viability_receipt,
 )
-from trec_mlm.runio import rankings_from_run
 from trec_mlm.query_knn import load_complete_qrels
 
 
@@ -95,11 +93,16 @@ def validate_multiresolution_qrel_inventories(
 
 
 def validate_viability_receipt(
-    payload: Mapping[str, Any], artifact_path: str | Path
+    payload: Mapping[str, Any],
+    artifact_path: str | Path,
+    *,
+    frozen_snapshot: Any | None = None,
 ) -> Mapping[str, Any]:
     """Expose the centralized strict receipt validator for evaluation callers."""
 
-    return validate_multiresolution_viability_receipt(payload, artifact_path)
+    return validate_multiresolution_viability_receipt(
+        payload, artifact_path, frozen_snapshot=frozen_snapshot
+    )
 
 
 def _authorize_diagnostic_evaluation(receipt: Mapping[str, Any]) -> str:
@@ -165,50 +168,6 @@ def _track_a_rankings(construction: Any, source: Any) -> dict[str, list[str]]:
     return ranking
 
 
-def _load_issue12_evaluation_rankings(construction: Any) -> Any:
-    root = Path(EVALUATED_CONSTRUCTION_PATH)
-    inputs = json.loads((root / "inputs.json").read_text(encoding="utf-8"))
-    if (
-        tuple(inputs.get("query_ids", ())) != construction.query_ids
-        or tuple(inputs.get("candidate_ids", ())) != construction.candidate_ids
-    ):
-        raise ValueError("issue-12 evaluation inventories changed")
-    source_rankings = {
-        key: json.loads(
-            (root / "rankings" / f"{key}.json").read_text(encoding="utf-8")
-        )
-        for key in ("dense_reference", "contextual_e5_control")
-    }
-    rankings = {
-        key: json.loads(
-            (root / "rankings" / f"{key}.json").read_text(encoding="utf-8")
-        )
-        for key in ("profile_only", TRACK_A_SYSTEM)
-    }
-    for key, ranking in {**source_rankings, **rankings}.items():
-        if (
-            set(ranking) != set(construction.query_ids)
-            or any(
-                len(ranking[query_id]) != len(construction.candidate_ids)
-                or set(ranking[query_id]) != set(construction.candidate_ids)
-                for query_id in construction.query_ids
-            )
-            or rankings_from_run(root / "runs" / f"{key}.trec") != ranking
-        ):
-            raise ValueError(f"stored issue-12 ranking or run changed: {key}")
-    return type(
-        "FrozenIssue12Rankings",
-        (),
-        {
-            "query_ids": construction.query_ids,
-            "candidate_ids": construction.candidate_ids,
-            "source_rankings": source_rankings,
-            "rankings": rankings,
-            "manifest": {"aggregate_sha256": EVALUATED_CONSTRUCTION_AGGREGATE_SHA256},
-        },
-    )()
-
-
 def _validate_sealed_paths(
     artifact_path: Path,
     receipt_path: Path,
@@ -238,7 +197,8 @@ def _write_evaluation(payload: Mapping[str, Any], output_path: Path) -> None:
         with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2, sort_keys=True, allow_nan=False)
             handle.write("\n")
-        os.replace(temporary, output_path)
+        os.link(temporary, output_path)
+        temporary.unlink()
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
@@ -269,12 +229,17 @@ def evaluate_multiresolution(
     receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed while it was being loaded")
-    validated_receipt = validate_viability_receipt(receipt, artifact_root)
+    validated_receipt = validate_viability_receipt(
+        receipt, artifact_root, frozen_snapshot=construction
+    )
     viability_decision = _authorize_diagnostic_evaluation(validated_receipt)
 
-    source = _load_issue12_evaluation_rankings(construction)
+    source = construction.source_snapshot
+    if source is None:
+        raise ValueError("frozen construction lacks its strict issue-12 source snapshot")
     track_a_rankings = _track_a_rankings(construction, source)
 
+    validate_issue12_source_snapshot(source)
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed before qrels were opened")
     qrels_sha256 = _sha256(qrels_file)
@@ -354,7 +319,6 @@ def evaluate_multiresolution(
     }
 
     try:
-        load_issue18_frozen_snapshot(artifact_root)
         after_manifest = _read_manifest(artifact_root)
         after = _construction_snapshot(artifact_root)
     except (OSError, ValueError) as error:
@@ -363,6 +327,10 @@ def evaluate_multiresolution(
         raise RuntimeError("construction changed during evaluation")
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed during evaluation")
+    try:
+        validate_issue12_source_snapshot(source)
+    except (OSError, ValueError) as error:
+        raise RuntimeError("issue-12 source changed during evaluation") from error
     payload["construction_integrity"] = {
         "status": "passed",
         "before_aggregate_sha256": manifest["aggregate_sha256"],

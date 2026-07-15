@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from trec_mlm import dense_aggregation_artifacts as artifacts
 from trec_mlm.dense_aggregation_artifacts import (
     atomic_artifact_directory,
     raw_file_sha256,
@@ -47,6 +48,216 @@ def _publish(root: Path) -> None:
 
 def _rewrite_manifest(root: Path, manifest: dict[str, object]) -> None:
     (root / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
+
+
+def test_preflight_atomic_roots_creates_only_distinct_same_device_parents(
+    tmp_path: Path,
+) -> None:
+    cache_dir = tmp_path / "cache-parent" / "fit-cache"
+    output_dir = tmp_path / "output-parent" / "artifact"
+
+    artifacts.preflight_atomic_roots(
+        cache_dir=cache_dir,
+        output_dir=output_dir,
+    )
+
+    assert cache_dir.parent.is_dir()
+    assert output_dir.parent.is_dir()
+    assert not cache_dir.exists()
+    assert not output_dir.exists()
+    assert not list(cache_dir.parent.iterdir())
+    assert not list(output_dir.parent.iterdir())
+
+
+@pytest.mark.parametrize(
+    "relation",
+    ("resolved-equality", "cache-ancestor", "output-ancestor"),
+)
+def test_preflight_atomic_roots_rejects_overlap_before_mkdir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relation: str
+) -> None:
+    untouched_parent = tmp_path / "untouched"
+    if relation == "resolved-equality":
+        cache_dir = untouched_parent / "branch" / ".." / "root"
+        output_dir = untouched_parent / "root"
+    elif relation == "cache-ancestor":
+        cache_dir = untouched_parent / "cache"
+        output_dir = cache_dir / "nested" / "output"
+    else:
+        output_dir = untouched_parent / "output"
+        cache_dir = output_dir / "nested" / "cache"
+    mkdir_calls: list[Path] = []
+
+    def unexpected_mkdir(path: Path, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        mkdir_calls.append(path)
+        raise AssertionError("overlap validation reached mkdir")
+
+    monkeypatch.setattr(Path, "mkdir", unexpected_mkdir)
+
+    with pytest.raises(ValueError, match="overlap"):
+        artifacts.preflight_atomic_roots(
+            cache_dir=cache_dir,
+            output_dir=output_dir,
+        )
+
+    assert mkdir_calls == []
+    assert not untouched_parent.exists()
+
+
+@pytest.mark.parametrize("existing", ("cache", "output"))
+def test_preflight_atomic_roots_rejects_existing_destination_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: str
+) -> None:
+    existing_dir = tmp_path / f"existing-{existing}"
+    existing_dir.mkdir()
+    sentinel = existing_dir / "sentinel.bin"
+    sentinel.write_bytes(b"authoritative\x00bytes")
+    untouched_parent = tmp_path / "untouched"
+    if existing == "cache":
+        cache_dir = existing_dir
+        output_dir = untouched_parent / "output"
+    else:
+        cache_dir = untouched_parent / "cache"
+        output_dir = existing_dir
+    mkdir_calls: list[Path] = []
+
+    def unexpected_mkdir(path: Path, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        mkdir_calls.append(path)
+        raise AssertionError("existing-destination validation reached mkdir")
+
+    monkeypatch.setattr(Path, "mkdir", unexpected_mkdir)
+
+    with pytest.raises(FileExistsError, match=f"{existing} destination exists"):
+        artifacts.preflight_atomic_roots(
+            cache_dir=cache_dir,
+            output_dir=output_dir,
+        )
+
+    assert mkdir_calls == []
+    assert list(existing_dir.iterdir()) == [sentinel]
+    assert sentinel.read_bytes() == b"authoritative\x00bytes"
+    assert not untouched_parent.exists()
+
+
+@pytest.mark.parametrize("existing", ("cache", "output"))
+def test_preflight_atomic_roots_rejects_dangling_destination_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: str
+) -> None:
+    missing_target = tmp_path / f"missing-{existing}-target"
+    dangling = tmp_path / f"dangling-{existing}"
+    dangling.symlink_to(missing_target, target_is_directory=True)
+    untouched_parent = tmp_path / "untouched"
+    if existing == "cache":
+        cache_dir = dangling
+        output_dir = untouched_parent / "output"
+    else:
+        cache_dir = untouched_parent / "cache"
+        output_dir = dangling
+    mkdir_calls: list[Path] = []
+
+    def unexpected_mkdir(path: Path, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        mkdir_calls.append(path)
+        raise AssertionError("dangling-destination validation reached mkdir")
+
+    monkeypatch.setattr(Path, "mkdir", unexpected_mkdir)
+
+    with pytest.raises(FileExistsError, match=f"{existing} destination exists"):
+        artifacts.preflight_atomic_roots(
+            cache_dir=cache_dir,
+            output_dir=output_dir,
+        )
+
+    assert mkdir_calls == []
+    assert dangling.is_symlink()
+    assert dangling.readlink() == missing_target
+    assert not missing_target.exists()
+    assert not untouched_parent.exists()
+
+
+@pytest.mark.parametrize("existing", ("cache", "output"))
+def test_preflight_atomic_roots_rejects_existing_resolved_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: str
+) -> None:
+    existing_dir = tmp_path / f"existing-{existing}"
+    existing_dir.mkdir()
+    sentinel = existing_dir / "sentinel.bin"
+    sentinel.write_bytes(b"resolved-authoritative\x00bytes")
+    missing_component = tmp_path / f"missing-{existing}-component"
+    caller_spelling = missing_component / ".." / existing_dir.name
+    untouched_parent = tmp_path / "untouched"
+    if existing == "cache":
+        cache_dir = caller_spelling
+        output_dir = untouched_parent / "output"
+    else:
+        cache_dir = untouched_parent / "cache"
+        output_dir = caller_spelling
+    mkdir_calls: list[Path] = []
+
+    def unexpected_mkdir(path: Path, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        mkdir_calls.append(path)
+        raise AssertionError("resolved-destination validation reached mkdir")
+
+    monkeypatch.setattr(Path, "mkdir", unexpected_mkdir)
+
+    with pytest.raises(FileExistsError, match=f"{existing} destination exists"):
+        artifacts.preflight_atomic_roots(
+            cache_dir=cache_dir,
+            output_dir=output_dir,
+        )
+
+    assert mkdir_calls == []
+    assert list(existing_dir.iterdir()) == [sentinel]
+    assert sentinel.read_bytes() == b"resolved-authoritative\x00bytes"
+    assert not missing_component.exists()
+    assert not untouched_parent.exists()
+
+
+def test_preflight_atomic_roots_rejects_different_parent_devices_before_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache_dir = tmp_path / "cache-parent" / "fit-cache"
+    output_dir = tmp_path / "output-parent" / "artifact"
+    qrel_path = tmp_path / "secret-qrels.txt"
+    qrel_path.write_bytes(b"must remain unopened\n")
+    original_stat = Path.stat
+
+    def simulated_stat(path: Path, *args: object, **kwargs: object) -> os.stat_result:
+        result = original_stat(path, *args, **kwargs)
+        if path == output_dir.parent.resolve():
+            values = list(result)
+            values[2] = result.st_dev + 1
+            return os.stat_result(values)
+        return result
+
+    def unexpected_open(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("preflight opened a file or qrel")
+
+    monkeypatch.setattr(Path, "stat", simulated_stat)
+    with monkeypatch.context() as no_open:
+        no_open.setattr("builtins.open", unexpected_open)
+        no_open.setattr(Path, "open", unexpected_open)
+        no_open.setattr(os, "open", unexpected_open)
+        no_open.setattr(artifacts, "raw_file_sha256", unexpected_open)
+        with pytest.raises(OSError) as error:
+            artifacts.preflight_atomic_roots(
+                cache_dir=cache_dir,
+                output_dir=output_dir,
+            )
+
+    assert error.value.args == ("cache and output must share one filesystem",)
+    assert str(error.value) == "cache and output must share one filesystem"
+    assert cache_dir.parent.is_dir()
+    assert output_dir.parent.is_dir()
+    assert not cache_dir.exists()
+    assert not output_dir.exists()
+    assert not list(cache_dir.parent.iterdir())
+    assert not list(output_dir.parent.iterdir())
+    assert qrel_path.read_bytes() == b"must remain unopened\n"
 
 
 def test_raw_file_and_manifest_literal_golden_vectors(

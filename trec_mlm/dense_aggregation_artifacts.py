@@ -30,6 +30,36 @@ def _fsync_directory(path: Path) -> None:
         os.close(directory_fd)
 
 
+def preflight_atomic_roots(*, cache_dir: Path, output_dir: Path) -> None:
+    cache_path = Path(cache_dir)
+    output_path = Path(output_dir)
+    cache_root = cache_path.resolve()
+    output_root = output_path.resolve()
+    if (
+        cache_root == output_root
+        or cache_root in output_root.parents
+        or output_root in cache_root.parents
+    ):
+        raise ValueError("cache and output destinations overlap")
+    for destination_kind, destination_path, destination_root in (
+        ("cache", cache_path, cache_root),
+        ("output", output_path, output_root),
+    ):
+        for candidate in (destination_path, destination_root):
+            try:
+                candidate.lstat()
+            except FileNotFoundError:
+                continue
+            raise FileExistsError(
+                f"{destination_kind} destination exists: {destination_path}"
+            )
+
+    cache_root.parent.mkdir(parents=True, exist_ok=True)
+    output_root.parent.mkdir(parents=True, exist_ok=True)
+    if cache_root.parent.stat().st_dev != output_root.parent.stat().st_dev:
+        raise OSError("cache and output must share one filesystem")
+
+
 @contextmanager
 def atomic_artifact_directory(
     destination: str | Path, *, quarantine_on_error: bool = False

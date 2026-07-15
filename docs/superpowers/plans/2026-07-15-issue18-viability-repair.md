@@ -172,3 +172,52 @@ Obtain independent advisor review of both commits. Only after approval,
 regenerate the qrel-free receipt from the frozen artifact, verify its decision
 and hashes, and run the one sealed Track-A/Track-B diagnostic evaluation.
 
+### Task 3: Seal the frozen snapshot and one-shot paths
+
+**Files:**
+- Modify: `trec_mlm/profile_multiresolution.py`
+- Modify: `trec_mlm/profile_multiresolution_evaluation.py`
+- Modify: `scripts/run_multiresolution_profiles.py`
+- Modify: `scripts/evaluate_multiresolution_profiles.py`
+- Modify: `tests/test_profile_multiresolution.py`
+- Modify: `tests/test_profile_multiresolution_evaluation.py`
+
+**Interfaces:**
+- Produces: `load_issue18_frozen_snapshot(artifact_path)` with no construction calls.
+- Consumes: exact canonical artifact, receipt, qrel, and evaluation-output identities from the design.
+
+- [ ] **Step 1: Write failing adversarial tests**
+
+Prove the current code accepts an alternate self-consistent aggregate, invokes
+construction transitively, permits receipt output inside the artifact, permits
+alternate evaluation paths, and skips the manifest assertion. Instrument every
+construction/scoring/fusion function to raise if called by the frozen loader.
+
+- [ ] **Step 2: Run focused tests and verify RED**
+
+Run: `PYTHONPATH=. pytest tests/test_profile_multiresolution.py tests/test_profile_multiresolution_evaluation.py -q`
+
+Expected: the new boundary tests fail for the reviewed reasons.
+
+- [ ] **Step 3: Implement the frozen-snapshot loader**
+
+Require canonical resolved root, exact config and aggregate, manifest hashes,
+source binding, exact inventories, finite/normalized arrays, complete rankings,
+score/rank consistency, and direct C0 equality with issue-12 stored artifacts.
+Do not call construction, K-means, scoring, or fusion functions.
+
+- [ ] **Step 4: Lock output and qrel identities**
+
+Require canonical external receipt path, canonical receipt input, canonical
+qrel path and locked SHA-256, and canonical non-existing evaluation output.
+Check receipt/artifact authorization before the first qrel hash/read.
+
+- [ ] **Step 5: Verify GREEN**
+
+Run focused and full pytest, changed-file Ruff, `py_compile`, and
+`git diff --check`. Expected: all tests pass.
+
+- [ ] **Step 6: Commit and review**
+
+Commit as `fix: seal issue 18 frozen evaluation`, package the complete repair
+diff, and obtain independent advisor GO before any real receipt/evaluation run.

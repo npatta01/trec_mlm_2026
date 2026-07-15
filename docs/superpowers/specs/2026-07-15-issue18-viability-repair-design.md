@@ -67,3 +67,35 @@ rejection, repeat prohibition, and qrel access ordering. The full suite and
 changed-file lint must pass. An independent advisor reviews the repair before
 qrels are opened.
 
+## Frozen-snapshot loader correction
+
+Final combined review rejected the original repair because it reused the
+semantic reconstruction loader. The user approved a loader redesign before
+qrels were opened.
+
+The authoritative receipt and evaluator must use a dedicated frozen-snapshot
+loader that never calls `construct_multiresolution`, `canonical_kmeans`,
+`score_profiles`, `_freeze_systems`, or reciprocal-rank fusion. It must:
+
+- accept only the canonical artifact root
+  `artifacts/multiresolution_profiles/issue18_pr17head`;
+- require exact aggregate
+  `2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9`;
+- verify every manifest file hash/size, exact schema and config, source binding,
+  322-query/150-candidate identities, finite arrays, normalized centroids,
+  complete rankings, and ranking/score consistency;
+- compare frozen C0 profiles, scores, and rankings directly with their exact
+  issue-12 source files without reconstructing them;
+- trust the earlier semantic validation only because the exact immutable
+  aggregate is pinned.
+
+Receipt regeneration is locked to
+`reports/trec_2026_issue18_pr17head_viability.json`, which must resolve outside
+the artifact tree and must not already exist. Evaluation is locked to that
+receipt, canonical qrels `data/dev/llm_dev_qrels.txt` with SHA-256
+`3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35`, and the
+single non-overwriting output
+`reports/trec_2026_issue18_pr17head_evaluation.json`. These identities eliminate
+arbitrary alternate evaluation paths; deleting sealed evidence is outside the
+authorized workflow and must not be automated.
+

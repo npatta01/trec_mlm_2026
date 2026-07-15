@@ -136,3 +136,20 @@ implementation.
 
 The complete repair design is locked in
 `docs/superpowers/specs/2026-07-15-issue18-viability-repair-design.md`.
+
+### Frozen-snapshot loader correction
+
+Combined advisor review found that the first repair transitively reconstructed
+profiles and rankings during receipt validation, did not pin the exact pass-one
+aggregate, and allowed arbitrary receipt/evaluation output paths. The user
+authorized a bounded redesign before qrels were opened.
+
+- Pin the canonical artifact root and exact pass-one aggregate
+  `2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9`.
+- Validate the frozen snapshot without calling any clustering, profile scoring,
+  fusion, or ranking-construction function.
+- Write the viability receipt only to the canonical external report path.
+- Permit exactly the canonical qrel identity and canonical non-overwriting
+  evaluation output; reject alternate paths or hashes.
+- Correct the manifest-schema regression test and obtain another combined
+  advisor review before receipt regeneration or qrel access.

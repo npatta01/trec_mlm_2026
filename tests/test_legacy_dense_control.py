@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import ast
 import builtins
+from collections.abc import Mapping
 import csv
-from dataclasses import dataclass
+from dataclasses import FrozenInstanceError, dataclass
 import hashlib
 import importlib
 import importlib.util
@@ -106,8 +107,33 @@ def test_legacy_control_public_api_exists() -> None:
         "mean_ndcg_at_10",
         "mean_reciprocal_rank",
     )
+    rich_fields = (
+        "manifest_sha256",
+        "lock_sha256",
+        "feasibility_manifest_sha256",
+        "source_sha256",
+        "query_file_sha256",
+        "qrel_file_sha256",
+        "query_input_sha256",
+        "candidate_inventory_sha256",
+        "embedding_sha256",
+        "similarity_sha256",
+        "tsv_sha256",
+        "trec_sha256",
+        "run_id",
+        "neighbor_count",
+        "query_count",
+        "candidate_count",
+        "row_count",
+        "mean_ndcg_at_10",
+        "mean_reciprocal_rank",
+    )
+    assert tuple(module.LegacyControlLockValidation.__dataclass_fields__) == rich_fields
+    assert tuple(module.LegacyControlLockValidation.__slots__) == rich_fields
+    assert module.LegacyControlLockValidation.__dataclass_params__.frozen is True
     assert callable(module.export_fixed_mpnet_k50_control)
     assert callable(module.validate_legacy_control_lock)
+    assert callable(module.validate_legacy_control_lock_bindings)
 
 
 def test_legacy_modules_have_isolated_imports() -> None:
@@ -799,6 +825,313 @@ def test_validate_legacy_control_lock_reloads_complete_synthetic_root(
         mean_ndcg_at_10=EXPECTED_NDCG,
         mean_reciprocal_rank=EXPECTED_MRR,
     )
+
+
+def test_validate_legacy_control_lock_rejects_wrong_filename_before_path_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("trec_mlm.legacy_dense_control")
+
+    monkeypatch.setattr(
+        module,
+        "_read_bounded_regular_file",
+        lambda *_args, **_kwargs: pytest.fail(
+            "compatibility wrapper accessed an invalid lock path"
+        ),
+    )
+
+    with pytest.raises(ValueError, match="lock filename"):
+        module.validate_legacy_control_lock(OFFICIAL_QREL_PATH, "0" * 64)
+
+
+def test_validate_legacy_control_lock_rejects_bad_tsv_hash_before_path_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = importlib.import_module("trec_mlm.legacy_dense_control")
+
+    monkeypatch.setattr(
+        module,
+        "_read_bounded_regular_file",
+        lambda *_args, **_kwargs: pytest.fail(
+            "compatibility wrapper accessed a lock before validating arguments"
+        ),
+    )
+
+    with pytest.raises(ValueError, match="expected TSV hash"):
+        module.validate_legacy_control_lock(tmp_path / LOCK_FILENAME, "not-a-hash")
+
+
+def test_validate_legacy_control_lock_bindings_returns_exact_frozen_attestations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        fixture.worker.module,
+        "load_development_data",
+        lambda *_: pytest.fail("rich lock validation reopened qrels"),
+    )
+    lock = _read_json(fixture.lock_path)
+    expected_lock_sha256 = _raw_sha256(fixture.lock_path)
+
+    result = fixture.worker.module.validate_legacy_control_lock_bindings(
+        fixture.lock_path,
+        expected_lock_sha256=expected_lock_sha256,
+        expected_tsv_sha256=fixture.tsv_sha256,
+    )
+
+    assert result == fixture.worker.module.LegacyControlLockValidation(
+        manifest_sha256=_raw_sha256(fixture.root / "manifest.json"),
+        lock_sha256=expected_lock_sha256,
+        feasibility_manifest_sha256=lock["feasibility_manifest_sha256"],
+        source_sha256=fixture.worker_result.source_sha256,
+        query_file_sha256=fixture.worker_result.query_file_sha256,
+        qrel_file_sha256=fixture.worker_result.qrel_file_sha256,
+        query_input_sha256=fixture.worker_result.query_input_sha256,
+        candidate_inventory_sha256=fixture.worker_result.candidate_inventory_sha256,
+        embedding_sha256=fixture.worker_result.embedding_sha256,
+        similarity_sha256=fixture.worker_result.similarity_sha256,
+        tsv_sha256=fixture.tsv_sha256,
+        trec_sha256=_raw_sha256(fixture.root / TREC_FILENAME),
+        run_id=RUN_ID,
+        neighbor_count=50,
+        query_count=322,
+        candidate_count=150,
+        row_count=48_300,
+        mean_ndcg_at_10=EXPECTED_NDCG,
+        mean_reciprocal_rank=EXPECTED_MRR,
+    )
+    assert isinstance(result.source_sha256, Mapping)
+    assert type(result.source_sha256) is not dict
+    for field in (
+        "manifest_sha256",
+        "lock_sha256",
+        "feasibility_manifest_sha256",
+        "query_file_sha256",
+        "qrel_file_sha256",
+        "query_input_sha256",
+        "candidate_inventory_sha256",
+        "embedding_sha256",
+        "similarity_sha256",
+        "tsv_sha256",
+        "trec_sha256",
+        "run_id",
+    ):
+        assert type(getattr(result, field)) is str
+    for field in ("neighbor_count", "query_count", "candidate_count", "row_count"):
+        assert type(getattr(result, field)) is int
+    for field in ("mean_ndcg_at_10", "mean_reciprocal_rank"):
+        assert type(getattr(result, field)) is float
+    with pytest.raises(FrozenInstanceError):
+        result.lock_sha256 = "0" * 64
+    with pytest.raises(TypeError):
+        result.source_sha256["trec_mlm/metrics.py"] = "0" * 64
+
+
+def test_validate_legacy_control_lock_bindings_does_not_reopen_tsv_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    expected_lock_sha256 = _raw_sha256(fixture.lock_path)
+    real_path_open = Path.open
+
+    def reject_tsv_reopen(path: Path, *args: object, **kwargs: object) -> object:
+        if path == fixture.root / TSV_FILENAME:
+            pytest.fail("rich lock validation reopened the bounded TSV path")
+        return real_path_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", reject_tsv_reopen)
+
+    result = fixture.worker.module.validate_legacy_control_lock_bindings(
+        fixture.lock_path,
+        expected_lock_sha256=expected_lock_sha256,
+        expected_tsv_sha256=fixture.tsv_sha256,
+    )
+
+    assert result.tsv_sha256 == fixture.tsv_sha256
+
+
+def test_validate_legacy_control_lock_bindings_rejects_wrong_lock_hash_with_valid_tsv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    wrong_lock_sha256 = (
+        "0" if _raw_sha256(fixture.lock_path)[0] != "0" else "1"
+    ) + _raw_sha256(fixture.lock_path)[1:]
+
+    with pytest.raises(ValueError, match="expected lock hash"):
+        fixture.worker.module.validate_legacy_control_lock_bindings(
+            fixture.lock_path,
+            expected_lock_sha256=wrong_lock_sha256,
+            expected_tsv_sha256=fixture.tsv_sha256,
+        )
+
+
+def test_bounded_reader_rejects_same_size_same_mtime_inode_swap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = importlib.import_module("trec_mlm.legacy_dense_control")
+    target = tmp_path / "target.bin"
+    replacement = tmp_path / "replacement.bin"
+    target.write_bytes(b"original")
+    replacement.write_bytes(b"replaced")
+    original_status = target.lstat()
+    os.utime(
+        replacement,
+        ns=(original_status.st_atime_ns, original_status.st_mtime_ns),
+    )
+    real_lstat = Path.lstat
+    swapped = False
+
+    def swap_after_first_lstat(path: Path) -> os.stat_result:
+        nonlocal swapped
+        status = real_lstat(path)
+        if path == target and not swapped:
+            swapped = True
+            os.replace(replacement, target)
+        return status
+
+    monkeypatch.setattr(Path, "lstat", swap_after_first_lstat)
+
+    with pytest.raises(ValueError, match="changed while it was read"):
+        module._read_bounded_regular_file(
+            target,
+            byte_limit=32,
+            label="synthetic bounded input",
+        )
+
+
+def test_bounded_reader_opens_nofollow_nonblocking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = importlib.import_module("trec_mlm.legacy_dense_control")
+    target = tmp_path / "target.bin"
+    target.write_bytes(b"bounded")
+    real_open = module.os.open
+    observed_flags: list[int] = []
+
+    def recording_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        observed_flags.append(flags)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(module.os, "open", recording_open)
+
+    assert (
+        module._read_bounded_regular_file(
+            target,
+            byte_limit=32,
+            label="synthetic bounded input",
+        )
+        == b"bounded"
+    )
+    assert len(observed_flags) == 1
+    assert observed_flags[0] & os.O_NONBLOCK
+    assert observed_flags[0] & os.O_NOFOLLOW
+
+
+def test_validate_lock_bindings_never_uses_unbounded_hash_for_root_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    real_raw_sha256 = fixture.worker.module._raw_file_sha256
+
+    def guarded_raw_sha256(path: str | Path) -> str:
+        candidate = Path(path)
+        if candidate.parent == fixture.root:
+            pytest.fail("legacy root member entered the unbounded raw hash loop")
+        return real_raw_sha256(candidate)
+
+    monkeypatch.setattr(
+        fixture.worker.module,
+        "_raw_file_sha256",
+        guarded_raw_sha256,
+    )
+
+    result = fixture.worker.module.validate_legacy_control_lock_bindings(
+        fixture.lock_path,
+        expected_lock_sha256=_raw_sha256(fixture.lock_path),
+        expected_tsv_sha256=fixture.tsv_sha256,
+    )
+
+    assert result.row_count == 48_300
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ("repeat_a.json", TSV_FILENAME, TREC_FILENAME),
+)
+def test_validate_lock_bindings_rejects_post_parse_root_member_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    expected_lock_sha256 = _raw_sha256(fixture.lock_path)
+    real_trec_bytes = fixture.worker.module._trec_bytes_from_rankings
+
+    def drift_after_parsing(rankings: dict[str, list[str]]) -> bytes:
+        payload = real_trec_bytes(rankings)
+        with (fixture.root / filename).open("ab") as handle:
+            handle.write(b"drift")
+        return payload
+
+    monkeypatch.setattr(
+        fixture.worker.module,
+        "_trec_bytes_from_rankings",
+        drift_after_parsing,
+    )
+
+    with pytest.raises(ValueError, match="manifest inventory does not match"):
+        fixture.worker.module.validate_legacy_control_lock_bindings(
+            fixture.lock_path,
+            expected_lock_sha256=expected_lock_sha256,
+            expected_tsv_sha256=fixture.tsv_sha256,
+        )
+
+
+@pytest.mark.parametrize(
+    ("filename", "message"),
+    (
+        ("manifest.json", "manifest changed during validation"),
+        (LOCK_FILENAME, "lock changed during validation"),
+    ),
+)
+def test_validate_lock_bindings_rejects_drift_after_final_root_reload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    message: str,
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    expected_lock_sha256 = _raw_sha256(fixture.lock_path)
+    real_validate_manifest = fixture.worker.module._validate_local_manifest
+    calls = 0
+
+    def drift_after_final_reload(root: Path) -> dict[str, object]:
+        nonlocal calls
+        result = real_validate_manifest(root)
+        calls += 1
+        if calls == 2:
+            with (fixture.root / filename).open("ab") as handle:
+                handle.write(b"drift")
+        return result
+
+    monkeypatch.setattr(
+        fixture.worker.module,
+        "_validate_local_manifest",
+        drift_after_final_reload,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        fixture.worker.module.validate_legacy_control_lock_bindings(
+            fixture.lock_path,
+            expected_lock_sha256=expected_lock_sha256,
+            expected_tsv_sha256=fixture.tsv_sha256,
+        )
 
 
 def test_validate_lock_requires_exact_filename_expected_hash_and_layout(
@@ -1815,15 +2148,18 @@ def test_legacy_imports_are_an_explicit_allowlist() -> None:
     allowed = {
         MODULE_PATH: {
             "__future__",
+            "collections.abc",
             "csv",
             "dataclasses",
             "hashlib",
+            "io",
             "json",
             "math",
             "os",
             "pathlib",
             "stat",
             "struct",
+            "types",
             "typing",
             "numpy",
             "numpy.typing",

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import csv
 from dataclasses import dataclass
 import hashlib
+import io
 import json
 import math
 import os
 from pathlib import Path
 import stat
 import struct
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -141,6 +144,31 @@ class LegacyControlValidation:
 
 
 @dataclass(frozen=True, slots=True)
+class LegacyControlLockValidation:
+    """Complete validated downstream bindings for one legacy-control lock."""
+
+    manifest_sha256: str
+    lock_sha256: str
+    feasibility_manifest_sha256: str
+    source_sha256: Mapping[str, str]
+    query_file_sha256: str
+    qrel_file_sha256: str
+    query_input_sha256: str
+    candidate_inventory_sha256: str
+    embedding_sha256: str
+    similarity_sha256: str
+    tsv_sha256: str
+    trec_sha256: str
+    run_id: str
+    neighbor_count: int
+    query_count: int
+    candidate_count: int
+    row_count: int
+    mean_ndcg_at_10: float
+    mean_reciprocal_rank: float
+
+
+@dataclass(frozen=True, slots=True)
 class _LegacyControlWorkerResult:
     validation: LegacyControlValidation
     source_sha256: dict[str, str]
@@ -228,19 +256,63 @@ def _read_bounded_regular_file(path: Path, *, byte_limit: int, label: str) -> by
         raise ValueError(f"{label} is not a regular file")
     if before.st_size > byte_limit:
         raise ValueError(f"{label} exceeds its byte limit")
-    with path.open("rb") as handle:
-        payload = handle.read(before.st_size + 1)
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError(f"{label} changed while it was read") from error
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+            or opened.st_size != before.st_size
+            or opened.st_mtime_ns != before.st_mtime_ns
+            or opened.st_ctime_ns != before.st_ctime_ns
+        ):
+            raise ValueError(f"{label} changed while it was read")
+        chunks: list[bytes] = []
+        remaining = before.st_size + 1
+        while remaining:
+            block = os.read(descriptor, min(1024 * 1024, remaining))
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+        payload = b"".join(chunks)
+        opened_after = os.fstat(descriptor)
+    except OSError as error:
+        raise ValueError(f"{label} changed while it was read") from error
+    finally:
+        os.close(descriptor)
     try:
         after = path.lstat()
     except OSError as error:
         raise ValueError(f"{label} changed while it was read") from error
     if (
         len(payload) != before.st_size
+        or not stat.S_ISREG(after.st_mode)
+        or (opened_after.st_dev, opened_after.st_ino) != (before.st_dev, before.st_ino)
+        or (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+        or opened_after.st_size != before.st_size
         or after.st_size != before.st_size
+        or opened_after.st_mtime_ns != before.st_mtime_ns
         or after.st_mtime_ns != before.st_mtime_ns
+        or opened_after.st_ctime_ns != before.st_ctime_ns
+        or after.st_ctime_ns != before.st_ctime_ns
     ):
         raise ValueError(f"{label} changed while it was read")
     return payload
+
+
+def _bounded_regular_file_sha256(path: Path, *, byte_limit: int, label: str) -> str:
+    payload = _read_bounded_regular_file(
+        path,
+        byte_limit=byte_limit,
+        label=label,
+    )
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _read_canonical_json(path: Path, *, byte_limit: int, label: str) -> object:
@@ -422,7 +494,7 @@ def _validate_lock_contract(value: object) -> dict[str, object]:
 
 
 def _parse_legacy_tsv(
-    path: Path,
+    source: Path | bytes,
 ) -> tuple[dict[str, list[str]], tuple[str, ...], int]:
     expected_header = (
         b"query_id\tcandidate_id\traw_score_hex\tfold_prior_hex\tfinal_rank\n"
@@ -459,7 +531,8 @@ def _parse_legacy_tsv(
         ]
         current_rows = []
 
-    with path.open("rb") as handle:
+    handle = io.BytesIO(source) if type(source) is bytes else source.open("rb")
+    with handle:
         if handle.readline(1025) != expected_header:
             raise ValueError("legacy TSV header is not canonical")
         for line_number in range(2, _ROW_COUNT + 2):
@@ -793,14 +866,19 @@ def export_fixed_mpnet_k50_control(
     ).validation
 
 
-def validate_legacy_control_lock(
-    lock_path: str | Path, expected_tsv_sha256: str
-) -> LegacyControlValidation:
-    """Validate one complete manifested legacy-control root."""
+def validate_legacy_control_lock_bindings(
+    lock_path: str | Path,
+    *,
+    expected_lock_sha256: str,
+    expected_tsv_sha256: str,
+) -> LegacyControlLockValidation:
+    """Validate and expose every downstream binding in one legacy-control root."""
 
     source_lock = Path(lock_path)
     if source_lock.name != _LOCK_FILENAME:
         raise ValueError("legacy control lock filename is invalid")
+    if not _is_sha256(expected_lock_sha256):
+        raise ValueError("expected lock hash is invalid")
     if not _is_sha256(expected_tsv_sha256):
         raise ValueError("expected TSV hash is invalid")
     try:
@@ -811,6 +889,19 @@ def validate_legacy_control_lock(
     if resolved_lock != root / _LOCK_FILENAME:
         raise ValueError("legacy control lock filename is invalid")
     _validate_local_manifest(root)
+    manifest_path = root / "manifest.json"
+    observed_manifest_sha256 = _bounded_regular_file_sha256(
+        manifest_path,
+        byte_limit=1024 * 1024,
+        label="legacy manifest",
+    )
+    observed_lock_sha256 = _bounded_regular_file_sha256(
+        resolved_lock,
+        byte_limit=256 * 1024,
+        label="legacy control lock",
+    )
+    if expected_lock_sha256 != observed_lock_sha256:
+        raise ValueError("expected lock hash differs from observed bytes")
 
     lock = _validate_lock_contract(
         _read_canonical_json(
@@ -837,9 +928,17 @@ def validate_legacy_control_lock(
         key: value for key, value in repeat_b.items() if key != "repeat"
     }:
         raise ValueError("legacy repeat receipts disagree")
-    if lock["repeat_a_receipt_sha256"] != _raw_file_sha256(repeat_a_path):
+    if lock["repeat_a_receipt_sha256"] != _bounded_regular_file_sha256(
+        repeat_a_path,
+        byte_limit=256 * 1024,
+        label="legacy repeat A receipt",
+    ):
         raise ValueError("legacy repeat A receipt hash mismatch")
-    if lock["repeat_b_receipt_sha256"] != _raw_file_sha256(repeat_b_path):
+    if lock["repeat_b_receipt_sha256"] != _bounded_regular_file_sha256(
+        repeat_b_path,
+        byte_limit=256 * 1024,
+        label="legacy repeat B receipt",
+    ):
         raise ValueError("legacy repeat B receipt hash mismatch")
 
     bindings = (
@@ -864,12 +963,17 @@ def validate_legacy_control_lock(
             raise ValueError(f"legacy control {label} cross-binding mismatch")
 
     tsv_path = root / _TSV_FILENAME
-    observed_tsv_sha256 = _raw_file_sha256(tsv_path)
+    tsv_bytes = _read_bounded_regular_file(
+        tsv_path,
+        byte_limit=32 * 1024 * 1024,
+        label="legacy control TSV",
+    )
+    observed_tsv_sha256 = hashlib.sha256(tsv_bytes).hexdigest()
     if expected_tsv_sha256 != observed_tsv_sha256:
         raise ValueError("expected TSV hash differs from observed bytes")
     if lock["tsv_sha256"] != observed_tsv_sha256:
         raise ValueError("legacy control TSV hash mismatch")
-    rankings, candidate_ids, row_count = _parse_legacy_tsv(tsv_path)
+    rankings, candidate_ids, row_count = _parse_legacy_tsv(tsv_bytes)
     if _candidate_inventory_sha256(candidate_ids) != lock["candidate_inventory_sha256"]:
         raise ValueError("legacy control candidate inventory hash mismatch")
 
@@ -884,9 +988,72 @@ def validate_legacy_control_lock(
     if observed_trec != reconstructed:
         raise ValueError("legacy control TREC bytes are not canonical")
 
-    return LegacyControlValidation(
+    _validate_local_manifest(root)
+    if (
+        _bounded_regular_file_sha256(
+            manifest_path,
+            byte_limit=1024 * 1024,
+            label="legacy manifest",
+        )
+        != observed_manifest_sha256
+    ):
+        raise ValueError("legacy control manifest changed during validation")
+    if (
+        _bounded_regular_file_sha256(
+            resolved_lock,
+            byte_limit=256 * 1024,
+            label="legacy control lock",
+        )
+        != observed_lock_sha256
+    ):
+        raise ValueError("legacy control lock changed during validation")
+
+    return LegacyControlLockValidation(
+        manifest_sha256=observed_manifest_sha256,
+        lock_sha256=observed_lock_sha256,
+        feasibility_manifest_sha256=lock["feasibility_manifest_sha256"],
+        source_sha256=MappingProxyType(_validate_source_map(lock["source_sha256"])),
+        query_file_sha256=lock["query_file_sha256"],
+        qrel_file_sha256=lock["qrel_file_sha256"],
+        query_input_sha256=lock["query_input_sha256"],
+        candidate_inventory_sha256=lock["candidate_inventory_sha256"],
+        embedding_sha256=lock["embedding_sha256"],
+        similarity_sha256=lock["similarity_sha256"],
         tsv_sha256=observed_tsv_sha256,
+        trec_sha256=observed_trec_sha256,
+        run_id=lock["run_id"],
+        neighbor_count=lock["neighbor_count"],
+        query_count=lock["query_count"],
+        candidate_count=lock["candidate_count"],
         row_count=row_count,
         mean_ndcg_at_10=float(lock["mean_ndcg_at_10"]),
         mean_reciprocal_rank=float(lock["mean_reciprocal_rank"]),
+    )
+
+
+def validate_legacy_control_lock(
+    lock_path: str | Path, expected_tsv_sha256: str
+) -> LegacyControlValidation:
+    """Validate one complete manifested legacy-control root."""
+
+    source_lock = Path(lock_path)
+    if source_lock.name != _LOCK_FILENAME:
+        raise ValueError("legacy control lock filename is invalid")
+    if not _is_sha256(expected_tsv_sha256):
+        raise ValueError("expected TSV hash is invalid")
+    lock_bytes = _read_bounded_regular_file(
+        source_lock,
+        byte_limit=256 * 1024,
+        label="legacy control lock",
+    )
+    rich = validate_legacy_control_lock_bindings(
+        source_lock,
+        expected_lock_sha256=hashlib.sha256(lock_bytes).hexdigest(),
+        expected_tsv_sha256=expected_tsv_sha256,
+    )
+    return LegacyControlValidation(
+        tsv_sha256=rich.tsv_sha256,
+        row_count=rich.row_count,
+        mean_ndcg_at_10=rich.mean_ndcg_at_10,
+        mean_reciprocal_rank=rich.mean_reciprocal_rank,
     )

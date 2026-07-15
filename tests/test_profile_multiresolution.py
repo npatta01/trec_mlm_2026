@@ -12,8 +12,11 @@ import pytest
 from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
     MultiResolutionConfig,
+    assess_multiresolution_viability,
+    compare_multiresolution_artifacts,
     construct_multiresolution,
     load_multiresolution_artifact,
+    write_multiresolution_receipt,
     write_multiresolution_artifact,
 )
 
@@ -40,6 +43,9 @@ def test_config_rejects_protocol_drift_and_public_api_is_qrel_free() -> None:
         construct_multiresolution,
         write_multiresolution_artifact,
         load_multiresolution_artifact,
+        assess_multiresolution_viability,
+        compare_multiresolution_artifacts,
+        write_multiresolution_receipt,
     ):
         assert "qrel" not in str(inspect.signature(function)).lower()
 
@@ -297,3 +303,186 @@ def test_loader_rejects_extra_schema_keys(
         _refresh_manifest(destination, target_name)
     with pytest.raises(ValueError, match="schema"):
         load_multiresolution_artifact(destination)
+
+
+def _diagnostic_fixture(tmp_path: Path):
+    result = _fixture_result(tmp_path)
+    profiles = {
+        resolution: {
+            candidate: {
+                **profile,
+                "requested_clusters": 2,
+                "actual_clusters": 2,
+                "centroids": [[1.0, 0.0], [0.0, 1.0]],
+                "clusters": [
+                    {**profile["clusters"][0], "support_count": 3},
+                    {**profile["clusters"][1], "support_count": 1},
+                ],
+            }
+            for candidate, profile in payload.items()
+        }
+        for resolution, payload in result.profiles.items()
+    }
+    rankings = {
+        system: {
+            "q1": ["A", "B"],
+            "q2": ["B", "A"],
+        }
+        for system in EXPECTED_SYSTEMS
+    }
+    return replace(result, profiles=profiles, rankings=rankings)
+
+
+def test_viability_reports_exact_cluster_formulas_and_threshold_names(
+    tmp_path: Path,
+) -> None:
+    receipt = assess_multiresolution_viability(_diagnostic_fixture(tmp_path))
+    thresholds = receipt["thresholds"]
+    expected = {
+        "candidate_occupied_cluster_retention",
+        "largest_cluster_share",
+        "median_normalized_occupancy_entropy",
+        "minimum_normalized_occupancy_entropy",
+        "singleton_cluster_share",
+        "exact_duplicate_centroids",
+        "within_candidate_near_duplicate_centroid_share",
+        "median_centroid_separation",
+        "unique_top10_rankings",
+        "maximum_top1_candidate_share",
+        "top10_candidate_coverage",
+        "maximum_candidate_top10_query_share",
+        "incremental_top10_difference_query_share",
+        "incremental_mean_top10_jaccard",
+        "incremental_unique_top10_retention",
+        "incremental_candidate_coverage_retention",
+    }
+    assert set(thresholds) == expected
+    cluster = receipt["cluster_diagnostics"]["k5"]
+    assert cluster["largest_cluster_share"] == pytest.approx(0.75)
+    assert cluster["median_normalized_occupancy_entropy"] == pytest.approx(
+        -(0.75 * np.log(0.75) + 0.25 * np.log(0.25)) / np.log(2)
+    )
+    assert cluster["singleton_cluster_share"] == pytest.approx(0.5)
+    assert cluster["exact_duplicate_centroids"] == 0
+    assert cluster["within_candidate_near_duplicate_centroid_share"] == 0.0
+    assert cluster["median_centroid_separation"] == pytest.approx(1.0)
+
+
+def test_viability_reports_query_collapse_dominance_and_incremental_difference(
+    tmp_path: Path,
+) -> None:
+    result = _diagnostic_fixture(tmp_path)
+    changed = {
+        **result.rankings,
+        "a1_top2_k10": {"q1": ["B", "A"], "q2": ["B", "A"]},
+    }
+    receipt = assess_multiresolution_viability(replace(result, rankings=changed))
+    c0 = receipt["ranking_diagnostics"]["c0_max_k10"]
+    a1 = receipt["ranking_diagnostics"]["a1_top2_k10"]
+    assert c0["unique_top10_rankings"] == 2
+    assert c0["maximum_top1_candidate_share"] == pytest.approx(0.5)
+    assert c0["top10_candidate_coverage"] == 2
+    assert c0["maximum_candidate_top10_query_share"] == pytest.approx(1.0)
+    assert a1["top10_difference_query_share"] == pytest.approx(0.5)
+    assert a1["mean_top10_jaccard"] == pytest.approx(1.0)
+    assert a1["unique_top10_retention"] == pytest.approx(0.5)
+    assert a1["candidate_coverage_retention"] == pytest.approx(1.0)
+
+
+def test_viability_classifies_integrity_before_incremental_value(
+    tmp_path: Path,
+) -> None:
+    result = _diagnostic_fixture(tmp_path)
+    invalid = replace(
+        result,
+        system_scores={
+            **result.system_scores,
+            "c0_max_k10": np.full((2, 2), np.nan, dtype=np.float32),
+        },
+    )
+    invalid_receipt = assess_multiresolution_viability(invalid)
+    assert invalid_receipt["decision"] == "reject-invalid"
+    assert "finite_scores" in invalid_receipt["failed_thresholds"]
+
+    no_increment = assess_multiresolution_viability(result)
+    assert no_increment["decision"] == "stop-no-incremental-value"
+    assert not no_increment["failed_integrity_thresholds"]
+    assert no_increment["failed_incremental_thresholds"]
+
+
+def test_repeat_comparison_requires_independence_and_exact_scientific_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_result = _fixture_result(tmp_path / "first")
+    second_result = replace(
+        first_result,
+        config=replace(first_result.config, output_root=str(tmp_path / "second")),
+    )
+    _bind_expected(monkeypatch, first_result)
+    first = tmp_path / "first-artifact"
+    second = tmp_path / "second-artifact"
+    write_multiresolution_artifact(first_result, first)
+    write_multiresolution_artifact(second_result, second)
+    receipt = compare_multiresolution_artifacts(first, second)
+    assert receipt["status"] == "passed"
+    assert receipt["first_aggregate_sha256"] != receipt["second_aggregate_sha256"]
+    assert receipt["source_arrays_reused"] is True
+    assert receipt["canonical_scientific_files_identical"] is True
+    assert receipt["maximum_absolute_score_difference"] == 0.0
+    json.dumps(receipt, allow_nan=False)
+
+    with pytest.raises(ValueError, match="independent"):
+        compare_multiresolution_artifacts(first, first)
+
+
+def test_repeat_comparison_reports_deliberately_changed_scores(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _fixture_result(tmp_path)
+    _bind_expected(monkeypatch, result)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    write_multiresolution_artifact(result, first)
+    write_multiresolution_artifact(
+        replace(result, config=replace(result.config, output_root="different")), second
+    )
+    score_path = second / "scores" / "a1_top2_k10.npy"
+    scores = np.load(score_path, allow_pickle=False)
+    scores[0, 0] += np.float32(0.01)
+    np.save(score_path, scores)
+    _refresh_manifest(second, "scores/a1_top2_k10.npy")
+    receipt = compare_multiresolution_artifacts(first, second)
+    assert receipt["status"] == "failed"
+    assert receipt["maximum_absolute_score_difference"] == pytest.approx(0.01)
+    assert receipt["canonical_scientific_files_identical"] is True
+
+
+def test_receipt_serialization_is_atomic_finite_and_refuses_overwrite(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "reports" / "receipt.json"
+    payload = {"status": "passed", "maximum": 0.0}
+    write_multiresolution_receipt(payload, destination)
+    assert json.loads(destination.read_text()) == payload
+    with pytest.raises(FileExistsError):
+        write_multiresolution_receipt(payload, destination)
+    with pytest.raises(ValueError, match="finite"):
+        write_multiresolution_receipt({"maximum": float("nan")}, tmp_path / "bad.json")
+
+
+def test_cli_accepts_only_qrel_free_viability_and_repeat_receipts() -> None:
+    from scripts.run_multiresolution_profiles import _parser
+
+    args = _parser().parse_args(
+        [
+            "--config", "config.json",
+            "--viability-receipt", "viability.json",
+            "--repeat-artifact", "repeat",
+            "--repeatability-receipt", "repeatability.json",
+        ]
+    )
+    assert args.viability_receipt == "viability.json"
+    assert args.repeat_artifact == "repeat"
+    assert args.repeatability_receipt == "repeatability.json"
+    with pytest.raises(SystemExit):
+        _parser().parse_args(["--qrels", "forbidden"])

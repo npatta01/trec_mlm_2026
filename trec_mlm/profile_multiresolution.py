@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import statistics
 import tempfile
 from typing import Any
 
@@ -51,6 +52,30 @@ EXPECTED_SYSTEMS = (
     "x1_multires_top2",
     "x1_multires_top2_dense_equal",
 )
+NEW_PROFILE_SYSTEMS = (
+    "a1_top2_k10",
+    "r1_multires_max",
+    "x1_multires_top2",
+)
+
+VIABILITY_THRESHOLDS: dict[str, tuple[str, float | int]] = {
+    "candidate_occupied_cluster_retention": (">=", 0.95),
+    "largest_cluster_share": ("<=", 0.80),
+    "median_normalized_occupancy_entropy": (">=", 0.65),
+    "minimum_normalized_occupancy_entropy": (">=", 0.35),
+    "singleton_cluster_share": ("<=", 0.25),
+    "exact_duplicate_centroids": ("==", 0),
+    "within_candidate_near_duplicate_centroid_share": ("<=", 0.01),
+    "median_centroid_separation": (">=", 0.005),
+    "unique_top10_rankings": (">=", 258),
+    "maximum_top1_candidate_share": ("<=", 0.10),
+    "top10_candidate_coverage": (">=", 90),
+    "maximum_candidate_top10_query_share": ("<=", 0.50),
+    "incremental_top10_difference_query_share": (">=", 0.10),
+    "incremental_mean_top10_jaccard": ("<", 0.95),
+    "incremental_unique_top10_retention": (">=", 0.90),
+    "incremental_candidate_coverage_retention": (">=", 0.90),
+}
 
 
 def _expected_artifact_files() -> set[str]:
@@ -795,13 +820,470 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
     )
 
 
+def _passes(value: float | int, operator: str, threshold: float | int) -> bool:
+    if operator == ">=":
+        return value >= threshold
+    if operator == "<=":
+        return value <= threshold
+    if operator == "<":
+        return value < threshold
+    if operator == "==":
+        return value == threshold
+    raise AssertionError(f"unsupported threshold operator: {operator}")
+
+
+def _threshold_receipt(
+    name: str, values: Mapping[str, float | int]
+) -> dict[str, Any]:
+    operator, threshold = VIABILITY_THRESHOLDS[name]
+    return {
+        "operator": operator,
+        "threshold": threshold,
+        "values": dict(values),
+        "passed": all(_passes(value, operator, threshold) for value in values.values()),
+    }
+
+
+def _normalized_occupancy_entropy(support: Sequence[int]) -> float:
+    if len(support) <= 1:
+        return 1.0
+    probabilities = np.asarray(support, dtype=np.float64)
+    probabilities /= float(probabilities.sum())
+    return float(-np.sum(probabilities * np.log(probabilities)) / np.log(len(support)))
+
+
+def _cluster_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any]:
+    retained: list[bool] = []
+    largest_shares: list[float] = []
+    entropies: list[float] = []
+    singleton_count = 0
+    cluster_count = 0
+    exact_duplicates = 0
+    near_duplicates = 0
+    pair_count = 0
+    separations: list[float] = []
+    for item in payload.values():
+        if item.get("available") is False:
+            continue
+        requested = int(item["requested_clusters"])
+        actual = int(item["actual_clusters"])
+        retained.append(actual >= 0.8 * requested)
+        support = [int(cluster["support_count"]) for cluster in item["clusters"]]
+        largest_shares.append(max(support) / sum(support))
+        entropies.append(_normalized_occupancy_entropy(support))
+        singleton_count += sum(value == 1 for value in support)
+        cluster_count += len(support)
+        centroids = np.asarray(item["centroids"], dtype=np.float64)
+        for left in range(len(centroids)):
+            for right in range(left + 1, len(centroids)):
+                cosine = float(centroids[left] @ centroids[right])
+                pair_count += 1
+                exact_duplicates += int(np.array_equal(centroids[left], centroids[right]))
+                near_duplicates += int(cosine >= 0.9999)
+                separations.append(1.0 - cosine)
+    return {
+        "candidate_count": len(retained),
+        "candidate_occupied_cluster_retention": (
+            sum(retained) / len(retained) if retained else 0.0
+        ),
+        "largest_cluster_share": max(largest_shares, default=1.0),
+        "median_normalized_occupancy_entropy": (
+            statistics.median(entropies) if entropies else 0.0
+        ),
+        "minimum_normalized_occupancy_entropy": min(entropies, default=0.0),
+        "singleton_cluster_share": singleton_count / cluster_count if cluster_count else 1.0,
+        "exact_duplicate_centroids": exact_duplicates,
+        "within_candidate_near_duplicate_centroid_share": (
+            near_duplicates / pair_count if pair_count else 0.0
+        ),
+        "median_centroid_separation": (
+            statistics.median(separations) if separations else 1.0
+        ),
+    }
+
+
+def _top10_rows(ranking: Mapping[str, Sequence[str]]) -> dict[str, tuple[str, ...]]:
+    return {query_id: tuple(values[:10]) for query_id, values in ranking.items()}
+
+
+def _rank_scores(
+    result: MultiResolutionResult, scores: NDArray[np.float32]
+) -> dict[str, list[str]]:
+    return {
+        query_id: [
+            result.candidate_ids[index]
+            for index in sorted(
+                range(len(result.candidate_ids)),
+                key=lambda index: (-float(scores[row, index]), result.candidate_ids[index]),
+            )
+        ]
+        for row, query_id in enumerate(result.query_ids)
+    }
+
+
+def _ranking_diagnostics(
+    ranking: Mapping[str, Sequence[str]],
+    baseline: Mapping[str, Sequence[str]] | None = None,
+) -> dict[str, Any]:
+    rows = _top10_rows(ranking)
+    top1_counts: dict[str, int] = {}
+    top10_counts: dict[str, int] = {}
+    for row in rows.values():
+        if row:
+            top1_counts[row[0]] = top1_counts.get(row[0], 0) + 1
+        for candidate_id in row:
+            top10_counts[candidate_id] = top10_counts.get(candidate_id, 0) + 1
+    query_count = len(rows)
+    result: dict[str, Any] = {
+        "unique_top10_rankings": len(set(rows.values())),
+        "maximum_top1_candidate_share": (
+            max(top1_counts.values(), default=0) / query_count if query_count else 1.0
+        ),
+        "top10_candidate_coverage": len(top10_counts),
+        "maximum_candidate_top10_query_share": (
+            max(top10_counts.values(), default=0) / query_count if query_count else 1.0
+        ),
+    }
+    if baseline is None:
+        return result
+    baseline_rows = _top10_rows(baseline)
+    if set(rows) != set(baseline_rows):
+        raise ValueError("ranking query inventory differs from C0")
+    jaccards: list[float] = []
+    differences = 0
+    for query_id, row in rows.items():
+        observed = set(row)
+        control = set(baseline_rows[query_id])
+        union = observed | control
+        jaccard = len(observed & control) / len(union) if union else 1.0
+        jaccards.append(jaccard)
+        differences += int(row != baseline_rows[query_id])
+    baseline_unique = len(set(baseline_rows.values()))
+    baseline_coverage = len({value for row in baseline_rows.values() for value in row})
+    result.update(
+        {
+            "top10_difference_query_share": differences / query_count if query_count else 0.0,
+            "mean_top10_jaccard": statistics.fmean(jaccards) if jaccards else 1.0,
+            "unique_top10_retention": (
+                result["unique_top10_rankings"] / baseline_unique
+                if baseline_unique
+                else 1.0
+            ),
+            "candidate_coverage_retention": (
+                result["top10_candidate_coverage"] / baseline_coverage
+                if baseline_coverage
+                else 1.0
+            ),
+        }
+    )
+    return result
+
+
+def _tree_bytes(path: Path) -> int | None:
+    if not path.is_dir():
+        return None
+    return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
+def assess_multiresolution_viability(
+    artifact: MultiResolutionResult | str | Path,
+) -> dict[str, Any]:
+    """Apply every locked issue-18 qrel-free viability threshold."""
+
+    root = None if isinstance(artifact, MultiResolutionResult) else Path(artifact)
+    result = artifact if isinstance(artifact, MultiResolutionResult) else load_multiresolution_artifact(root)
+    cluster_diagnostics = {
+        f"k{resolution}": _cluster_diagnostics(result.profiles[str(resolution)])
+        for resolution in LOCKED_RESOLUTIONS
+    }
+    component_rankings = {
+        key: _rank_scores(result, scores)
+        for key, scores in result.component_scores.items()
+    }
+    diagnostic_rankings = {
+        **component_rankings,
+        **{
+            system: result.rankings[system]
+            for system in (
+                "c0_max_k10", "a1_top2_k10", "r1_multires_max", "x1_multires_top2"
+            )
+        },
+    }
+    ranking_diagnostics = {
+        system: _ranking_diagnostics(
+            ranking,
+            result.rankings["c0_max_k10"] if system in NEW_PROFILE_SYSTEMS else None,
+        )
+        for system, ranking in diagnostic_rankings.items()
+    }
+    thresholds: dict[str, dict[str, Any]] = {}
+    cluster_names = tuple(list(VIABILITY_THRESHOLDS)[:8])
+    for name in cluster_names:
+        thresholds[name] = _threshold_receipt(
+            name,
+            {key: diagnostics[name] for key, diagnostics in cluster_diagnostics.items()},
+        )
+    ranking_names = tuple(list(VIABILITY_THRESHOLDS)[8:12])
+    for name in ranking_names:
+        thresholds[name] = _threshold_receipt(
+            name,
+            {
+                system: diagnostics[name]
+                for system, diagnostics in ranking_diagnostics.items()
+            },
+        )
+    incremental_fields = {
+        "incremental_top10_difference_query_share": "top10_difference_query_share",
+        "incremental_mean_top10_jaccard": "mean_top10_jaccard",
+        "incremental_unique_top10_retention": "unique_top10_retention",
+        "incremental_candidate_coverage_retention": "candidate_coverage_retention",
+    }
+    for name, field in incremental_fields.items():
+        thresholds[name] = _threshold_receipt(
+            name,
+            {system: ranking_diagnostics[system][field] for system in NEW_PROFILE_SYSTEMS},
+        )
+    integrity_checks = {
+        "source_binding": (
+            result.source_aggregate_sha256 == result.config.source_aggregate_sha256
+            == EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
+        ),
+        "query_identities": bool(result.query_ids)
+        and len(set(result.query_ids)) == len(result.query_ids),
+        "candidate_identities": bool(result.candidate_ids)
+        and len(set(result.candidate_ids)) == len(result.candidate_ids),
+        "complete_rankings": all(
+            set(ranking) == set(result.query_ids)
+            and all(
+                len(row) == len(result.candidate_ids)
+                and set(row) == set(result.candidate_ids)
+                for row in ranking.values()
+            )
+            for ranking in result.rankings.values()
+        ),
+        "finite_scores": all(np.isfinite(scores).all() for scores in result.system_scores.values())
+        and all(np.isfinite(scores).all() for scores in result.component_scores.values()),
+        "normalized_centroids": all(
+            item.get("available") is False
+            or (
+                np.isfinite(np.asarray(item["centroids"])).all()
+                and np.allclose(
+                    np.linalg.norm(np.asarray(item["centroids"]), axis=1),
+                    1.0,
+                    atol=1e-5,
+                    rtol=0.0,
+                )
+            )
+            for payload in result.profiles.values()
+            for item in payload.values()
+        ),
+    }
+    failed_integrity = [name for name, passed in integrity_checks.items() if not passed]
+    failed_viability = [name for name, item in thresholds.items() if not item["passed"]]
+    failed_incremental = [
+        name for name in incremental_fields if not thresholds[name]["passed"]
+    ]
+    if failed_integrity:
+        decision = "reject-invalid"
+    elif failed_viability:
+        decision = "stop-no-incremental-value"
+    else:
+        decision = "continue"
+    artifact_bytes = _tree_bytes(root) if root is not None else None
+    source_root = Path(result.config.construction_path)
+    source_bytes = _tree_bytes(source_root)
+    return {
+        "artifact_type": "issue18_multiresolution_viability_receipt",
+        "version": 1,
+        "qrel_free": True,
+        "decision": decision,
+        "thresholds": thresholds,
+        "integrity_checks": integrity_checks,
+        "failed_thresholds": [*failed_integrity, *failed_viability],
+        "failed_integrity_thresholds": failed_integrity,
+        "failed_incremental_thresholds": failed_incremental,
+        "cluster_diagnostics": cluster_diagnostics,
+        "ranking_diagnostics": ranking_diagnostics,
+        "cost_evidence": {
+            "issue12_construction_storage_bytes": source_bytes,
+            "multiresolution_artifact_storage_bytes": artifact_bytes,
+            "storage_ratio": (
+                artifact_bytes / source_bytes
+                if artifact_bytes is not None and source_bytes
+                else None
+            ),
+            "storage_at_most_four_times_issue12": (
+                artifact_bytes <= 4 * source_bytes
+                if artifact_bytes is not None and source_bytes
+                else None
+            ),
+            "issue12_construction_elapsed_seconds": _source_elapsed_seconds(source_root),
+            "multiresolution_construction_elapsed_seconds": None,
+            "wall_time_at_most_four_times_issue12": None,
+        },
+    }
+
+
+def _source_elapsed_seconds(source_root: Path) -> float | None:
+    metadata_path = source_root / "metadata.json"
+    if not metadata_path.is_file():
+        return None
+    payload = _read_json(metadata_path)
+    value = payload.get("construction_runtime", {}).get("elapsed_seconds")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _validated_manifest_root(path: str | Path) -> tuple[Path, dict[str, Any]]:
+    root = Path(path)
+    manifest = _read_json(root / "manifest.json")
+    entries = manifest.get("files")
+    if (
+        set(manifest) != {
+            "artifact_type", "version", "qrel_free", "files", "aggregate_sha256"
+        }
+        or manifest.get("artifact_type") != "issue18_multiresolution_profile_manifest"
+        or manifest.get("version") != ARTIFACT_VERSION
+        or manifest.get("qrel_free") is not True
+        or not isinstance(entries, dict)
+        or set(entries) != _expected_artifact_files()
+        or manifest.get("aggregate_sha256") != _aggregate_hash(entries)
+    ):
+        raise ValueError("repeat artifact manifest contract changed")
+    for name, entry in entries.items():
+        item = root / name
+        if (
+            not item.is_file()
+            or set(entry) != {"byte_size", "sha256"}
+            or item.stat().st_size != entry["byte_size"]
+            or _sha256(item) != entry["sha256"]
+        ):
+            raise ValueError(f"repeat artifact hash mismatch: {name}")
+    return root, manifest
+
+
+def compare_multiresolution_artifacts(
+    first: str | Path, second: str | Path
+) -> dict[str, Any]:
+    """Compare two independent qrel-free construction artifacts."""
+
+    first_root, first_manifest = _validated_manifest_root(first)
+    second_root, second_manifest = _validated_manifest_root(second)
+    first_aggregate = first_manifest["aggregate_sha256"]
+    second_aggregate = second_manifest["aggregate_sha256"]
+    if first_aggregate == second_aggregate:
+        raise ValueError("repeat artifacts are not independent aggregate hashes")
+    source_files = {
+        "source.json", "inputs.json", "records.json", "query_embeddings.npy",
+        "record_embeddings.npy", "rankings/dense_reference.json",
+    }
+    source_arrays_reused = all(
+        first_manifest["files"][name]["sha256"]
+        == second_manifest["files"][name]["sha256"]
+        for name in source_files
+    )
+    if not source_arrays_reused:
+        raise ValueError("repeat artifacts do not reuse the exact bound source")
+    excluded = {"config.json", "validation.json"}
+    scientific_files = {
+        name
+        for name in first_manifest["files"]
+        if name not in excluded
+        and not name.startswith("component_scores/")
+        and not name.startswith("scores/")
+    }
+    identical_files = {
+        name: first_manifest["files"][name]["sha256"]
+        == second_manifest["files"][name]["sha256"]
+        for name in sorted(scientific_files)
+    }
+    maximum = 0.0
+    for directory in ("component_scores", "scores"):
+        for first_score in (first_root / directory).glob("*.npy"):
+            second_score = second_root / directory / first_score.name
+            left = np.load(first_score, allow_pickle=False)
+            right = np.load(second_score, allow_pickle=False)
+            if left.shape != right.shape or not np.isfinite(left).all() or not np.isfinite(right).all():
+                raise ValueError("repeat score arrays are not finite with identical shapes")
+            maximum = max(
+                maximum,
+                float(np.max(np.abs(left.astype(np.float64) - right.astype(np.float64)))),
+            )
+    rankings_identical = all(
+        identical
+        for name, identical in identical_files.items()
+        if name.startswith("rankings/") or name.startswith("runs/")
+    )
+    canonical_identical = all(identical_files.values())
+    checks = {
+        "independent_aggregate_hashes": True,
+        "exact_bound_source_reused": source_arrays_reused,
+        "canonical_scientific_files_identical": canonical_identical,
+        "rankings_identical": rankings_identical,
+        "maximum_absolute_score_difference_at_most_1e-5": maximum <= 1e-5,
+    }
+    return {
+        "artifact_type": "issue18_multiresolution_repeatability_receipt",
+        "version": 1,
+        "qrel_free": True,
+        "status": "passed" if all(checks.values()) else "failed",
+        "first_aggregate_sha256": first_aggregate,
+        "second_aggregate_sha256": second_aggregate,
+        "source_arrays_reused": source_arrays_reused,
+        "canonical_scientific_files_identical": canonical_identical,
+        "rankings_identical": rankings_identical,
+        "maximum_absolute_score_difference": maximum,
+        "tolerance": 1e-5,
+        "integrity_checks": checks,
+        "canonical_file_comparison": identical_files,
+    }
+
+
+def write_multiresolution_receipt(
+    receipt: Mapping[str, Any], output: str | Path
+) -> Path:
+    """Serialize one finite qrel-free receipt atomically without overwriting."""
+
+    destination = Path(output)
+    if destination.exists():
+        raise FileExistsError(f"receipt already exists: {destination}")
+    try:
+        encoded = json.dumps(
+            receipt,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n"
+    except ValueError as error:
+        raise ValueError("receipt values must be finite JSON") from error
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", dir=destination.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(encoded)
+        if destination.exists():
+            raise FileExistsError(f"receipt already exists: {destination}")
+        os.replace(temporary, destination)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    return destination
+
+
 __all__ = [
     "EVALUATED_CONSTRUCTION_AGGREGATE_SHA256",
     "EVALUATED_CONSTRUCTION_PATH",
     "EXPECTED_SYSTEMS",
     "MultiResolutionConfig",
     "MultiResolutionResult",
+    "VIABILITY_THRESHOLDS",
+    "assess_multiresolution_viability",
+    "compare_multiresolution_artifacts",
     "construct_multiresolution",
     "load_multiresolution_artifact",
+    "write_multiresolution_receipt",
     "write_multiresolution_artifact",
 ]

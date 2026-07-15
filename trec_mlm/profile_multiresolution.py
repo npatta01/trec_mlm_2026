@@ -77,7 +77,9 @@ def _expected_artifact_files() -> set[str]:
 
 @dataclass(frozen=True, slots=True)
 class MultiResolutionConfig:
-    construction_path: str = "artifacts/candidate_semantic_profiles/run1_record_id_v2_final"
+    construction_path: str = (
+        "artifacts/candidate_semantic_profiles/run1_record_id_v2_auditfinal"
+    )
     output_root: str = "artifacts/multiresolution_profiles/issue18_pr17head"
     resolutions: tuple[int, ...] = LOCKED_RESOLUTIONS
     top_count: int = 2
@@ -85,7 +87,7 @@ class MultiResolutionConfig:
     rrf_k: int = 60
     source_commit: str = LOCKED_SOURCE_COMMIT
     source_aggregate_sha256: str = (
-        "9bd4a81b3d3c83dbd3903d6a285f152b297cfb81a22c5a8a0ef31d0b323f35c1"
+        "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
     )
 
 
@@ -579,7 +581,16 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
 
     root = Path(path)
     manifest = _read_json(root / "manifest.json")
+    expected_manifest_keys = {
+        "artifact_type",
+        "version",
+        "qrel_free",
+        "files",
+        "aggregate_sha256",
+    }
     if (
+        set(manifest) != expected_manifest_keys
+        or
         manifest.get("artifact_type") != "issue18_multiresolution_profile_manifest"
         or manifest.get("version") != ARTIFACT_VERSION
         or manifest.get("qrel_free") is not True
@@ -604,7 +615,15 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
         ):
             raise ValueError(f"artifact hash mismatch: {name}")
     config_payload = _read_json(root / "config.json")
+    expected_config_keys = {
+        "artifact_type",
+        "version",
+        "qrel_free",
+        *(field.name for field in fields(MultiResolutionConfig)),
+    }
     if (
+        set(config_payload) != expected_config_keys
+        or
         config_payload.get("artifact_type") != "issue18_multiresolution_profiles"
         or config_payload.get("version") != ARTIFACT_VERSION
         or config_payload.get("qrel_free") is not True
@@ -629,6 +648,8 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
             raise ValueError("bound issue-12 source aggregate changed")
     validation = _read_json(root / "validation.json")
     if (
+        set(validation) != {"status", "qrel_free", "systems", "integrity_checks"}
+        or
         validation.get("status") != "passed"
         or validation.get("qrel_free") is not True
         or tuple(validation.get("systems", ())) != EXPECTED_SYSTEMS
@@ -642,6 +663,8 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
     ):
         raise ValueError("validation receipt changed")
     inputs = _read_json(root / "inputs.json")
+    if set(inputs) != {"query_ids", "candidate_ids"}:
+        raise ValueError("artifact input schema changed")
     query_ids = tuple(inputs["query_ids"])
     candidate_ids = tuple(inputs["candidate_ids"])
     if not query_ids or not candidate_ids or len(set(query_ids)) != len(query_ids) or len(set(candidate_ids)) != len(candidate_ids):
@@ -663,6 +686,22 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
         str(resolution): _read_json(root / "profiles" / f"k{resolution}.json")
         for resolution in LOCKED_RESOLUTIONS
     }
+    expected = construct_multiresolution(config)
+    source_inputs_match = (
+        expected.source_aggregate_sha256 == config.source_aggregate_sha256
+        and expected.query_ids == query_ids
+        and expected.candidate_ids == candidate_ids
+        and expected.records == records
+        and np.array_equal(expected.query_embeddings, query_embeddings)
+        and np.array_equal(expected.record_embeddings, record_embeddings)
+        and expected.dense_rankings == _read_json(
+            root / "rankings" / "dense_reference.json"
+        )
+    )
+    if not source_inputs_match:
+        raise ValueError("embedded inputs differ from the bound issue-12 source")
+    if expected.profiles != profiles:
+        raise ValueError("canonical profile reconstruction differs from bound source")
     _validate_profile_semantics(
         profiles=profiles,
         candidate_ids=candidate_ids,
@@ -700,7 +739,18 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
         rrf_k=config.rrf_k,
     )
     for key in reconstructed_components:
-        if not np.array_equal(component_scores[key], reconstructed_components[key]) or not np.array_equal(contributors[key], reconstructed_contributors[key]):
+        if (
+            not np.array_equal(component_scores[key], expected.component_scores[key])
+            or not np.array_equal(
+                contributors[key], expected.contributing_centroid_ids[key]
+            )
+            or not np.array_equal(
+                component_scores[key], reconstructed_components[key]
+            )
+            or not np.array_equal(
+                contributors[key], reconstructed_contributors[key]
+            )
+        ):
             raise ValueError(f"component semantic reconstruction drift: {key}")
     rankings: dict[str, dict[str, list[str]]] = {}
     system_scores: dict[str, NDArray[np.float32]] = {}
@@ -715,6 +765,8 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
             or system_scores[system].shape != (len(query_ids), len(candidate_ids))
             or not np.array_equal(system_scores[system], reconstructed_system_scores[system])
             or rankings[system] != reconstructed_rankings[system]
+            or not np.array_equal(system_scores[system], expected.system_scores[system])
+            or rankings[system] != expected.rankings[system]
         ):
             raise ValueError(f"system semantic reconstruction drift: {system}")
     return MultiResolutionResult(

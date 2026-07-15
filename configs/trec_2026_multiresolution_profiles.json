@@ -1,5 +1,5 @@
 {
-  "construction_path": "artifacts/candidate_semantic_profiles/run1_record_id_v2_final",
+  "construction_path": "artifacts/candidate_semantic_profiles/run1_record_id_v2_auditfinal",
   "output_root": "artifacts/multiresolution_profiles/issue18_pr17head",
   "resolutions": [
     5,
@@ -10,5 +10,5 @@
   "seed": 2026,
   "rrf_k": 60,
   "source_commit": "2db10261bac607d7f8c67c0aa0c01728484a42f9",
-  "source_aggregate_sha256": "9bd4a81b3d3c83dbd3903d6a285f152b297cfb81a22c5a8a0ef31d0b323f35c1"
+  "source_aggregate_sha256": "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
 }

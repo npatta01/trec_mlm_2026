@@ -99,3 +99,21 @@ single non-overwriting output
 arbitrary alternate evaluation paths; deleting sealed evidence is outside the
 authorized workflow and must not be automated.
 
+## Legacy viability-evidence preservation
+
+Final advisor review found that deriving six component top-10 lists from
+frozen score arrays still constitutes ranking reconstruction. The original
+qrel-free pass-one receipt is therefore preserved byte-for-byte at
+`reports/trec_2026_issue18_pr17head_viability_legacy.json`, pinned to SHA-256
+`a457df196f7117e3d81dca9cde899cd392d4da4bd7d56653d062d4eaa67cf525`.
+
+The corrected receipt must require that exact legacy evidence and its frozen
+artifact aggregate, then reuse its six component-ranking diagnostics without
+sorting any component score array. Diagnostics for the eight persisted system
+rankings may inspect those stored rankings directly. The corrected receipt
+records the legacy path/hash and recomputes only non-ranking geometry,
+external-control comparisons over stored rankings, decision semantics, and
+provenance. Strict validation repeats the same legacy binding.
+
+The user authorized archiving the obsolete canonical receipt as a necessary
+local step of “fix bugs and evaluate”; it must never be deleted or rewritten.

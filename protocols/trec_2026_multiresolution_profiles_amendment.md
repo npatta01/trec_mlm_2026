@@ -153,3 +153,11 @@ authorized a bounded redesign before qrels were opened.
   evaluation output; reject alternate paths or hashes.
 - Correct the manifest-schema regression test and obtain another combined
   advisor review before receipt regeneration or qrel access.
+
+Final review additionally prohibited deriving component top tens from frozen
+score arrays. Preserve the original pass-one viability receipt byte-for-byte as
+`reports/trec_2026_issue18_pr17head_viability_legacy.json` with SHA-256
+`a457df196f7117e3d81dca9cde899cd392d4da4bd7d56653d062d4eaa67cf525` and use
+its six component-ranking diagnostics as locked qrel-free evidence. The
+corrected receipt must bind this legacy source and must not sort a component
+score array.

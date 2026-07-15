@@ -32,18 +32,6 @@ AUDIT_FINAL_AGGREGATE = "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d324
 ISSUE18_ROOT = Path("artifacts/multiresolution_profiles/issue18_pr17head")
 ISSUE18_AGGREGATE = "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9"
 
-
-@pytest.fixture(autouse=True)
-def _use_prearchive_legacy_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
-    from trec_mlm import profile_multiresolution as module
-
-    monkeypatch.setattr(
-        module,
-        "LEGACY_VIABILITY_RECEIPT_PATH",
-        Path("reports/trec_2026_issue18_pr17head_viability.json"),
-    )
-
-
 def _set_locked_manifest_mtime(root: Path) -> None:
     seconds = int(datetime.fromisoformat("2026-07-15T12:41:18-04:00").timestamp())
     nanoseconds = seconds * 1_000_000_000 + 692_102_441
@@ -121,11 +109,6 @@ def test_real_frozen_assessment_avoids_every_reconstruction_path(
     def forbidden(*_args, **_kwargs):
         raise AssertionError("frozen assessment invoked reconstruction")
 
-    monkeypatch.setattr(
-        module,
-        "LEGACY_VIABILITY_RECEIPT_PATH",
-        Path("reports/trec_2026_issue18_pr17head_viability.json"),
-    )
     monkeypatch.setattr(heapq, "nsmallest", forbidden)
     monkeypatch.setattr(module, "_top10_score_rows", forbidden, raising=False)
 
@@ -166,7 +149,7 @@ def test_legacy_viability_evidence_is_strict_and_tamper_evident(
 ) -> None:
     from trec_mlm import profile_multiresolution as module
 
-    original = Path("reports/trec_2026_issue18_pr17head_viability.json")
+    original = module.LEGACY_VIABILITY_RECEIPT_PATH
     legacy = tmp_path / "legacy.json"
     legacy.write_bytes(original.read_bytes())
     monkeypatch.setattr(module, "LEGACY_VIABILITY_RECEIPT_PATH", legacy)

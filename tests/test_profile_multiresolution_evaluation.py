@@ -402,14 +402,17 @@ def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
 
     artifact = Path("artifacts/multiresolution_profiles/issue18_pr17head")
     receipt = Path("reports/trec_2026_issue18_pr17head_viability.json")
+    legacy_receipt = Path(
+        "reports/trec_2026_issue18_pr17head_viability_legacy.json"
+    )
     qrels = Path("data/dev/llm_dev_qrels.txt")
-    output = Path("reports/trec_2026_issue18_pr17head_evaluation.json")
+    output = tmp_path / "evaluation.json"
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("evaluation invoked reconstruction")
 
     legacy = tmp_path / "legacy.json"
-    legacy.write_bytes(receipt.read_bytes())
+    legacy.write_bytes(legacy_receipt.read_bytes())
     monkeypatch.setattr(
         multiresolution,
         "LEGACY_VIABILITY_RECEIPT_PATH",
@@ -445,6 +448,7 @@ def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
     monkeypatch.setattr(
         module, "_load_issue12_evaluation_rankings", forbidden, raising=False
     )
+    monkeypatch.setattr(module, "CANONICAL_EVALUATION_OUTPUT_PATH", output)
 
     authoritative = multiresolution.assess_multiresolution_viability(artifact)
     receipt_bytes = (

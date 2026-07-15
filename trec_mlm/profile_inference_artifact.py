@@ -29,12 +29,22 @@ from trec_mlm.profile_inference import (
     format_profile_document,
     format_profile_query,
 )
-from trec_mlm.profile_retrieval import filter_and_deduplicate_records
+from trec_mlm.profile_retrieval import (
+    canonical_profile_record_id,
+    filter_and_deduplicate_records,
+)
 from trec_mlm.query_knn import load_queries_tsv
 from trec_mlm.response_retrieval import load_discovery_records
 
 
-ARTIFACT_VERSION = 1
+ARTIFACT_VERSION = 2
+LEGACY_ARTIFACT_VERSION = 1
+LEGACY_PASS_ONE_AGGREGATE_SHA256 = (
+    "20a72f0cbb04ef1c1e58a7caf2d10c9357f3529c1bcd3e66f4a7ec5f371657c5"
+)
+RECORD_ID_AMENDMENT_SHA256 = (
+    "a43e13518aa74365dc7bbe2022c4ee22fec47cb7b5f44ee65523f6ba6e5cb31a"
+)
 OFFICIAL_DISCOVERY_SHA256 = (
     "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25"
 )
@@ -56,6 +66,38 @@ NONDETERMINISTIC_METADATA_KEYS = frozenset(
         "encoding_seconds",
         "peak_memory_allocated_bytes",
         "peak_memory_reserved_bytes",
+    }
+)
+REPAIR_PROVENANCE_KEYS = frozenset(
+    {
+        "qrel_free",
+        "record_id_scheme",
+        "source_artifact_version",
+        "source_aggregate_sha256",
+        "source_source_tree_sha256",
+        "repair_source_tree_sha256",
+        "protocol_amendment_sha256",
+        "byte_identical_files",
+    }
+)
+BYTE_IDENTICAL_REPAIR_FILES = (*ARRAY_FILES, "formatted_inputs.json")
+FRESH_EXECUTION_RECEIPT_KEYS = frozenset(
+    {
+        "artifact_type",
+        "version",
+        "mode",
+        "qrel_free",
+        "embeddings_reused",
+        "record_id_scheme",
+        "artifact_aggregate_sha256",
+        "source_tree_sha256",
+        "container_image",
+        "device_architecture",
+        "model_id",
+        "model_revision",
+        "query_count",
+        "candidate_count",
+        "record_count",
     }
 )
 
@@ -163,6 +205,57 @@ def _canonical_repeat_metadata(value: Any) -> Any:
     return value
 
 
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _repeat_metadata_with_explicit_lineage(
+    artifact: ProfileInferenceArtifactResult, *, allow_pinned_repair: bool
+) -> tuple[Any, bool]:
+    metadata = artifact.metadata
+    payload = json.loads(json.dumps(metadata))
+    repair = payload.pop("record_id_repair", None)
+    if repair is None:
+        return _canonical_repeat_metadata(payload), False
+    if not allow_pinned_repair:
+        raise ValueError("only repeat one may be the pinned record-ID repair")
+    if not isinstance(repair, dict) or set(repair) != REPAIR_PROVENANCE_KEYS:
+        raise ValueError("record-ID repair provenance keys changed")
+    expected = {
+        "qrel_free": True,
+        "record_id_scheme": "profile-record-v2",
+        "source_artifact_version": LEGACY_ARTIFACT_VERSION,
+        "source_aggregate_sha256": LEGACY_PASS_ONE_AGGREGATE_SHA256,
+        "protocol_amendment_sha256": RECORD_ID_AMENDMENT_SHA256,
+    }
+    if any(repair.get(key) != value for key, value in expected.items()):
+        raise ValueError("record-ID repair lineage differs from the approved amendment")
+    locked = repair.get("byte_identical_files")
+    if not isinstance(locked, dict) or set(locked) != set(BYTE_IDENTICAL_REPAIR_FILES):
+        raise ValueError("record-ID repair byte-identity evidence changed")
+    if artifact.manifest is None or any(
+        not _is_sha256(value)
+        or artifact.manifest["files"].get(name, {}).get("sha256") != value
+        for name, value in locked.items()
+    ):
+        raise ValueError("record-ID repair byte-identity hashes changed")
+    source_tree = payload.get("source_tree_sha256")
+    repair_tree = repair.get("repair_source_tree_sha256")
+    if (
+        not _is_sha256(source_tree)
+        or not _is_sha256(repair.get("source_source_tree_sha256"))
+        or repair.get("source_source_tree_sha256") != source_tree
+        or not _is_sha256(repair_tree)
+    ):
+        raise ValueError("record-ID repair source tree lineage changed")
+    payload["source_tree_sha256"] = repair_tree
+    return _canonical_repeat_metadata(payload), True
+
+
 def _validate_config(config: ProfileInferenceArtifactConfig) -> None:
     for field in fields(config):
         value = getattr(config, field.name)
@@ -170,6 +263,23 @@ def _validate_config(config: ProfileInferenceArtifactConfig) -> None:
             raise ValueError(f"{field.name} must be a non-empty path")
     if config.batch_size != PROFILE_BATCH_SIZE or config.seed != PROFILE_SEED:
         raise ValueError("inference batch and seed differ from frozen protocol")
+
+
+def _validate_record_ids(records: list[dict[str, Any]], *, fixture: bool) -> None:
+    record_ids = [record.get("record_id") for record in records]
+    if len(record_ids) != len(set(record_ids)):
+        raise ValueError("profile inference record IDs are not globally unique")
+    if fixture:
+        return
+    for record in records:
+        expected = canonical_profile_record_id(
+            record["candidate_id"],
+            record["source_query_id"],
+            record["question"],
+            record["response"],
+        )
+        if record["record_id"] != expected:
+            raise ValueError("profile inference record ID is not canonical schema v2")
 
 
 def validate_profile_smoke_receipt(payload: Mapping[str, Any]) -> None:
@@ -332,12 +442,13 @@ def write_profile_inference_artifacts(
     """Atomically persist the exact Stage 1 cross-environment handoff."""
 
     destination = Path(output_dir)
+    _validate_record_ids(result.records, fixture=bool(result.metadata.get("fixture")))
     if destination.exists():
         raise FileExistsError(f"output directory already exists: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
     try:
-        _write_json(staging / "config.json", {"artifact_type": "profile_inference", "version": 1, "qrel_free": True, **asdict(result.config)})
+        _write_json(staging / "config.json", {"artifact_type": "profile_inference", "version": ARTIFACT_VERSION, "qrel_free": True, **asdict(result.config)})
         _write_json(staging / "inputs.json", {"query_ids": result.query_ids, "candidate_ids": result.candidate_ids, "label_question_ids": result.label_question_ids})
         _write_json(staging / "records.json", result.records)
         _write_json(staging / "audits.json", result.audits)
@@ -366,6 +477,178 @@ def write_profile_inference_artifacts(
         path.relative_to(destination).as_posix(): str(path)
         for path in destination.rglob("*")
         if path.is_file()
+    }
+
+
+def repair_legacy_profile_inference_artifact(
+    source_dir: str | Path,
+    output_dir: str | Path,
+    amendment_path: str | Path,
+) -> dict[str, Any]:
+    """Atomically migrate only the pinned pass-one IDs to the schema-v2 contract."""
+
+    source = Path(source_dir)
+    destination = Path(output_dir)
+    amendment = Path(amendment_path)
+    if destination.exists():
+        raise FileExistsError(f"output directory already exists: {destination}")
+    if _sha256(amendment) != RECORD_ID_AMENDMENT_SHA256:
+        raise ValueError("record-ID protocol amendment hash changed")
+    source_manifest_bytes = (source / "manifest.json").read_bytes()
+    manifest = json.loads(source_manifest_bytes)
+    entries = manifest.get("files")
+    if (
+        manifest.get("artifact_type") != "profile_inference_manifest"
+        or manifest.get("version") != LEGACY_ARTIFACT_VERSION
+        or manifest.get("qrel_free") is not True
+        or not isinstance(entries, dict)
+        or manifest.get("aggregate_sha256") != _aggregate_hash(entries)
+        or manifest.get("aggregate_sha256") != LEGACY_PASS_ONE_AGGREGATE_SHA256
+    ):
+        raise ValueError("legacy repair source is not the pinned pass-one artifact")
+    actual = {
+        path.relative_to(source).as_posix()
+        for path in source.rglob("*")
+        if path.is_file() and path.name != "manifest.json"
+    }
+    if actual != set(entries):
+        raise ValueError("legacy repair source file inventory changed")
+    for name, entry in entries.items():
+        path = source / name
+        if (
+            path.stat().st_size != entry.get("byte_size")
+            or _sha256(path) != entry.get("sha256")
+        ):
+            raise ValueError(f"legacy repair source hash mismatch: {name}")
+
+    records = json.loads((source / "records.json").read_text(encoding="utf-8"))
+    repaired_records: list[dict[str, Any]] = []
+    for record in records:
+        raw_hash = _length_framed((record["question"], record["response"]))
+        legacy_id = f'{record["source_query_id"]}:{raw_hash[:16]}'
+        if (
+            record.get("record_id") != legacy_id
+            or record.get("raw_membership_sha256") != raw_hash
+        ):
+            raise ValueError("legacy repair source record identity changed")
+        repaired_records.append(
+            {
+                **record,
+                "record_id": canonical_profile_record_id(
+                    record["candidate_id"],
+                    record["source_query_id"],
+                    record["question"],
+                    record["response"],
+                ),
+            }
+        )
+    _validate_record_ids(repaired_records, fixture=False)
+
+    byte_identical_names = (*ARRAY_FILES, "formatted_inputs.json")
+    source_hashes = {name: _sha256(source / name) for name in byte_identical_names}
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent)
+    )
+    try:
+        shutil.copytree(source, staging, dirs_exist_ok=True)
+        config = json.loads((staging / "config.json").read_text(encoding="utf-8"))
+        if (
+            config.get("artifact_type") != "profile_inference"
+            or config.get("version") != LEGACY_ARTIFACT_VERSION
+            or config.get("qrel_free") is not True
+        ):
+            raise ValueError("legacy repair source config changed")
+        config["version"] = ARTIFACT_VERSION
+        _write_json(staging / "config.json", config)
+        _write_json(staging / "records.json", repaired_records)
+        metadata = json.loads((staging / "metadata.json").read_text(encoding="utf-8"))
+        metadata["record_id_repair"] = {
+            "qrel_free": True,
+            "record_id_scheme": "profile-record-v2",
+            "source_artifact_version": LEGACY_ARTIFACT_VERSION,
+            "source_aggregate_sha256": LEGACY_PASS_ONE_AGGREGATE_SHA256,
+            "source_source_tree_sha256": metadata.get("source_tree_sha256"),
+            "repair_source_tree_sha256": _source_tree_sha256(),
+            "protocol_amendment_sha256": RECORD_ID_AMENDMENT_SHA256,
+            "byte_identical_files": source_hashes,
+        }
+        _write_json(staging / "metadata.json", metadata)
+        repaired_entries = _manifest_entries(staging)
+        repaired_manifest = {
+            "artifact_type": "profile_inference_manifest",
+            "version": ARTIFACT_VERSION,
+            "qrel_free": True,
+            "files": repaired_entries,
+            "aggregate_sha256": _aggregate_hash(repaired_entries),
+        }
+        _write_json(staging / "manifest.json", repaired_manifest)
+        for name, expected_hash in source_hashes.items():
+            if _sha256(staging / name) != expected_hash:
+                raise ValueError(f"legacy repair changed byte-locked file: {name}")
+        load_profile_inference_artifacts(staging)
+        final_source_files = {
+            path.relative_to(source).as_posix()
+            for path in source.rglob("*")
+            if path.is_file() and path.name != "manifest.json"
+        }
+        source_still_valid = final_source_files == set(entries) and all(
+            (source / name).stat().st_size == entry["byte_size"]
+            and _sha256(source / name) == entry["sha256"]
+            for name, entry in entries.items()
+        )
+        if (
+            not source_still_valid
+            or (source / "manifest.json").read_bytes() != source_manifest_bytes
+        ):
+            raise ValueError("legacy repair source artifact changed")
+        os.replace(staging, destination)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return {
+        "status": "passed",
+        "qrel_free": True,
+        "source_aggregate_sha256": LEGACY_PASS_ONE_AGGREGATE_SHA256,
+        "repaired_aggregate_sha256": repaired_manifest["aggregate_sha256"],
+        "protocol_amendment_sha256": RECORD_ID_AMENDMENT_SHA256,
+        "record_count": len(repaired_records),
+        "record_ids_globally_unique": True,
+        "record_ids_canonical_v2": True,
+        "non_id_record_fields_and_order_identical": True,
+        "formatted_inputs_byte_identical": True,
+        "embedding_arrays_byte_identical": True,
+        "byte_identical_files": source_hashes,
+    }
+
+
+def build_profile_inference_execution_receipt(
+    artifact_dir: str | Path,
+) -> dict[str, Any]:
+    """Bind the completed artifact to the fresh full-inference execution path."""
+
+    artifact = load_profile_inference_artifacts(artifact_dir)
+    if artifact.metadata.get("record_id_repair") is not None:
+        raise ValueError("a repaired artifact is not a fresh inference execution")
+    source_tree = artifact.metadata.get("source_tree_sha256")
+    if not artifact.metadata.get("fixture") and not _is_sha256(source_tree):
+        raise ValueError("fresh inference source tree receipt is missing")
+    return {
+        "artifact_type": "profile_inference_execution_receipt",
+        "version": 1,
+        "mode": "fresh_full_inference",
+        "qrel_free": True,
+        "embeddings_reused": False,
+        "record_id_scheme": "profile-record-v2",
+        "artifact_aggregate_sha256": artifact.manifest["aggregate_sha256"],
+        "source_tree_sha256": source_tree,
+        "container_image": ROCM_IMAGE,
+        "device_architecture": PROFILE_DEVICE_ARCHITECTURE,
+        "model_id": CONTEXTUAL_E5_SPEC.model_id,
+        "model_revision": CONTEXTUAL_E5_SPEC.revision,
+        "query_count": len(artifact.query_ids),
+        "candidate_count": len(artifact.candidate_ids),
+        "record_count": len(artifact.records),
     }
 
 
@@ -398,6 +681,7 @@ def load_profile_inference_artifacts(
     inputs = json.loads((root / "inputs.json").read_text(encoding="utf-8"))
     records = json.loads((root / "records.json").read_text(encoding="utf-8"))
     metadata = json.loads((root / "metadata.json").read_text(encoding="utf-8"))
+    _validate_record_ids(records, fixture=bool(metadata.get("fixture")))
     if not metadata.get("fixture") and (
         len(inputs["query_ids"]) != OFFICIAL_QUERY_COUNT
         or len(inputs["candidate_ids"]) != OFFICIAL_CANDIDATE_COUNT
@@ -483,7 +767,9 @@ def load_profile_inference_artifacts(
 
 
 def compare_profile_inference_repeats(
-    first_dir: str | Path, second_dir: str | Path
+    first_dir: str | Path,
+    second_dir: str | Path,
+    second_execution_receipt_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Apply the approved Stage 1 repeat gate."""
 
@@ -495,9 +781,43 @@ def compare_profile_inference_repeats(
         raise ValueError("inference repeats must have distinct aggregate digests")
     canonical = ("inputs.json", "records.json", "audits.json", "formatted_inputs.json", "e5_rankings.json")
     identical = all(first.manifest["files"][name] == second.manifest["files"][name] for name in canonical)
-    metadata_identical = _canonical_repeat_metadata(
-        first.metadata
-    ) == _canonical_repeat_metadata(second.metadata)
+    first_metadata, first_is_repair = _repeat_metadata_with_explicit_lineage(
+        first, allow_pinned_repair=True
+    )
+    second_metadata, second_is_repair = _repeat_metadata_with_explicit_lineage(
+        second, allow_pinned_repair=False
+    )
+    execution_receipt = None
+    execution_receipt_valid = False
+    if second_execution_receipt_path is not None:
+        execution_receipt = json.loads(
+            Path(second_execution_receipt_path).read_text(encoding="utf-8")
+        )
+        expected_execution = {
+            "artifact_type": "profile_inference_execution_receipt",
+            "version": 1,
+            "mode": "fresh_full_inference",
+            "qrel_free": True,
+            "embeddings_reused": False,
+            "record_id_scheme": "profile-record-v2",
+            "artifact_aggregate_sha256": second.manifest["aggregate_sha256"],
+            "source_tree_sha256": second.metadata.get("source_tree_sha256"),
+            "container_image": ROCM_IMAGE,
+            "device_architecture": PROFILE_DEVICE_ARCHITECTURE,
+            "model_id": CONTEXTUAL_E5_SPEC.model_id,
+            "model_revision": CONTEXTUAL_E5_SPEC.revision,
+            "query_count": len(second.query_ids),
+            "candidate_count": len(second.candidate_ids),
+            "record_count": len(second.records),
+        }
+        execution_receipt_valid = (
+            isinstance(execution_receipt, dict)
+            and set(execution_receipt) == FRESH_EXECUTION_RECEIPT_KEYS
+            and execution_receipt == expected_execution
+        )
+    if first_is_repair and not second.metadata.get("fixture") and not execution_receipt_valid:
+        raise ValueError("fresh second inference execution receipt is required")
+    metadata_identical = first_metadata == second_metadata
     maximum = 0.0
     for name in ARRAY_FILES:
         left = np.load(first.root / name, allow_pickle=False)
@@ -514,6 +834,18 @@ def compare_profile_inference_repeats(
         "canonical_inputs_identical": True,
         "maximum_absolute_embedding_difference": maximum,
         "tolerance": 1e-5,
+        "first_is_pinned_id_repair": first_is_repair,
+        "second_has_no_repair_lineage": not second_is_repair,
+        "second_fresh_execution_receipt_valid": execution_receipt_valid,
+        "second_execution_receipt": execution_receipt,
+        "metadata_lineage_exceptions": (
+            [
+                "record_id_repair",
+                "source_tree_sha256: source inference tree replaced by repair tree",
+            ]
+            if first_is_repair
+            else []
+        ),
         "first_aggregate_sha256": first.manifest["aggregate_sha256"],
         "second_aggregate_sha256": second.manifest["aggregate_sha256"],
         "integrity_checks": {
@@ -527,9 +859,11 @@ def compare_profile_inference_repeats(
 __all__ = [
     "ProfileInferenceArtifactConfig",
     "ProfileInferenceArtifactResult",
+    "build_profile_inference_execution_receipt",
     "compare_profile_inference_repeats",
     "load_profile_inference_artifacts",
     "ordered_source_questions",
+    "repair_legacy_profile_inference_artifact",
     "run_profile_inference_artifact",
     "validate_profile_smoke_receipt",
     "write_profile_inference_artifacts",

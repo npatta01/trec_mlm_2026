@@ -33,6 +33,7 @@ from trec_mlm.profile_retrieval import (
     ProfileScoreResult,
     aggregate_cluster_labels,
     canonical_kmeans,
+    canonical_profile_record_id,
     filter_and_deduplicate_records,
     reciprocal_rank_fusion,
     score_profiles,
@@ -55,7 +56,7 @@ from trec_mlm.runio import (
 )
 
 
-ARTIFACT_VERSION = 1
+ARTIFACT_VERSION = 2
 OFFICIAL_DISCOVERY_SHA256 = (
     "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25"
 )
@@ -856,7 +857,12 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
         expected_formatted = format_profile_document(
             record["question"], record["response"]
         )
-        expected_id = f'{record["source_query_id"]}:{raw_hash[:16]}'
+        expected_id = canonical_profile_record_id(
+            record["candidate_id"],
+            record["source_query_id"],
+            record["question"],
+            record["response"],
+        )
         current_key = (
             candidate_order[record["candidate_id"]],
             record["source_query_id"],

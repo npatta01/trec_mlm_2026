@@ -123,6 +123,20 @@ def _length_framed_hash(values: Sequence[str]) -> str:
     return digest.hexdigest()
 
 
+def canonical_profile_record_id(
+    candidate_id: str,
+    source_query_id: str,
+    question: str,
+    response: str,
+) -> str:
+    """Return the schema-v2 globally unique identity for one profile record."""
+
+    values = (candidate_id, source_query_id, question, response)
+    if any(not isinstance(value, str) or not value for value in values):
+        raise ValueError("profile record identity fields must be non-empty strings")
+    return f"profile-record-v2:{_length_framed_hash(values)}"
+
+
 def filter_and_deduplicate_records(
     records: Sequence[DiscoveryRecord], candidate_ids: Sequence[str]
 ) -> FilteredProfileRecords:
@@ -152,10 +166,14 @@ def filter_and_deduplicate_records(
             candidate_counts["duplicates"] += 1
             continue
         seen[record.model_id].add(raw_key)
-        suffix = _length_framed_hash(raw_key)[:16]
         grouped[record.model_id].append(
             ProfileRecord(
-                record_id=f"{record.source_query_id}:{suffix}",
+                record_id=canonical_profile_record_id(
+                    record.model_id,
+                    record.source_query_id,
+                    record.query_text,
+                    record.response,
+                ),
                 source_query_id=record.source_query_id,
                 candidate_id=record.model_id,
                 question=record.query_text,
@@ -181,6 +199,9 @@ def filter_and_deduplicate_records(
             duplicates=values["duplicates"],
             usable=len(ordered),
         )
+    record_ids = [record.record_id for records in output.values() for record in records]
+    if len(record_ids) != len(set(record_ids)):
+        raise ValueError("profile record IDs are not globally unique")
     return FilteredProfileRecords(candidates, output, audits)
 
 
@@ -453,6 +474,7 @@ __all__ = [
     "RRFResult",
     "aggregate_cluster_labels",
     "canonical_kmeans",
+    "canonical_profile_record_id",
     "filter_and_deduplicate_records",
     "reciprocal_rank_fusion",
     "score_profiles",

@@ -9,6 +9,7 @@ from trec_mlm.profile_retrieval import (
     CandidateProfile,
     ProfileRecord,
     aggregate_cluster_labels,
+    canonical_profile_record_id,
     canonical_kmeans,
     filter_and_deduplicate_records,
     reciprocal_rank_fusion,
@@ -74,6 +75,27 @@ def test_basic_filter_and_raw_exact_dedup_are_candidate_local() -> None:
     assert result.audit_by_candidate["A"].duplicates == 1
     assert len(result.records_by_candidate["B"]) == 1
     assert result.records_by_candidate["A"][0].question == " Question "
+
+
+def test_record_ids_are_full_candidate_aware_canonical_digests() -> None:
+    records = (
+        DiscoveryRecord("q1", "Same question", "A", "Same answer"),
+        DiscoveryRecord("q1", "Same question", "B", "Same answer"),
+    )
+
+    result = filter_and_deduplicate_records(records, ("A", "B"))
+    left = result.records_by_candidate["A"][0]
+    right = result.records_by_candidate["B"][0]
+
+    assert left.record_id == canonical_profile_record_id(
+        "A", "q1", "Same question", "Same answer"
+    )
+    assert right.record_id == canonical_profile_record_id(
+        "B", "q1", "Same question", "Same answer"
+    )
+    assert left.record_id != right.record_id
+    assert left.record_id.startswith("profile-record-v2:")
+    assert len(left.record_id.removeprefix("profile-record-v2:")) == 64
 
 
 def test_identical_embeddings_collapse_and_centroids_are_canonical() -> None:

@@ -80,10 +80,25 @@ def test_profile_infer_is_qrel_free_and_fixed() -> None:
             "--e5-artifact", "e5",
             "--smoke-repeat-receipt", "smoke.json",
             "--output-dir", "out",
+            "--execution-receipt", "execution.json",
         ]
     )
     assert not any("qrel" in key for key in vars(args))
     assert not hasattr(args, "batch_size")
+
+
+def test_profile_infer_repair_is_qrel_free_and_bounded() -> None:
+    args = build_parser().parse_args(
+        [
+            "profile-infer-repair-v1",
+            "--source", "legacy",
+            "--protocol-amendment", "amendment.json",
+            "--output-dir", "repaired",
+            "--receipt", "receipt.json",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(args))
+    assert not hasattr(args, "expected_source_hash")
 
 
 def test_only_profile_evaluate_accepts_qrels() -> None:
@@ -103,6 +118,17 @@ def test_only_profile_evaluate_accepts_qrels() -> None:
         ]
     )
     assert not any("qrel" in key for key in vars(repeat))
+
+    inference_repeat = parser.parse_args(
+        [
+            "profile-infer-repeat-check",
+            "--first", "one",
+            "--second", "two",
+            "--second-execution-receipt", "execution.json",
+            "--receipt", "receipt.json",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(inference_repeat))
 
 
 def test_profile_evaluate_requires_repeat_receipt() -> None:

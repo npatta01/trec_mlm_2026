@@ -1,0 +1,22 @@
+{
+  "artifact_type": "candidate_semantic_profiles_record_id_repair_receipt",
+  "byte_identical_files": {
+    "formatted_inputs.json": "12493c00eb6688ee3f9bb87aa9b5846ad151c3fb44f254c1868eefc6d7bc5990",
+    "label_embeddings.npy": "1687b0e80a17cb2fc38977405881041e1bfdb0016936f67f9ef46a8aeb51c36a",
+    "label_question_embeddings.npy": "d5e96e9dc2fd22d7ce78e176ea0ea10f43ffb24080e63718b5ac53f9afc3823f",
+    "query_embeddings.npy": "bd44d4c0c6f79679134d2c4c1d92829244db5f4b11466d0496bb788dbe712f27",
+    "record_embeddings.npy": "0e8dc671380238db8ff01558e88d4d5e06e8a42549ed09fcbc8596ba929ba65d"
+  },
+  "embedding_arrays_byte_identical": true,
+  "formatted_inputs_byte_identical": true,
+  "non_id_record_fields_and_order_identical": true,
+  "protocol_amendment_sha256": "a43e13518aa74365dc7bbe2022c4ee22fec47cb7b5f44ee65523f6ba6e5cb31a",
+  "qrel_free": true,
+  "record_count": 182764,
+  "record_ids_canonical_v2": true,
+  "record_ids_globally_unique": true,
+  "repaired_aggregate_sha256": "16c959174a6e844a2e960120645da5d65547508d1e8a8dd6acfa5827bc337d3b",
+  "source_aggregate_sha256": "20a72f0cbb04ef1c1e58a7caf2d10c9357f3529c1bcd3e66f4a7ec5f371657c5",
+  "status": "passed",
+  "version": 1
+}

@@ -27,7 +27,6 @@ from trec_mlm.profile_experiment import (
 from trec_mlm import profile_experiment
 from trec_mlm.profile_retrieval import (
     CandidateProfile,
-    ProfileScoreResult,
     aggregate_cluster_labels,
     score_profiles,
 )
@@ -55,10 +54,12 @@ def _fixture_response(candidate_id: str, index: int) -> str:
 
 
 def _fixture_record_id(candidate_id: str, index: int) -> str:
-    suffix = profile_experiment._length_framed_strings(
-        [_fixture_question(candidate_id, index), _fixture_response(candidate_id, index)]
-    )[:16]
-    return f"s{index}:{suffix}"
+    return profile_experiment.canonical_profile_record_id(
+        candidate_id,
+        f"s{index}",
+        _fixture_question(candidate_id, index),
+        _fixture_response(candidate_id, index),
+    )
 
 
 def _refresh_manifest(root: Path, relative_path: str) -> None:
@@ -299,6 +300,7 @@ def test_frozen_ranking_matrix_has_one_primary_and_fixed_ablations() -> None:
 
 
 def test_atomic_artifact_round_trip_and_hash_validation(tmp_path: Path) -> None:
+    assert profile_experiment.ARTIFACT_VERSION == 2
     destination = tmp_path / "artifact"
     paths = write_profile_artifacts(_result(), destination)
     assert set(paths) >= {

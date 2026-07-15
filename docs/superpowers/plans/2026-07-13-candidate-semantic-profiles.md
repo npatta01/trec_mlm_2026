@@ -464,6 +464,65 @@ Use an independent new output directory with identical inputs and no qrels. Do n
 
 Require identical inventories/memberships/centroids/annotations/winners/ranks and max score difference `<=1e-5`. Save the receipt. If it fails, diagnose with systematic-debugging before any qrels are opened.
 
+### Task 6A: Repair candidate-aware record identity and re-gate pass one
+
+**Files:**
+- Modify: `trec_mlm/profile_retrieval.py`
+- Modify: `trec_mlm/profile_inference_artifact.py`
+- Modify: `trec_mlm/cli.py`
+- Modify: `tests/test_profile_retrieval.py`
+- Modify: `tests/test_profile_inference_artifact.py`
+- Modify: `tests/test_profile_cli_report.py`
+- Modify: `protocols/trec_2026_candidate_semantic_profiles.md`
+
+**Interfaces:**
+- Consumes: the immutable pass-one inference artifact with aggregate SHA-256 `20a72f0cbb04ef1c1e58a7caf2d10c9357f3529c1bcd3e66f4a7ec5f371657c5`.
+- Produces: candidate-aware record IDs, a separately manifested repair artifact that reuses byte-identical inputs and arrays, a repaired construction, and a replacement qrel-free viability receipt.
+
+- [ ] **Step 1: Obtain advisor approval for the protocol amendment**
+
+Require an explicit approve/revise/reject review of the candidate-aware ID function, immutable repair artifact, byte-identity checks, repeat comparison, and continued qrel seal. Record the review before changing implementation.
+
+- [ ] **Step 2: Write failing identity and repair-boundary tests**
+
+Assert that the same source query/question/response under candidates `A` and `B` receives two distinct IDs, both equal to the canonical length-framed hash of `(candidate_id, source_query_id, question, response)`. Assert the ordinary loader rejects globally duplicated IDs. Assert repair accepts only the pinned pass-one aggregate, changes no record ordering/content except `record_id`, preserves every formatted input, array, and non-record source file byte-for-byte where applicable, and records source/destination hashes plus the protocol-amendment hash.
+
+- [ ] **Step 3: Run focused tests and confirm RED**
+
+Run:
+
+```bash
+PYTHONPATH=. uv run --with pytest --extra dense python -m pytest tests/test_profile_retrieval.py tests/test_profile_inference_artifact.py tests/test_profile_cli_report.py -q
+```
+
+Expected: failures for cross-candidate ID uniqueness, strict duplicate validation, and the missing repair command.
+
+- [ ] **Step 4: Implement the minimal repair**
+
+Add one canonical public record-ID helper used by discovery filtering and the repair path. Add a narrowly scoped atomic repair API/CLI that verifies the frozen source manifest before reading, rewrites only record IDs, copies arrays without numerical serialization, writes explicit provenance, and refuses any source other than the pinned pass-one artifact. Keep qrels absent from every signature.
+
+- [ ] **Step 5: Run focused and full regression tests**
+
+Run the focused command from Step 3, then:
+
+```bash
+PYTHONPATH=. uv run --with pytest --extra dense --extra response python -m pytest -q
+```
+
+Expected: all pass.
+
+- [ ] **Step 6: Materialize and independently validate the repaired pass-one artifact**
+
+Write to a new ignored directory. Verify the original artifact hash is unchanged; all four `.npy` SHA-256 values, all formatted inputs, record ordering, candidate/source/question/response fields, audits, E5 rankings, and encoder input hashes are unchanged; all 182,764 repaired IDs are globally unique and canonical. Save a compact tracked repair receipt.
+
+- [ ] **Step 7: Reconstruct and rerun the qrel-free viability gate**
+
+Build a new construction from the repaired artifact, freeze one provisional `profile_only` ranking, and rerun the unchanged gate thresholds with qrels absent. Replace neither the original artifacts nor the original stop receipt; write a superseding receipt linked to both.
+
+- [ ] **Step 8: Obtain advisor code-and-result review**
+
+Provide the diff, focused/full test evidence, repair receipt, construction manifest, and viability receipt. Continue only on explicit approval and a `continue` viability decision. If approved, run the second full inference fresh under the repaired code and compare semantic inputs, canonical IDs, arrays, construction, and rankings under the amended repeat contract before opening qrels.
+
 ### Task 7: Post-lock evaluation, report, query explorer, and receipt
 
 **Files:**

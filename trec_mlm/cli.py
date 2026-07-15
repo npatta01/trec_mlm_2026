@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from trec_mlm.dense_query_knn import (
     DEFAULT_ENCODERS,
@@ -229,12 +230,23 @@ def build_parser() -> argparse.ArgumentParser:
     profile_infer.add_argument("--e5-artifact", required=True)
     profile_infer.add_argument("--smoke-repeat-receipt", required=True)
     profile_infer.add_argument("--output-dir", required=True)
+    profile_infer.add_argument("--execution-receipt", required=True)
+
+    profile_infer_repair = commands.add_parser(
+        "profile-infer-repair-v1",
+        help="migrate the pinned pass-one inference artifact to candidate-aware IDs",
+    )
+    profile_infer_repair.add_argument("--source", required=True)
+    profile_infer_repair.add_argument("--protocol-amendment", required=True)
+    profile_infer_repair.add_argument("--output-dir", required=True)
+    profile_infer_repair.add_argument("--receipt", required=True)
 
     profile_infer_repeat = commands.add_parser(
         "profile-infer-repeat-check", help="compare two frozen profile inference stages"
     )
     profile_infer_repeat.add_argument("--first", required=True)
     profile_infer_repeat.add_argument("--second", required=True)
+    profile_infer_repeat.add_argument("--second-execution-receipt", required=True)
     profile_infer_repeat.add_argument("--receipt", required=True)
 
     profile_construct = commands.add_parser(
@@ -421,6 +433,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "profile-infer":
         from trec_mlm.profile_inference_artifact import (
             ProfileInferenceArtifactConfig,
+            build_profile_inference_execution_receipt,
             run_profile_inference_artifact,
             write_profile_inference_artifacts,
         )
@@ -435,6 +448,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         paths = write_profile_inference_artifacts(result, args.output_dir)
+        execution_receipt = build_profile_inference_execution_receipt(args.output_dir)
+        receipt_path = Path(args.execution_receipt)
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(
+            json.dumps(execution_receipt, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         print(json.dumps({"summary": result.metadata, "artifacts": paths}, indent=2))
         return 0
 
@@ -444,7 +464,26 @@ def main(argv: list[str] | None = None) -> int:
             compare_profile_inference_repeats,
         )
 
-        receipt = compare_profile_inference_repeats(args.first, args.second)
+        receipt = compare_profile_inference_repeats(
+            args.first, args.second, args.second_execution_receipt
+        )
+        destination = Path(args.receipt)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(receipt, indent=2))
+        return 0
+
+    if args.command == "profile-infer-repair-v1":
+        from pathlib import Path
+        from trec_mlm.profile_inference_artifact import (
+            repair_legacy_profile_inference_artifact,
+        )
+
+        receipt = repair_legacy_profile_inference_artifact(
+            args.source, args.output_dir, args.protocol_amendment
+        )
         destination = Path(args.receipt)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(

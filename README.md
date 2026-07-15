@@ -131,7 +131,8 @@ podman run --rm --device /dev/kfd --device /dev/dri \
   --candidates /inputs/candidates.json \
   --e5-artifact /inputs/contextual_e5 \
   --smoke-repeat-receipt /outputs/smoke_repeat_receipt.json \
-  --output-dir /outputs/inference1
+  --output-dir /outputs/inference1 \
+  --execution-receipt /outputs/inference1_execution_receipt.json
 
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 uv run --extra dense trec-mlm profile-construct \
@@ -153,6 +154,7 @@ embeddings. Require the Stage 1 and construction repeat receipts before evaluati
 uv run --extra dense trec-mlm profile-infer-repeat-check \
   --first artifacts/candidate_semantic_profiles/inference1 \
   --second artifacts/candidate_semantic_profiles/inference2 \
+  --second-execution-receipt artifacts/candidate_semantic_profiles/inference2_execution_receipt.json \
   --receipt artifacts/candidate_semantic_profiles/inference_repeat_receipt.json
 
 uv run --extra dense trec-mlm profile-repeat-check \

@@ -489,6 +489,48 @@ least 0.90 against both references. Report pass-one cost and project repeat two 
 the same GPU-hours and bytes with a +/-10% time range. Repeat two cannot improve the
 ranking; its only value is deterministic confirmation that unlocks qrel evaluation.
 
+## Amendment: candidate-aware record identity after pass one
+
+Approved with safeguards by the advisor on 2026-07-14 before repair implementation
+or qrel access. The prior pass-one `stop` receipt remains immutable and authoritative
+for the original artifact. The collision is a bookkeeping defect: the schema-v1 ID
+omitted `candidate_id`, while construction required IDs to be globally unique. It did
+not alter formatted model inputs, embedding row order, or embedding values.
+The frozen amendment JSON has SHA-256
+`a43e13518aa74365dc7bbe2022c4ee22fec47cb7b5f44ee65523f6ba6e5cb31a`.
+
+Schema v2 defines each record ID as `profile-record-v2:` followed by the full SHA-256
+digest of length-framed UTF-8 values `(candidate_id, source_query_id, question,
+response)`. Global uniqueness and exact canonical identity are checked before encoding,
+when writing, when loading, and before construction. Both the Stage-1 inference artifact
+and downstream construction artifact use contract version 2; normal loaders reject
+their respective version-1 forms.
+
+The sole legacy migration source is the immutable pass-one inference aggregate
+`20a72f0cbb04ef1c1e58a7caf2d10c9357f3529c1bcd3e66f4a7ec5f371657c5`.
+Normal schema-v2 loading must reject schema v1. A narrowly scoped atomic migration may
+read that pinned source only after validating its complete manifest and its legacy ID
+formula. It writes a new artifact, preserves record order and every non-ID record
+field, and requires byte-identical formatted inputs and four embedding array files.
+It records qrel-free repair provenance, source/destination manifests, the repair code
+tree, and the frozen amendment hash. The original directory is never modified.
+
+The full qrel-free viability gate is rerun without changing thresholds, and its new
+receipt supersedes rather than overwrites the original `stop` result. A fresh full
+second inference is authorized only if the repaired receipt says `continue`. The
+migration-aware repeat gate requires exact schema-v2 records, inputs, formatted inputs,
+audits, and E5 rankings; maximum absolute embedding difference remains at most `1e-5`.
+Only individually enumerated runtime and lineage differences may be waived. Both
+inference and construction repeat gates, plus advisor code-and-result approval, must
+pass before qrels can be loaded.
+
+Following post-implementation advisor review, the viability gate must execute in a
+network-disabled container that mounts only the schema-v2 construction read-only, the
+gate program read-only, and its output directory. It must record that the official qrel
+path is absent, enumerate open file descriptors, recompute the construction manifest
+aggregate, and require the exact manifested file inventory. A host-side claim that
+qrels are unmounted is insufficient even when there is no evidence they were opened.
+
 ## Deliverables
 
 - this locked protocol and a config-driven implementation;

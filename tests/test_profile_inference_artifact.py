@@ -3,22 +3,29 @@ from __future__ import annotations
 from dataclasses import fields, replace
 import hashlib
 import inspect
+import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from trec_mlm.profile_inference_artifact import (
+    ARTIFACT_VERSION,
     ProfileInferenceArtifactConfig,
     ProfileInferenceArtifactResult,
+    build_profile_inference_execution_receipt,
     compare_profile_inference_repeats,
     load_profile_inference_artifacts,
     ordered_source_questions,
+    repair_legacy_profile_inference_artifact,
     run_profile_inference_artifact,
     validate_profile_smoke_receipt,
     write_profile_inference_artifacts,
 )
+from trec_mlm.profile_retrieval import canonical_profile_record_id
+from trec_mlm import profile_inference_artifact
 
 
 def _smoke_receipt() -> dict[str, object]:
@@ -54,7 +61,7 @@ def _result() -> ProfileInferenceArtifactResult:
         label_question_ids=("s1",),
         records=[
             {
-                "record_id": "s1:record",
+                "record_id": canonical_profile_record_id("A", "s1", "Q?", "A."),
                 "candidate_id": "A",
                 "source_query_id": "s1",
                 "question": "Q?",
@@ -84,6 +91,7 @@ def _result() -> ProfileInferenceArtifactResult:
         metadata={
             "qrel_free": True,
             "fixture": True,
+            "source_tree_sha256": profile_inference_artifact._source_tree_sha256(),
             "profile_encoder": {
                 "input_sha256": "profile",
                 "truncated_input_count": 1,
@@ -95,6 +103,7 @@ def _result() -> ProfileInferenceArtifactResult:
 
 
 def test_inference_artifact_public_boundary_has_no_qrels_or_sklearn_options() -> None:
+    assert ARTIFACT_VERSION == 2
     assert not any("qrel" in field.name.lower() for field in fields(ProfileInferenceArtifactConfig))
     for function in (
         run_profile_inference_artifact,
@@ -102,6 +111,205 @@ def test_inference_artifact_public_boundary_has_no_qrels_or_sklearn_options() ->
         load_profile_inference_artifacts,
     ):
         assert "qrel" not in str(inspect.signature(function)).lower()
+
+
+def test_inference_writer_rejects_global_duplicate_record_ids(tmp_path: Path) -> None:
+    result = _result()
+    duplicate = {
+        **result.records[0],
+        "candidate_id": "B",
+    }
+    duplicate_result = replace(
+        result,
+        records=[result.records[0], duplicate],
+        formatted_inputs={
+            **result.formatted_inputs,
+            "profile_documents": result.formatted_inputs["profile_documents"] * 2,
+        },
+        record_embeddings=np.asarray([[0.0, 1.0], [0.0, 1.0]], dtype=np.float32),
+    )
+
+    with pytest.raises(ValueError, match="record IDs are not globally unique"):
+        write_profile_inference_artifacts(duplicate_result, tmp_path / "duplicate")
+
+
+def test_legacy_repair_is_pinned_atomic_and_embedding_byte_identical(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "legacy"
+    destination = tmp_path / "repaired"
+    amendment = (
+        Path(__file__).parents[1]
+        / "protocols/trec_2026_candidate_semantic_profiles_record_id_amendment.json"
+    )
+    base = _result()
+    first = base.records[0]
+    second = {
+        **first,
+        "candidate_id": "B",
+        "record_id": canonical_profile_record_id("B", "s1", "Q?", "A."),
+    }
+    legacy_result = replace(
+        base,
+        records=[first, second],
+        formatted_inputs={
+            **base.formatted_inputs,
+            "profile_documents": base.formatted_inputs["profile_documents"] * 2,
+        },
+        record_embeddings=np.asarray([[0.0, 1.0], [0.0, 1.0]], dtype=np.float32),
+    )
+    write_profile_inference_artifacts(legacy_result, source)
+    records = json.loads((source / "records.json").read_text(encoding="utf-8"))
+    legacy_id = f"s1:{records[0]['raw_membership_sha256'][:16]}"
+    for record in records:
+        record["record_id"] = legacy_id
+    (source / "records.json").write_text(
+        json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    config = json.loads((source / "config.json").read_text(encoding="utf-8"))
+    config["version"] = 1
+    (source / "config.json").write_text(
+        json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    entries = profile_inference_artifact._manifest_entries(source)
+    manifest = {
+        "artifact_type": "profile_inference_manifest",
+        "version": 1,
+        "qrel_free": True,
+        "files": entries,
+        "aggregate_sha256": profile_inference_artifact._aggregate_hash(entries),
+    }
+    (source / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="manifest contract"):
+        load_profile_inference_artifacts(source)
+    changed_amendment = tmp_path / "changed-amendment.json"
+    changed_amendment.write_bytes(amendment.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="amendment hash"):
+        repair_legacy_profile_inference_artifact(
+            source, tmp_path / "wrong-amendment", changed_amendment
+        )
+    with monkeypatch.context() as context:
+        context.setattr(
+            profile_inference_artifact,
+            "LEGACY_PASS_ONE_AGGREGATE_SHA256",
+            "0" * 64,
+        )
+        with pytest.raises(ValueError, match="pinned pass-one"):
+            repair_legacy_profile_inference_artifact(
+                source, tmp_path / "wrong-source", amendment
+            )
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "LEGACY_PASS_ONE_AGGREGATE_SHA256",
+        manifest["aggregate_sha256"],
+    )
+    source_manifest_bytes = (source / "manifest.json").read_bytes()
+    source_array_hashes = {
+        name: hashlib.sha256((source / name).read_bytes()).hexdigest()
+        for name in profile_inference_artifact.ARRAY_FILES
+    }
+
+    receipt = repair_legacy_profile_inference_artifact(
+        source, destination, amendment
+    )
+
+    assert (source / "manifest.json").read_bytes() == source_manifest_bytes
+    repaired = load_profile_inference_artifacts(destination)
+    assert len({record["record_id"] for record in repaired.records}) == 2
+    assert receipt["source_aggregate_sha256"] == manifest["aggregate_sha256"]
+    assert receipt["qrel_free"] is True
+    assert receipt["embedding_arrays_byte_identical"] is True
+    assert source_array_hashes == {
+        name: hashlib.sha256((destination / name).read_bytes()).hexdigest()
+        for name in profile_inference_artifact.ARRAY_FILES
+    }
+    for before, after in zip(records, repaired.records, strict=True):
+        assert {key: value for key, value in before.items() if key != "record_id"} == {
+            key: value for key, value in after.items() if key != "record_id"
+        }
+    fresh = tmp_path / "fresh"
+    write_profile_inference_artifacts(legacy_result, fresh)
+    execution_path = tmp_path / "fresh-execution.json"
+    execution_path.write_text(
+        json.dumps(
+            build_profile_inference_execution_receipt(fresh),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    repeat = compare_profile_inference_repeats(
+        destination, fresh, execution_path
+    )
+    assert repeat["status"] == "passed"
+    assert repeat["first_is_pinned_id_repair"] is True
+    assert repeat["second_has_no_repair_lineage"] is True
+    assert repeat["second_fresh_execution_receipt_valid"] is True
+    assert repeat["metadata_lineage_exceptions"] == [
+        "record_id_repair",
+        "source_tree_sha256: source inference tree replaced by repair tree",
+    ]
+
+    def mutate_repair_metadata(root: Path, key: str, value: object) -> None:
+        metadata_path = root / "metadata.json"
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        payload["record_id_repair"][key] = value
+        metadata_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        changed_entries = profile_inference_artifact._manifest_entries(root)
+        changed_manifest = {
+            "artifact_type": "profile_inference_manifest",
+            "version": 2,
+            "qrel_free": True,
+            "files": changed_entries,
+            "aggregate_sha256": profile_inference_artifact._aggregate_hash(
+                changed_entries
+            ),
+        }
+        (root / "manifest.json").write_text(
+            json.dumps(changed_manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    extra = tmp_path / "extra-provenance"
+    shutil.copytree(destination, extra)
+    mutate_repair_metadata(extra, "unapproved", True)
+    with pytest.raises(ValueError, match="provenance keys"):
+        compare_profile_inference_repeats(extra, fresh)
+
+    changed_hash = tmp_path / "changed-byte-hash"
+    shutil.copytree(destination, changed_hash)
+    metadata_payload = json.loads(
+        (changed_hash / "metadata.json").read_text(encoding="utf-8")
+    )
+    locked = dict(metadata_payload["record_id_repair"]["byte_identical_files"])
+    locked["query_embeddings.npy"] = "0" * 64
+    mutate_repair_metadata(changed_hash, "byte_identical_files", locked)
+    with pytest.raises(ValueError, match="byte-identity hashes"):
+        compare_profile_inference_repeats(changed_hash, fresh)
+
+    with pytest.raises(ValueError, match="only repeat one"):
+        compare_profile_inference_repeats(fresh, destination)
+
+    failed_destination = tmp_path / "failed-atomic-repair"
+    original_copytree = profile_inference_artifact.shutil.copytree
+
+    def fail_copytree(source_path, destination_path, **kwargs):
+        Path(destination_path, "partial").write_text("partial", encoding="utf-8")
+        raise RuntimeError("injected copy failure")
+
+    monkeypatch.setattr(profile_inference_artifact.shutil, "copytree", fail_copytree)
+    with pytest.raises(RuntimeError, match="injected"):
+        repair_legacy_profile_inference_artifact(
+            source, failed_destination, amendment
+        )
+    assert not failed_destination.exists()
+    assert not list(tmp_path.glob(".failed-atomic-repair.*"))
+    monkeypatch.setattr(profile_inference_artifact.shutil, "copytree", original_copytree)
 
 
 def test_full_inference_requires_exact_qrel_free_gfx1151_smoke_receipt() -> None:

@@ -266,6 +266,15 @@ def _patch_loaders(
         "trec_mlm.profile_multiresolution_evaluation.validate_frozen_tree_token",
         lambda *_args, **_kwargs: None,
     )
+    legacy_token = SimpleNamespace(path=Path("legacy.json"), sha256="d" * 64)
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.load_legacy_viability_evidence",
+        lambda: legacy_token,
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_legacy_viability_evidence",
+        lambda _token: None,
+    )
 
     def validate_receipt(payload, _artifact, **_kwargs):
         if payload != canonical:
@@ -382,8 +391,10 @@ def test_artifact_mutation_after_loader_return_is_rejected_before_qrels(
 
 
 def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import heapq
+
     from trec_mlm import profile_experiment
     from trec_mlm import profile_multiresolution as multiresolution
     from trec_mlm import profile_multiresolution_evaluation as module
@@ -396,6 +407,18 @@ def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("evaluation invoked reconstruction")
+
+    legacy = tmp_path / "legacy.json"
+    legacy.write_bytes(receipt.read_bytes())
+    monkeypatch.setattr(
+        multiresolution,
+        "LEGACY_VIABILITY_RECEIPT_PATH",
+        legacy,
+    )
+    monkeypatch.setattr(heapq, "nsmallest", forbidden)
+    monkeypatch.setattr(
+        multiresolution, "_top10_score_rows", forbidden, raising=False
+    )
 
     for owner, names in (
         (
@@ -512,6 +535,41 @@ def test_valid_stop_receipt_authorizes_one_diagnostic_evaluation(
     assert payload["viability_decision"] == decision
     assert payload["diagnostic_only"] is True
     assert receipt["repeat_authorized"] is False
+
+
+def test_tampered_legacy_evidence_cannot_touch_qrels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(
+        tmp_path, decision="stop-no-incremental-value"
+    )
+    receipt = json.loads((tmp_path / "viability.json").read_text())
+    _patch_loaders(monkeypatch, multi, source, authoritative_receipt=receipt)
+    touched = False
+
+    def reject_legacy(_token) -> None:
+        raise ValueError("legacy viability evidence changed after validation")
+
+    def touch_qrels(*_args, **_kwargs):
+        nonlocal touched
+        touched = True
+        return {}
+
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_legacy_viability_evidence",
+        reject_legacy,
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.load_complete_qrels", touch_qrels
+    )
+    with pytest.raises(ValueError, match="legacy viability evidence"):
+        evaluate_multiresolution(
+            root,
+            tmp_path / "viability.json",
+            tmp_path / "qrels",
+            tmp_path / "evaluation.json",
+        )
+    assert touched is False
 
 
 def test_authoritative_reject_invalid_receipt_cannot_touch_qrels(

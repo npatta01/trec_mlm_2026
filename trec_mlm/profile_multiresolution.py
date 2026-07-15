@@ -6,13 +6,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
-import heapq
 import json
 import os
 from pathlib import Path
 import shutil
 import statistics
 import tempfile
+from types import MappingProxyType
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -71,6 +71,13 @@ ISSUE18_FROZEN_ARTIFACT_PATH = (
 )
 ISSUE18_FROZEN_AGGREGATE_SHA256 = (
     "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9"
+)
+LEGACY_VIABILITY_RECEIPT_CANONICAL_PATH = (
+    "reports/trec_2026_issue18_pr17head_viability_legacy.json"
+)
+LEGACY_VIABILITY_RECEIPT_PATH = Path(LEGACY_VIABILITY_RECEIPT_CANONICAL_PATH)
+LEGACY_VIABILITY_RECEIPT_SHA256 = (
+    "a457df196f7117e3d81dca9cde899cd392d4da4bd7d56653d062d4eaa67cf525"
 )
 EXPECTED_SYSTEMS = (
     "c0_max_k10",
@@ -151,6 +158,137 @@ VIABILITY_COMPONENT_SYSTEMS = frozenset(
 VIABILITY_DIAGNOSTIC_SYSTEMS = frozenset(
     {*VIABILITY_COMPONENT_SYSTEMS, *EXPECTED_SYSTEMS}
 )
+LEGACY_RANKING_FIELDS = frozenset(
+    {
+        "unique_top10_rankings",
+        "maximum_top1_candidate_share",
+        "top10_candidate_coverage",
+        "maximum_candidate_top10_query_share",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyViabilityEvidence:
+    path: Path
+    sha256: str
+    component_ranking_diagnostics: Mapping[str, Mapping[str, float | int]]
+    component_threshold_values: Mapping[str, Mapping[str, float | int]]
+
+
+def _strict_legacy_viability_payload(payload: Any) -> None:
+    top_level = {
+        "artifact_aggregate_sha256",
+        "artifact_type",
+        "cluster_diagnostics",
+        "cost_evidence",
+        "decision",
+        "failed_incremental_thresholds",
+        "failed_integrity_thresholds",
+        "failed_thresholds",
+        "integrity_checks",
+        "qrel_free",
+        "ranking_diagnostics",
+        "repeat_authorized",
+        "thresholds",
+        "version",
+    }
+    if not isinstance(payload, dict) or set(payload) != top_level:
+        raise ValueError("legacy viability evidence has an invalid exact schema")
+    if (
+        payload["artifact_type"] != "issue18_multiresolution_viability_receipt"
+        or payload["version"] != 1
+        or payload["qrel_free"] is not True
+        or payload["artifact_aggregate_sha256"]
+        != ISSUE18_FROZEN_AGGREGATE_SHA256
+        or set(payload["integrity_checks"]) != VIABILITY_INTEGRITY_CHECKS
+        or not all(value is True for value in payload["integrity_checks"].values())
+    ):
+        raise ValueError("legacy viability evidence violates its frozen identity")
+    diagnostics = payload["ranking_diagnostics"]
+    if not isinstance(diagnostics, dict) or set(diagnostics) != VIABILITY_DIAGNOSTIC_SYSTEMS:
+        raise ValueError("legacy viability evidence has invalid ranking diagnostics")
+    for system in VIABILITY_COMPONENT_SYSTEMS:
+        row = diagnostics[system]
+        if not isinstance(row, dict) or set(row) != LEGACY_RANKING_FIELDS:
+            raise ValueError("legacy viability evidence has invalid component diagnostics")
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not np.isfinite(value)
+            for value in row.values()
+        ):
+            raise ValueError("legacy viability evidence has non-finite diagnostics")
+    thresholds = payload["thresholds"]
+    if not isinstance(thresholds, dict) or set(thresholds) != set(VIABILITY_THRESHOLDS):
+        raise ValueError("legacy viability evidence has invalid threshold schema")
+    for name, (operator, threshold) in VIABILITY_THRESHOLDS.items():
+        item = thresholds[name]
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"operator", "passed", "threshold", "values"}
+            or item["operator"] != operator
+            or item["threshold"] != threshold
+            or not isinstance(item["passed"], bool)
+            or not isinstance(item["values"], dict)
+        ):
+            raise ValueError("legacy viability evidence has invalid threshold values")
+    for name in LEGACY_RANKING_FIELDS:
+        values = thresholds[name]["values"]
+        if set(values) != VIABILITY_DIAGNOSTIC_SYSTEMS:
+            raise ValueError("legacy viability evidence has incomplete ranking thresholds")
+        if any(values[system] != diagnostics[system][name] for system in diagnostics):
+            raise ValueError("legacy viability evidence ranking thresholds disagree")
+
+
+def load_legacy_viability_evidence() -> LegacyViabilityEvidence:
+    """Load the exact qrel-free pass-one receipt as immutable ranking evidence."""
+
+    path = Path(LEGACY_VIABILITY_RECEIPT_PATH)
+    try:
+        encoded = path.read_bytes()
+    except OSError as error:
+        raise ValueError("legacy viability evidence is unavailable") from error
+    observed = hashlib.sha256(encoded).hexdigest()
+    if observed != LEGACY_VIABILITY_RECEIPT_SHA256:
+        raise ValueError("legacy viability evidence SHA-256 differs from the lock")
+    try:
+        payload = json.loads(encoded)
+    except json.JSONDecodeError as error:
+        raise ValueError("legacy viability evidence is invalid JSON") from error
+    _strict_legacy_viability_payload(payload)
+    return LegacyViabilityEvidence(
+        path=path.resolve(),
+        sha256=observed,
+        component_ranking_diagnostics=MappingProxyType(
+            {
+                system: MappingProxyType(dict(payload["ranking_diagnostics"][system]))
+                for system in VIABILITY_COMPONENT_SYSTEMS
+            }
+        ),
+        component_threshold_values=MappingProxyType(
+            {
+                name: MappingProxyType(
+                    {
+                        system: payload["thresholds"][name]["values"][system]
+                        for system in VIABILITY_COMPONENT_SYSTEMS
+                    }
+                )
+                for name in LEGACY_RANKING_FIELDS
+            }
+        ),
+    )
+
+
+def validate_legacy_viability_evidence(token: LegacyViabilityEvidence) -> None:
+    """Recheck the exact bytes represented by a previously loaded legacy token."""
+
+    try:
+        observed = hashlib.sha256(token.path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise ValueError("legacy viability evidence changed or disappeared") from error
+    if observed != token.sha256 or observed != LEGACY_VIABILITY_RECEIPT_SHA256:
+        raise ValueError("legacy viability evidence changed after validation")
 
 
 def _expected_artifact_files() -> set[str]:
@@ -1783,6 +1921,7 @@ def validate_multiresolution_viability_receipt(
     artifact_path: str | Path,
     *,
     frozen_snapshot: MultiResolutionResult | None = None,
+    legacy_evidence: LegacyViabilityEvidence | None = None,
 ) -> Mapping[str, Any]:
     """Recompute and require the authoritative persisted-artifact receipt."""
 
@@ -1815,11 +1954,14 @@ def validate_multiresolution_viability_receipt(
             root, receipt_generated_at=generated_at
         )
     else:
+        evidence = legacy_evidence or load_legacy_viability_evidence()
+        validate_legacy_viability_evidence(evidence)
         authoritative = _assess_multiresolution_viability(
             frozen_snapshot,
             require_official_coverage=True,
             root=root,
             receipt_generated_at=generated_at,
+            legacy_evidence=evidence,
         )
     if payload != authoritative:
         raise ValueError("viability receipt differs from authoritative artifact evidence")
@@ -1897,27 +2039,6 @@ def _cluster_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 def _top10_rows(ranking: Mapping[str, Sequence[str]]) -> dict[str, tuple[str, ...]]:
     return {query_id: tuple(values[:10]) for query_id, values in ranking.items()}
-
-
-def _top10_score_rows(
-    result: MultiResolutionResult, scores: NDArray[np.float32]
-) -> dict[str, list[str]]:
-    """Derive only diagnostic top tens, never a complete stored ranking."""
-
-    return {
-        query_id: [
-            result.candidate_ids[index]
-            for index in heapq.nsmallest(
-                min(10, len(result.candidate_ids)),
-                range(len(result.candidate_ids)),
-                key=lambda index: (
-                    -float(scores[row, index]),
-                    result.candidate_ids[index],
-                ),
-            )
-        ]
-        for row, query_id in enumerate(result.query_ids)
-    }
 
 
 def _ranking_diagnostics(
@@ -2009,6 +2130,7 @@ def _assess_multiresolution_viability(
     require_official_coverage: bool,
     root: Path | None = None,
     receipt_generated_at: str | None = None,
+    legacy_evidence: LegacyViabilityEvidence | None = None,
 ) -> dict[str, Any]:
     """Compute diagnostics; only a persisted root upgrades them to a receipt."""
 
@@ -2047,31 +2169,25 @@ def _assess_multiresolution_viability(
         f"k{resolution}": _cluster_diagnostics(result.profiles[str(resolution)])
         for resolution in LOCKED_RESOLUTIONS
     }
-    component_rankings = {
-        key: (
-            _top10_score_rows(result, scores)
-            if scores.dtype.str == "<f4"
-            and scores.shape == expected_shape
-            and np.isfinite(scores).all()
-            else {query_id: [] for query_id in result.query_ids}
-        )
-        for key, scores in result.component_scores.items()
-    }
-    for key in expected_component_keys - set(component_rankings):
-        component_rankings[key] = {query_id: [] for query_id in result.query_ids}
     empty_ranking = {query_id: [] for query_id in result.query_ids}
     c0_ranking = result.rankings.get("c0_max_k10", empty_ranking)
-    diagnostic_rankings = {
-        **component_rankings,
-        **{system: result.rankings.get(system, empty_ranking) for system in EXPECTED_SYSTEMS},
-    }
     ranking_diagnostics = {
         system: _ranking_diagnostics(
-            ranking,
+            result.rankings.get(system, empty_ranking),
             c0_ranking if system in NEW_PROFILE_SYSTEMS else None,
         )
-        for system, ranking in diagnostic_rankings.items()
+        for system in EXPECTED_SYSTEMS
     }
+    if root is not None:
+        evidence = legacy_evidence or load_legacy_viability_evidence()
+        validate_legacy_viability_evidence(evidence)
+        ranking_diagnostics = {
+            **{
+                system: dict(evidence.component_ranking_diagnostics[system])
+                for system in VIABILITY_COMPONENT_SYSTEMS
+            },
+            **ranking_diagnostics,
+        }
     thresholds: dict[str, dict[str, Any]] = {}
     cluster_names = tuple(list(VIABILITY_THRESHOLDS)[:8])
     for name in cluster_names:
@@ -2219,6 +2335,10 @@ def _assess_multiresolution_viability(
         **diagnostics,
         "artifact_type": "issue18_multiresolution_viability_receipt",
         "artifact_aggregate_sha256": artifact_aggregate,
+        "legacy_viability_evidence": {
+            "path": LEGACY_VIABILITY_RECEIPT_CANONICAL_PATH,
+            "sha256": LEGACY_VIABILITY_RECEIPT_SHA256,
+        },
         "control_sources": control_sources,
         "control_comparisons": control_comparisons,
         "execution_provenance": _execution_provenance(
@@ -2398,6 +2518,10 @@ __all__ = [
     "ISSUE18_FROZEN_AGGREGATE_SHA256",
     "ISSUE18_FROZEN_ARTIFACT_PATH",
     "Issue12SourceSnapshot",
+    "LEGACY_VIABILITY_RECEIPT_CANONICAL_PATH",
+    "LEGACY_VIABILITY_RECEIPT_PATH",
+    "LEGACY_VIABILITY_RECEIPT_SHA256",
+    "LegacyViabilityEvidence",
     "MultiResolutionConfig",
     "MultiResolutionResult",
     "VIABILITY_THRESHOLDS",
@@ -2405,9 +2529,11 @@ __all__ = [
     "compare_multiresolution_artifacts",
     "construct_multiresolution",
     "load_issue18_frozen_snapshot",
+    "load_legacy_viability_evidence",
     "load_multiresolution_artifact",
     "validate_frozen_tree_token",
     "validate_issue12_source_snapshot",
+    "validate_legacy_viability_evidence",
     "write_multiresolution_receipt",
     "write_multiresolution_artifact",
 ]

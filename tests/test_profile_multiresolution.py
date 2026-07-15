@@ -33,6 +33,17 @@ ISSUE18_ROOT = Path("artifacts/multiresolution_profiles/issue18_pr17head")
 ISSUE18_AGGREGATE = "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9"
 
 
+@pytest.fixture(autouse=True)
+def _use_prearchive_legacy_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    monkeypatch.setattr(
+        module,
+        "LEGACY_VIABILITY_RECEIPT_PATH",
+        Path("reports/trec_2026_issue18_pr17head_viability.json"),
+    )
+
+
 def _set_locked_manifest_mtime(root: Path) -> None:
     seconds = int(datetime.fromisoformat("2026-07-15T12:41:18-04:00").timestamp())
     nanoseconds = seconds * 1_000_000_000 + 692_102_441
@@ -101,12 +112,22 @@ def test_issue18_frozen_loader_is_nonconstructive_and_pins_exact_snapshot(
 def test_real_frozen_assessment_avoids_every_reconstruction_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import heapq
+
     from trec_mlm import profile_experiment
     from trec_mlm import profile_multiresolution as module
     from trec_mlm import profile_retrieval
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("frozen assessment invoked reconstruction")
+
+    monkeypatch.setattr(
+        module,
+        "LEGACY_VIABILITY_RECEIPT_PATH",
+        Path("reports/trec_2026_issue18_pr17head_viability.json"),
+    )
+    monkeypatch.setattr(heapq, "nsmallest", forbidden)
+    monkeypatch.setattr(module, "_top10_score_rows", forbidden, raising=False)
 
     for owner, names in (
         (
@@ -134,6 +155,30 @@ def test_real_frozen_assessment_avoids_every_reconstruction_path(
     receipt = module.assess_multiresolution_viability(ISSUE18_ROOT)
     assert receipt["artifact_aggregate_sha256"] == ISSUE18_AGGREGATE
     assert receipt["qrel_free"] is True
+    assert receipt["legacy_viability_evidence"] == {
+        "path": "reports/trec_2026_issue18_pr17head_viability_legacy.json",
+        "sha256": "a457df196f7117e3d81dca9cde899cd392d4da4bd7d56653d062d4eaa67cf525",
+    }
+
+
+def test_legacy_viability_evidence_is_strict_and_tamper_evident(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    original = Path("reports/trec_2026_issue18_pr17head_viability.json")
+    legacy = tmp_path / "legacy.json"
+    legacy.write_bytes(original.read_bytes())
+    monkeypatch.setattr(module, "LEGACY_VIABILITY_RECEIPT_PATH", legacy)
+    token = module.load_legacy_viability_evidence()
+    assert set(token.component_ranking_diagnostics) == module.VIABILITY_COMPONENT_SYSTEMS
+    module.validate_legacy_viability_evidence(token)
+
+    payload = json.loads(legacy.read_text())
+    payload["ranking_diagnostics"]["max_k5"]["unique_top10_rankings"] += 1
+    legacy.write_text(json.dumps(payload, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="legacy viability evidence"):
+        module.validate_legacy_viability_evidence(token)
 
 
 def test_issue18_frozen_loader_rejects_noncanonical_root(tmp_path: Path) -> None:

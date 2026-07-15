@@ -17,9 +17,12 @@ from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
     ISSUE18_FROZEN_AGGREGATE_SHA256,
     ISSUE18_FROZEN_ARTIFACT_PATH,
+    LegacyViabilityEvidence,
     load_issue18_frozen_snapshot,
+    load_legacy_viability_evidence,
     validate_frozen_tree_token,
     validate_issue12_source_snapshot,
+    validate_legacy_viability_evidence,
     validate_multiresolution_viability_receipt,
 )
 from trec_mlm.query_knn import load_complete_qrels
@@ -75,11 +78,15 @@ def validate_viability_receipt(
     artifact_path: str | Path,
     *,
     frozen_snapshot: Any | None = None,
+    legacy_evidence: LegacyViabilityEvidence | None = None,
 ) -> Mapping[str, Any]:
     """Expose the centralized strict receipt validator for evaluation callers."""
 
     return validate_multiresolution_viability_receipt(
-        payload, artifact_path, frozen_snapshot=frozen_snapshot
+        payload,
+        artifact_path,
+        frozen_snapshot=frozen_snapshot,
+        legacy_evidence=legacy_evidence,
     )
 
 
@@ -208,8 +215,12 @@ def evaluate_multiresolution(
     receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed while it was being loaded")
+    legacy_evidence = load_legacy_viability_evidence()
     validated_receipt = validate_viability_receipt(
-        receipt, artifact_root, frozen_snapshot=construction
+        receipt,
+        artifact_root,
+        frozen_snapshot=construction,
+        legacy_evidence=legacy_evidence,
     )
     viability_decision = _authorize_diagnostic_evaluation(validated_receipt)
 
@@ -223,6 +234,7 @@ def evaluate_multiresolution(
         artifact_token,
         expected_aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
     )
+    validate_legacy_viability_evidence(legacy_evidence)
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed before qrels were opened")
     qrels_sha256 = _sha256(qrels_file)
@@ -314,6 +326,10 @@ def evaluate_multiresolution(
         validate_issue12_source_snapshot(source)
     except (OSError, ValueError) as error:
         raise RuntimeError("issue-12 source changed during evaluation") from error
+    try:
+        validate_legacy_viability_evidence(legacy_evidence)
+    except (OSError, ValueError) as error:
+        raise RuntimeError("legacy viability evidence changed during evaluation") from error
     payload["construction_integrity"] = {
         "status": "passed",
         "before_aggregate_sha256": artifact_token.aggregate_sha256,

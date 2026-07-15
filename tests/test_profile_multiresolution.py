@@ -25,9 +25,7 @@ AUDIT_FINAL_AGGREGATE = "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d324
 def test_config_rejects_protocol_drift_and_public_api_is_qrel_free() -> None:
     assert MultiResolutionConfig().construction_path == AUDIT_FINAL_ROOT
     assert MultiResolutionConfig().source_aggregate_sha256 == AUDIT_FINAL_AGGREGATE
-    base = MultiResolutionConfig(
-        construction_path="source", output_root="output", source_aggregate_sha256="a" * 64
-    )
+    base = MultiResolutionConfig(output_root="output")
     for changed in (
         replace(base, resolutions=(5, 10)),
         replace(base, top_count=3),
@@ -46,10 +44,32 @@ def test_config_rejects_protocol_drift_and_public_api_is_qrel_free() -> None:
         assert "qrel" not in str(inspect.signature(function)).lower()
 
 
+def test_evaluated_source_constants_are_public_and_exact() -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    assert module.EVALUATED_CONSTRUCTION_PATH == AUDIT_FINAL_ROOT
+    assert module.EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 == AUDIT_FINAL_AGGREGATE
+
+
+@pytest.mark.parametrize(
+    "changed",
+    (
+        replace(
+            MultiResolutionConfig(),
+            construction_path="artifacts/alternate-valid-source",
+        ),
+        replace(MultiResolutionConfig(), source_aggregate_sha256="a" * 64),
+    ),
+)
+def test_validate_config_rejects_alternate_valid_source(changed) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    with pytest.raises(ValueError, match="evaluated issue-12 source"):
+        module._validate_config(changed)
+
+
 def test_source_aggregate_binding_is_checked_before_construction(monkeypatch) -> None:
-    config = MultiResolutionConfig(
-        construction_path="source", output_root="output", source_aggregate_sha256="a" * 64
-    )
+    config = MultiResolutionConfig(output_root="output")
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution.load_profile_artifacts",
         lambda _: type("Loaded", (), {"manifest": {"aggregate_sha256": "b" * 64}})(),
@@ -111,9 +131,7 @@ def _fixture_result(tmp_path: Path):
     dense = {"q1": ["B", "A"], "q2": ["A", "B"]}
     return module._assemble_result_for_test(
         config=MultiResolutionConfig(
-            construction_path="fixture-source",
             output_root=str(tmp_path / "artifact"),
-            source_aggregate_sha256="a" * 64,
         ),
         query_ids=query_ids,
         candidate_ids=candidate_ids,
@@ -140,6 +158,14 @@ def _refresh_manifest(destination: Path, relative_path: str) -> None:
 
 
 def _bind_expected(monkeypatch: pytest.MonkeyPatch, result) -> None:
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution.load_profile_artifacts",
+        lambda _: type(
+            "Loaded",
+            (),
+            {"manifest": {"aggregate_sha256": AUDIT_FINAL_AGGREGATE}},
+        )(),
+    )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution.construct_multiresolution", lambda config: result
     )

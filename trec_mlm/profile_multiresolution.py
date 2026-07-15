@@ -35,6 +35,12 @@ from trec_mlm.runio import rankings_from_run, write_trec_run
 ARTIFACT_VERSION = 1
 LOCKED_SOURCE_COMMIT = "2db10261bac607d7f8c67c0aa0c01728484a42f9"
 LOCKED_RESOLUTIONS = (5, 10, 20)
+EVALUATED_CONSTRUCTION_PATH = (
+    "artifacts/candidate_semantic_profiles/run1_record_id_v2_auditfinal"
+)
+EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 = (
+    "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
+)
 EXPECTED_SYSTEMS = (
     "c0_max_k10",
     "c0_max_k10_dense_equal",
@@ -77,18 +83,14 @@ def _expected_artifact_files() -> set[str]:
 
 @dataclass(frozen=True, slots=True)
 class MultiResolutionConfig:
-    construction_path: str = (
-        "artifacts/candidate_semantic_profiles/run1_record_id_v2_auditfinal"
-    )
+    construction_path: str = EVALUATED_CONSTRUCTION_PATH
     output_root: str = "artifacts/multiresolution_profiles/issue18_pr17head"
     resolutions: tuple[int, ...] = LOCKED_RESOLUTIONS
     top_count: int = 2
     seed: int = 2026
     rrf_k: int = 60
     source_commit: str = LOCKED_SOURCE_COMMIT
-    source_aggregate_sha256: str = (
-        "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
-    )
+    source_aggregate_sha256: str = EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +116,12 @@ def _validate_config(config: MultiResolutionConfig) -> None:
         raise TypeError("config must be MultiResolutionConfig")
     if not config.construction_path or not config.output_root:
         raise ValueError("construction_path and output_root must be non-empty")
+    if (
+        config.construction_path != EVALUATED_CONSTRUCTION_PATH
+        or config.source_aggregate_sha256
+        != EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
+    ):
+        raise ValueError("construction must use the evaluated issue-12 source")
     if config.resolutions != LOCKED_RESOLUTIONS:
         raise ValueError(f"resolutions must be {LOCKED_RESOLUTIONS!r}")
     if config.top_count != 2:
@@ -788,6 +796,8 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
 
 
 __all__ = [
+    "EVALUATED_CONSTRUCTION_AGGREGATE_SHA256",
+    "EVALUATED_CONSTRUCTION_PATH",
     "EXPECTED_SYSTEMS",
     "MultiResolutionConfig",
     "MultiResolutionResult",

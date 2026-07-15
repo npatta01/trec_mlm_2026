@@ -18,6 +18,7 @@ from trec_mlm.profile_evaluation import (
     validate_repeat_receipt,
     summarize_slice,
     reportable_system_names,
+    validate_qrel_inventories,
 )
 
 
@@ -31,6 +32,24 @@ def test_evaluation_refuses_to_open_construction_without_repeat_receipt(
     )
     with pytest.raises(ValueError, match="repeat receipt is required"):
         evaluate_profile_artifacts(config)
+
+
+def test_qrel_inventory_validation_is_order_independent() -> None:
+    qrels = {
+        "q2": {"B": 0.0, "A": 1.0},
+        "q1": {"B": 1.0, "A": 0.0},
+    }
+    validate_qrel_inventories(
+        qrels,
+        query_ids=("q1", "q2"),
+        candidate_ids=("A", "B"),
+    )
+    with pytest.raises(ValueError, match="candidate inventory"):
+        validate_qrel_inventories(
+            qrels,
+            query_ids=("q1", "q2"),
+            candidate_ids=("A", "C"),
+        )
 
 
 def test_evaluation_writer_refuses_output_inside_construction(tmp_path) -> None:

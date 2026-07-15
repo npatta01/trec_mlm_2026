@@ -53,6 +53,21 @@ def _validate_pair(
     return query_ids
 
 
+def validate_qrel_inventories(
+    qrels: Mapping[str, Mapping[str, float]],
+    *,
+    query_ids: tuple[str, ...],
+    candidate_ids: tuple[str, ...],
+) -> None:
+    """Validate identities without treating irrelevant file order as data."""
+
+    if set(qrels) != set(query_ids):
+        raise ValueError("qrel query inventory differs from frozen construction")
+    expected_candidates = set(candidate_ids)
+    if any(set(values) != expected_candidates for values in qrels.values()):
+        raise ValueError("qrel candidate inventory differs from frozen construction")
+
+
 def paired_interval(
     baseline: Mapping[str, float],
     candidate: Mapping[str, float],
@@ -343,10 +358,11 @@ def evaluate_profile_artifacts(config: ProfileEvaluationConfig) -> dict[str, Any
         construction.manifest["aggregate_sha256"],
     )
     qrels = load_complete_qrels(config.qrels_path)
-    if tuple(qrels) != construction.query_ids:
-        raise ValueError("qrel query inventory differs from frozen construction")
-    if tuple(next(iter(qrels.values()))) != construction.candidate_ids:
-        raise ValueError("qrel candidate inventory differs from frozen construction")
+    validate_qrel_inventories(
+        qrels,
+        query_ids=construction.query_ids,
+        candidate_ids=construction.candidate_ids,
+    )
     systems = evaluation_systems(construction)
     evaluations = {name: evaluate_rankings(ranking, qrels, k=10) for name, ranking in systems.items()}
     metric_maps = {name: _metric_maps(value) for name, value in evaluations.items()}

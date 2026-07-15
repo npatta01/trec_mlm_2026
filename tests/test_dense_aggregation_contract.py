@@ -437,6 +437,27 @@ def test_feasibility_config_rejects_nonobject_and_path_escape(
         load_feasibility_config(escaped)
 
 
+def test_feasibility_config_rejects_oversized_input_before_payload_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    config_dir = root / "configs"
+    config_dir.mkdir(parents=True)
+    oversized = config_dir / "oversized.json"
+    with oversized.open("wb") as handle:
+        handle.truncate(2 * 1024 * 1024)
+    real_read_bytes = Path.read_bytes
+
+    def reject_unbounded_read(path: Path) -> bytes:
+        if path == oversized:
+            raise AssertionError("oversized config reached Path.read_bytes")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", reject_unbounded_read)
+    with pytest.raises(ValueError, match="byte limit"):
+        load_feasibility_config(oversized)
+
+
 def test_feasibility_config_rejects_in_repo_symlink_escape(
     tmp_path: Path,
 ) -> None:
@@ -552,6 +573,56 @@ def test_synthetic_bundle_parses_hashes_and_validates_exact_arrays(
     assert _independent_array_sha256(
         _independent_cosine(inputs.embeddings)
     ) == inputs.similarity_sha256
+
+
+def test_frozen_loader_preflights_npy_size_and_uses_mmap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _make_synthetic_bundle(tmp_path, monkeypatch)
+    real_load = np.load
+    observed: list[object] = []
+
+    def load_with_evidence(*args: object, **kwargs: object) -> object:
+        observed.append(kwargs.get("mmap_mode"))
+        return real_load(*args, **kwargs)
+
+    monkeypatch.setattr(contract_module.np, "load", load_with_evidence)
+    load_and_validate_frozen_dense_inputs(load_feasibility_config(bundle.config_path))
+    assert observed == ["r"]
+
+    bundle = _make_synthetic_bundle(tmp_path / "oversized", monkeypatch)
+    with bundle.embedding_path.open("r+b") as handle:
+        handle.truncate(8 * 1024 * 1024)
+
+    def forbidden_load(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise AssertionError("oversized NPY reached numpy.load")
+
+    monkeypatch.setattr(contract_module.np, "load", forbidden_load)
+    with pytest.raises(ValueError, match="byte limit"):
+        load_and_validate_frozen_dense_inputs(
+            load_feasibility_config(bundle.config_path)
+        )
+
+
+def test_frozen_metadata_rejects_oversized_input_before_payload_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _make_synthetic_bundle(tmp_path, monkeypatch)
+    with bundle.metadata_path.open("wb") as handle:
+        handle.truncate(2 * 1024 * 1024)
+    real_read_text = Path.read_text
+
+    def reject_unbounded_read(path: Path, *args: object, **kwargs: object) -> str:
+        if path == bundle.metadata_path:
+            raise AssertionError("oversized metadata reached Path.read_text")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", reject_unbounded_read)
+    with pytest.raises(ValueError, match="byte limit"):
+        load_and_validate_frozen_dense_inputs(
+            load_feasibility_config(bundle.config_path)
+        )
 
 
 def test_synthetic_fortran_array_is_returned_c_contiguous(

@@ -9,6 +9,7 @@ import json
 import math
 import os
 from pathlib import Path
+import stat
 import statistics
 import time
 from typing import Literal
@@ -68,6 +69,47 @@ _RECEIPT_KEYS = {
 }
 _TIMING_CATEGORIES = ("pair_c20", "pair_c40", "single_c20", "single_c40")
 _LOWERCASE_HEX = frozenset("0123456789abcdef")
+_FIT_RECEIPT_ROW_BYTE_LIMIT = 1024 * 1024
+_TIMING_ROW_BYTE_LIMIT = 16 * 1024
+_TASK7_JSON_BYTE_LIMIT = 1024 * 1024
+_TASK7_MANIFEST_BYTE_LIMIT = 1024 * 1024
+_MISSING_LAYOUT_ENTRY = object()
+_WORKER_OUTPUT_FILES = (
+    "environment.json",
+    "feasibility_receipt.json",
+    "fits/centers.f4",
+    "fits/cluster_inertia.f8",
+    "fits/fit_receipts.jsonl",
+    "fits/header.json",
+    "fits/labels.u2",
+    "fits/timings.jsonl",
+)
+_AGGREGATE_OUTPUT_FILES = (
+    "feasibility_gate.json",
+    "repeat_a_receipt.json",
+    "repeat_b_receipt.json",
+    "repeat_measurements.json",
+)
+_FIT_COMPARISON_FIELDS = (
+    "sequence",
+    "exclusion_kind",
+    "inventory_index",
+    "cluster_count",
+    "fit_key_sha256",
+    "support_query_ids_sha256",
+    "embedding_sha256",
+    "clustering_contract_sha256",
+    "fit_membership_sha256",
+    "cluster_membership_sha256",
+    "center_sha256",
+    "assignments",
+)
+_TIMING_EVIDENCE_FIELDS = (
+    "exclusion_kind",
+    "cluster_count",
+    "elapsed_ns",
+    "n_iter",
+)
 _SHARD_SCHEMAS = {
     "centers": {
         "path": "centers.f4",
@@ -155,52 +197,62 @@ class _RepeatCheckContext:
         self, repeat_a: FeasibilityReceipt, repeat_b: FeasibilityReceipt
     ) -> None:
         self.receipts = (repeat_a, repeat_b)
-        self._fit_rows: tuple[tuple[dict[str, object], ...], ...] | None = None
-        self._fit_rows_failed = False
+        self._evidence: tuple[_RepeatOutputEvidence, ...] | None = None
+        self._evidence_failed = False
 
-    def fit_rows(self) -> tuple[tuple[dict[str, object], ...], ...] | None:
-        if self._fit_rows is not None:
-            return self._fit_rows
-        if self._fit_rows_failed:
+    def evidence(self) -> tuple[_RepeatOutputEvidence, ...] | None:
+        if self._evidence is not None:
+            return self._evidence
+        if self._evidence_failed:
             return None
-        loaded: list[tuple[dict[str, object], ...]] = []
+        loaded: list[_RepeatOutputEvidence] = []
         try:
             for receipt in self.receipts:
+                if receipt.fit_count != 576:
+                    raise ValueError("worker fit count is not the locked count")
                 output_value = receipt.provenance.get("output_root")
                 if type(output_value) is not str:
                     raise ValueError("worker output root is invalid")
                 fits_root = Path(output_value) / "fits"
                 reopened = StreamingFitCache.open_readonly(fits_root)
+                header = getattr(reopened, "_header", None)
+                if type(header) is not dict:
+                    raise ValueError("validated cache header is unavailable")
                 del reopened
-                receipt_path = fits_root / "fit_receipts.jsonl"
-                if raw_file_sha256(receipt_path) != receipt.fit_receipt_sha256:
+                fit_rows, fit_receipt_sha256 = _read_exact_canonical_jsonl(
+                    fits_root / "fit_receipts.jsonl",
+                    expected_count=receipt.fit_count,
+                    byte_limit=_FIT_RECEIPT_ROW_BYTE_LIMIT,
+                    label="fit receipt",
+                    retained_fields=_FIT_COMPARISON_FIELDS,
+                )
+                if fit_receipt_sha256 != receipt.fit_receipt_sha256:
                     raise ValueError("fit receipt stream digest mismatch")
-                rows: list[dict[str, object]] = []
-                with receipt_path.open("rb") as handle:
-                    while True:
-                        line = handle.readline(1024 * 1024 + 1)
-                        if not line:
-                            break
-                        if len(line) > 1024 * 1024 or not line.endswith(b"\n"):
-                            raise ValueError(
-                                "fit receipt row is oversized or unterminated"
-                            )
-                        value = json.loads(line)
-                        if type(value) is not dict:
-                            raise ValueError("fit receipt row is not an object")
-                        if canonical_json(value) + b"\n" != line:
-                            raise ValueError("fit receipt row is not canonical JSON")
-                        if value.get("sequence") != len(rows):
-                            raise ValueError("fit receipt sequence is not canonical")
-                        rows.append(value)
-                if len(rows) != receipt.fit_count:
-                    raise ValueError("fit receipt stream count mismatch")
-                loaded.append(tuple(rows))
-        except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
-            self._fit_rows_failed = True
+                timing_rows, _timing_sha256 = _read_exact_canonical_jsonl(
+                    fits_root / "timings.jsonl",
+                    expected_count=receipt.fit_count,
+                    byte_limit=_TIMING_ROW_BYTE_LIMIT,
+                    label="timing receipt",
+                    retained_fields=_TIMING_EVIDENCE_FIELDS,
+                )
+                loaded.append(
+                    _RepeatOutputEvidence(
+                        header=dict(header),
+                        fit_rows=fit_rows,
+                        timing_summary=_summarize_timing_rows(timing_rows),
+                    )
+                )
+        except (KeyError, OSError, UnicodeError, ValueError, json.JSONDecodeError):
+            self._evidence_failed = True
             return None
-        self._fit_rows = tuple(loaded)
-        return self._fit_rows
+        self._evidence = tuple(loaded)
+        return self._evidence
+
+    def fit_rows(self) -> tuple[tuple[dict[str, object], ...], ...] | None:
+        evidence = self.evidence()
+        if evidence is None:
+            return None
+        return tuple(item.fit_rows for item in evidence)
 
 
 _ACTIVE_REPEAT_CONTEXT: ContextVar[_RepeatCheckContext | None] = ContextVar(
@@ -244,6 +296,13 @@ class FeasibilityGate:
     schema: str = _GATE_SCHEMA
 
 
+@dataclass(frozen=True, slots=True)
+class _RepeatOutputEvidence:
+    header: Mapping[str, object]
+    fit_rows: tuple[dict[str, object], ...]
+    timing_summary: Mapping[str, TimingCategorySummary]
+
+
 def _is_sha256(value: object) -> bool:
     return (
         type(value) is str
@@ -265,6 +324,168 @@ def _require_finite_float(value: object, *, name: str) -> float:
     if not math.isfinite(converted):
         raise ValueError(f"{name} must be a finite number")
     return converted
+
+
+def _paths_overlap(left: Path, right: Path) -> bool:
+    return left == right or left in right.parents or right in left.parents
+
+
+def _read_bounded_regular_file(path: Path, *, byte_limit: int, label: str) -> bytes:
+    source = Path(path)
+    try:
+        status = source.lstat()
+    except OSError as error:
+        raise ValueError(f"{label} is missing: {source}") from error
+    if not stat.S_ISREG(status.st_mode):
+        raise ValueError(f"{label} is not a regular file: {source}")
+    if status.st_size > byte_limit:
+        raise ValueError(f"{label} exceeds its {byte_limit}-byte limit")
+    with source.open("rb") as handle:
+        payload = handle.read(status.st_size + 1)
+    if len(payload) != status.st_size:
+        raise ValueError(f"{label} size changed while it was read")
+    return payload
+
+
+def _read_bounded_canonical_json(
+    path: Path, *, byte_limit: int = _TASK7_JSON_BYTE_LIMIT, label: str
+) -> object:
+    payload = _read_bounded_regular_file(Path(path), byte_limit=byte_limit, label=label)
+    try:
+        value = json.loads(payload)
+        expected = canonical_json(value) + b"\n"
+    except (TypeError, UnicodeError, ValueError) as error:
+        raise ValueError(f"{label} is not valid canonical JSON") from error
+    if payload != expected:
+        raise ValueError(f"{label} is not canonical JSON")
+    return value
+
+
+def _preflight_exact_physical_layout(
+    root: Path, *, expected_files: Sequence[str], label: str
+) -> None:
+    tree: dict[str, object] = {}
+    for relative in ("manifest.json", *expected_files):
+        parts = relative.split("/")
+        if (
+            not relative
+            or "\\" in relative
+            or any(part in {"", ".", ".."} for part in parts)
+        ):
+            raise ValueError(f"{label} expected file layout is invalid")
+        node = tree
+        for part in parts[:-1]:
+            if part not in node:
+                node[part] = {}
+            child = node[part]
+            if type(child) is not dict:
+                raise ValueError(f"{label} expected file layout is invalid")
+            node = child
+        if parts[-1] in node:
+            raise ValueError(f"{label} expected file layout is invalid")
+        node[parts[-1]] = None
+
+    def scan(directory: Path, expected: dict[str, object]) -> None:
+        try:
+            status = directory.lstat()
+        except OSError as error:
+            raise ValueError(f"{label} has an unexpected physical layout") from error
+        if not stat.S_ISDIR(status.st_mode):
+            raise ValueError(f"{label} has an unexpected physical layout")
+
+        observed: set[str] = set()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    child = expected.get(entry.name, _MISSING_LAYOUT_ENTRY)
+                    if child is _MISSING_LAYOUT_ENTRY or entry.name in observed:
+                        raise ValueError(f"{label} has an unexpected physical layout")
+                    observed.add(entry.name)
+                    if type(child) is dict:
+                        valid_kind = entry.is_dir(follow_symlinks=False)
+                    else:
+                        valid_kind = entry.is_file(follow_symlinks=False)
+                    if not valid_kind:
+                        raise ValueError(f"{label} has an unexpected physical layout")
+        except OSError as error:
+            raise ValueError(f"{label} has an unexpected physical layout") from error
+        if observed != set(expected):
+            raise ValueError(f"{label} has an unexpected physical layout")
+
+        for name, child in expected.items():
+            if type(child) is dict:
+                scan(directory / name, child)
+
+    scan(Path(root), tree)
+
+
+def _validate_task7_manifest(
+    root: Path, *, expected_files: Sequence[str], label: str
+) -> dict[str, object]:
+    artifact_root = Path(root)
+    value = _read_bounded_canonical_json(
+        artifact_root / "manifest.json",
+        byte_limit=_TASK7_MANIFEST_BYTE_LIMIT,
+        label=f"{label} manifest",
+    )
+    if type(value) is not dict:
+        raise ValueError(f"{label} manifest has an unexpected layout")
+    rows = value.get("files")
+    if (
+        type(rows) is not list
+        or any(type(row) is not list or len(row) != 3 for row in rows)
+        or [row[0] for row in rows] != list(expected_files)
+    ):
+        raise ValueError(f"{label} manifest has an unexpected layout")
+    _preflight_exact_physical_layout(
+        artifact_root,
+        expected_files=expected_files,
+        label=label,
+    )
+    return validate_manifest(artifact_root)
+
+
+def _read_exact_canonical_jsonl(
+    path: Path,
+    *,
+    expected_count: int,
+    byte_limit: int,
+    label: str,
+    retained_fields: Sequence[str] | None = None,
+) -> tuple[tuple[dict[str, object], ...], str]:
+    if type(expected_count) is not int or expected_count < 0:
+        raise ValueError(f"{label} expected count is invalid")
+    if type(byte_limit) is not int or byte_limit <= 0:
+        raise ValueError(f"{label} byte limit is invalid")
+    rows: list[dict[str, object]] = []
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for sequence in range(expected_count):
+            line = handle.readline(byte_limit + 1)
+            if line == b"":
+                raise ValueError(f"{label} stream ended before its expected count")
+            if len(line) > byte_limit or not line.endswith(b"\n"):
+                raise ValueError(f"{label} row is oversized or unterminated")
+            value = json.loads(line)
+            if type(value) is not dict:
+                raise ValueError(f"{label} row is not an object")
+            if canonical_json(value) + b"\n" != line:
+                raise ValueError(f"{label} row is not canonical JSON")
+            if value.get("sequence") != sequence:
+                raise ValueError(f"{label} sequence is not canonical")
+            digest.update(line)
+            if retained_fields is None:
+                rows.append(dict(value))
+            else:
+                try:
+                    rows.append({field: value[field] for field in retained_fields})
+                except KeyError as error:
+                    raise ValueError(
+                        f"{label} row is missing a retained field"
+                    ) from error
+        if handle.read(1) != b"":
+            raise ValueError(f"{label} stream contains data after its expected count")
+    return tuple(rows), digest.hexdigest()
 
 
 def official_sample_indices() -> tuple[NDArray[np.int64], NDArray[np.int64]]:
@@ -458,8 +679,8 @@ def _receipt_from_dict(value: object) -> FeasibilityReceipt:
         if not root.is_absolute() or str(root.resolve()) != root_value:
             raise ValueError("feasibility provenance root is not normalized absolute")
         normalized_roots.append(root)
-    if normalized_roots[0] == normalized_roots[1]:
-        raise ValueError("feasibility cache and output roots must differ")
+    if _paths_overlap(normalized_roots[0], normalized_roots[1]):
+        raise ValueError("feasibility cache and output roots overlap")
     worker_pid = provenance["worker_pid"]
     if type(worker_pid) is not int or worker_pid <= 0:
         raise ValueError("feasibility provenance worker_pid is invalid")
@@ -736,9 +957,14 @@ def run_feasibility_worker(
             canonical_json(_receipt_to_dict(receipt)) + b"\n",
         )
 
-    validate_manifest(output_root)
-    persisted_value = json.loads(
-        (output_root / "feasibility_receipt.json").read_bytes()
+    _validate_task7_manifest(
+        output_root,
+        expected_files=_WORKER_OUTPUT_FILES,
+        label="worker output",
+    )
+    persisted_value = _read_bounded_canonical_json(
+        output_root / "feasibility_receipt.json",
+        label="worker feasibility receipt",
     )
     persisted = _receipt_from_dict(persisted_value)
     if persisted != receipt:
@@ -796,6 +1022,26 @@ def _repeat_check(
         field = provenance_fields[name]
         if repeat_a.provenance.get(field) != repeat_b.provenance.get(field):
             return False
+        header_fields = {
+            "clustering_contract": "clustering_contract_sha256",
+            "implementation_inventory": "implementation_inventory_sha256",
+            "dependency_inventory": "dependency_inventory_sha256",
+            "runtime_inventory": "runtime_inventory_sha256",
+            "query_input": "query_input_sha256",
+            "embedding": "embedding_sha256",
+            "similarity": "similarity_sha256",
+        }
+        if name in header_fields:
+            context = _ACTIVE_REPEAT_CONTEXT.get()
+            if context is None:
+                context = _RepeatCheckContext(repeat_a, repeat_b)
+            evidence = context.evidence()
+            header_field = header_fields[name]
+            if evidence is None or any(
+                item.header.get(header_field) != receipt.provenance.get(field)
+                for item, receipt in zip(evidence, (repeat_a, repeat_b), strict=True)
+            ):
+                return False
         if name == "query_input":
             return repeat_a.provenance.get(
                 "query_file_sha256"
@@ -819,10 +1065,18 @@ def _repeat_check(
                 for runtime_field in runtime_fields
             ):
                 return False
-            for receipt in (repeat_a, repeat_b):
+            context = _ACTIVE_REPEAT_CONTEXT.get()
+            if context is None:
+                context = _RepeatCheckContext(repeat_a, repeat_b)
+            evidence = context.evidence()
+            if evidence is None:
+                return False
+            for receipt, item in zip((repeat_a, repeat_b), evidence, strict=True):
                 output_value = receipt.provenance.get("output_root")
                 expected_hash = receipt.provenance.get("numerical_environment_sha256")
                 if type(output_value) is not str or not _is_sha256(expected_hash):
+                    return False
+                if item.header.get("numerical_environment_sha256") != expected_hash:
                     return False
                 try:
                     if (
@@ -837,9 +1091,20 @@ def _repeat_check(
         pair, single = official_sample_indices()
         expected_pair = tuple(map(int, pair))
         expected_single = tuple(map(int, single))
-        return (
+        receipt_samples_match = (
             repeat_a.pair_indices == repeat_b.pair_indices == expected_pair
             and repeat_a.single_indices == repeat_b.single_indices == expected_single
+        )
+        if not receipt_samples_match:
+            return False
+        context = _ACTIVE_REPEAT_CONTEXT.get()
+        if context is None:
+            context = _RepeatCheckContext(repeat_a, repeat_b)
+        evidence = context.evidence()
+        return evidence is not None and all(
+            item.header.get("expected_inventory")
+            == _worker_expected_inventory(receipt.pair_indices, receipt.single_indices)
+            for item, receipt in zip(evidence, (repeat_a, repeat_b), strict=True)
         )
     if name == "category_counts":
         expected = {
@@ -874,9 +1139,35 @@ def _repeat_check(
                 return False
         return True
     if name == "fit_count":
-        return repeat_a.fit_count == repeat_b.fit_count == 576
+        if repeat_a.fit_count != 576 or repeat_b.fit_count != 576:
+            return False
+        context = _ACTIVE_REPEAT_CONTEXT.get()
+        if context is None:
+            context = _RepeatCheckContext(repeat_a, repeat_b)
+        evidence = context.evidence()
+        return evidence is not None and all(
+            item.header.get("expected_counts")
+            == {
+                "pair_fit_count": 2 * len(receipt.pair_indices),
+                "single_fit_count": 2 * len(receipt.single_indices),
+                "fit_count": receipt.fit_count,
+                "start_count": receipt.start_count,
+                "timing_record_count": receipt.fit_count,
+            }
+            for item, receipt in zip(evidence, (repeat_a, repeat_b), strict=True)
+        )
     if name == "start_count":
-        return repeat_a.start_count == repeat_b.start_count == 5_760
+        if repeat_a.start_count != 5_760 or repeat_b.start_count != 5_760:
+            return False
+        context = _ACTIVE_REPEAT_CONTEXT.get()
+        if context is None:
+            context = _RepeatCheckContext(repeat_a, repeat_b)
+        evidence = context.evidence()
+        return evidence is not None and all(
+            item.header.get("expected_counts", {}).get("start_count")
+            == receipt.start_count
+            for item, receipt in zip(evidence, (repeat_a, repeat_b), strict=True)
+        )
     if name in {
         "fit_supports",
         "fit_memberships",
@@ -930,9 +1221,16 @@ def _repeat_check(
                 return False
             output_root = Path(output_value)
             try:
-                validate_manifest(output_root)
+                _validate_task7_manifest(
+                    output_root,
+                    expected_files=_WORKER_OUTPUT_FILES,
+                    label="worker output",
+                )
                 persisted = _receipt_from_dict(
-                    json.loads((output_root / "feasibility_receipt.json").read_bytes())
+                    _read_bounded_canonical_json(
+                        output_root / "feasibility_receipt.json",
+                        label="worker feasibility receipt",
+                    )
                 )
                 if persisted != receipt:
                     return False
@@ -945,7 +1243,7 @@ def _repeat_check(
                 return False
         return True
     if name == "fresh_distinct_roots":
-        roots: list[str] = []
+        roots: list[Path] = []
         for receipt in (repeat_a, repeat_b):
             for field in ("cache_root", "output_root"):
                 value = receipt.provenance.get(field)
@@ -954,16 +1252,29 @@ def _repeat_check(
                 candidate = Path(value)
                 if not candidate.is_absolute() or str(candidate.resolve()) != value:
                     return False
-                roots.append(value)
+                roots.append(candidate)
         worker_pids = tuple(
             receipt.provenance.get("worker_pid") for receipt in (repeat_a, repeat_b)
         )
         return (
-            len(set(roots)) == 4
+            all(
+                not _paths_overlap(left, right)
+                for index, left in enumerate(roots)
+                for right in roots[index + 1 :]
+            )
             and all(type(pid) is int and pid > 0 for pid in worker_pids)
             and worker_pids[0] != worker_pids[1]
         )
     if name == "finite_timings":
+        context = _ACTIVE_REPEAT_CONTEXT.get()
+        if context is None:
+            context = _RepeatCheckContext(repeat_a, repeat_b)
+        evidence = context.evidence()
+        if evidence is None or any(
+            dict(item.timing_summary) != dict(receipt.timing_summary)
+            for item, receipt in zip(evidence, (repeat_a, repeat_b), strict=True)
+        ):
+            return False
         return all(
             all(
                 math.isfinite(value) and value >= 0.0

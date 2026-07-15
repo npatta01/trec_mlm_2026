@@ -1,20 +1,27 @@
 from __future__ import annotations
 
+from dataclasses import replace
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 import trec_mlm.dense_aggregation_cli as cli
+from trec_mlm import dense_aggregation_artifacts as artifacts
 from trec_mlm.dense_aggregation_artifacts import raw_file_sha256, validate_manifest
+from trec_mlm.dense_aggregation_cache import StreamingFitCache
+import trec_mlm.dense_aggregation_feasibility as feasibility
 from trec_mlm.dense_aggregation_feasibility import (
     FEASIBILITY_PROVENANCE_KEYS,
     FeasibilityGate,
     FeasibilityReceipt,
     TimingCategorySummary,
+    _receipt_to_dict,
 )
 from trec_mlm.dense_aggregation_hashing import canonical_json
 
@@ -297,6 +304,24 @@ def test_prepare_and_validate_frozen_input_are_manifested_and_read_only(
         )
 
 
+def test_cli_frozen_validator_rejects_oversized_npy_before_numpy_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    embedding = tmp_path / "oversized.npy"
+    metadata = tmp_path / "metadata.json"
+    with embedding.open("wb") as handle:
+        handle.truncate(8 * 1024 * 1024)
+    metadata.write_bytes(b"{}\n")
+
+    def forbidden_load(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise AssertionError("oversized NPY reached numpy.load")
+
+    monkeypatch.setattr(np, "load", forbidden_load)
+    with pytest.raises(ValueError, match="byte limit"):
+        cli._validate_frozen_files(embedding, metadata)
+
+
 def _cli_receipt(output_root: Path, cache_root: Path, pid: int) -> FeasibilityReceipt:
     provenance: dict[str, object] = {
         name: "1" * 64 for name in FEASIBILITY_PROVENANCE_KEYS
@@ -307,7 +332,14 @@ def _cli_receipt(output_root: Path, cache_root: Path, pid: int) -> FeasibilityRe
             "numpy_version": "2.5.1",
             "scipy_version": "1.18.0",
             "scikit_learn_version": "1.9.0",
-            "thread_environment": {},
+            "thread_environment": {
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "OPENBLAS_NUM_THREADS": "1",
+                "BLIS_NUM_THREADS": "1",
+                "VECLIB_MAXIMUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1",
+            },
             "cache_root": str(cache_root.resolve()),
             "output_root": str(output_root.resolve()),
             "worker_pid": pid,
@@ -340,6 +372,230 @@ def _cli_receipt(output_root: Path, cache_root: Path, pid: int) -> FeasibilityRe
     )
 
 
+def _write_cli_worker_fixture(
+    tmp_path: Path, *, canonical_receipt: bool = True
+) -> tuple[Path, FeasibilityReceipt]:
+    output_root = (tmp_path / "worker-output").resolve()
+    fits_root = output_root / "fits"
+    fits_root.mkdir(parents=True)
+    for name in (
+        "centers.f4",
+        "labels.u2",
+        "cluster_inertia.f8",
+        "fit_receipts.jsonl",
+        "timings.jsonl",
+    ):
+        (fits_root / name).write_bytes(b"")
+    (fits_root / "header.json").write_bytes(b"{}\n")
+    (output_root / "environment.json").write_bytes(b"{}\n")
+    receipt = replace(
+        _cli_receipt(output_root, tmp_path / "worker-cache", 101),
+        fit_receipt_sha256=hashlib.sha256(b"").hexdigest(),
+    )
+    receipt_value = _receipt_to_dict(receipt)
+    receipt_bytes = canonical_json(receipt_value) + b"\n"
+    if not canonical_receipt:
+        receipt_bytes = json.dumps(receipt_value, indent=2).encode("utf-8") + b"\n"
+    (output_root / "feasibility_receipt.json").write_bytes(receipt_bytes)
+    artifacts.write_manifest(output_root)
+    return output_root, receipt
+
+
+def _write_cli_aggregate_fixture(
+    tmp_path: Path, *, canonical_repeat_a: bool = True
+) -> tuple[Path, Path]:
+    root = (tmp_path / "aggregate").resolve()
+    root.mkdir(parents=True)
+    repeat_a = _cli_receipt(
+        (tmp_path / "worker-a-output").resolve(),
+        (tmp_path / "worker-a-cache").resolve(),
+        101,
+    )
+    repeat_b = _cli_receipt(
+        (tmp_path / "worker-b-output").resolve(),
+        (tmp_path / "worker-b-cache").resolve(),
+        202,
+    )
+    gate = FeasibilityGate(
+        status="pass",
+        failures=(),
+        projection_seconds=1.0,
+        maximum_rss_bytes=1,
+    )
+    (root / "feasibility_gate.json").write_bytes(
+        canonical_json(cli._gate_to_dict(gate)) + b"\n"
+    )
+    repeat_a_value = _receipt_to_dict(repeat_a)
+    repeat_a_bytes = canonical_json(repeat_a_value) + b"\n"
+    if not canonical_repeat_a:
+        repeat_a_bytes = json.dumps(repeat_a_value, indent=2).encode("utf-8") + b"\n"
+    (root / "repeat_a_receipt.json").write_bytes(repeat_a_bytes)
+    (root / "repeat_b_receipt.json").write_bytes(
+        canonical_json(_receipt_to_dict(repeat_b)) + b"\n"
+    )
+    (root / "repeat_measurements.json").write_bytes(
+        canonical_json(
+            {
+                "schema": (
+                    "trec-mlm-dense-aggregation-feasibility-repeat-measurements-v1"
+                ),
+                "repeat_a_manifest_sha256": "1" * 64,
+                "repeat_b_manifest_sha256": "2" * 64,
+                "repeat_a_rss_bytes": 1,
+                "repeat_b_rss_bytes": 1,
+            }
+        )
+        + b"\n"
+    )
+    artifacts.write_manifest(root)
+    compact = tmp_path / "compact.json"
+    compact.write_bytes(b"{}\n")
+    return root, compact
+
+
+def test_worker_output_requires_canonical_bounded_receipt_and_exact_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root, _receipt = _write_cli_worker_fixture(
+        tmp_path / "noncanonical", canonical_receipt=False
+    )
+    monkeypatch.setattr(
+        StreamingFitCache,
+        "open_readonly",
+        classmethod(lambda _cls, root: object()),
+    )
+    with pytest.raises(ValueError, match="canonical"):
+        cli._load_worker_output(output_root)
+
+    output_root, _receipt = _write_cli_worker_fixture(tmp_path / "oversized")
+    receipt_path = output_root / "feasibility_receipt.json"
+    with receipt_path.open("wb") as handle:
+        handle.truncate(2 * 1024 * 1024)
+    (output_root / "manifest.json").unlink()
+    artifacts.write_manifest(output_root)
+    real_read_bytes = Path.read_bytes
+
+    def reject_unbounded_receipt(path: Path) -> bytes:
+        if path == receipt_path:
+            raise AssertionError("oversized receipt reached Path.read_bytes")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", reject_unbounded_receipt)
+    with pytest.raises(ValueError, match="byte limit"):
+        cli._load_worker_output(output_root)
+
+
+def test_worker_output_loader_defers_cache_reopen_to_repeat_evaluation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root, expected = _write_cli_worker_fixture(tmp_path)
+
+    def forbidden_reopen(_cls: object, root: Path) -> object:
+        del root
+        raise AssertionError("worker output loader reopened the repeat cache")
+
+    monkeypatch.setattr(
+        StreamingFitCache,
+        "open_readonly",
+        classmethod(forbidden_reopen),
+    )
+
+    assert cli._load_worker_output(output_root) == expected
+
+
+def test_worker_manifest_preflight_rejects_extra_and_oversized_layouts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden_general_validation(root: Path) -> object:
+        del root
+        raise AssertionError("general manifest validation ran before Task 7 preflight")
+
+    output_root, _receipt = _write_cli_worker_fixture(tmp_path / "extra")
+    (output_root / "unexpected.txt").write_bytes(b"unexpected\n")
+    (output_root / "manifest.json").unlink()
+    artifacts.write_manifest(output_root)
+    monkeypatch.setattr(artifacts, "validate_manifest", forbidden_general_validation)
+    monkeypatch.setattr(feasibility, "validate_manifest", forbidden_general_validation)
+    with pytest.raises(ValueError, match="unexpected layout"):
+        cli._load_worker_output(output_root)
+
+    output_root, _receipt = _write_cli_worker_fixture(tmp_path / "oversized")
+    with (output_root / "manifest.json").open("wb") as handle:
+        handle.truncate(2 * 1024 * 1024)
+    with pytest.raises(ValueError, match="byte limit"):
+        cli._load_worker_output(output_root)
+
+
+def test_worker_physical_layout_preflight_rejects_unmanifested_extra_before_general(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root, _receipt = _write_cli_worker_fixture(tmp_path)
+    (output_root / "unexpected.txt").write_bytes(b"unmanifested\n")
+
+    def forbidden_general_validation(root: Path) -> object:
+        del root
+        raise AssertionError(
+            "general manifest validation ran before physical preflight"
+        )
+
+    monkeypatch.setattr(feasibility, "validate_manifest", forbidden_general_validation)
+
+    with pytest.raises(ValueError, match="unexpected physical layout"):
+        cli._load_worker_output(output_root)
+
+
+def test_worker_physical_layout_preflight_never_descends_unexpected_subtree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root, _receipt = _write_cli_worker_fixture(tmp_path)
+    unexpected = output_root / "unexpected"
+    (unexpected / "deep").mkdir(parents=True)
+    (unexpected / "deep/sentinel").write_bytes(b"must not be traversed\n")
+    real_scandir = os.scandir
+
+    def guarded_scandir(path: os.PathLike[str] | str) -> os.ScandirIterator[str]:
+        if Path(path).resolve() == unexpected.resolve():
+            raise AssertionError("physical preflight descended unexpected subtree")
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", guarded_scandir)
+
+    with pytest.raises(ValueError, match="unexpected physical layout"):
+        cli._load_worker_output(output_root)
+
+
+def test_aggregate_requires_canonical_receipt_copies_and_exact_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = type("Config", (), {})()
+    monkeypatch.setattr(cli, "_load_config", lambda path: config, raising=False)
+    root, compact = _write_cli_aggregate_fixture(
+        tmp_path / "noncanonical", canonical_repeat_a=False
+    )
+
+    def forbidden_worker_load(root: Path) -> object:
+        del root
+        raise AssertionError("noncanonical aggregate receipt was accepted")
+
+    monkeypatch.setattr(cli, "_load_worker_output", forbidden_worker_load)
+    with pytest.raises(ValueError, match="canonical"):
+        cli._validate_feasibility_artifact(Path("config"), root, compact)
+
+    root, compact = _write_cli_aggregate_fixture(tmp_path / "extra")
+    (root / "unexpected.txt").write_bytes(b"unexpected\n")
+    (root / "manifest.json").unlink()
+    artifacts.write_manifest(root)
+
+    def forbidden_general_validation(candidate: Path) -> object:
+        del candidate
+        raise AssertionError("general manifest validation ran before layout preflight")
+
+    monkeypatch.setattr(artifacts, "validate_manifest", forbidden_general_validation)
+    monkeypatch.setattr(feasibility, "validate_manifest", forbidden_general_validation)
+    with pytest.raises(ValueError, match="unexpected layout"):
+        cli._validate_feasibility_artifact(Path("config"), root, compact)
+
+
 @pytest.mark.parametrize("status", ("pass", "stop"))
 def test_coordinator_runs_exact_sequential_workers_and_publishes_gate(
     tmp_path: Path,
@@ -359,6 +615,16 @@ def test_coordinator_runs_exact_sequential_workers_and_publishes_gate(
         {
             "repo_root": tmp_path.resolve(),
             "source_path": config_path.resolve(),
+            "protocol_path": (
+                tmp_path / "protocols/trec_2026_dense_aggregation.md"
+            ).resolve(),
+            "query_path": (tmp_path / "data/dev/queries.tsv").resolve(),
+            "embedding_path": (
+                tmp_path / "artifacts/frozen/mpnet_base_v2.npy"
+            ).resolve(),
+            "encoder_metadata_path": (
+                tmp_path / "artifacts/frozen/encoder_metadata.json"
+            ).resolve(),
         },
     )()
     subprocess_calls: list[tuple[list[str], Path, dict[str, str]]] = []
@@ -461,6 +727,59 @@ def test_coordinator_runs_exact_sequential_workers_and_publishes_gate(
         assert not compact.exists()
 
 
+def test_coordinator_preserves_worker_failure_as_hard_error_without_aggregate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root = tmp_path / "artifacts/feasibility"
+    compact_receipt = tmp_path / "reports/feasibility.json"
+    config = type(
+        "Config",
+        (),
+        {
+            "repo_root": tmp_path.resolve(),
+            "source_path": (tmp_path / "configs/feasibility.json").resolve(),
+            "protocol_path": (
+                tmp_path / "protocols/trec_2026_dense_aggregation.md"
+            ).resolve(),
+            "query_path": (tmp_path / "data/dev/queries.tsv").resolve(),
+            "embedding_path": (
+                tmp_path / "artifacts/frozen/mpnet_base_v2.npy"
+            ).resolve(),
+            "encoder_metadata_path": (
+                tmp_path / "artifacts/frozen/encoder_metadata.json"
+            ).resolve(),
+        },
+    )()
+    subprocess_calls: list[list[str]] = []
+    monkeypatch.setattr(cli, "_load_config", lambda path: config, raising=False)
+
+    def fail_worker(
+        argv: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        subprocess_calls.append(argv)
+        return subprocess.CompletedProcess(argv, 17)
+
+    monkeypatch.setattr(subprocess, "run", fail_worker)
+
+    with pytest.raises(RuntimeError, match="status 17"):
+        main(
+            [
+                "feasibility",
+                "--config",
+                str(config.source_path),
+                "--output-root",
+                str(output_root),
+                "--compact-receipt",
+                str(compact_receipt),
+                "--attest-exclusive-resources",
+            ]
+        )
+
+    assert len(subprocess_calls) == 1
+    assert not output_root.exists()
+    assert not compact_receipt.exists()
+
+
 @pytest.mark.parametrize("compact_location", ("inside-output", "repeat-time"))
 def test_coordinator_rejects_overlapping_destinations_before_side_effects(
     tmp_path: Path,
@@ -477,7 +796,17 @@ def test_coordinator_rejects_overlapping_destinations_before_side_effects(
         (),
         {
             "repo_root": tmp_path.resolve(),
-            "source_path": (tmp_path / "config.json").resolve(),
+            "source_path": (tmp_path / "configs/feasibility.json").resolve(),
+            "protocol_path": (
+                tmp_path / "protocols/trec_2026_dense_aggregation.md"
+            ).resolve(),
+            "query_path": (tmp_path / "data/dev/queries.tsv").resolve(),
+            "embedding_path": (
+                tmp_path / "artifacts/frozen/mpnet_base_v2.npy"
+            ).resolve(),
+            "encoder_metadata_path": (
+                tmp_path / "artifacts/frozen/encoder_metadata.json"
+            ).resolve(),
         },
     )()
     subprocess_calls: list[list[str]] = []
@@ -494,7 +823,7 @@ def test_coordinator_rejects_overlapping_destinations_before_side_effects(
             [
                 "feasibility",
                 "--config",
-                str(tmp_path / "config.json"),
+                str(tmp_path / "configs/feasibility.json"),
                 "--output-root",
                 str(output_root),
                 "--compact-receipt",
@@ -504,6 +833,65 @@ def test_coordinator_rejects_overlapping_destinations_before_side_effects(
         )
     assert subprocess_calls == []
     assert not output_root.parent.exists()
+
+
+@pytest.mark.parametrize("destination_index", range(8))
+def test_coordinator_rejects_configured_input_directory_destinations_before_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, destination_index: int
+) -> None:
+    frozen_root = tmp_path / "artifacts/frozen"
+    output_root = tmp_path / "artifacts/feasibility"
+    compact_receipt = tmp_path / "reports/feasibility.json"
+    prefix = f".{output_root.name}-repeat"
+    protected_destination = (
+        output_root,
+        compact_receipt,
+        output_root.parent / f"{prefix}-a.time.txt",
+        output_root.parent / f"{prefix}-a-cache",
+        output_root.parent / f"{prefix}-a-output",
+        output_root.parent / f"{prefix}-b.time.txt",
+        output_root.parent / f"{prefix}-b-cache",
+        output_root.parent / f"{prefix}-b-output",
+    )[destination_index]
+    config = type(
+        "Config",
+        (),
+        {
+            "repo_root": tmp_path.resolve(),
+            "source_path": (tmp_path / "configs/feasibility.json").resolve(),
+            "protocol_path": (
+                tmp_path / "protocols/trec_2026_dense_aggregation.md"
+            ).resolve(),
+            "query_path": (protected_destination / "queries.tsv").resolve(),
+            "embedding_path": (frozen_root / "mpnet_base_v2.npy").resolve(),
+            "encoder_metadata_path": (frozen_root / "encoder_metadata.json").resolve(),
+        },
+    )()
+    subprocess_calls: list[list[str]] = []
+
+    monkeypatch.setattr(cli, "_load_config", lambda path: config, raising=False)
+
+    def run_worker(argv: list[str], **kwargs: object) -> None:
+        subprocess_calls.append(argv)
+        raise AssertionError("coordinator started a worker before input path preflight")
+
+    monkeypatch.setattr(subprocess, "run", run_worker)
+    with pytest.raises(ValueError, match="configured input"):
+        main(
+            [
+                "feasibility",
+                "--config",
+                str(config.source_path),
+                "--output-root",
+                str(output_root),
+                "--compact-receipt",
+                str(compact_receipt),
+                "--attest-exclusive-resources",
+            ]
+        )
+    assert subprocess_calls == []
+    assert not output_root.parent.exists()
+    assert not compact_receipt.parent.exists()
 
 
 def test_validate_feasibility_command_is_strictly_read_only(

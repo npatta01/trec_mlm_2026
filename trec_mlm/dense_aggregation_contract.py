@@ -53,6 +53,9 @@ _EXPECTED_VERSIONS = {
     "scikit_learn": "1.9.0",
 }
 _LOWERCASE_HEX = frozenset("0123456789abcdef")
+_FEASIBILITY_CONFIG_BYTE_LIMIT = 64 * 1024
+_ENCODER_METADATA_BYTE_LIMIT = 256 * 1024
+_FROZEN_EMBEDDING_BYTE_LIMIT = 4 * 1024 * 1024
 
 
 IMPLEMENTATION_FILES: tuple[str, ...] = (
@@ -98,11 +101,35 @@ class FeasibilityConfig:
     protocol_path: Path
 
 
+def _read_bounded_regular_file(path: Path, *, byte_limit: int, label: str) -> bytes:
+    source = Path(path)
+    try:
+        status = source.lstat()
+    except OSError as error:
+        raise ValueError(f"{label} is missing: {source}") from error
+    if not stat.S_ISREG(status.st_mode):
+        raise ValueError(f"{label} is not a regular file: {source}")
+    if status.st_size > byte_limit:
+        raise ValueError(f"{label} exceeds its {byte_limit}-byte limit")
+    with source.open("rb") as handle:
+        payload = handle.read(status.st_size + 1)
+    if len(payload) != status.st_size:
+        raise ValueError(f"{label} size changed while it was read")
+    return payload
+
+
 def load_feasibility_config(path: str | Path) -> FeasibilityConfig:
     source = Path(path)
-    source_bytes = source.read_bytes()
+    source_bytes = _read_bounded_regular_file(
+        source,
+        byte_limit=_FEASIBILITY_CONFIG_BYTE_LIMIT,
+        label="feasibility config",
+    )
     source_sha256 = hashlib.sha256(source_bytes).hexdigest()
-    payload_value = json.loads(source_bytes)
+    try:
+        payload_value = json.loads(source_bytes)
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("feasibility config is not valid JSON") from error
     if type(payload_value) is not dict:
         raise ValueError("feasibility config must be a JSON object")
     payload: dict[object, object] = payload_value
@@ -234,6 +261,46 @@ def _require_exact_mpnet_metadata(metadata: Mapping[str, object]) -> None:
         raise ValueError(f"frozen MPNet metadata mismatch: {mismatches!r}")
 
 
+def _load_frozen_embedding_qrel_free(path: Path) -> NDArray[np.float32]:
+    source = Path(path)
+    try:
+        status = source.lstat()
+    except OSError as error:
+        raise ValueError(f"frozen MPNet array is missing: {source}") from error
+    if not stat.S_ISREG(status.st_mode):
+        raise ValueError(f"frozen MPNet array is not a regular file: {source}")
+    if status.st_size > _FROZEN_EMBEDDING_BYTE_LIMIT:
+        raise ValueError(
+            f"frozen MPNet array exceeds its {_FROZEN_EMBEDDING_BYTE_LIMIT}-byte limit"
+        )
+    mapped = np.load(source, mmap_mode="r", allow_pickle=False)
+    if mapped.shape != (322, 768) or mapped.dtype != np.dtype("float32"):
+        raise ValueError(
+            "frozen MPNet array must have shape (322, 768) and float32 dtype"
+        )
+    offset = getattr(mapped, "offset", None)
+    if type(offset) is not int or status.st_size != offset + mapped.nbytes:
+        raise ValueError("frozen MPNet array file size does not match its payload")
+    embeddings = np.array(mapped, dtype=np.float32, order="C", copy=True)
+    del mapped
+    return embeddings
+
+
+def _load_frozen_metadata_qrel_free(path: Path) -> dict[str, object]:
+    metadata_bytes = _read_bounded_regular_file(
+        Path(path),
+        byte_limit=_ENCODER_METADATA_BYTE_LIMIT,
+        label="frozen encoder metadata",
+    )
+    try:
+        metadata_value = json.loads(metadata_bytes)
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("frozen encoder metadata is not valid JSON") from error
+    if type(metadata_value) is not dict:
+        raise ValueError("frozen encoder metadata must be a JSON object")
+    return metadata_value
+
+
 def load_and_validate_frozen_dense_inputs(
     config: FeasibilityConfig,
 ) -> FrozenDenseInputs:
@@ -245,12 +312,7 @@ def load_and_validate_frozen_dense_inputs(
     if len(query_ids) != 322:
         raise ValueError(f"expected 322 canonical queries, got {len(query_ids)}")
 
-    embeddings = np.load(config.embedding_path, allow_pickle=False)
-    if embeddings.shape != (322, 768) or embeddings.dtype != np.dtype("float32"):
-        raise ValueError(
-            "frozen MPNet array must have shape (322, 768) and float32 dtype"
-        )
-    embeddings = np.ascontiguousarray(embeddings, dtype=np.float32)
+    embeddings = _load_frozen_embedding_qrel_free(config.embedding_path)
     norms = np.linalg.norm(embeddings, axis=1)
     if not np.isfinite(embeddings).all() or np.any(norms == 0):
         raise ValueError("frozen MPNet rows must be finite and nonzero")
@@ -263,11 +325,7 @@ def load_and_validate_frozen_dense_inputs(
     if _legacy_array_sha256_qrel_free(similarities) != _SIMILARITY_SHA256:
         raise ValueError("frozen MPNet cosine logical hash mismatch")
 
-    metadata_value = json.loads(
-        config.encoder_metadata_path.read_text(encoding="utf-8")
-    )
-    if type(metadata_value) is not dict:
-        raise ValueError("frozen encoder metadata must be a JSON object")
+    metadata_value = _load_frozen_metadata_qrel_free(config.encoder_metadata_path)
     metadata = metadata_value.get("mpnet_base_v2")
     if not isinstance(metadata, Mapping):
         raise ValueError("frozen encoder metadata is missing mpnet_base_v2")

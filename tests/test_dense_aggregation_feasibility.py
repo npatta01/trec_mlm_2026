@@ -456,6 +456,52 @@ def test_gnu_time_verbose_rejects_missing_ambiguous_or_noninteger(
         parse_gnu_time_verbose(source)
 
 
+@pytest.mark.parametrize(
+    ("rows", "expected_count", "byte_limit", "message"),
+    (
+        ([{"sequence": 0}], 2, 128, "ended before"),
+        ([{"sequence": 0}, {"sequence": 1}], 1, 128, "after its expected"),
+        ([{"sequence": 0, "payload": "x" * 256}], 1, 128, "oversized"),
+    ),
+)
+def test_exact_jsonl_evidence_reader_rejects_early_extra_and_oversized_rows(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+    expected_count: int,
+    byte_limit: int,
+    message: str,
+) -> None:
+    source = tmp_path / "evidence.jsonl"
+    source.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
+
+    with pytest.raises(ValueError, match=message):
+        feasibility._read_exact_canonical_jsonl(
+            source,
+            expected_count=expected_count,
+            byte_limit=byte_limit,
+            label="synthetic evidence",
+        )
+
+
+def test_exact_jsonl_evidence_reader_retains_only_requested_fields(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "evidence.jsonl"
+    source.write_bytes(
+        canonical_json({"sequence": 0, "discarded_payload": "x" * 1_024}) + b"\n"
+    )
+
+    rows, _digest = feasibility._read_exact_canonical_jsonl(
+        source,
+        expected_count=1,
+        byte_limit=2_048,
+        label="synthetic evidence",
+        retained_fields=("sequence",),
+    )
+
+    assert rows == ({"sequence": 0},)
+
+
 def _synthetic_worker_config(tmp_path: Path) -> FeasibilityConfig:
     repo_root = tmp_path / "repo"
     config_path = repo_root / "configs/feasibility.json"
@@ -929,20 +975,37 @@ def _publish_repeat_fixture(
     output_root = (tmp_path / f"repeat-{worker}").resolve()
     fits_root = output_root / "fits"
     fits_root.mkdir(parents=True)
+    pair_indices, single_indices = official_sample_indices()
+    expected_inventory = [
+        {
+            "exclusion_kind": exclusion_kind,
+            "inventory_index": int(inventory_index),
+            "cluster_count": cluster_count,
+        }
+        for exclusion_kind, sampled_indices in (
+            ("pair", pair_indices),
+            ("single", single_indices),
+        )
+        for inventory_index in sampled_indices
+        for cluster_count in (20, 40)
+    ]
+    provenance = _provenance(tmp_path, worker)
     fit_rows = []
-    for sequence in range(576):
-        kind = "pair" if sequence < 512 else "single"
-        local_sequence = sequence if kind == "pair" else sequence - 512
+    timing_rows = []
+    for sequence, inventory_row in enumerate(expected_inventory):
+        kind = inventory_row["exclusion_kind"]
+        inventory_index = inventory_row["inventory_index"]
+        cluster_count = inventory_row["cluster_count"]
         fit_rows.append(
             {
                 "sequence": sequence,
                 "exclusion_kind": kind,
-                "inventory_index": local_sequence // 2,
-                "cluster_count": 20 if sequence % 2 == 0 else 40,
+                "inventory_index": inventory_index,
+                "cluster_count": cluster_count,
                 "fit_key_sha256": f"{sequence:064x}"[-64:],
                 "support_query_ids_sha256": "3" * 64,
-                "embedding_sha256": "4" * 64,
-                "clustering_contract_sha256": "5" * 64,
+                "embedding_sha256": provenance["embedding_sha256"],
+                "clustering_contract_sha256": provenance["clustering_contract_sha256"],
                 "fit_membership_sha256": "6" * 64,
                 "cluster_membership_sha256": ["7" * 64],
                 "center_sha256": (
@@ -958,12 +1021,26 @@ def _publish_repeat_fixture(
                 ],
             }
         )
+        timing_rows.append(
+            {
+                "schema": "trec-mlm-dense-aggregation-fit-timing-v1",
+                "sequence": sequence,
+                "exclusion_kind": kind,
+                "inventory_index": inventory_index,
+                "cluster_count": cluster_count,
+                "elapsed_ns": 10_000_000,
+                "n_iter": 1,
+            }
+        )
     fit_bytes = b"".join(canonical_json(row) + b"\n" for row in fit_rows)
     (fits_root / "fit_receipts.jsonl").write_bytes(fit_bytes)
+    (fits_root / "timings.jsonl").write_bytes(
+        b"".join(canonical_json(row) + b"\n" for row in timing_rows)
+    )
+    for name in ("centers.f4", "labels.u2", "cluster_inertia.f8"):
+        (fits_root / name).write_bytes(b"")
     environment_bytes = canonical_json({"synthetic": "environment"}) + b"\n"
     (output_root / "environment.json").write_bytes(environment_bytes)
-    pair_indices, single_indices = official_sample_indices()
-    provenance = _provenance(tmp_path, worker)
     provenance.update(
         {
             "output_root": str(output_root),
@@ -988,11 +1065,41 @@ def _publish_repeat_fixture(
         provenance=provenance,
         exclusive_resource_attested=True,
     )
+    header = feasibility._cache_header(
+        query_ids=tuple(f"q{index:03d}" for index in range(322)),
+        query_input_sha256=provenance["query_input_sha256"],
+        embedding_sha256=provenance["embedding_sha256"],
+        similarity_sha256=provenance["similarity_sha256"],
+        clustering_contract_sha256=provenance["clustering_contract_sha256"],
+        implementation_inventory_sha256=provenance["implementation_inventory_sha256"],
+        dependency_inventory_sha256=provenance["dependency_inventory_sha256"],
+        runtime_inventory_sha256=provenance["runtime_inventory_sha256"],
+        numerical_environment_sha256=provenance["numerical_environment_sha256"],
+        pair_indices=receipt.pair_indices,
+        single_indices=receipt.single_indices,
+    )
+    (fits_root / "header.json").write_bytes(canonical_json(header) + b"\n")
     (output_root / "feasibility_receipt.json").write_bytes(
         canonical_json(_receipt_to_dict(receipt)) + b"\n"
     )
     artifacts.write_manifest(output_root)
     return receipt
+
+
+def _rewrite_repeat_receipt(receipt: FeasibilityReceipt) -> None:
+    output_root = Path(receipt.provenance["output_root"])
+    (output_root / "feasibility_receipt.json").write_bytes(
+        canonical_json(_receipt_to_dict(receipt)) + b"\n"
+    )
+    (output_root / "manifest.json").unlink()
+    artifacts.write_manifest(output_root)
+
+
+def _synthetic_cache(root: Path) -> SimpleNamespace:
+    return SimpleNamespace(
+        root=Path(root),
+        _header=json.loads((Path(root) / "header.json").read_bytes()),
+    )
 
 
 def test_repeat_integrity_reopens_caches_and_accepts_distinct_manifested_roots(
@@ -1004,7 +1111,7 @@ def test_repeat_integrity_reopens_caches_and_accepts_distinct_manifested_roots(
 
     def open_readonly(_cls: object, root: Path) -> object:
         opened.append(Path(root).resolve())
-        return SimpleNamespace(root=Path(root).resolve())
+        return _synthetic_cache(Path(root).resolve())
 
     monkeypatch.setattr(
         feasibility.StreamingFitCache,
@@ -1026,7 +1133,7 @@ def test_repeat_integrity_reports_center_manifest_runtime_and_root_failures(
     monkeypatch.setattr(
         feasibility.StreamingFitCache,
         "open_readonly",
-        classmethod(lambda _cls, root: SimpleNamespace(root=Path(root))),
+        classmethod(lambda _cls, root: _synthetic_cache(Path(root))),
     )
     failures = _repeat_integrity_failures(repeat_a, repeat_b)
     assert "feasibility repeat mismatch: fit_centers" in failures
@@ -1055,4 +1162,145 @@ def test_repeat_integrity_reports_center_manifest_runtime_and_root_failures(
     manifest_path.write_bytes(manifest_path.read_bytes() + b" ")
     assert "feasibility repeat mismatch: manifests" in _repeat_integrity_failures(
         repeat_a, repeat_b
+    )
+
+
+def test_repeat_integrity_rederives_manifested_timing_summaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repeat_a = _publish_repeat_fixture(tmp_path, "a")
+    repeat_b = _publish_repeat_fixture(tmp_path, "b")
+    falsified: list[FeasibilityReceipt] = []
+    for receipt in (repeat_a, repeat_b):
+        falsified_receipt = replace(
+            receipt,
+            timing_summary={
+                category: replace(summary, mean_seconds=0.0)
+                for category, summary in receipt.timing_summary.items()
+            },
+        )
+        _rewrite_repeat_receipt(falsified_receipt)
+        falsified.append(falsified_receipt)
+    monkeypatch.setattr(
+        feasibility.StreamingFitCache,
+        "open_readonly",
+        classmethod(lambda _cls, root: _synthetic_cache(Path(root))),
+    )
+
+    failures = _repeat_integrity_failures(falsified[0], falsified[1])
+
+    assert "feasibility repeat mismatch: finite_timings" in failures
+
+
+def test_repeat_integrity_binds_cache_inventory_to_receipt_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repeat_a = _publish_repeat_fixture(tmp_path, "a")
+    repeat_b = _publish_repeat_fixture(tmp_path, "b")
+    for receipt in (repeat_a, repeat_b):
+        header_path = Path(receipt.provenance["output_root"]) / "fits/header.json"
+        header = json.loads(header_path.read_bytes())
+        header["expected_inventory"] = feasibility._worker_expected_inventory(
+            tuple(range(256)), tuple(range(32))
+        )
+        header_path.write_bytes(canonical_json(header) + b"\n")
+        manifest_path = Path(receipt.provenance["output_root"]) / "manifest.json"
+        manifest_path.unlink()
+        artifacts.write_manifest(manifest_path.parent)
+    monkeypatch.setattr(
+        feasibility.StreamingFitCache,
+        "open_readonly",
+        classmethod(lambda _cls, root: _synthetic_cache(Path(root))),
+    )
+
+    failures = _repeat_integrity_failures(repeat_a, repeat_b)
+
+    assert "feasibility repeat mismatch: sample_indices" in failures
+
+
+def test_repeat_integrity_binds_cache_header_hashes_to_receipt_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repeat_a = _publish_repeat_fixture(tmp_path, "a")
+    repeat_b = _publish_repeat_fixture(tmp_path, "b")
+    for receipt in (repeat_a, repeat_b):
+        header_path = Path(receipt.provenance["output_root"]) / "fits/header.json"
+        header = json.loads(header_path.read_bytes())
+        header["embedding_sha256"] = "9" * 64
+        header_path.write_bytes(canonical_json(header) + b"\n")
+        manifest_path = Path(receipt.provenance["output_root"]) / "manifest.json"
+        manifest_path.unlink()
+        artifacts.write_manifest(manifest_path.parent)
+    monkeypatch.setattr(
+        feasibility.StreamingFitCache,
+        "open_readonly",
+        classmethod(lambda _cls, root: _synthetic_cache(Path(root))),
+    )
+
+    failures = _repeat_integrity_failures(repeat_a, repeat_b)
+
+    assert "feasibility repeat mismatch: embedding" in failures
+
+
+def test_repeat_integrity_rejects_extra_manifested_timing_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repeat_a = _publish_repeat_fixture(tmp_path, "a")
+    repeat_b = _publish_repeat_fixture(tmp_path, "b")
+    timing_path = Path(repeat_b.provenance["output_root"]) / "fits/timings.jsonl"
+    timing_path.write_bytes(
+        timing_path.read_bytes()
+        + canonical_json(
+            {
+                "schema": "trec-mlm-dense-aggregation-fit-timing-v1",
+                "sequence": 576,
+                "exclusion_kind": "single",
+                "inventory_index": 321,
+                "cluster_count": 40,
+                "elapsed_ns": 10_000_000,
+                "n_iter": 1,
+            }
+        )
+        + b"\n"
+    )
+    manifest_path = Path(repeat_b.provenance["output_root"]) / "manifest.json"
+    manifest_path.unlink()
+    artifacts.write_manifest(manifest_path.parent)
+    monkeypatch.setattr(
+        feasibility.StreamingFitCache,
+        "open_readonly",
+        classmethod(lambda _cls, root: _synthetic_cache(Path(root))),
+    )
+
+    failures = _repeat_integrity_failures(repeat_a, repeat_b)
+
+    assert "feasibility repeat mismatch: finite_timings" in failures
+
+
+def test_receipt_and_repeat_roots_reject_ancestor_overlap(tmp_path: Path) -> None:
+    receipt = _receipt(tmp_path, "a")
+    nested = replace(
+        receipt,
+        provenance={
+            **receipt.provenance,
+            "cache_root": str((tmp_path / "worker").resolve()),
+            "output_root": str((tmp_path / "worker/output").resolve()),
+        },
+    )
+    with pytest.raises(ValueError, match="overlap"):
+        _receipt_from_dict(_receipt_to_dict(nested))
+
+    repeat_a = _receipt(tmp_path, "a")
+    repeat_b = replace(
+        _receipt(tmp_path, "b"),
+        provenance={
+            **_receipt(tmp_path, "b").provenance,
+            "cache_root": str(
+                (Path(repeat_a.provenance["output_root"]) / "nested").resolve()
+            ),
+        },
+    )
+    assert (
+        "feasibility repeat mismatch: fresh_distinct_roots"
+        in _repeat_integrity_failures(repeat_a, repeat_b)
     )

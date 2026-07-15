@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 import hashlib
-import json
 import math
 import os
 from pathlib import Path
@@ -67,6 +66,24 @@ def _path_exists_lexically(path: Path) -> bool:
     except FileNotFoundError:
         return False
     return True
+
+
+def _paths_overlap(left: Path, right: Path) -> bool:
+    return left == right or left in right.parents or right in left.parents
+
+
+def _configured_input_directories(config: object) -> tuple[Path, ...]:
+    directories = {
+        Path(getattr(config, field)).resolve().parent
+        for field in (
+            "source_path",
+            "protocol_path",
+            "query_path",
+            "embedding_path",
+            "encoder_metadata_path",
+        )
+    }
+    return tuple(sorted(directories, key=str))
 
 
 def _preflight_worker_destinations(*, cache_dir: Path, output_dir: Path) -> None:
@@ -207,15 +224,12 @@ def _validate_frozen_files(embedding_path: Path, metadata_path: Path) -> None:
         _SIMILARITY_SHA256,
         _cosine_similarity_matrix_qrel_free,
         _legacy_array_sha256_qrel_free,
+        _load_frozen_embedding_qrel_free,
+        _load_frozen_metadata_qrel_free,
         _require_exact_mpnet_metadata,
     )
 
-    embeddings = np.load(embedding_path, allow_pickle=False)
-    if embeddings.shape != (322, 768) or embeddings.dtype != np.dtype("float32"):
-        raise ValueError(
-            "frozen MPNet array must have shape (322, 768) and float32 dtype"
-        )
-    embeddings = np.ascontiguousarray(embeddings, dtype=np.float32)
+    embeddings = _load_frozen_embedding_qrel_free(embedding_path)
     norms = np.linalg.norm(embeddings, axis=1)
     if not np.isfinite(embeddings).all() or np.any(norms == 0.0):
         raise ValueError("frozen MPNet rows must be finite and nonzero")
@@ -226,9 +240,7 @@ def _validate_frozen_files(embedding_path: Path, metadata_path: Path) -> None:
     similarities = _cosine_similarity_matrix_qrel_free(embeddings)
     if _legacy_array_sha256_qrel_free(similarities) != _SIMILARITY_SHA256:
         raise ValueError("frozen MPNet cosine logical hash mismatch")
-    metadata_value = json.loads(metadata_path.read_bytes())
-    if type(metadata_value) is not dict:
-        raise ValueError("frozen encoder metadata must be a JSON object")
+    metadata_value = _load_frozen_metadata_qrel_free(metadata_path)
     metadata = metadata_value.get("mpnet_base_v2")
     if type(metadata) is not dict:
         raise ValueError("frozen encoder metadata is missing mpnet_base_v2")
@@ -256,14 +268,25 @@ def _load_config(path: Path) -> object:
 
 
 def _load_worker_output(root: Path) -> object:
-    from trec_mlm.dense_aggregation_artifacts import raw_file_sha256, validate_manifest
-    from trec_mlm.dense_aggregation_cache import StreamingFitCache
-    from trec_mlm.dense_aggregation_feasibility import _receipt_from_dict
+    from trec_mlm.dense_aggregation_artifacts import raw_file_sha256
+    from trec_mlm.dense_aggregation_feasibility import (
+        _WORKER_OUTPUT_FILES,
+        _read_bounded_canonical_json,
+        _receipt_from_dict,
+        _validate_task7_manifest,
+    )
 
     output_root = Path(root).resolve(strict=True)
-    validate_manifest(output_root)
+    _validate_task7_manifest(
+        output_root,
+        expected_files=_WORKER_OUTPUT_FILES,
+        label="worker output",
+    )
     receipt = _receipt_from_dict(
-        json.loads((output_root / "feasibility_receipt.json").read_bytes())
+        _read_bounded_canonical_json(
+            output_root / "feasibility_receipt.json",
+            label="worker feasibility receipt",
+        )
     )
     if receipt.provenance.get("output_root") != str(output_root):
         raise ValueError("worker receipt output root is not self-binding")
@@ -272,8 +295,6 @@ def _load_worker_output(root: Path) -> object:
         != receipt.fit_receipt_sha256
     ):
         raise ValueError("worker fit receipt stream digest mismatch")
-    reopened = StreamingFitCache.open_readonly(output_root / "fits")
-    del reopened
     return receipt
 
 
@@ -393,10 +414,11 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
     from trec_mlm.dense_aggregation_artifacts import (
         atomic_artifact_directory,
         raw_file_sha256,
-        validate_manifest,
     )
     from trec_mlm.dense_aggregation_feasibility import (
+        _AGGREGATE_OUTPUT_FILES,
         _receipt_to_dict,
+        _validate_task7_manifest,
         parse_gnu_time_verbose,
     )
 
@@ -435,6 +457,13 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
                 (f"repeat {label} output", worker_output, worker_output.resolve()),
             )
         )
+    for destination_name, _, destination in destinations:
+        for input_directory in _configured_input_directories(config):
+            if _paths_overlap(destination, input_directory):
+                raise ValueError(
+                    f"coordinator destination {destination_name} overlaps "
+                    f"configured input directory: {input_directory}"
+                )
     for index, (left_name, _, left) in enumerate(destinations):
         for right_name, _, right in destinations[index + 1 :]:
             if left == right or left in right.parents or right in left.parents:
@@ -518,7 +547,11 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
                 "repeat_b_rss_bytes": rss_values[1],
             },
         )
-    validate_manifest(output_root)
+    _validate_task7_manifest(
+        output_root,
+        expected_files=_AGGREGATE_OUTPUT_FILES,
+        label="aggregate feasibility output",
+    )
     if gate.status == "pass":
         _atomic_publish_json(
             compact_receipt,
@@ -537,26 +570,42 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
 def _validate_feasibility_artifact(
     config_path: Path, feasibility_root: Path, compact_receipt: Path
 ) -> None:
-    from trec_mlm.dense_aggregation_artifacts import raw_file_sha256, validate_manifest
-    from trec_mlm.dense_aggregation_feasibility import _receipt_from_dict
-    from trec_mlm.dense_aggregation_hashing import canonical_json
+    from trec_mlm.dense_aggregation_artifacts import raw_file_sha256
+    from trec_mlm.dense_aggregation_feasibility import (
+        _AGGREGATE_OUTPUT_FILES,
+        _read_bounded_canonical_json,
+        _receipt_from_dict,
+        _validate_task7_manifest,
+    )
 
     config = _load_config(config_path)
     root = feasibility_root.resolve(strict=True)
-    validate_manifest(root)
-    gate_bytes = (root / "feasibility_gate.json").read_bytes()
-    gate_value = json.loads(gate_bytes)
-    if gate_bytes != canonical_json(gate_value) + b"\n":
-        raise ValueError("aggregate feasibility gate is not canonical JSON")
+    _validate_task7_manifest(
+        root,
+        expected_files=_AGGREGATE_OUTPUT_FILES,
+        label="aggregate feasibility output",
+    )
+    gate_value = _read_bounded_canonical_json(
+        root / "feasibility_gate.json",
+        label="aggregate feasibility gate",
+    )
     gate = _gate_from_dict(gate_value)
     repeat_a = _receipt_from_dict(
-        json.loads((root / "repeat_a_receipt.json").read_bytes())
+        _read_bounded_canonical_json(
+            root / "repeat_a_receipt.json",
+            label="aggregate repeat A receipt",
+        )
     )
     repeat_b = _receipt_from_dict(
-        json.loads((root / "repeat_b_receipt.json").read_bytes())
+        _read_bounded_canonical_json(
+            root / "repeat_b_receipt.json",
+            label="aggregate repeat B receipt",
+        )
     )
-    measurements_bytes = (root / "repeat_measurements.json").read_bytes()
-    measurements = json.loads(measurements_bytes)
+    measurements = _read_bounded_canonical_json(
+        root / "repeat_measurements.json",
+        label="aggregate repeat measurements",
+    )
     measurement_keys = {
         "schema",
         "repeat_a_manifest_sha256",
@@ -565,8 +614,7 @@ def _validate_feasibility_artifact(
         "repeat_b_rss_bytes",
     }
     if (
-        measurements_bytes != canonical_json(measurements) + b"\n"
-        or type(measurements) is not dict
+        type(measurements) is not dict
         or set(measurements) != measurement_keys
         or measurements["schema"] != _MEASUREMENTS_SCHEMA
     ):
@@ -598,12 +646,13 @@ def _validate_feasibility_artifact(
     if observed_gate != gate or gate.status != "pass":
         raise ValueError("feasibility gate is stale or stopped")
 
-    compact_bytes = compact_receipt.resolve(strict=True).read_bytes()
-    compact = json.loads(compact_bytes)
+    compact = _read_bounded_canonical_json(
+        compact_receipt.resolve(strict=True),
+        label="compact feasibility receipt",
+    )
     compact_keys = {"schema", "gate", "feasibility_manifest_sha256"}
     if (
-        compact_bytes != canonical_json(compact) + b"\n"
-        or type(compact) is not dict
+        type(compact) is not dict
         or set(compact) != compact_keys
         or compact["schema"] != _COMPACT_SCHEMA
         or _gate_from_dict(compact["gate"]) != gate

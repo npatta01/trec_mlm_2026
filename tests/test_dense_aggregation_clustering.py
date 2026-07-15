@@ -464,7 +464,7 @@ def test_target_squared_distance_uses_float64_accumulation() -> None:
         embeddings=embeddings,
         query_ids=("q-support", "q-target"),
         target_indices=(1,),
-        support_index_by_id={"q-support": 7},
+        support_index_by_id={"q-support": 0},
     )
 
     assert assignment.query_id == "q-target"
@@ -474,7 +474,7 @@ def test_target_squared_distance_uses_float64_accumulation() -> None:
     assert float(
         np.sum(float32_delta * float32_delta, dtype=np.float32)
     ).hex() == "0x1.99999c0000000p-5"
-    assert assignment.member_indices == (7,)
+    assert assignment.member_indices == (0,)
     assert assignment.cluster_support == 1
 
 
@@ -826,3 +826,766 @@ def test_fit_accepts_sklearn_inertia_within_required_tolerance(
 
     assert fit.sklearn_inertia.hex() == sklearn_inertia.hex()
     assert fit.recomputed_total_inertia.hex() == float(2.0).hex()
+
+
+def _install_boundary_kmeans(monkeypatch: pytest.MonkeyPatch) -> None:
+    class BoundaryKMeans:
+        def __init__(self, **_kwargs: object) -> None:
+            self.n_iter_ = 1
+
+        def fit_predict(self, rows: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+            flattened = np.asarray(rows, dtype=np.float64).reshape(rows.shape[0], -1)
+            center = np.mean(flattened, axis=0, dtype=np.float64)
+            delta = flattened - center
+            self.cluster_centers_ = np.asarray([center], dtype=np.float64)
+            self.inertia_ = float(np.sum(delta * delta, dtype=np.float64))
+            return np.zeros(rows.shape[0], dtype=np.int64)
+
+    monkeypatch.setattr(clustering_module, "KMeans", BoundaryKMeans)
+
+
+def _fit_at_public_boundary(
+    *,
+    embeddings: np.ndarray[Any, Any],
+    query_ids: Sequence[str],
+    support_indices: Sequence[int],
+    cluster_count: object = 1,
+) -> CanonicalClusterFit:
+    return fit_canonical_clusters(
+        embeddings=embeddings,
+        query_ids=query_ids,
+        support_indices=support_indices,
+        cluster_count=cluster_count,  # type: ignore[arg-type]
+        embedding_sha256=_EMBEDDING_SHA256,
+        clustering_contract_sha256=_CLUSTERING_CONTRACT_SHA256,
+    )
+
+
+@pytest.mark.parametrize(
+    "embeddings",
+    [
+        pytest.param(np.asarray([1.0, 2.0], dtype=np.float32), id="one-dimensional"),
+        pytest.param(
+            np.asarray([[[1.0, 0.0]], [[3.0, 0.0]]], dtype=np.float32),
+            id="three-dimensional",
+        ),
+    ],
+)
+def test_fit_requires_embeddings_to_be_exactly_two_dimensional(
+    embeddings: np.ndarray[Any, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_boundary_kmeans(monkeypatch)
+
+    with pytest.raises(
+        ValueError, match="embeddings must be exactly two-dimensional"
+    ):
+        _fit_at_public_boundary(
+            embeddings=embeddings,
+            query_ids=("q1", "q2"),
+            support_indices=(0,),
+        )
+
+
+@pytest.mark.parametrize(
+    ("query_ids", "support_indices", "message"),
+    [
+        pytest.param(
+            ("q1",),
+            (0,),
+            "query_ids length must match embedding rows",
+            id="too-short",
+        ),
+        pytest.param(
+            ("q1", "q2", "q3"),
+            (0, 1),
+            "query_ids length must match embedding rows",
+            id="too-long",
+        ),
+        pytest.param(
+            ("q1", ""),
+            (0,),
+            "query_ids must contain nonempty unique IDs",
+            id="empty-id",
+        ),
+        pytest.param(
+            ("q1", "q1"),
+            (0, 1),
+            "query_ids must contain nonempty unique IDs",
+            id="duplicate-id",
+        ),
+    ],
+)
+def test_fit_requires_complete_nonempty_unique_query_inventory(
+    query_ids: tuple[str, ...],
+    support_indices: tuple[int, ...],
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_boundary_kmeans(monkeypatch)
+
+    with pytest.raises(ValueError, match=message):
+        _fit_at_public_boundary(
+            embeddings=np.asarray([[1.0, 0.0], [3.0, 0.0]], dtype=np.float32),
+            query_ids=query_ids,
+            support_indices=support_indices,
+        )
+
+
+@pytest.mark.parametrize(
+    "cluster_count",
+    [
+        pytest.param(0, id="zero"),
+        pytest.param(65_537, id="above-uint16-capacity"),
+        pytest.param(True, id="bool"),
+    ],
+)
+def test_fit_requires_exact_bounded_cluster_count(
+    cluster_count: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_boundary_kmeans(monkeypatch)
+
+    with pytest.raises(
+        ValueError,
+        match=r"cluster_count must be an exact int in 1\.\.65536",
+    ):
+        _fit_at_public_boundary(
+            embeddings=np.asarray([[1.0, 0.0], [3.0, 0.0]], dtype=np.float32),
+            query_ids=("q1", "q2"),
+            support_indices=(0, 1),
+            cluster_count=cluster_count,
+        )
+
+
+@pytest.mark.parametrize(
+    ("support_indices", "message"),
+    [
+        pytest.param((-1,), "support index out of range", id="negative"),
+        pytest.param((2,), "support index out of range", id="out-of-range"),
+        pytest.param((True,), "support indices must be exact ints", id="bool"),
+        pytest.param((0, 0), "support indices must be unique", id="duplicate"),
+    ],
+)
+def test_fit_validates_support_indices_before_indexing(
+    support_indices: tuple[int, ...],
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_boundary_kmeans(monkeypatch)
+
+    with pytest.raises(ValueError, match=message):
+        _fit_at_public_boundary(
+            embeddings=np.asarray([[1.0, 0.0], [3.0, 0.0]], dtype=np.float32),
+            query_ids=("q1", "q2"),
+            support_indices=support_indices,
+        )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _AssignmentBoundaryCase:
+    fit: CanonicalClusterFit
+    embeddings: np.ndarray[Any, Any]
+    query_ids: tuple[str, ...]
+    target_indices: tuple[int, ...]
+    support_index_by_id: Mapping[str, int]
+
+
+def _assignment_boundary_case() -> _AssignmentBoundaryCase:
+    return _AssignmentBoundaryCase(
+        fit=CanonicalClusterFit(
+            key=FitKey(("q1", "q2", "q3"), 2, "e" * 64, "c" * 64),
+            centers=np.asarray([[-1.5, 0.0], [2.0, 0.0]], dtype="<f4"),
+            labels=np.asarray([0, 0, 1], dtype="<u2"),
+            memberships=(("q1", "q2"), ("q3",)),
+            fit_membership_sha256="f" * 64,
+            cluster_membership_sha256=("1" * 64, "2" * 64),
+            center_sha256="3" * 64,
+            cluster_inertia=(0.5, 0.0),
+            sklearn_inertia=0.5,
+            recomputed_total_inertia=0.5,
+            n_iter=1,
+        ),
+        embeddings=np.asarray(
+            [[-2.0, 0.0], [-1.0, 0.0], [2.0, 0.0], [0.0, 0.0]],
+            dtype=np.float32,
+        ),
+        query_ids=("q1", "q2", "q3", "qt"),
+        target_indices=(3,),
+        support_index_by_id={"q1": 0, "q2": 1, "q3": 2},
+    )
+
+
+def _assign_boundary_case(
+    case: _AssignmentBoundaryCase,
+    *,
+    fit: CanonicalClusterFit | None = None,
+    embeddings: np.ndarray[Any, Any] | None = None,
+    query_ids: Sequence[str] | None = None,
+    target_indices: Sequence[int] | None = None,
+    support_index_by_id: Mapping[str, object] | None = None,
+) -> tuple[TargetAssignment, ...]:
+    return assign_targets(
+        fit=case.fit if fit is None else fit,
+        embeddings=case.embeddings if embeddings is None else embeddings,
+        query_ids=case.query_ids if query_ids is None else query_ids,
+        target_indices=(
+            case.target_indices if target_indices is None else target_indices
+        ),
+        support_index_by_id=(
+            case.support_index_by_id
+            if support_index_by_id is None
+            else support_index_by_id  # type: ignore[arg-type]
+        ),
+    )
+
+
+def test_assignment_boundary_case_is_valid() -> None:
+    case = _assignment_boundary_case()
+
+    assert _assign_boundary_case(case) == (
+        TargetAssignment(
+            query_id="qt",
+            canonical_cluster_id=0,
+            squared_distance=2.25,
+            member_indices=(0, 1),
+            cluster_support=2,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "embeddings",
+    [
+        pytest.param(
+            np.asarray([-2.0, -1.0, 2.0, 0.0], dtype=np.float32),
+            id="one-dimensional",
+        ),
+        pytest.param(
+            np.asarray(
+                [[[-2.0, 0.0]], [[-1.0, 0.0]], [[2.0, 0.0]], [[0.0, 0.0]]],
+                dtype=np.float32,
+            ),
+            id="three-dimensional",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_two_dimensional_embeddings(
+    embeddings: np.ndarray[Any, Any],
+) -> None:
+    case = _assignment_boundary_case()
+
+    with pytest.raises(
+        ValueError, match="embeddings must be exactly two-dimensional"
+    ):
+        _assign_boundary_case(case, embeddings=embeddings)
+
+
+@pytest.mark.parametrize(
+    ("query_ids", "target_indices", "message"),
+    [
+        pytest.param(
+            ("q1", "q2", "q3"),
+            (2,),
+            "query_ids length must match embedding rows",
+            id="too-short",
+        ),
+        pytest.param(
+            ("q1", "q2", "q3", "qt", "qx"),
+            (3,),
+            "query_ids length must match embedding rows",
+            id="too-long",
+        ),
+        pytest.param(
+            ("q1", "q2", "q3", ""),
+            (3,),
+            "query_ids must contain nonempty unique IDs",
+            id="empty-id",
+        ),
+        pytest.param(
+            ("q1", "q2", "q3", "q1"),
+            (3,),
+            "query_ids must contain nonempty unique IDs",
+            id="duplicate-id",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_complete_unique_query_inventory(
+    query_ids: tuple[str, ...],
+    target_indices: tuple[int, ...],
+    message: str,
+) -> None:
+    case = _assignment_boundary_case()
+
+    with pytest.raises(ValueError, match=message):
+        _assign_boundary_case(
+            case,
+            query_ids=query_ids,
+            target_indices=target_indices,
+        )
+
+
+@pytest.mark.parametrize(
+    "centers",
+    [
+        pytest.param(
+            np.asarray([[-1.5, 0.0]], dtype="<f4"),
+            id="wrong-cluster-count",
+        ),
+        pytest.param(
+            np.asarray([[-1.5], [2.0]], dtype="<f4"),
+            id="wrong-embedding-width",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_exact_center_shape(
+    centers: np.ndarray[Any, Any],
+) -> None:
+    case = _assignment_boundary_case()
+    fit = dataclasses.replace(case.fit, centers=centers)
+
+    with pytest.raises(ValueError, match=r"fit centers must have shape \(2, 2\)"):
+        _assign_boundary_case(case, fit=fit)
+
+
+@pytest.mark.parametrize(
+    ("labels", "message"),
+    [
+        pytest.param(
+            np.asarray([[0, 0, 1]], dtype="<u2"),
+            "fit labels must be a one-dimensional vector of support length 3",
+            id="two-dimensional",
+        ),
+        pytest.param(
+            np.asarray([0, 1], dtype="<u2"),
+            "fit labels must be a one-dimensional vector of support length 3",
+            id="wrong-length",
+        ),
+        pytest.param(
+            np.asarray([0, -1, 1], dtype=np.int64),
+            "fit labels contain invalid canonical cluster IDs",
+            id="negative-cluster-id",
+        ),
+        pytest.param(
+            np.asarray([0, 0, 2], dtype="<u2"),
+            "fit labels contain invalid canonical cluster IDs",
+            id="cluster-id-equals-C",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_valid_canonical_labels(
+    labels: np.ndarray[Any, Any],
+    message: str,
+) -> None:
+    case = _assignment_boundary_case()
+    fit = dataclasses.replace(case.fit, labels=labels)
+
+    with pytest.raises(ValueError, match=message):
+        _assign_boundary_case(case, fit=fit)
+
+
+@pytest.mark.parametrize(
+    ("memberships", "message"),
+    [
+        pytest.param(
+            (("q1", "q2", "q3"),),
+            "fit memberships count must equal cluster_count",
+            id="wrong-cluster-count",
+        ),
+        pytest.param(
+            (("q1", "q2", "q3"), ()),
+            "fit memberships must not contain an empty cluster",
+            id="empty-cluster",
+        ),
+        pytest.param(
+            (("q1", "q2"), ("q2", "q3")),
+            "fit memberships must partition fit support IDs",
+            id="duplicate-member",
+        ),
+        pytest.param(
+            (("q1",), ("q3",)),
+            "fit memberships must partition fit support IDs",
+            id="missing-member",
+        ),
+        pytest.param(
+            (("q1", "q2"), ("q3", "qx")),
+            "fit memberships must partition fit support IDs",
+            id="extra-member",
+        ),
+        pytest.param(
+            (("q1", "q3"), ("q2",)),
+            "fit memberships are inconsistent with labels",
+            id="inconsistent-with-labels",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_valid_membership_partition(
+    memberships: tuple[tuple[str, ...], ...],
+    message: str,
+) -> None:
+    case = _assignment_boundary_case()
+    fit = dataclasses.replace(case.fit, memberships=memberships)
+
+    with pytest.raises(ValueError, match=message):
+        _assign_boundary_case(case, fit=fit)
+
+
+@pytest.mark.parametrize(
+    ("support_index_by_id", "message"),
+    [
+        pytest.param(
+            {"q1": 0, "q2": 1},
+            "support_index_by_id keys must exactly match fit support IDs",
+            id="missing-key",
+        ),
+        pytest.param(
+            {"q1": 0, "q2": 1, "q3": 2, "qx": 3},
+            "support_index_by_id keys must exactly match fit support IDs",
+            id="extra-key",
+        ),
+        pytest.param(
+            {"q1": False, "q2": 1, "q3": 2},
+            "support_index_by_id values must be exact ints",
+            id="bool-value",
+        ),
+        pytest.param(
+            {"q1": "0", "q2": 1, "q3": 2},
+            "support_index_by_id values must be exact ints",
+            id="string-value",
+        ),
+        pytest.param(
+            {"q1": 0, "q2": 0, "q3": 2},
+            "support_index_by_id values must be unique",
+            id="duplicate-value",
+        ),
+        pytest.param(
+            {"q1": -1, "q2": 1, "q3": 2},
+            "support_index_by_id index out of range",
+            id="negative-value",
+        ),
+        pytest.param(
+            {"q1": 4, "q2": 1, "q3": 2},
+            "support_index_by_id index out of range",
+            id="out-of-range-value",
+        ),
+        pytest.param(
+            {"q1": 1, "q2": 0, "q3": 2},
+            "support_index_by_id must map each support ID to the matching query",
+            id="swapped-values",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_valid_support_index_mapping(
+    support_index_by_id: Mapping[str, object],
+    message: str,
+) -> None:
+    case = _assignment_boundary_case()
+
+    with pytest.raises(ValueError, match=message):
+        _assign_boundary_case(
+            case,
+            support_index_by_id=support_index_by_id,
+        )
+
+
+@pytest.mark.parametrize(
+    ("target_indices", "message"),
+    [
+        pytest.param(
+            (True,),
+            "target indices must be exact ints",
+            id="bool-index",
+        ),
+        pytest.param(
+            ("3",),
+            "target indices must be exact ints",
+            id="string-index",
+        ),
+        pytest.param(
+            (3, 3),
+            "target indices must be unique",
+            id="duplicate-index",
+        ),
+        pytest.param(
+            (-1,),
+            "target index out of range",
+            id="negative-index",
+        ),
+        pytest.param(
+            (4,),
+            "target index out of range",
+            id="out-of-range-index",
+        ),
+        pytest.param(
+            (0,),
+            "target query IDs must be disjoint from fit support IDs",
+            id="support-query-as-target",
+        ),
+    ],
+)
+def test_assignment_boundary_requires_valid_target_indices(
+    target_indices: tuple[Any, ...],
+    message: str,
+) -> None:
+    case = _assignment_boundary_case()
+
+    with pytest.raises(ValueError, match=message):
+        _assign_boundary_case(
+            case,
+            target_indices=target_indices,  # type: ignore[arg-type]
+        )
+
+
+def _fit_with_raw_estimator_output(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    raw_labels: object,
+    raw_centers: object,
+    sklearn_inertia: float = 4.0,
+) -> CanonicalClusterFit:
+    class RawKMeans:
+        def __init__(self, **_kwargs: object) -> None:
+            self.cluster_centers_ = raw_centers
+            self.inertia_ = sklearn_inertia
+            self.n_iter_ = 1
+
+        def fit_predict(self, _rows: np.ndarray[Any, Any]) -> object:
+            return raw_labels
+
+    monkeypatch.setattr(clustering_module, "KMeans", RawKMeans)
+    return fit_canonical_clusters(
+        embeddings=np.asarray(
+            [[-3.0, 0.0], [-1.0, 0.0], [1.0, 0.0], [3.0, 0.0]],
+            dtype=np.float32,
+        ),
+        query_ids=("q0", "q1", "q2", "q3"),
+        support_indices=(3, 1, 2, 0),
+        cluster_count=2,
+        embedding_sha256=_EMBEDDING_SHA256,
+        clustering_contract_sha256=_CLUSTERING_CONTRACT_SHA256,
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw_labels", "sklearn_inertia"),
+    [
+        pytest.param(
+            np.asarray([[0, 0, 1, 1]], dtype=np.int64),
+            4.0,
+            id="two-dimensional",
+        ),
+        pytest.param(
+            np.asarray([0, 0, 1], dtype=np.int64),
+            3.0,
+            id="wrong-length",
+        ),
+        pytest.param(
+            np.asarray([0.0, 0.5, 1.0, 1.0], dtype=np.float64),
+            4.0,
+            id="fractional-float",
+        ),
+        pytest.param(
+            np.asarray([False, False, True, True], dtype=np.bool_),
+            4.0,
+            id="bool",
+        ),
+    ],
+)
+def test_raw_estimator_labels_require_exact_integer_vector(
+    raw_labels: object,
+    sklearn_inertia: float,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "K-means labels must be a one-dimensional integer vector "
+            "of support length 4"
+        ),
+    ):
+        _fit_with_raw_estimator_output(
+            monkeypatch,
+            raw_labels=raw_labels,
+            raw_centers=np.asarray([[-2.0, 0.0], [2.0, 0.0]], dtype=np.float64),
+            sklearn_inertia=sklearn_inertia,
+        )
+
+
+@pytest.mark.parametrize(
+    "raw_labels",
+    [
+        pytest.param(
+            np.asarray([0, 0, 1, -1], dtype=np.int64),
+            id="negative",
+        ),
+        pytest.param(
+            np.asarray([0, 0, 1, 2], dtype=np.int64),
+            id="equal-to-cluster-count",
+        ),
+    ],
+)
+def test_raw_estimator_label_set_is_exact_cluster_range(
+    raw_labels: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match=r"K-means labels must be exactly range\(cluster_count\)",
+    ):
+        _fit_with_raw_estimator_output(
+            monkeypatch,
+            raw_labels=raw_labels,
+            raw_centers=np.asarray([[-2.0, 0.0], [2.0, 0.0]], dtype=np.float64),
+        )
+
+
+@pytest.mark.parametrize(
+    ("raw_centers", "sklearn_inertia"),
+    [
+        pytest.param(
+            np.asarray(
+                [[-2.0, 0.0], [2.0, 0.0], [100.0, 100.0]],
+                dtype=np.float64,
+            ),
+            4.0,
+            id="extra-cluster-row",
+        ),
+        pytest.param(
+            np.asarray([[-2.0, 0.0]], dtype=np.float64),
+            4.0,
+            id="missing-cluster-row",
+        ),
+        pytest.param(
+            np.asarray([[-2.0], [2.0]], dtype=np.float64),
+            20.0,
+            id="broadcasting-width",
+        ),
+        pytest.param(
+            np.asarray([-2.0, 2.0], dtype=np.float64),
+            20.0,
+            id="one-dimensional",
+        ),
+    ],
+)
+def test_raw_estimator_centers_require_exact_matrix_shape(
+    raw_centers: object,
+    sklearn_inertia: float,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match=r"K-means cluster_centers_ must have shape \(2, 2\)",
+    ):
+        _fit_with_raw_estimator_output(
+            monkeypatch,
+            raw_labels=np.asarray([0, 0, 1, 1], dtype=np.int64),
+            raw_centers=raw_centers,
+            sklearn_inertia=sklearn_inertia,
+        )
+
+
+def test_characterization_cluster_inertia_uses_math_fsum_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    required_total = float.fromhex("0x1.1c37937e08001p+53")
+    fit = _fit_with_fake_estimator(
+        monkeypatch,
+        embeddings=np.asarray(
+            [[1.0e8, 0.0], [1.0, 0.0], [0.0, 1.0]], dtype=np.float32
+        ),
+        cluster_count=3,
+        labels=(0, 1, 2),
+        centers=((0.0, 0.0), (0.0, 0.0), (0.0, 0.0)),
+        inertia=required_total,
+        n_iter=1,
+    )
+
+    assert tuple(value.hex() for value in fit.cluster_inertia) == (
+        "0x1.1c37937e08000p+53",
+        "0x1.0000000000000p+0",
+        "0x1.0000000000000p+0",
+    )
+    naive_numpy_total = float(
+        np.sum(np.asarray(fit.cluster_inertia, dtype=np.float64), dtype=np.float64)
+    )
+    assert naive_numpy_total.hex() == "0x1.1c37937e08000p+53"
+    assert math.fsum(fit.cluster_inertia).hex() == "0x1.1c37937e08001p+53"
+    assert naive_numpy_total.hex() != math.fsum(fit.cluster_inertia).hex()
+    assert fit.recomputed_total_inertia.hex() == "0x1.1c37937e08001p+53"
+    assert fit.sklearn_inertia.hex() == "0x1.1c37937e08001p+53"
+
+
+def test_characterization_target_assignment_is_semantically_permutation_invariant(
+) -> None:
+    query_ids = ("q30", "q10", "q21", "q11", "q20", "q31", "qt")
+    embeddings = np.asarray(
+        [
+            [10.0, 0.0],
+            [-10.0, 0.0],
+            [0.0, 2.0],
+            [-8.0, 0.0],
+            [0.0, 4.0],
+            [12.0, 0.0],
+            [1.0, 3.0],
+        ],
+        dtype=np.float32,
+    )
+    support_ids = query_ids[:-1]
+    support_index_by_id = {
+        query_id: query_ids.index(query_id) for query_id in support_ids
+    }
+    baseline_fit = fit_canonical_clusters(
+        embeddings=embeddings,
+        query_ids=query_ids,
+        support_indices=(5, 3, 1, 4, 0, 2),
+        cluster_count=3,
+        embedding_sha256=_EMBEDDING_SHA256,
+        clustering_contract_sha256=_CLUSTERING_CONTRACT_SHA256,
+    )
+    (baseline_assignment,) = assign_targets(
+        fit=baseline_fit,
+        embeddings=embeddings,
+        query_ids=query_ids,
+        target_indices=(6,),
+        support_index_by_id=support_index_by_id,
+    )
+
+    permutation = np.asarray([6, 4, 0, 5, 2, 1, 3], dtype=np.intp)
+    permuted_query_ids = tuple(query_ids[index] for index in permutation)
+    permuted_embeddings = np.ascontiguousarray(embeddings[permutation])
+    permuted_support_index_by_id = {
+        query_id: permuted_query_ids.index(query_id) for query_id in support_ids
+    }
+    permuted_fit = fit_canonical_clusters(
+        embeddings=permuted_embeddings,
+        query_ids=permuted_query_ids,
+        support_indices=tuple(reversed(tuple(permuted_support_index_by_id.values()))),
+        cluster_count=3,
+        embedding_sha256=_EMBEDDING_SHA256,
+        clustering_contract_sha256=_CLUSTERING_CONTRACT_SHA256,
+    )
+    (permuted_assignment,) = assign_targets(
+        fit=permuted_fit,
+        embeddings=permuted_embeddings,
+        query_ids=permuted_query_ids,
+        target_indices=(permuted_query_ids.index("qt"),),
+        support_index_by_id=permuted_support_index_by_id,
+    )
+
+    assert baseline_assignment.canonical_cluster_id == (
+        permuted_assignment.canonical_cluster_id
+    ) == 1
+    assert baseline_assignment.squared_distance.hex() == (
+        permuted_assignment.squared_distance.hex()
+    ) == float(1.0).hex()
+    assert baseline_assignment.cluster_support == (
+        permuted_assignment.cluster_support
+    ) == 2
+    baseline_member_ids = tuple(
+        query_ids[index] for index in baseline_assignment.member_indices
+    )
+    permuted_member_ids = tuple(
+        permuted_query_ids[index] for index in permuted_assignment.member_indices
+    )
+    assert baseline_member_ids == permuted_member_ids == ("q20", "q21")
+    assert baseline_assignment.member_indices != permuted_assignment.member_indices

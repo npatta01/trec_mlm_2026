@@ -150,6 +150,49 @@ def numerical_environment_file_bytes(
     return canonical_json(asdict(receipt)) + b"\n"
 
 
+def _validate_embedding_query_inventory(
+    embeddings: NDArray[np.float32], query_ids: Sequence[str]
+) -> tuple[NDArray[np.float32], tuple[str, ...]]:
+    embedding_array = np.asarray(embeddings)
+    if embedding_array.ndim != 2:
+        raise ValueError("embeddings must be exactly two-dimensional")
+    canonical_query_ids = tuple(query_ids)
+    if len(canonical_query_ids) != embedding_array.shape[0]:
+        raise ValueError("query_ids length must match embedding rows")
+    if (
+        not canonical_query_ids
+        or any(
+            type(query_id) is not str or not query_id
+            for query_id in canonical_query_ids
+        )
+        or len(set(canonical_query_ids)) != len(canonical_query_ids)
+    ):
+        raise ValueError("query_ids must contain nonempty unique IDs")
+    return embedding_array, canonical_query_ids
+
+
+def _validate_cluster_count(cluster_count: object) -> int:
+    if type(cluster_count) is not int or not 1 <= cluster_count <= 65_536:
+        raise ValueError("cluster_count must be an exact int in 1..65536")
+    return cluster_count
+
+
+def _validate_indices(
+    indices: Sequence[int],
+    *,
+    inventory_size: int,
+    kind: str,
+) -> tuple[int, ...]:
+    values = tuple(indices)
+    if any(type(index) is not int for index in values):
+        raise ValueError(f"{kind} indices must be exact ints")
+    if len(set(values)) != len(values):
+        raise ValueError(f"{kind} indices must be unique")
+    if any(index < 0 or index >= inventory_size for index in values):
+        raise ValueError(f"{kind} index out of range")
+    return values
+
+
 def fit_canonical_clusters(
     *,
     embeddings: NDArray[np.float32],
@@ -159,27 +202,36 @@ def fit_canonical_clusters(
     embedding_sha256: str,
     clustering_contract_sha256: str,
 ) -> CanonicalClusterFit:
-    support = tuple(sorted(support_indices, key=lambda index: query_ids[index]))
-    support_ids = tuple(query_ids[index] for index in support)
-    rows = np.ascontiguousarray(
-        embeddings[np.asarray(support, dtype=np.intp)], dtype=np.dtype("<f4")
+    embedding_array, canonical_query_ids = _validate_embedding_query_inventory(
+        embeddings, query_ids
     )
-    if rows.shape[0] < cluster_count:
+    validated_cluster_count = _validate_cluster_count(cluster_count)
+    validated_support = _validate_indices(
+        support_indices,
+        inventory_size=embedding_array.shape[0],
+        kind="support",
+    )
+    support = tuple(
+        sorted(validated_support, key=lambda index: canonical_query_ids[index])
+    )
+    support_ids = tuple(canonical_query_ids[index] for index in support)
+    rows = np.ascontiguousarray(
+        embedding_array[np.asarray(support, dtype=np.intp)], dtype=np.dtype("<f4")
+    )
+    if rows.shape[0] < validated_cluster_count:
         raise ValueError("cluster support has fewer rows than C")
     if not np.isfinite(rows).all() or np.any(
         np.linalg.norm(rows, axis=1) == 0.0
     ):
         raise ValueError("cluster support contains a non-finite or zero row")
-    if len({row.tobytes() for row in rows}) < cluster_count:
+    if len({row.tobytes() for row in rows}) < validated_cluster_count:
         raise ValueError("cluster support has fewer than C distinct float32 rows")
 
-    estimator = KMeans(n_clusters=cluster_count, **_KMEANS_ARGUMENTS)
+    estimator = KMeans(n_clusters=validated_cluster_count, **_KMEANS_ARGUMENTS)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         with threadpool_limits(limits=1):
-            original_labels = np.asarray(
-                estimator.fit_predict(rows), dtype=np.int64
-            )
+            raw_labels = estimator.fit_predict(rows)
     if any(issubclass(item.category, ConvergenceWarning) for item in caught):
         raise RuntimeError("K-means emitted a convergence warning")
     if not 1 <= int(estimator.n_iter_) <= 299:
@@ -187,9 +239,31 @@ def fit_canonical_clusters(
             f"K-means n_iter_ outside 1..299: {estimator.n_iter_}"
         )
 
+    raw_label_array = np.asarray(raw_labels)
+    if (
+        raw_label_array.ndim != 1
+        or raw_label_array.shape[0] != rows.shape[0]
+        or np.issubdtype(raw_label_array.dtype, np.bool_)
+        or not np.issubdtype(raw_label_array.dtype, np.integer)
+    ):
+        raise RuntimeError(
+            "K-means labels must be a one-dimensional integer vector "
+            f"of support length {rows.shape[0]}"
+        )
+    original_labels = np.ascontiguousarray(raw_label_array, dtype=np.int64)
     present = tuple(sorted(set(int(label) for label in original_labels)))
-    if len(present) != cluster_count:
+    expected_labels = set(range(validated_cluster_count))
+    if not set(present).issubset(expected_labels):
+        raise RuntimeError("K-means labels must be exactly range(cluster_count)")
+    if len(present) != validated_cluster_count:
         raise RuntimeError("K-means did not occupy every cluster")
+    raw_centers = np.asarray(estimator.cluster_centers_)
+    expected_center_shape = (validated_cluster_count, rows.shape[1])
+    if raw_centers.shape != expected_center_shape:
+        raise RuntimeError(
+            "K-means cluster_centers_ must have shape "
+            f"{expected_center_shape}"
+        )
     original_members = {
         label: tuple(
             index
@@ -214,9 +288,7 @@ def fit_canonical_clusters(
         [remap[int(label)] for label in original_labels], dtype=np.dtype("<u2")
     )
     centers = np.ascontiguousarray(
-        np.asarray(estimator.cluster_centers_, dtype=np.float32)[
-            list(canonical_original)
-        ],
+        np.asarray(raw_centers, dtype=np.float32)[list(canonical_original)],
         dtype=np.dtype("<f4"),
     )
     if not np.isfinite(centers).all():
@@ -228,10 +300,10 @@ def fit_canonical_clusters(
             for index, label in enumerate(labels)
             if int(label) == cluster_id
         )
-        for cluster_id in range(cluster_count)
+        for cluster_id in range(validated_cluster_count)
     )
     inertia_values: list[float] = []
-    for cluster_id in range(cluster_count):
+    for cluster_id in range(validated_cluster_count):
         member_delta = np.ascontiguousarray(
             rows[np.flatnonzero(labels == cluster_id)], dtype=np.float64
         ) - np.ascontiguousarray(centers[cluster_id], dtype=np.float64)
@@ -254,7 +326,7 @@ def fit_canonical_clusters(
 
     key = FitKey(
         support_ids,
-        cluster_count,
+        validated_cluster_count,
         embedding_sha256,
         clustering_contract_sha256,
     )
@@ -270,13 +342,13 @@ def fit_canonical_clusters(
             canonical_membership_sha256(
                 ((cluster_id, memberships[cluster_id]),)
             )
-            for cluster_id in range(cluster_count)
+            for cluster_id in range(validated_cluster_count)
         ),
         center_sha256=logical_array_sha256(
             centers,
             tag="canonical-centers",
             dtype="<f4",
-            row_inventory=tuple(range(cluster_count)),
+            row_inventory=tuple(range(validated_cluster_count)),
             column_inventory=(),
         ),
         cluster_inertia=cluster_inertia,
@@ -294,11 +366,115 @@ def assign_targets(
     target_indices: Sequence[int],
     support_index_by_id: Mapping[str, int],
 ) -> tuple[TargetAssignment, ...]:
-    centers = np.ascontiguousarray(fit.centers, dtype=np.float64)
+    embedding_array, canonical_query_ids = _validate_embedding_query_inventory(
+        embeddings, query_ids
+    )
+    cluster_count = _validate_cluster_count(fit.key.cluster_count)
+    support_ids = tuple(fit.key.support_query_ids)
+    expected_center_shape = (cluster_count, embedding_array.shape[1])
+    center_array = np.asarray(fit.centers)
+    if center_array.shape != expected_center_shape:
+        raise ValueError(f"fit centers must have shape {expected_center_shape}")
+
+    label_array = np.asarray(fit.labels)
+    if label_array.ndim != 1 or label_array.shape[0] != len(support_ids):
+        raise ValueError(
+            "fit labels must be a one-dimensional vector of support length "
+            f"{len(support_ids)}"
+        )
+    if (
+        np.issubdtype(label_array.dtype, np.bool_)
+        or not np.issubdtype(label_array.dtype, np.integer)
+        or any(
+            int(label) < 0 or int(label) >= cluster_count
+            for label in label_array
+        )
+    ):
+        raise ValueError("fit labels contain invalid canonical cluster IDs")
+
+    try:
+        memberships = tuple(tuple(membership) for membership in fit.memberships)
+    except TypeError as error:
+        raise ValueError("fit memberships must partition fit support IDs") from error
+    if len(memberships) != cluster_count:
+        raise ValueError("fit memberships count must equal cluster_count")
+    if any(not membership for membership in memberships):
+        raise ValueError("fit memberships must not contain an empty cluster")
+    flattened_memberships = tuple(
+        query_id for membership in memberships for query_id in membership
+    )
+    valid_support_partition = (
+        bool(support_ids)
+        and all(
+            type(query_id) is str and bool(query_id)
+            for query_id in support_ids
+        )
+        and len(set(support_ids)) == len(support_ids)
+        and all(
+            type(query_id) is str and bool(query_id)
+            for query_id in flattened_memberships
+        )
+        and len(flattened_memberships) == len(support_ids)
+        and len(set(flattened_memberships)) == len(flattened_memberships)
+        and set(flattened_memberships) == set(support_ids)
+    )
+    if not valid_support_partition:
+        raise ValueError("fit memberships must partition fit support IDs")
+    expected_memberships = tuple(
+        tuple(
+            support_ids[index]
+            for index, label in enumerate(label_array)
+            if int(label) == cluster_id
+        )
+        for cluster_id in range(cluster_count)
+    )
+    if memberships != expected_memberships:
+        raise ValueError("fit memberships are inconsistent with labels")
+
+    mapping_keys = tuple(support_index_by_id)
+    if len(mapping_keys) != len(support_ids) or set(mapping_keys) != set(
+        support_ids
+    ):
+        raise ValueError(
+            "support_index_by_id keys must exactly match fit support IDs"
+        )
+    mapping_values = tuple(
+        support_index_by_id[query_id] for query_id in support_ids
+    )
+    if any(type(index) is not int for index in mapping_values):
+        raise ValueError("support_index_by_id values must be exact ints")
+    if len(set(mapping_values)) != len(mapping_values):
+        raise ValueError("support_index_by_id values must be unique")
+    if any(
+        index < 0 or index >= embedding_array.shape[0]
+        for index in mapping_values
+    ):
+        raise ValueError("support_index_by_id index out of range")
+    if any(
+        canonical_query_ids[index] != query_id
+        for query_id, index in zip(support_ids, mapping_values, strict=True)
+    ):
+        raise ValueError(
+            "support_index_by_id must map each support ID to the matching query"
+        )
+
+    validated_targets = _validate_indices(
+        target_indices,
+        inventory_size=embedding_array.shape[0],
+        kind="target",
+    )
+    support_id_set = set(support_ids)
+    if any(
+        canonical_query_ids[target_index] in support_id_set
+        for target_index in validated_targets
+    ):
+        raise ValueError("target query IDs must be disjoint from fit support IDs")
+
+    centers = np.ascontiguousarray(center_array, dtype=np.float64)
     assignments: list[TargetAssignment] = []
-    for target_index in target_indices:
+    for target_index in validated_targets:
         target = np.ascontiguousarray(
-            embeddings[target_index], dtype=np.float64
+            embedding_array[target_index], dtype=np.float64
         )
         if not np.isfinite(target).all():
             raise ValueError("target embedding contains a non-finite value")
@@ -306,7 +482,7 @@ def assign_targets(
         distances = np.asarray(
             [
                 np.sum(delta[index] * delta[index], dtype=np.float64)
-                for index in range(fit.key.cluster_count)
+                for index in range(cluster_count)
             ],
             dtype=np.float64,
         )
@@ -315,11 +491,11 @@ def assign_targets(
         cluster_id = int(np.argmin(distances))
         member_indices = tuple(
             support_index_by_id[query_id]
-            for query_id in fit.memberships[cluster_id]
+            for query_id in memberships[cluster_id]
         )
         assignments.append(
             TargetAssignment(
-                query_id=query_ids[target_index],
+                query_id=canonical_query_ids[target_index],
                 canonical_cluster_id=cluster_id,
                 squared_distance=float(distances[cluster_id]),
                 member_indices=member_indices,

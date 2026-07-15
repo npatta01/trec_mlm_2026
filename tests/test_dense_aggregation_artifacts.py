@@ -4,7 +4,10 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -27,7 +30,7 @@ FIXTURE_PATH = (
 
 
 @pytest.fixture(scope="module")
-def golden() -> dict[str, str]:
+def golden() -> dict[str, Any]:
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
@@ -152,6 +155,123 @@ def test_manifest_requires_exact_top_level_contract(
     _rewrite_manifest(root, manifest)
 
     with pytest.raises(ValueError, match="manifest"):
+        validate_manifest(root)
+
+
+def test_validate_manifest_rejects_fifo_before_opening_it(tmp_path: Path) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    os.mkfifo(root / "manifest.json")
+    code = r'''
+import sys
+from pathlib import Path
+from trec_mlm.dense_aggregation_artifacts import validate_manifest
+
+try:
+    validate_manifest(Path(sys.argv[1]))
+except ValueError as error:
+    assert "regular file" in str(error), str(error)
+    print(error)
+else:
+    raise AssertionError("FIFO manifest was accepted")
+'''
+    completed = subprocess.run(
+        [sys.executable, "-c", code, str(root)],
+        text=True,
+        capture_output=True,
+        timeout=2,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "regular file" in completed.stdout
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    (
+        ("size", 1.0),
+        ("size", True),
+        ("schema", ["trec-mlm-dense-aggregation-manifest-v1"]),
+        ("files", {"path": "one.bin"}),
+        ("path", 7),
+        ("file_sha256", 7),
+        ("artifact_inventory_sha256", 7),
+    ),
+)
+def test_manifest_rejects_nonexact_json_field_types(
+    tmp_path: Path, field: str, invalid_value: object
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    (root / "one.bin").write_bytes(b"x")
+    manifest = write_manifest(root)
+    rows = manifest["files"]
+    assert isinstance(rows, list)
+    assert isinstance(rows[0], list)
+    if field == "size":
+        rows[0][1] = invalid_value
+    elif field == "schema":
+        manifest["schema"] = invalid_value
+    elif field == "files":
+        manifest["files"] = invalid_value
+    elif field == "path":
+        rows[0][0] = invalid_value
+    elif field == "file_sha256":
+        rows[0][2] = invalid_value
+    else:
+        manifest["artifact_inventory_sha256"] = invalid_value
+    _rewrite_manifest(root, manifest)
+
+    with pytest.raises(ValueError, match="type"):
+        validate_manifest(root)
+
+
+@pytest.mark.parametrize(
+    "encoding",
+    ("missing-newline", "extra-newline", "pretty", "duplicate-key"),
+)
+def test_manifest_rejects_noncanonical_bytes(
+    tmp_path: Path, encoding: str
+) -> None:
+    root = tmp_path / "artifact"
+    _publish(root)
+    manifest = validate_manifest(root)
+    canonical = canonical_json(manifest)
+    if encoding == "missing-newline":
+        payload = canonical
+    elif encoding == "extra-newline":
+        payload = canonical + b"\n\n"
+    elif encoding == "pretty":
+        payload = json.dumps(manifest, indent=2, sort_keys=True).encode() + b"\n"
+    else:
+        schema = b'"trec-mlm-dense-aggregation-manifest-v1"'
+        payload = canonical[:-1] + b',"schema":' + schema + b"}\n"
+    (root / "manifest.json").write_bytes(payload)
+
+    with pytest.raises(ValueError, match="canonical"):
+        validate_manifest(root)
+
+
+def test_manifest_rejects_noncanonical_unicode_escape_encoding(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    (root / "snow-雪.txt").write_text("snow\n", encoding="utf-8")
+    manifest = write_manifest(root)
+    escaped = (
+        json.dumps(
+            manifest,
+            ensure_ascii=True,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
+    assert escaped != canonical_json(manifest) + b"\n"
+    (root / "manifest.json").write_bytes(escaped)
+
+    with pytest.raises(ValueError, match="canonical"):
         validate_manifest(root)
 
 
@@ -289,5 +409,21 @@ def test_semantic_artifact_hash_validates_raw_manifest_before_normalizing(
         semantic_artifact_sha256(
             root,
             normalized_files={"nested/payload.bin": b"\x00\x01\xff"},
+            tag="construction-semantic-artifact",
+        )
+
+
+def test_semantic_artifact_hash_rejects_noncanonical_manifest_first(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "artifact"
+    _publish(root)
+    manifest_path = root / "manifest.json"
+    manifest_path.write_bytes(manifest_path.read_bytes().rstrip(b"\n"))
+
+    with pytest.raises(ValueError, match="canonical"):
+        semantic_artifact_sha256(
+            root,
+            normalized_files={},
             tag="construction-semantic-artifact",
         )

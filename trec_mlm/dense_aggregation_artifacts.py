@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import uuid
 from collections.abc import Iterator, Mapping
@@ -139,6 +140,34 @@ def write_manifest(root: str | Path) -> dict[str, object]:
     return payload
 
 
+def _validate_manifest_types(value: Any) -> dict[str, object]:
+    if type(value) is not dict or set(value) != _MANIFEST_KEYS:
+        raise ValueError("artifact manifest has an invalid top-level contract")
+    if type(value["schema"]) is not str:
+        raise ValueError("artifact manifest schema has an invalid type")
+    if type(value["files"]) is not list:
+        raise ValueError("artifact manifest files have an invalid type")
+    if type(value["artifact_inventory_sha256"]) is not str:
+        raise ValueError("artifact manifest digest has an invalid type")
+    for index, row in enumerate(value["files"]):
+        if type(row) is not list or len(row) != 3:
+            raise ValueError(f"artifact manifest row {index} has an invalid type")
+        relative_path, byte_size, raw_sha256 = row
+        if type(relative_path) is not str:
+            raise ValueError(
+                f"artifact manifest row {index} path has an invalid type"
+            )
+        if type(byte_size) is not int:
+            raise ValueError(
+                f"artifact manifest row {index} size has an invalid type"
+            )
+        if type(raw_sha256) is not str:
+            raise ValueError(
+                f"artifact manifest row {index} digest has an invalid type"
+            )
+    return value
+
+
 def validate_manifest(root: str | Path) -> dict[str, object]:
     artifact_root = Path(root)
     if _QUARANTINE_NAME.fullmatch(artifact_root.name):
@@ -149,16 +178,28 @@ def validate_manifest(root: str | Path) -> dict[str, object]:
         raise ValueError(f"artifact root is not a directory: {artifact_root}")
 
     manifest_path = artifact_root / "manifest.json"
-    if manifest_path.is_symlink():
-        raise ValueError(f"artifact symlink is forbidden: {manifest_path}")
     try:
-        manifest_value: Any = json.loads(manifest_path.read_bytes())
-    except (OSError, json.JSONDecodeError) as error:
+        manifest_stat = manifest_path.lstat()
+    except OSError as error:
+        raise ValueError(f"artifact manifest is missing: {manifest_path}") from error
+    if stat.S_ISLNK(manifest_stat.st_mode):
+        raise ValueError(f"artifact symlink is forbidden: {manifest_path}")
+    if not stat.S_ISREG(manifest_stat.st_mode):
+        raise ValueError(f"artifact manifest is not a regular file: {manifest_path}")
+    try:
+        manifest_bytes = manifest_path.read_bytes()
+        manifest_value: Any = json.loads(manifest_bytes)
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError(
             f"artifact manifest is missing or invalid: {manifest_path}"
         ) from error
-    if not isinstance(manifest_value, dict) or set(manifest_value) != _MANIFEST_KEYS:
-        raise ValueError("artifact manifest has an invalid top-level contract")
+    manifest_value = _validate_manifest_types(manifest_value)
+    try:
+        expected_manifest_bytes = canonical_json(manifest_value) + b"\n"
+    except (TypeError, ValueError) as error:
+        raise ValueError("artifact manifest is not canonical JSON") from error
+    if manifest_bytes != expected_manifest_bytes:
+        raise ValueError("artifact manifest bytes are not canonical")
     if manifest_value["schema"] != _MANIFEST_SCHEMA:
         raise ValueError("artifact manifest has an unsupported schema")
 

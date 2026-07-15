@@ -1,7 +1,69 @@
 {
   "aggregate_inventory": "3a362fcf9888c949652f12855aead04b227f8c6eccb2b4531c732231ca32041c",
   "canonical_centers_2x2": "26af9668d101d172c0f73785257f7e9609f990982b032a825de1a037c41f6d28",
-  "clustering_contract_minimal": "1a80a57065cc3caac06abb927a95be0def9d1165075e8ea0c33f6ff15eacd680",
+  "clustering_contract_full_payload": {
+    "center": {
+      "canonical_order": "minimum_member_query_id_lexical",
+      "dtype": "<f4",
+      "layout": "C"
+    },
+    "convergence": {
+      "n_iter_max": 299,
+      "n_iter_min": 1,
+      "warning_action": "reject"
+    },
+    "embedding_sha256": "6d197055eb62ab9809ae321b0f60072e20f17524861e6a989b49cd35c389055b",
+    "implementation_files": [
+      [
+        "trec_mlm/dense_aggregation_artifacts.py",
+        "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      [
+        "trec_mlm/dense_aggregation_hashing.py",
+        "1111111111111111111111111111111111111111111111111111111111111111"
+      ]
+    ],
+    "inertia": {
+      "atol": 1e-08,
+      "cluster_reduction": "numpy.sum(member_delta * member_delta, dtype=numpy.float64)",
+      "dtype": "<f8",
+      "rtol": 1e-05,
+      "total_reduction": "math.fsum(cluster_inertia)"
+    },
+    "kmeans": {
+      "algorithm": "lloyd",
+      "init": "k-means++",
+      "max_iter": 300,
+      "n_init": 10,
+      "random_state": 2026,
+      "tol": 0.0001
+    },
+    "protocol_file_sha256": "bbe6b50fd3d20efe3213a446f6665cbe0527114f34bf5c1e90236af4f998ad49",
+    "schema": "trec-mlm-dense-aggregation-clustering-v1",
+    "similarity_sha256": "80c69a8dca29cd5e9a4de08dc4e44553fabf813428dd4956f7ecbeb2852968ed",
+    "target_distance": {
+      "dtype": "<f8",
+      "reduction": "numpy.sum(delta[z] * delta[z], dtype=numpy.float64)",
+      "tie": "minimum_canonical_cluster_id"
+    },
+    "threads": {
+      "BLIS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1",
+      "process_count": 1,
+      "threadpool_limit": 1
+    },
+    "versions": {
+      "numpy": "2.5.1",
+      "python": "3.13.9",
+      "scikit_learn": "1.9.0",
+      "scipy": "1.18.0"
+    }
+  },
+  "clustering_contract_full_sha256": "624b4d9f1d318296c464a2caffefb8475f02aa821f708c8425b782f1b3d5a1d4",
   "framed_example_alpha_empty": "95acd93c0f69c911f11e2a3525c1d2d258d399d5364ec154710f1a6209aa0b7d",
   "full_rank_2x2": "0dbeaf0b477622c1089d5d886796ad599e6dd8402805c2d4368ce789dc97e225",
   "full_score_2x2": "83c16c25585d321fa3c77593c7d600b4f9761a7b4741078c47090370667068be",

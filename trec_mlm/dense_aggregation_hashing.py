@@ -19,6 +19,7 @@ _LOGICAL_TAGS = {
     "full-development-score",
     "full-development-rank",
 }
+_SCORE_RANK_TAGS = _LOGICAL_TAGS - {"canonical-centers"}
 
 
 def canonical_json(value: object) -> bytes:
@@ -45,6 +46,35 @@ def framed_sha256(tag: str, *payloads: bytes) -> str:
     return digest.hexdigest()
 
 
+def _declared_numeric_dtype(dtype: str) -> np.dtype[Any]:
+    declared = np.dtype(dtype)
+    if (
+        declared.hasobject
+        or declared.fields is not None
+        or declared.kind not in "iufc"
+    ):
+        raise ValueError(
+            "declared dtype must be a deterministic numeric scalar dtype"
+        )
+    if declared.str[0] not in ("<", "|"):
+        raise ValueError(f"dtype must be explicitly little-endian: {dtype}")
+    return declared
+
+
+def _validate_shape_and_inventories(
+    *,
+    tag: str,
+    shape: tuple[int, int],
+    row_inventory: Sequence[str | int],
+    column_inventory: Sequence[str | int],
+) -> None:
+    if shape[0] != len(row_inventory):
+        raise ValueError("array row count does not match semantic inventory")
+    if tag in _SCORE_RANK_TAGS or column_inventory:
+        if shape[1] != len(column_inventory):
+            raise ValueError("array column count does not match semantic inventory")
+
+
 def logical_array_sha256(
     array: NDArray[Any],
     *,
@@ -55,16 +85,16 @@ def logical_array_sha256(
 ) -> str:
     if tag not in _LOGICAL_TAGS:
         raise ValueError(f"unsupported logical-array tag: {tag}")
-    declared = np.dtype(dtype)
-    if declared.str[0] not in ("<", "|"):
-        raise ValueError(f"dtype must be explicitly little-endian: {dtype}")
+    declared = _declared_numeric_dtype(dtype)
     value = np.ascontiguousarray(array, dtype=declared)
     if value.ndim != 2:
         raise ValueError("logical array must be two-dimensional")
-    if row_inventory and value.shape[0] != len(row_inventory):
-        raise ValueError("array row count does not match semantic inventory")
-    if column_inventory and value.shape[1] != len(column_inventory):
-        raise ValueError("array column count does not match semantic inventory")
+    _validate_shape_and_inventories(
+        tag=tag,
+        shape=(value.shape[0], value.shape[1]),
+        row_inventory=row_inventory,
+        column_inventory=column_inventory,
+    )
     if np.issubdtype(value.dtype, np.floating) and not np.isfinite(value).all():
         raise ValueError("logical float array contains a non-finite value")
     return framed_sha256(
@@ -100,13 +130,13 @@ class StreamingLogicalArrayHasher:
     ) -> None:
         if tag not in _LOGICAL_TAGS:
             raise ValueError(f"unsupported logical-array tag: {tag}")
-        self._dtype = np.dtype(dtype)
-        if self._dtype.str[0] not in ("<", "|"):
-            raise ValueError("streamed dtype must be explicitly little-endian")
-        if shape[0] != len(row_inventory) or (
-            column_inventory and shape[1] != len(column_inventory)
-        ):
-            raise ValueError("streamed shape does not match semantic inventories")
+        self._dtype = _declared_numeric_dtype(dtype)
+        _validate_shape_and_inventories(
+            tag=tag,
+            shape=shape,
+            row_inventory=row_inventory,
+            column_inventory=column_inventory,
+        )
         self._shape = shape
         self._row_count = 0
         self._byte_count = 0

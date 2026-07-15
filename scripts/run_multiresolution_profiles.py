@@ -176,6 +176,17 @@ def _run_construction(
     return 0
 
 
+def _run_viability_repair(args: argparse.Namespace, artifact_root: str) -> int:
+    """Write a supplemental receipt from the immutable pass-one artifact only."""
+
+    if not args.viability_receipt:
+        raise ValueError("supplemental viability repair requires an output receipt")
+    viability = assess_multiresolution_viability(artifact_root)
+    write_multiresolution_receipt(viability, args.viability_receipt)
+    print(json.dumps({"viability": viability}, indent=2, allow_nan=False))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if _comparison_mode(args):
@@ -187,6 +198,8 @@ def main(argv: list[str] | None = None) -> int:
                 "canonical pass-one construction cannot accept repeat authorization"
             )
         if Path(config.output_root).exists():
+            if args.viability_receipt:
+                return _run_viability_repair(args, config.output_root)
             raise FileExistsError(
                 f"canonical pass-one artifact already exists: {config.output_root}"
             )

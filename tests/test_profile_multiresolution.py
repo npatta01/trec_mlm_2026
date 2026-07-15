@@ -17,6 +17,7 @@ from trec_mlm.profile_multiresolution import (
     compare_multiresolution_artifacts,
     construct_multiresolution,
     load_multiresolution_artifact,
+    validate_multiresolution_viability_receipt,
     write_multiresolution_receipt,
     write_multiresolution_artifact,
 )
@@ -523,6 +524,231 @@ def test_viability_reports_query_collapse_dominance_and_incremental_difference(
     assert a1["candidate_coverage_retention"] == pytest.approx(1.0)
 
 
+def test_control_comparison_reports_exact_top10_overlap_statistics() -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    observed = {
+        "q1": ["A", "B", "C"],
+        "q2": ["B", "A", "C"],
+    }
+    control = {
+        "q1": ["A", "C", "D"],
+        "q2": ["A", "B", "C"],
+    }
+    comparison = module._compare_top10_rankings(observed, control)
+    assert comparison == {
+        "mean_top10_jaccard": pytest.approx(0.75),
+        "top10_difference_query_share": pytest.approx(1.0),
+        "mean_top10_overlap_count": pytest.approx(2.5),
+        "mean_common_top10_absolute_rank_displacement": pytest.approx(0.6),
+    }
+
+
+def test_control_comparisons_cover_all_frozen_systems_and_both_controls(
+    tmp_path: Path,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    result = _diagnostic_fixture(tmp_path)
+    comparisons = module._control_comparisons(
+        result.rankings,
+        {
+            "query_knn": result.dense_rankings,
+            "contextual_e5": {
+                "q1": ["A", "B"],
+                "q2": ["A", "B"],
+            },
+        },
+    )
+    assert set(comparisons) == set(EXPECTED_SYSTEMS)
+    assert all(set(values) == {"query_knn", "contextual_e5"} for values in comparisons.values())
+
+
+def test_control_sources_bind_exact_hashes_and_inventories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    result = _diagnostic_fixture(tmp_path)
+    artifact_root = tmp_path / "artifact"
+    source_root = tmp_path / "source"
+    (artifact_root / "rankings").mkdir(parents=True)
+    (source_root / "rankings").mkdir(parents=True)
+    dense_path = artifact_root / "rankings" / "dense_reference.json"
+    contextual_path = source_root / "rankings" / "contextual_e5_control.json"
+    dense_path.write_text(json.dumps(result.dense_rankings), encoding="utf-8")
+    contextual = {"q1": ["A", "B"], "q2": ["B", "A"]}
+    contextual_path.write_text(json.dumps(contextual), encoding="utf-8")
+    dense_sha = hashlib.sha256(dense_path.read_bytes()).hexdigest()
+    contextual_sha = hashlib.sha256(contextual_path.read_bytes()).hexdigest()
+    (artifact_root / "manifest.json").write_text(json.dumps({
+        "aggregate_sha256": "f" * 64,
+        "files": {"rankings/dense_reference.json": {"sha256": dense_sha}},
+    }))
+    source = SimpleNamespace(
+        root=source_root,
+        manifest={
+            "aggregate_sha256": AUDIT_FINAL_AGGREGATE,
+            "files": {
+                "rankings/contextual_e5_control.json": {"sha256": contextual_sha},
+                "rankings/dense_reference.json": {"sha256": dense_sha},
+            },
+        },
+        query_ids=result.query_ids,
+        candidate_ids=result.candidate_ids,
+        source_rankings={
+            "dense_reference": result.dense_rankings,
+            "contextual_e5_control": contextual,
+        },
+    )
+    monkeypatch.setattr(module, "load_profile_artifacts", lambda _path: source)
+
+    sources, controls = module._load_control_rankings(result, artifact_root)
+    assert set(sources) == {"query_knn", "contextual_e5"}
+    assert sources["query_knn"]["ranking_sha256"] == dense_sha
+    assert sources["contextual_e5"]["ranking_sha256"] == contextual_sha
+    assert sources["contextual_e5"]["source_aggregate_sha256"] == AUDIT_FINAL_AGGREGATE
+    assert controls == {
+        "query_knn": result.dense_rankings,
+        "contextual_e5": contextual,
+    }
+
+
+@pytest.mark.parametrize("mismatch", ("candidate_inventory", "contextual_hash"))
+def test_control_sources_reject_inventory_or_hash_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mismatch: str,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    result = _diagnostic_fixture(tmp_path)
+    artifact_root = tmp_path / "artifact"
+    source_root = tmp_path / "source"
+    (artifact_root / "rankings").mkdir(parents=True)
+    (source_root / "rankings").mkdir(parents=True)
+    dense_path = artifact_root / "rankings" / "dense_reference.json"
+    contextual_path = source_root / "rankings" / "contextual_e5_control.json"
+    dense_path.write_text(json.dumps(result.dense_rankings))
+    contextual_path.write_text(json.dumps(result.dense_rankings))
+    dense_sha = hashlib.sha256(dense_path.read_bytes()).hexdigest()
+    contextual_sha = hashlib.sha256(contextual_path.read_bytes()).hexdigest()
+    (artifact_root / "manifest.json").write_text(json.dumps({
+        "aggregate_sha256": "f" * 64,
+        "files": {"rankings/dense_reference.json": {"sha256": dense_sha}},
+    }))
+    source = SimpleNamespace(
+        root=source_root,
+        manifest={
+            "aggregate_sha256": AUDIT_FINAL_AGGREGATE,
+            "files": {
+                "rankings/contextual_e5_control.json": {
+                    "sha256": "0" * 64 if mismatch == "contextual_hash" else contextual_sha
+                },
+                "rankings/dense_reference.json": {"sha256": dense_sha},
+            },
+        },
+        query_ids=result.query_ids,
+        candidate_ids=("A",) if mismatch == "candidate_inventory" else result.candidate_ids,
+        source_rankings={
+            "dense_reference": result.dense_rankings,
+            "contextual_e5_control": result.dense_rankings,
+        },
+    )
+    monkeypatch.setattr(module, "load_profile_artifacts", lambda _path: source)
+    with pytest.raises(ValueError, match="inventory|hash"):
+        module._load_control_rankings(result, artifact_root)
+
+
+def test_execution_provenance_is_complete_and_exact() -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    provenance = module._execution_provenance(
+        "a" * 64, receipt_generated_at="2026-07-15T18:00:00+00:00"
+    )
+    assert provenance == {
+        "execution_code_commit": module.PASS_ONE_EXECUTION_CODE_COMMIT,
+        "command": module.PASS_ONE_COMMAND,
+        "thread_environment": module.PASS_ONE_THREAD_ENVIRONMENT,
+        "dependency_versions": module.PASS_ONE_DEPENDENCY_VERSIONS,
+        "construction_completed_at": module.PASS_ONE_CONSTRUCTION_COMPLETED_AT,
+        "artifact_aggregate_sha256": "a" * 64,
+        "receipt_generated_at": "2026-07-15T18:00:00+00:00",
+    }
+
+
+def test_assessor_produces_complete_supplemental_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    result = _diagnostic_fixture(tmp_path)
+    root = tmp_path / "artifact"
+    root.mkdir()
+    (root / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64}), encoding="utf-8"
+    )
+    controls = {
+        "query_knn": result.dense_rankings,
+        "contextual_e5": result.dense_rankings,
+    }
+    sources = {
+        name: {
+            "ranking_name": "dense_reference" if name == "query_knn" else "contextual_e5_control",
+            "ranking_file": "rankings/control.json",
+            "ranking_sha256": "b" * 64,
+            "source_aggregate_sha256": AUDIT_FINAL_AGGREGATE,
+            "query_count": 2,
+            "candidate_count": 2,
+            "query_inventory_sha256": module._length_framed_hash(result.query_ids),
+            "candidate_inventory_sha256": module._length_framed_hash(result.candidate_ids),
+        }
+        for name in module.CONTROL_NAMES
+    }
+    monkeypatch.setattr(module, "_load_control_rankings", lambda *_args: (sources, controls))
+    monkeypatch.setattr(module, "_tree_bytes", lambda path: 100 if path == root else 50)
+    monkeypatch.setattr(module, "_source_elapsed_seconds", lambda _path: 10.0)
+    receipt = module._assess_multiresolution_viability(
+        result, require_official_coverage=False, root=root
+    )
+    assert set(receipt["control_comparisons"]) == set(EXPECTED_SYSTEMS)
+    assert set(receipt["control_comparisons"]["x1_multires_top2_dense_equal"]) == {
+        "query_knn", "contextual_e5"
+    }
+    assert receipt["control_sources"] == sources
+    assert receipt["execution_provenance"]["artifact_aggregate_sha256"] == "a" * 64
+    assert receipt["failed_query_sensitivity_thresholds"]
+    assert receipt["decision"] == "reject-invalid"
+    assert receipt["repeat_authorized"] is False
+
+    incomplete = dict(receipt)
+    del incomplete["execution_provenance"]
+    with pytest.raises(ValueError, match="schema"):
+        validate_multiresolution_viability_receipt(incomplete, "a" * 64)
+
+
+@pytest.mark.parametrize(
+    ("failed_integrity", "failed_query_sensitivity", "failed_incremental", "expected"),
+    (
+        (["finite_scores"], ["maximum_top1_candidate_share"], ["incremental"], "reject-invalid"),
+        ([], ["maximum_top1_candidate_share"], [], "stop-query-sensitivity"),
+        ([], [], ["incremental_mean_top10_jaccard"], "stop-no-incremental-value"),
+        ([], [], [], "continue"),
+    ),
+)
+def test_viability_decision_uses_strict_failure_precedence(
+    failed_integrity: list[str],
+    failed_query_sensitivity: list[str],
+    failed_incremental: list[str],
+    expected: str,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    assert module._viability_decision(
+        failed_integrity,
+        failed_query_sensitivity,
+        failed_incremental,
+    ) == expected
+
+
 def test_viability_classifies_integrity_before_incremental_value(
     tmp_path: Path,
 ) -> None:
@@ -542,10 +768,24 @@ def test_viability_classifies_integrity_before_incremental_value(
     assert invalid_receipt["decision"] == "reject-invalid"
     assert "finite_scores" in invalid_receipt["failed_thresholds"]
 
+    structurally_valid_profiles = {
+        resolution: {
+            candidate: {
+                **profile,
+                "clusters": [
+                    {**profile["clusters"][0], "support_count": 3},
+                    {**profile["clusters"][1], "support_count": 2},
+                ],
+            }
+            for candidate, profile in payload.items()
+        }
+        for resolution, payload in result.profiles.items()
+    }
     no_increment = module._assess_multiresolution_viability(
-        result, require_official_coverage=False
+        replace(result, profiles=structurally_valid_profiles),
+        require_official_coverage=False,
     )
-    assert no_increment["decision"] == "stop-no-incremental-value"
+    assert no_increment["decision"] == "stop-query-sensitivity"
     assert not no_increment["failed_integrity_thresholds"]
     assert no_increment["failed_incremental_thresholds"]
 
@@ -821,6 +1061,35 @@ def test_cli_refuses_existing_canonical_pass_one_before_construct(
     )
     with pytest.raises(FileExistsError, match="canonical pass-one"):
         script.main(["--config", str(config_path)])
+
+
+def test_cli_existing_canonical_artifact_repairs_receipt_without_reconstruction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    monkeypatch.chdir(tmp_path)
+    config = MultiResolutionConfig()
+    config_path = tmp_path / "config.json"
+    _write_cli_config(config_path, output_root=config.output_root)
+    Path(config.output_root).mkdir(parents=True)
+    output = tmp_path / "supplemental.json"
+    expected = {"artifact_type": "issue18_multiresolution_viability_receipt"}
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda _config: pytest.fail("receipt repair reconstructed production artifacts"),
+    )
+    monkeypatch.setattr(
+        script, "assess_multiresolution_viability", lambda _path: expected
+    )
+    assert script.main(
+        [
+            "--config", str(config_path),
+            "--viability-receipt", str(output),
+        ]
+    ) == 0
+    assert json.loads(output.read_text()) == expected
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, fields, replace
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -52,6 +53,27 @@ EXPECTED_SYSTEMS = (
     "x1_multires_top2",
     "x1_multires_top2_dense_equal",
 )
+CONTROL_NAMES = ("query_knn", "contextual_e5")
+PASS_ONE_EXECUTION_CODE_COMMIT = "bf6bb6689f1b589453fe1eb8905291317ef71241"
+PASS_ONE_COMMAND = (
+    "OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 "
+    ".venv/bin/python scripts/run_multiresolution_profiles.py --config "
+    "configs/trec_2026_multiresolution_profiles.json --viability-receipt "
+    "reports/trec_2026_issue18_pr17head_viability.json"
+)
+PASS_ONE_CONSTRUCTION_COMPLETED_AT = "2026-07-15T12:41:18.692102441-04:00"
+PASS_ONE_DEPENDENCY_VERSIONS = {
+    "python": "3.13.9",
+    "numpy": "2.5.1",
+    "scipy": "1.18.0",
+    "scikit-learn": "1.9.0",
+}
+PASS_ONE_THREAD_ENVIRONMENT = {
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+}
+PASS_ONE_ELAPSED_SECONDS = 428.64752057695296
 NEW_PROFILE_SYSTEMS = (
     "a1_top2_k10",
     "r1_multires_max",
@@ -893,8 +915,192 @@ def _finite_receipt_number(value: Any) -> bool:
     )
 
 
+def _compare_top10_rankings(
+    ranking: Mapping[str, Sequence[str]],
+    control: Mapping[str, Sequence[str]],
+) -> dict[str, float]:
+    """Compute deterministic qrel-free top-10 overlap and displacement metrics."""
+
+    if set(ranking) != set(control) or not ranking:
+        raise ValueError("control ranking query inventory differs from frozen systems")
+    jaccards: list[float] = []
+    overlaps: list[int] = []
+    difference_count = 0
+    displacement_total = 0
+    common_count = 0
+    for query_id in ranking:
+        observed = tuple(ranking[query_id][:10])
+        baseline = tuple(control[query_id][:10])
+        if len(observed) != len(set(observed)) or len(baseline) != len(set(baseline)):
+            raise ValueError("top-10 control comparison contains duplicate candidates")
+        observed_set = set(observed)
+        baseline_set = set(baseline)
+        common = observed_set & baseline_set
+        union = observed_set | baseline_set
+        jaccards.append(len(common) / len(union) if union else 1.0)
+        overlaps.append(len(common))
+        difference_count += int(observed != baseline)
+        observed_positions = {candidate: index for index, candidate in enumerate(observed)}
+        baseline_positions = {candidate: index for index, candidate in enumerate(baseline)}
+        displacement_total += sum(
+            abs(observed_positions[candidate] - baseline_positions[candidate])
+            for candidate in common
+        )
+        common_count += len(common)
+    query_count = len(ranking)
+    return {
+        "mean_top10_jaccard": statistics.fmean(jaccards),
+        "top10_difference_query_share": difference_count / query_count,
+        "mean_top10_overlap_count": statistics.fmean(overlaps),
+        "mean_common_top10_absolute_rank_displacement": (
+            displacement_total / common_count if common_count else 0.0
+        ),
+    }
+
+
+def _control_comparisons(
+    rankings: Mapping[str, Mapping[str, Sequence[str]]],
+    controls: Mapping[str, Mapping[str, Sequence[str]]],
+) -> dict[str, dict[str, dict[str, float]]]:
+    if set(rankings) != set(EXPECTED_SYSTEMS) or set(controls) != set(CONTROL_NAMES):
+        raise ValueError("frozen system or control ranking inventory changed")
+    return {
+        system: {
+            control: _compare_top10_rankings(ranking, controls[control])
+            for control in CONTROL_NAMES
+        }
+        for system, ranking in rankings.items()
+    }
+
+
+def _validate_control_ranking_inventory(
+    ranking: Mapping[str, Sequence[str]], result: MultiResolutionResult
+) -> None:
+    if set(ranking) != set(result.query_ids):
+        raise ValueError("control query inventory differs from frozen artifact")
+    expected_candidates = set(result.candidate_ids)
+    if any(
+        len(row) != len(result.candidate_ids) or set(row) != expected_candidates
+        for row in ranking.values()
+    ):
+        raise ValueError("control candidate inventory differs from frozen artifact")
+
+
+def _load_control_rankings(
+    result: MultiResolutionResult, artifact_root: Path
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, Mapping[str, Sequence[str]]],
+]:
+    """Load only the two strictly bound qrel-free control rankings."""
+
+    source = load_profile_artifacts(result.config.construction_path)
+    if (
+        source.manifest.get("aggregate_sha256")
+        != result.config.source_aggregate_sha256
+        or tuple(source.query_ids) != result.query_ids
+        or tuple(source.candidate_ids) != result.candidate_ids
+    ):
+        raise ValueError("control source aggregate or inventory differs from frozen artifact")
+    source_files = source.manifest.get("files")
+    if not isinstance(source_files, Mapping):
+        raise ValueError("control source manifest file inventory changed")
+    artifact_manifest = _read_json(artifact_root / "manifest.json")
+    artifact_files = artifact_manifest.get("files")
+    if not isinstance(artifact_files, Mapping):
+        raise ValueError("frozen artifact manifest file inventory changed")
+
+    dense = source.source_rankings.get("dense_reference")
+    contextual = source.source_rankings.get("contextual_e5_control")
+    if not isinstance(dense, Mapping) or not isinstance(contextual, Mapping):
+        raise ValueError("required control rankings are absent")
+    if dict(dense) != result.dense_rankings:
+        raise ValueError("query-kNN control differs from frozen artifact copy")
+    controls = {"query_knn": dense, "contextual_e5": contextual}
+    for ranking in controls.values():
+        _validate_control_ranking_inventory(ranking, result)
+
+    dense_relative = "rankings/dense_reference.json"
+    contextual_relative = "rankings/contextual_e5_control.json"
+    dense_path = artifact_root / dense_relative
+    contextual_path = Path(source.root) / contextual_relative
+    dense_entry = artifact_files.get(dense_relative)
+    source_dense_entry = source_files.get(dense_relative)
+    contextual_entry = source_files.get(contextual_relative)
+    if any(
+        not isinstance(entry, Mapping) or set(entry) < {"sha256"}
+        for entry in (dense_entry, source_dense_entry, contextual_entry)
+    ):
+        raise ValueError("control ranking hash entries changed")
+    dense_sha = _sha256(dense_path)
+    contextual_sha = _sha256(contextual_path)
+    if (
+        dense_sha != dense_entry["sha256"]
+        or dense_sha != source_dense_entry["sha256"]
+        or contextual_sha != contextual_entry["sha256"]
+    ):
+        raise ValueError("control ranking hash mismatch")
+
+    inventory = {
+        "query_count": len(result.query_ids),
+        "candidate_count": len(result.candidate_ids),
+        "query_inventory_sha256": _length_framed_hash(result.query_ids),
+        "candidate_inventory_sha256": _length_framed_hash(result.candidate_ids),
+    }
+    sources = {
+        "query_knn": {
+            "ranking_name": "dense_reference",
+            "ranking_file": dense_relative,
+            "ranking_sha256": dense_sha,
+            "source_aggregate_sha256": result.config.source_aggregate_sha256,
+            **inventory,
+        },
+        "contextual_e5": {
+            "ranking_name": "contextual_e5_control",
+            "ranking_file": contextual_relative,
+            "ranking_sha256": contextual_sha,
+            "source_aggregate_sha256": result.config.source_aggregate_sha256,
+            **inventory,
+        },
+    }
+    return sources, controls
+
+
+def _execution_provenance(
+    artifact_aggregate_sha256: str,
+    *,
+    receipt_generated_at: str | None = None,
+) -> dict[str, Any]:
+    generated = receipt_generated_at or datetime.now(timezone.utc).isoformat()
+    return {
+        "execution_code_commit": PASS_ONE_EXECUTION_CODE_COMMIT,
+        "command": PASS_ONE_COMMAND,
+        "thread_environment": dict(PASS_ONE_THREAD_ENVIRONMENT),
+        "dependency_versions": dict(PASS_ONE_DEPENDENCY_VERSIONS),
+        "construction_completed_at": PASS_ONE_CONSTRUCTION_COMPLETED_AT,
+        "artifact_aggregate_sha256": artifact_aggregate_sha256,
+        "receipt_generated_at": generated,
+    }
+
+
+def _viability_decision(
+    failed_integrity: Sequence[str],
+    failed_query_sensitivity: Sequence[str],
+    failed_incremental: Sequence[str],
+) -> str:
+    if failed_integrity:
+        return "reject-invalid"
+    if failed_query_sensitivity:
+        return "stop-query-sensitivity"
+    if failed_incremental:
+        return "stop-no-incremental-value"
+    return "continue"
+
+
 def validate_multiresolution_viability_receipt(
-    payload: Mapping[str, Any], artifact_aggregate_sha256: str
+    payload: Mapping[str, Any],
+    artifact_aggregate_sha256: str,
+    artifact: MultiResolutionResult | str | Path | None = None,
 ) -> Mapping[str, Any]:
     """Require the complete, internally consistent viability receipt."""
 
@@ -908,9 +1114,13 @@ def validate_multiresolution_viability_receipt(
         "integrity_checks",
         "failed_thresholds",
         "failed_integrity_thresholds",
+        "failed_query_sensitivity_thresholds",
         "failed_incremental_thresholds",
         "cluster_diagnostics",
         "ranking_diagnostics",
+        "control_sources",
+        "control_comparisons",
+        "execution_provenance",
         "cost_evidence",
         "repeat_authorized",
     }
@@ -1021,16 +1231,158 @@ def validate_multiresolution_viability_receipt(
         recomputed_pass = all(
             _passes(value, operator, threshold) for value in values.values()
         )
-        if item["passed"] is not recomputed_pass or recomputed_pass is not True:
+        if item["passed"] is not recomputed_pass:
             raise ValueError("viability receipt threshold pass state is inconsistent")
 
-    for field in (
-        "failed_thresholds",
-        "failed_integrity_thresholds",
-        "failed_incremental_thresholds",
+    cluster_threshold_names = tuple(VIABILITY_THRESHOLDS)[:8]
+    query_sensitivity_names = tuple(VIABILITY_THRESHOLDS)[8:12]
+    incremental_threshold_names = tuple(VIABILITY_THRESHOLDS)[12:]
+    failed_integrity = [
+        name for name in cluster_threshold_names if not thresholds[name]["passed"]
+    ]
+    failed_query_sensitivity = [
+        name for name in query_sensitivity_names if not thresholds[name]["passed"]
+    ]
+    failed_incremental = [
+        name for name in incremental_threshold_names if not thresholds[name]["passed"]
+    ]
+    if (
+        payload.get("failed_integrity_thresholds") != failed_integrity
+        or payload.get("failed_query_sensitivity_thresholds")
+        != failed_query_sensitivity
+        or payload.get("failed_incremental_thresholds") != failed_incremental
+        or payload.get("failed_thresholds")
+        != [*failed_integrity, *failed_query_sensitivity, *failed_incremental]
     ):
-        if payload.get(field) != []:
-            raise ValueError("viability receipt failure lists are inconsistent")
+        raise ValueError("viability receipt failure lists are inconsistent")
+
+    control_sources = payload.get("control_sources")
+    source_fields = {
+        "ranking_name",
+        "ranking_file",
+        "ranking_sha256",
+        "source_aggregate_sha256",
+        "query_count",
+        "candidate_count",
+        "query_inventory_sha256",
+        "candidate_inventory_sha256",
+    }
+    expected_control_identities = {
+        "query_knn": (
+            "dense_reference",
+            "rankings/dense_reference.json",
+            "734d96fd42d9cbff940c9c29acb6efe6459a0452d9cadd24a6fa3074beb96fb8",
+        ),
+        "contextual_e5": (
+            "contextual_e5_control",
+            "rankings/contextual_e5_control.json",
+            "a88a0454494098b683eb745bd9ec909b9f4266c94ac2a538b2b552d95754681f",
+        ),
+    }
+    if not isinstance(control_sources, Mapping) or set(control_sources) != set(
+        CONTROL_NAMES
+    ):
+        raise ValueError("viability receipt control source schema changed")
+    for name, expected_identity in expected_control_identities.items():
+        source = control_sources[name]
+        if (
+            not isinstance(source, Mapping)
+            or set(source) != source_fields
+            or (
+                source["ranking_name"],
+                source["ranking_file"],
+                source["ranking_sha256"],
+            )
+            != expected_identity
+            or source["source_aggregate_sha256"]
+            != EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
+            or source["query_count"] != 322
+            or source["candidate_count"] != 150
+            or any(
+                not isinstance(source[field], str) or len(source[field]) != 64
+                for field in (
+                    "query_inventory_sha256",
+                    "candidate_inventory_sha256",
+                )
+            )
+        ):
+            raise ValueError("viability receipt control source identity changed")
+    if (
+        control_sources["query_knn"]["query_inventory_sha256"]
+        != control_sources["contextual_e5"]["query_inventory_sha256"]
+        or control_sources["query_knn"]["candidate_inventory_sha256"]
+        != control_sources["contextual_e5"]["candidate_inventory_sha256"]
+    ):
+        raise ValueError("viability receipt control inventories differ")
+
+    comparison_fields = {
+        "mean_top10_jaccard",
+        "top10_difference_query_share",
+        "mean_top10_overlap_count",
+        "mean_common_top10_absolute_rank_displacement",
+    }
+    control_comparisons = payload.get("control_comparisons")
+    if (
+        not isinstance(control_comparisons, Mapping)
+        or set(control_comparisons) != set(EXPECTED_SYSTEMS)
+        or any(
+            not isinstance(values, Mapping)
+            or set(values) != set(CONTROL_NAMES)
+            or any(
+                not isinstance(comparison, Mapping)
+                or set(comparison) != comparison_fields
+                or any(
+                    not _finite_receipt_number(value)
+                    for value in comparison.values()
+                )
+                for comparison in values.values()
+            )
+            for values in control_comparisons.values()
+        )
+    ):
+        raise ValueError("viability receipt control comparison schema changed")
+
+    if artifact is not None:
+        result = (
+            artifact
+            if isinstance(artifact, MultiResolutionResult)
+            else load_multiresolution_artifact(artifact)
+        )
+        if isinstance(artifact, MultiResolutionResult):
+            raise ValueError("persisted artifact path is required to validate controls")
+        _, controls = _load_control_rankings(result, Path(artifact))
+        if control_comparisons != _control_comparisons(result.rankings, controls):
+            raise ValueError("viability receipt control comparisons are inconsistent")
+
+    provenance = payload.get("execution_provenance")
+    provenance_fields = {
+        "execution_code_commit",
+        "command",
+        "thread_environment",
+        "dependency_versions",
+        "construction_completed_at",
+        "artifact_aggregate_sha256",
+        "receipt_generated_at",
+    }
+    if (
+        not isinstance(provenance, Mapping)
+        or set(provenance) != provenance_fields
+        or provenance["execution_code_commit"] != PASS_ONE_EXECUTION_CODE_COMMIT
+        or provenance["command"] != PASS_ONE_COMMAND
+        or provenance["thread_environment"] != PASS_ONE_THREAD_ENVIRONMENT
+        or provenance["dependency_versions"] != PASS_ONE_DEPENDENCY_VERSIONS
+        or provenance["construction_completed_at"]
+        != PASS_ONE_CONSTRUCTION_COMPLETED_AT
+        or provenance["artifact_aggregate_sha256"] != artifact_aggregate_sha256
+    ):
+        raise ValueError("viability receipt execution provenance changed")
+    try:
+        completed = datetime.fromisoformat(PASS_ONE_CONSTRUCTION_COMPLETED_AT)
+        generated = datetime.fromisoformat(provenance["receipt_generated_at"])
+    except (TypeError, ValueError) as error:
+        raise ValueError("viability receipt provenance timestamp is invalid") from error
+    if generated.tzinfo is None or generated < completed:
+        raise ValueError("viability receipt provenance timestamp is inconsistent")
 
     cost = payload.get("cost_evidence")
     cost_keys = {
@@ -1077,11 +1429,18 @@ def validate_multiresolution_viability_receipt(
     if not cost_consistent:
         raise ValueError("viability receipt cost evidence is inconsistent")
 
+    expected_decision = _viability_decision(
+        failed_integrity, failed_query_sensitivity, failed_incremental
+    )
+    expected_repeat_authorized = (
+        expected_decision == "continue" and cost["repeat_cost_authorized"] is True
+    )
     if (
-        payload.get("decision") != "continue"
-        or payload.get("repeat_authorized") is not True
-        or cost["repeat_cost_authorized"] is not True
+        payload.get("decision") != expected_decision
+        or payload.get("repeat_authorized") is not expected_repeat_authorized
     ):
+        raise ValueError("viability receipt decision is inconsistent")
+    if expected_decision == "reject-invalid":
         raise ValueError("viability receipt does not authorize diagnostic evaluation")
     return payload
 
@@ -1400,52 +1759,122 @@ def _assess_multiresolution_viability(
     }
     failed_integrity = [name for name, passed in integrity_checks.items() if not passed]
     failed_viability = [name for name, item in thresholds.items() if not item["passed"]]
+    cluster_threshold_names = set(tuple(VIABILITY_THRESHOLDS)[:8])
+    query_sensitivity_names = set(tuple(VIABILITY_THRESHOLDS)[8:12])
+    failed_integrity.extend(
+        name for name in failed_viability if name in cluster_threshold_names
+    )
+    failed_query_sensitivity = [
+        name for name in failed_viability if name in query_sensitivity_names
+    ]
     failed_incremental = [
         name for name in incremental_fields if not thresholds[name]["passed"]
     ]
-    if failed_integrity:
-        decision = "reject-invalid"
-    elif failed_viability:
-        decision = "stop-no-incremental-value"
-    else:
-        decision = "continue"
+    decision = _viability_decision(
+        failed_integrity, failed_query_sensitivity, failed_incremental
+    )
     artifact_bytes = _tree_bytes(root) if root is not None else None
     source_root = Path(result.config.construction_path)
     source_bytes = _tree_bytes(source_root)
+    artifact_aggregate = (
+        _read_json(root / "manifest.json")["aggregate_sha256"]
+        if root is not None
+        else None
+    )
+    if root is not None:
+        control_sources, controls = _load_control_rankings(result, root)
+    else:
+        in_memory_control = result.rankings.get("c0_max_k10", result.dense_rankings)
+        controls = {
+            "query_knn": in_memory_control,
+            "contextual_e5": in_memory_control,
+        }
+        inventory = {
+            "query_count": len(result.query_ids),
+            "candidate_count": len(result.candidate_ids),
+            "query_inventory_sha256": _length_framed_hash(result.query_ids),
+            "candidate_inventory_sha256": _length_framed_hash(result.candidate_ids),
+        }
+        control_sources = {
+            name: {
+                "ranking_name": (
+                    "dense_reference" if name == "query_knn" else "contextual_e5_control"
+                ),
+                "ranking_file": "unpersisted",
+                "ranking_sha256": hashlib.sha256(
+                    json.dumps(
+                        controls[name], sort_keys=True, separators=(",", ":")
+                    ).encode("utf-8")
+                ).hexdigest(),
+                "source_aggregate_sha256": result.config.source_aggregate_sha256,
+                **inventory,
+            }
+            for name in CONTROL_NAMES
+        }
+    if set(result.rankings) == set(EXPECTED_SYSTEMS):
+        control_comparisons = _control_comparisons(result.rankings, controls)
+    else:
+        empty_comparison = {
+            "mean_top10_jaccard": 0.0,
+            "top10_difference_query_share": 0.0,
+            "mean_top10_overlap_count": 0.0,
+            "mean_common_top10_absolute_rank_displacement": 0.0,
+        }
+        control_comparisons = {
+            system: {
+                control: dict(empty_comparison) for control in CONTROL_NAMES
+            }
+            for system in EXPECTED_SYSTEMS
+        }
+    source_elapsed = _source_elapsed_seconds(source_root)
+    artifact_elapsed = PASS_ONE_ELAPSED_SECONDS
+    storage_ratio = (
+        artifact_bytes / source_bytes
+        if artifact_bytes is not None and source_bytes
+        else None
+    )
+    wall_time_ratio = artifact_elapsed / source_elapsed if source_elapsed else None
+    storage_ok = (
+        artifact_bytes <= 4 * source_bytes
+        if artifact_bytes is not None and source_bytes
+        else None
+    )
+    wall_time_ok = artifact_elapsed <= 4 * source_elapsed if source_elapsed else None
+    repeat_cost_authorized = storage_ok is True and wall_time_ok is True
+    repeat_authorized = decision == "continue" and repeat_cost_authorized
     return {
         "artifact_type": "issue18_multiresolution_viability_receipt",
         "version": 1,
         "qrel_free": True,
-        "artifact_aggregate_sha256": (
-            _read_json(root / "manifest.json")["aggregate_sha256"]
-            if root is not None
-            else None
-        ),
+        "artifact_aggregate_sha256": artifact_aggregate,
         "decision": decision,
         "thresholds": thresholds,
         "integrity_checks": integrity_checks,
-        "failed_thresholds": [*failed_integrity, *failed_viability],
+        "failed_thresholds": [
+            *failed_integrity,
+            *failed_query_sensitivity,
+            *failed_incremental,
+        ],
         "failed_integrity_thresholds": failed_integrity,
+        "failed_query_sensitivity_thresholds": failed_query_sensitivity,
         "failed_incremental_thresholds": failed_incremental,
         "cluster_diagnostics": cluster_diagnostics,
         "ranking_diagnostics": ranking_diagnostics,
+        "control_sources": control_sources,
+        "control_comparisons": control_comparisons,
+        "execution_provenance": _execution_provenance(artifact_aggregate),
         "cost_evidence": {
             "issue12_construction_storage_bytes": source_bytes,
             "multiresolution_artifact_storage_bytes": artifact_bytes,
-            "storage_ratio": (
-                artifact_bytes / source_bytes
-                if artifact_bytes is not None and source_bytes
-                else None
-            ),
-            "storage_at_most_four_times_issue12": (
-                artifact_bytes <= 4 * source_bytes
-                if artifact_bytes is not None and source_bytes
-                else None
-            ),
-            "issue12_construction_elapsed_seconds": _source_elapsed_seconds(source_root),
-            "multiresolution_construction_elapsed_seconds": None,
-            "wall_time_at_most_four_times_issue12": None,
+            "storage_ratio": storage_ratio,
+            "storage_at_most_four_times_issue12": storage_ok,
+            "issue12_construction_elapsed_seconds": source_elapsed,
+            "multiresolution_construction_elapsed_seconds": artifact_elapsed,
+            "wall_time_ratio": wall_time_ratio,
+            "wall_time_at_most_four_times_issue12": wall_time_ok,
+            "repeat_cost_authorized": repeat_cost_authorized,
         },
+        "repeat_authorized": repeat_authorized,
     }
 
 

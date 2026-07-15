@@ -991,28 +991,81 @@ def assess_multiresolution_viability(
     """Apply every locked issue-18 qrel-free viability threshold."""
 
     root = None if isinstance(artifact, MultiResolutionResult) else Path(artifact)
-    result = artifact if isinstance(artifact, MultiResolutionResult) else load_multiresolution_artifact(root)
+    result = (
+        artifact
+        if isinstance(artifact, MultiResolutionResult)
+        else load_multiresolution_artifact(root)
+    )
+    return _assess_multiresolution_viability(
+        result, require_official_coverage=True, root=root
+    )
+
+
+def _assess_multiresolution_viability(
+    result: MultiResolutionResult,
+    *,
+    require_official_coverage: bool,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    """Compute a receipt; tests may disable only the official inventory-size gate."""
+
+    expected_shape = (len(result.query_ids), len(result.candidate_ids))
+    expected_component_keys = {
+        f"{label}_k{resolution}"
+        for resolution in LOCKED_RESOLUTIONS
+        for label in ("max", "top2")
+    }
+    component_score_schema = (
+        set(result.component_scores) == expected_component_keys
+        and all(
+            scores.dtype.str == "<f4"
+            and scores.shape == expected_shape
+            and np.isfinite(scores).all()
+            for scores in result.component_scores.values()
+        )
+    )
+    system_score_schema = set(result.system_scores) == set(EXPECTED_SYSTEMS) and all(
+        scores.dtype.str == "<f4"
+        and scores.shape == expected_shape
+        and np.isfinite(scores).all()
+        for scores in result.system_scores.values()
+    )
+    contributor_schema = set(result.contributing_centroid_ids) == expected_component_keys
+    if contributor_schema:
+        for key, contributors in result.contributing_centroid_ids.items():
+            width = 1 if key.startswith("max_") else result.config.top_count
+            if (
+                contributors.dtype.str != "<i4"
+                or contributors.shape != (*expected_shape, width)
+            ):
+                contributor_schema = False
+                break
     cluster_diagnostics = {
         f"k{resolution}": _cluster_diagnostics(result.profiles[str(resolution)])
         for resolution in LOCKED_RESOLUTIONS
     }
     component_rankings = {
-        key: _rank_scores(result, scores)
+        key: (
+            _rank_scores(result, scores)
+            if scores.dtype.str == "<f4"
+            and scores.shape == expected_shape
+            and np.isfinite(scores).all()
+            else {query_id: [] for query_id in result.query_ids}
+        )
         for key, scores in result.component_scores.items()
     }
+    for key in expected_component_keys - set(component_rankings):
+        component_rankings[key] = {query_id: [] for query_id in result.query_ids}
+    empty_ranking = {query_id: [] for query_id in result.query_ids}
+    c0_ranking = result.rankings.get("c0_max_k10", empty_ranking)
     diagnostic_rankings = {
         **component_rankings,
-        **{
-            system: result.rankings[system]
-            for system in (
-                "c0_max_k10", "a1_top2_k10", "r1_multires_max", "x1_multires_top2"
-            )
-        },
+        **{system: result.rankings.get(system, empty_ranking) for system in EXPECTED_SYSTEMS},
     }
     ranking_diagnostics = {
         system: _ranking_diagnostics(
             ranking,
-            result.rankings["c0_max_k10"] if system in NEW_PROFILE_SYSTEMS else None,
+            c0_ranking if system in NEW_PROFILE_SYSTEMS else None,
         )
         for system, ranking in diagnostic_rankings.items()
     }
@@ -1052,7 +1105,12 @@ def assess_multiresolution_viability(
         and len(set(result.query_ids)) == len(result.query_ids),
         "candidate_identities": bool(result.candidate_ids)
         and len(set(result.candidate_ids)) == len(result.candidate_ids),
-        "complete_rankings": all(
+        "official_322_by_150_coverage": (
+            not require_official_coverage
+            or (len(result.query_ids), len(result.candidate_ids)) == (322, 150)
+        ),
+        "complete_rankings": set(result.rankings) == set(EXPECTED_SYSTEMS)
+        and all(
             set(ranking) == set(result.query_ids)
             and all(
                 len(row) == len(result.candidate_ids)
@@ -1061,8 +1119,16 @@ def assess_multiresolution_viability(
             )
             for ranking in result.rankings.values()
         ),
-        "finite_scores": all(np.isfinite(scores).all() for scores in result.system_scores.values())
-        and all(np.isfinite(scores).all() for scores in result.component_scores.values()),
+        "component_score_schema": component_score_schema,
+        "system_score_schema": system_score_schema,
+        "contributor_schema": contributor_schema,
+        "finite_scores": component_score_schema and system_score_schema,
+        "ranking_score_consistency": system_score_schema
+        and set(result.rankings) == set(EXPECTED_SYSTEMS)
+        and all(
+            result.rankings[system] == _rank_scores(result, result.system_scores[system])
+            for system in EXPECTED_SYSTEMS
+        ),
         "normalized_centroids": all(
             item.get("available") is False
             or (
@@ -1096,6 +1162,11 @@ def assess_multiresolution_viability(
         "artifact_type": "issue18_multiresolution_viability_receipt",
         "version": 1,
         "qrel_free": True,
+        "artifact_aggregate_sha256": (
+            _read_json(root / "manifest.json")["aggregate_sha256"]
+            if root is not None
+            else None
+        ),
         "decision": decision,
         "thresholds": thresholds,
         "integrity_checks": integrity_checks,
@@ -1166,6 +1237,8 @@ def compare_multiresolution_artifacts(
 ) -> dict[str, Any]:
     """Compare two independent qrel-free construction artifacts."""
 
+    load_multiresolution_artifact(first)
+    load_multiresolution_artifact(second)
     first_root, first_manifest = _validated_manifest_root(first)
     second_root, second_manifest = _validated_manifest_root(second)
     first_aggregate = first_manifest["aggregate_sha256"]

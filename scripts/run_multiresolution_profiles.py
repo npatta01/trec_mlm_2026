@@ -31,6 +31,14 @@ def _parser() -> argparse.ArgumentParser:
         help="write the qrel-free viability and cost receipt to this new path",
     )
     parser.add_argument(
+        "--first-artifact",
+        help="comparison mode: already-validated pass-one artifact",
+    )
+    parser.add_argument(
+        "--first-viability-receipt",
+        help="comparison mode: pass-one viability and cost authorization receipt",
+    )
+    parser.add_argument(
         "--repeat-artifact",
         help="compare the new artifact with this independently constructed repeat",
     )
@@ -41,8 +49,63 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+def _comparison_mode(args: argparse.Namespace) -> bool:
+    values = (
+        args.first_artifact,
+        args.first_viability_receipt,
+        args.repeat_artifact,
+        args.repeatability_receipt,
+    )
+    if any(values) and not all(values):
+        raise ValueError("repeat comparison mode requires all four repeat arguments")
+    return all(values)
+
+
+def _run_repeat_comparison(args: argparse.Namespace) -> int:
+    try:
+        authorization = json.loads(
+            Path(args.first_viability_receipt).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("invalid first viability receipt") from error
+    cost = authorization.get("cost_evidence")
+    authorized = (
+        authorization.get("artifact_type")
+        == "issue18_multiresolution_viability_receipt"
+        and authorization.get("version") == 1
+        and authorization.get("qrel_free") is True
+        and authorization.get("decision") == "continue"
+        and authorization.get("repeat_authorized") is True
+        and isinstance(cost, dict)
+        and cost.get("storage_at_most_four_times_issue12") is True
+        and cost.get("wall_time_at_most_four_times_issue12") is True
+        and cost.get("repeat_cost_authorized") is True
+    )
+    if not authorized:
+        raise ValueError("pass-one viability and cost receipt does not authorize repeat")
+    try:
+        first_manifest = json.loads(
+            (Path(args.first_artifact) / "manifest.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("invalid first artifact manifest") from error
+    if first_manifest.get("aggregate_sha256") != authorization.get(
+        "artifact_aggregate_sha256"
+    ):
+        raise ValueError("viability authorization does not bind the first artifact")
+    repeatability = compare_multiresolution_artifacts(
+        args.first_artifact, args.repeat_artifact
+    )
+    if repeatability.get("first_aggregate_sha256") != authorization.get(
+        "artifact_aggregate_sha256"
+    ):
+        raise ValueError("viability authorization does not bind the first artifact")
+    write_multiresolution_receipt(repeatability, args.repeatability_receipt)
+    print(json.dumps({"repeatability": repeatability}, indent=2, allow_nan=False))
+    return 0
+
+
+def _run_pass_one(args: argparse.Namespace) -> int:
     payload = json.loads(Path(args.config).read_text(encoding="utf-8"))
     expected = {field.name for field in fields(MultiResolutionConfig)}
     if set(payload) != expected:
@@ -70,29 +133,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.viability_receipt:
         write_multiresolution_receipt(viability, args.viability_receipt)
-    if bool(args.repeat_artifact) != bool(args.repeatability_receipt):
-        raise ValueError(
-            "--repeat-artifact and --repeatability-receipt must be supplied together"
-        )
-    repeatability = None
-    if args.repeat_artifact:
-        repeatability = compare_multiresolution_artifacts(
-            config.output_root, args.repeat_artifact
-        )
-        write_multiresolution_receipt(repeatability, args.repeatability_receipt)
     print(
         json.dumps(
             {
                 "output_root": config.output_root,
                 "files": paths,
                 "viability": viability,
-                "repeatability": repeatability,
             },
             indent=2,
             allow_nan=False,
         )
     )
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    if _comparison_mode(args):
+        return _run_repeat_comparison(args)
+    return _run_pass_one(args)
 
 
 if __name__ == "__main__":

@@ -330,13 +330,23 @@ def _diagnostic_fixture(tmp_path: Path):
         }
         for system in EXPECTED_SYSTEMS
     }
-    return replace(result, profiles=profiles, rankings=rankings)
+    system_scores = {
+        system: np.asarray([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+        for system in EXPECTED_SYSTEMS
+    }
+    return replace(
+        result, profiles=profiles, rankings=rankings, system_scores=system_scores
+    )
 
 
 def test_viability_reports_exact_cluster_formulas_and_threshold_names(
     tmp_path: Path,
 ) -> None:
-    receipt = assess_multiresolution_viability(_diagnostic_fixture(tmp_path))
+    from trec_mlm import profile_multiresolution as module
+
+    receipt = module._assess_multiresolution_viability(
+        _diagnostic_fixture(tmp_path), require_official_coverage=False
+    )
     thresholds = receipt["thresholds"]
     expected = {
         "candidate_occupied_cluster_retention",
@@ -371,12 +381,16 @@ def test_viability_reports_exact_cluster_formulas_and_threshold_names(
 def test_viability_reports_query_collapse_dominance_and_incremental_difference(
     tmp_path: Path,
 ) -> None:
+    from trec_mlm import profile_multiresolution as module
+
     result = _diagnostic_fixture(tmp_path)
     changed = {
         **result.rankings,
         "a1_top2_k10": {"q1": ["B", "A"], "q2": ["B", "A"]},
     }
-    receipt = assess_multiresolution_viability(replace(result, rankings=changed))
+    receipt = module._assess_multiresolution_viability(
+        replace(result, rankings=changed), require_official_coverage=False
+    )
     c0 = receipt["ranking_diagnostics"]["c0_max_k10"]
     a1 = receipt["ranking_diagnostics"]["a1_top2_k10"]
     assert c0["unique_top10_rankings"] == 2
@@ -392,6 +406,8 @@ def test_viability_reports_query_collapse_dominance_and_incremental_difference(
 def test_viability_classifies_integrity_before_incremental_value(
     tmp_path: Path,
 ) -> None:
+    from trec_mlm import profile_multiresolution as module
+
     result = _diagnostic_fixture(tmp_path)
     invalid = replace(
         result,
@@ -400,14 +416,134 @@ def test_viability_classifies_integrity_before_incremental_value(
             "c0_max_k10": np.full((2, 2), np.nan, dtype=np.float32),
         },
     )
-    invalid_receipt = assess_multiresolution_viability(invalid)
+    invalid_receipt = module._assess_multiresolution_viability(
+        invalid, require_official_coverage=False
+    )
     assert invalid_receipt["decision"] == "reject-invalid"
     assert "finite_scores" in invalid_receipt["failed_thresholds"]
 
-    no_increment = assess_multiresolution_viability(result)
+    no_increment = module._assess_multiresolution_viability(
+        result, require_official_coverage=False
+    )
     assert no_increment["decision"] == "stop-no-incremental-value"
     assert not no_increment["failed_integrity_thresholds"]
     assert no_increment["failed_incremental_thresholds"]
+
+
+def _official_viability_fixture(tmp_path: Path):
+    fixture = _fixture_result(tmp_path)
+    query_ids = tuple(f"q{index:03d}" for index in range(322))
+    candidate_ids = tuple(f"C{index:03d}" for index in range(150))
+    ranking = list(candidate_ids)
+    rankings = {
+        system: {query_id: list(ranking) for query_id in query_ids}
+        for system in EXPECTED_SYSTEMS
+    }
+    profiles = {
+        str(resolution): {
+            candidate_id: {
+                "available": True,
+                "candidate_id": candidate_id,
+                "requested_clusters": 1,
+                "actual_clusters": 1,
+                "centroids": [[1.0, 0.0]],
+                "clusters": [{"support_count": 2}],
+            }
+            for candidate_id in candidate_ids
+        }
+        for resolution in (5, 10, 20)
+    }
+    component_scores = {
+        key: np.zeros((322, 150), dtype=np.float32)
+        for key in fixture.component_scores
+    }
+    system_scores = {
+        system: np.zeros((322, 150), dtype=np.float32)
+        for system in EXPECTED_SYSTEMS
+    }
+    contributors = {
+        key: np.zeros(
+            (322, 150, 1 if key.startswith("max_") else 2), dtype=np.int32
+        )
+        for key in fixture.contributing_centroid_ids
+    }
+    return replace(
+        fixture,
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+        profiles=profiles,
+        source_c0_profiles=profiles["10"],
+        component_scores=component_scores,
+        contributing_centroid_ids=contributors,
+        rankings=rankings,
+        system_scores=system_scores,
+    )
+
+
+def test_public_viability_rejects_nonofficial_coverage(tmp_path: Path) -> None:
+    receipt = assess_multiresolution_viability(_diagnostic_fixture(tmp_path))
+    assert receipt["decision"] == "reject-invalid"
+    assert "official_322_by_150_coverage" in receipt["failed_integrity_thresholds"]
+
+
+@pytest.mark.parametrize(
+    "failure", ("shape", "nonfinite", "tie_order", "missing_ranking")
+)
+def test_public_viability_rejects_component_and_ranking_score_drift(
+    tmp_path: Path, failure: str
+) -> None:
+    result = _official_viability_fixture(tmp_path)
+    if failure == "shape":
+        components = dict(result.component_scores)
+        components["max_k5"] = components["max_k5"][:, :-1]
+        result = replace(result, component_scores=components)
+    elif failure == "nonfinite":
+        components = {key: value.copy() for key, value in result.component_scores.items()}
+        components["max_k5"][0, 0] = np.nan
+        result = replace(result, component_scores=components)
+    elif failure == "tie_order":
+        rankings = {
+            system: {query_id: list(row) for query_id, row in values.items()}
+            for system, values in result.rankings.items()
+        }
+        rankings["c0_max_k10"]["q000"] = list(reversed(result.candidate_ids))
+        result = replace(result, rankings=rankings)
+    else:
+        rankings = dict(result.rankings)
+        del rankings["x1_multires_top2_dense_equal"]
+        result = replace(result, rankings=rankings)
+    receipt = assess_multiresolution_viability(result)
+    assert receipt["decision"] == "reject-invalid"
+    expected = (
+        "component_score_schema"
+        if failure in {"shape", "nonfinite"}
+        else "ranking_score_consistency"
+        if failure == "tie_order"
+        else "complete_rankings"
+    )
+    assert expected in receipt["failed_integrity_thresholds"]
+
+
+@pytest.mark.parametrize("system", EXPECTED_SYSTEMS)
+def test_collapse_and_dominance_gates_cover_every_frozen_ranking(
+    tmp_path: Path, system: str
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    result = _diagnostic_fixture(tmp_path)
+    rankings = {
+        **result.rankings,
+        system: {"q1": ["A", "B"], "q2": ["A", "B"]},
+    }
+    receipt = module._assess_multiresolution_viability(
+        replace(result, rankings=rankings), require_official_coverage=False
+    )
+    assert system in receipt["ranking_diagnostics"]
+    assert receipt["ranking_diagnostics"][system]["maximum_top1_candidate_share"] == 1.0
+    assert (
+        receipt["thresholds"]["maximum_top1_candidate_share"]["values"][system]
+        == 1.0
+    )
 
 
 def test_repeat_comparison_requires_independence_and_exact_scientific_content(
@@ -451,10 +587,29 @@ def test_repeat_comparison_reports_deliberately_changed_scores(
     scores[0, 0] += np.float32(0.01)
     np.save(score_path, scores)
     _refresh_manifest(second, "scores/a1_top2_k10.npy")
-    receipt = compare_multiresolution_artifacts(first, second)
-    assert receipt["status"] == "failed"
-    assert receipt["maximum_absolute_score_difference"] == pytest.approx(0.01)
-    assert receipt["canonical_scientific_files_identical"] is True
+    with pytest.raises(ValueError, match="semantic reconstruction"):
+        compare_multiresolution_artifacts(first, second)
+
+
+def test_repeat_comparison_strictly_rejects_identically_rehashed_tampering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _fixture_result(tmp_path)
+    _bind_expected(monkeypatch, result)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    write_multiresolution_artifact(result, first)
+    write_multiresolution_artifact(
+        replace(result, config=replace(result.config, output_root="different")), second
+    )
+    for root in (first, second):
+        target = root / "profiles" / "k5.json"
+        payload = json.loads(target.read_text())
+        payload["A"]["audit"]["usable"] = 99
+        target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        _refresh_manifest(root, "profiles/k5.json")
+    with pytest.raises(ValueError, match="canonical profile"):
+        compare_multiresolution_artifacts(first, second)
 
 
 def test_receipt_serialization_is_atomic_finite_and_refuses_overwrite(
@@ -477,12 +632,122 @@ def test_cli_accepts_only_qrel_free_viability_and_repeat_receipts() -> None:
         [
             "--config", "config.json",
             "--viability-receipt", "viability.json",
+            "--first-artifact", "first",
+            "--first-viability-receipt", "first-viability.json",
             "--repeat-artifact", "repeat",
             "--repeatability-receipt", "repeatability.json",
         ]
     )
     assert args.viability_receipt == "viability.json"
+    assert args.first_artifact == "first"
+    assert args.first_viability_receipt == "first-viability.json"
     assert args.repeat_artifact == "repeat"
     assert args.repeatability_receipt == "repeatability.json"
     with pytest.raises(SystemExit):
         _parser().parse_args(["--qrels", "forbidden"])
+
+
+def _authorization_receipt(*, authorized: bool) -> dict[str, object]:
+    return {
+        "artifact_type": "issue18_multiresolution_viability_receipt",
+        "version": 1,
+        "qrel_free": True,
+        "decision": "continue" if authorized else "stop-no-incremental-value",
+        "artifact_aggregate_sha256": "a" * 64,
+        "repeat_authorized": authorized,
+        "cost_evidence": {
+            "storage_at_most_four_times_issue12": authorized,
+            "wall_time_at_most_four_times_issue12": authorized,
+            "repeat_cost_authorized": authorized,
+        },
+    }
+
+
+def test_cli_repeat_comparison_mode_never_constructs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    authorization = tmp_path / "viability.json"
+    authorization.write_text(json.dumps(_authorization_receipt(authorized=True)))
+    first = tmp_path / "first"
+    first.mkdir()
+    (first / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64})
+    )
+    output = tmp_path / "repeatability.json"
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda config: pytest.fail("comparison mode constructed another artifact"),
+    )
+    monkeypatch.setattr(
+        script,
+        "compare_multiresolution_artifacts",
+        lambda first, second: {
+            "status": "passed",
+            "first_aggregate_sha256": "a" * 64,
+        },
+    )
+    assert script.main(
+        [
+            "--first-artifact", str(first),
+            "--first-viability-receipt", str(authorization),
+            "--repeat-artifact", str(tmp_path / "repeat"),
+            "--repeatability-receipt", str(output),
+        ]
+    ) == 0
+    assert json.loads(output.read_text())["status"] == "passed"
+
+
+def test_cli_refuses_unbound_authorization_before_comparison(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    authorization = tmp_path / "viability.json"
+    authorization.write_text(json.dumps(_authorization_receipt(authorized=True)))
+    first = tmp_path / "first"
+    first.mkdir()
+    (first / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "b" * 64})
+    )
+    monkeypatch.setattr(
+        script,
+        "compare_multiresolution_artifacts",
+        lambda first, second: pytest.fail("unbound authorization compared repeats"),
+    )
+    with pytest.raises(ValueError, match="bind"):
+        script.main(
+            [
+                "--first-artifact", str(first),
+                "--first-viability-receipt", str(authorization),
+                "--repeat-artifact", str(tmp_path / "repeat"),
+                "--repeatability-receipt", str(tmp_path / "repeatability.json"),
+            ]
+        )
+
+
+def test_cli_refuses_repeat_comparison_without_viability_and_cost_authorization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    authorization = tmp_path / "viability.json"
+    authorization.write_text(json.dumps(_authorization_receipt(authorized=False)))
+    output = tmp_path / "repeatability.json"
+    monkeypatch.setattr(
+        script,
+        "compare_multiresolution_artifacts",
+        lambda first, second: pytest.fail("unauthorized repeat was compared"),
+    )
+    with pytest.raises(ValueError, match="authorize"):
+        script.main(
+            [
+                "--first-artifact", str(tmp_path / "first"),
+                "--first-viability-receipt", str(authorization),
+                "--repeat-artifact", str(tmp_path / "repeat"),
+                "--repeatability-receipt", str(output),
+            ]
+        )
+    assert not output.exists()

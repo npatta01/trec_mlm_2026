@@ -43,6 +43,7 @@ from trec_mlm.dense_aggregation_runtime import THREAD_ENVIRONMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "configs/trec_2026_dense_aggregation_feasibility.json"
+DEVELOPMENT_QUERY_PATH = REPO_ROOT / "data/dev/llm_dev_data.tsv"
 PROTOCOL_PATH = REPO_ROOT / "protocols/trec_2026_dense_aggregation.md"
 CONTRACT_PATH = REPO_ROOT / "trec_mlm/dense_aggregation_contract.py"
 
@@ -307,6 +308,48 @@ def test_frozen_constants_and_literal_config_are_exact() -> None:
     assert json.loads(CONFIG_PATH.read_bytes()) == EXPECTED_CONFIG
 
 
+def test_tracked_development_queries_match_qrel_free_frozen_locks() -> None:
+    query_bytes = DEVELOPMENT_QUERY_PATH.read_bytes()
+    assert hashlib.sha256(query_bytes).hexdigest() == QUERY_FILE_SHA256
+
+    independently_parsed: dict[str, str] = {}
+    for line_number, raw_line in enumerate(
+        query_bytes.decode("utf-8").splitlines(), start=1
+    ):
+        if not raw_line:
+            continue
+        query_id, separator, query_text = raw_line.partition("\t")
+        assert separator == "\t", f"line {line_number} has no tab separator"
+        query_id, query_text = query_id.strip(), query_text.strip()
+        assert query_id and query_text
+        assert query_id not in independently_parsed
+        independently_parsed[query_id] = query_text
+
+    assert _load_queries_tsv_qrel_free(DEVELOPMENT_QUERY_PATH) == (
+        independently_parsed
+    )
+    query_ids = tuple(sorted(independently_parsed))
+    query_texts = tuple(independently_parsed[query_id] for query_id in query_ids)
+    assert len(query_ids) == len(set(query_ids)) == 322
+    assert _independent_query_input_sha256(query_ids, query_texts) == (
+        QUERY_INPUT_SHA256
+    )
+    assert _legacy_query_input_sha256(query_ids, query_texts) == (
+        QUERY_INPUT_SHA256
+    )
+
+    one_byte_mutation = bytearray(query_bytes)
+    one_byte_mutation[0] ^= 1
+    assert hashlib.sha256(one_byte_mutation).hexdigest() != QUERY_FILE_SHA256
+    assert _legacy_query_input_sha256(
+        tuple(reversed(query_ids)), tuple(reversed(query_texts))
+    ) != QUERY_INPUT_SHA256
+    mutated_query_ids = (f"{query_ids[0]}-mutated", *query_ids[1:])
+    assert _legacy_query_input_sha256(
+        mutated_query_ids, query_texts
+    ) != QUERY_INPUT_SHA256
+
+
 def test_config_and_dataclass_fields_have_no_qrel_or_grade_key() -> None:
     serialized_keys = " ".join(json.loads(CONFIG_PATH.read_bytes())).lower()
     field_names = " ".join(
@@ -387,6 +430,30 @@ def test_feasibility_config_rejects_nonobject_and_path_escape(
     escaped.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="outside repository root"):
         load_feasibility_config(escaped)
+
+
+def test_feasibility_config_rejects_in_repo_symlink_escape(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    config_dir = root / "configs"
+    data_dir = root / "data"
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir()
+    outside_query = tmp_path / "outside-query.tsv"
+    outside_query.write_text("q1\toutside\n", encoding="utf-8")
+    escaped_query = data_dir / "queries.tsv"
+    escaped_query.symlink_to(outside_query)
+    assert escaped_query.is_symlink()
+    assert escaped_query.resolve(strict=True) == outside_query.resolve(strict=True)
+
+    config_path = config_dir / "symlink-escape.json"
+    config_path.write_text(
+        json.dumps({**EXPECTED_CONFIG, "query_path": "data/queries.tsv"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="outside repository root"):
+        load_feasibility_config(config_path)
 
 
 def test_config_retains_hash_of_the_single_captured_byte_string(

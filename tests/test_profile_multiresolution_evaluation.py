@@ -249,12 +249,21 @@ def _patch_loaders(
         else json.loads((source.root.parent / "viability.json").read_text())
     )
     monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation.load_multiresolution_artifact",
+        "trec_mlm.profile_multiresolution_evaluation.load_issue18_frozen_snapshot",
         lambda _: multi,
     )
     monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation.load_profile_artifacts",
+        "trec_mlm.profile_multiresolution_evaluation._load_issue12_evaluation_rankings",
         lambda _: source,
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation._validate_sealed_paths",
+        lambda *_: None,
+    )
+    qrels_path = source.root.parent / "qrels"
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.LOCKED_QRELS_SHA256",
+        hashlib.sha256(qrels_path.read_bytes()).hexdigest(),
     )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation.load_complete_qrels",
@@ -440,6 +449,26 @@ def test_qrel_inventory_validation_requires_exact_queries_and_candidates() -> No
         )
 
 
+def test_track_a_uses_stored_issue12_ranking_without_fusion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_mlm import profile_multiresolution_evaluation as module
+    from trec_mlm import profile_retrieval
+
+    _root, multi, source = _construction(tmp_path)
+    monkeypatch.setattr(
+        profile_retrieval,
+        "reciprocal_rank_fusion",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Track A ranking was reconstructed")
+        ),
+    )
+
+    assert module._track_a_rankings(multi, source) is source.rankings[
+        module.TRACK_A_SYSTEM
+    ]
+
+
 def test_evaluation_rejects_qrel_file_change_while_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -458,6 +487,25 @@ def test_evaluation_rejects_qrel_file_change_while_loading(
         changing_qrels,
     )
     with pytest.raises(RuntimeError, match="qrel file changed"):
+        evaluate_multiresolution(
+            root,
+            tmp_path / "viability.json",
+            tmp_path / "qrels",
+            tmp_path / "output.json",
+        )
+
+
+def test_evaluation_requires_locked_qrel_sha_after_receipt_authorization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, multi, source = _construction(tmp_path)
+    _patch_loaders(monkeypatch, multi, source)
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.LOCKED_QRELS_SHA256",
+        "0" * 64,
+    )
+
+    with pytest.raises(ValueError, match="qrel SHA-256"):
         evaluate_multiresolution(
             root,
             tmp_path / "viability.json",
@@ -524,8 +572,9 @@ def test_evaluation_reports_every_frozen_system_paired_evidence_and_track_a(
         "dense_weight": 1.0,
         "profile_weight": 2.0,
         "rrf_k": 60,
-        "reconstruction_matches_issue12_frozen": True,
+        "stored_ranking_matches_issue12_frozen": True,
     }
+    assert "reconstruction_matches_issue12_frozen" not in payload["track_a"]
     assert payload["controls"]["query_knn"]["query_count"] == 2
     assert payload["controls"]["contextual_e5"]["query_count"] == 2
     assert payload["qrels_sha256"] == hashlib.sha256(
@@ -537,13 +586,10 @@ def test_evaluation_reports_every_frozen_system_paired_evidence_and_track_a(
     assert json.loads(output.read_text()) == payload
 
 
-def test_evaluation_detects_any_construction_change_and_keeps_output_external(
+def test_evaluation_detects_any_construction_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, multi, source = _construction(tmp_path)
-
-    def original_loader(_):
-        return multi
 
     calls = 0
 
@@ -556,7 +602,7 @@ def test_evaluation_detects_any_construction_change_and_keeps_output_external(
 
     _patch_loaders(monkeypatch, multi, source)
     monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation.load_multiresolution_artifact",
+        "trec_mlm.profile_multiresolution_evaluation.load_issue18_frozen_snapshot",
         mutate_after_load,
     )
     with pytest.raises(RuntimeError, match="construction changed"):
@@ -565,17 +611,6 @@ def test_evaluation_detects_any_construction_change_and_keeps_output_external(
             tmp_path / "viability.json",
             tmp_path / "qrels",
             tmp_path / "out.json",
-        )
-    monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation.load_multiresolution_artifact",
-        original_loader,
-    )
-    with pytest.raises(ValueError, match="outside construction"):
-        evaluate_multiresolution(
-            root,
-            tmp_path / "viability.json",
-            tmp_path / "qrels",
-            root / "evaluation.json",
         )
 
 
@@ -622,3 +657,51 @@ def test_cli_has_only_sealed_paths_and_no_tuning_options() -> None:
     assert not any(
         name in destinations for name in ("weight", "rrf_k", "top_count", "resolution", "seed")
     )
+
+
+def test_evaluation_rejects_every_alternate_sealed_identity_before_qrels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trec_mlm import profile_multiresolution_evaluation as module
+
+    qrel_touched = False
+
+    def forbidden_qrel_hash(_path: Path) -> str:
+        nonlocal qrel_touched
+        qrel_touched = True
+        raise AssertionError("alternate paths reached qrel hashing")
+
+    monkeypatch.setattr(module, "_sha256", forbidden_qrel_hash)
+    canonical = (
+        Path("artifacts/multiresolution_profiles/issue18_pr17head"),
+        Path("reports/trec_2026_issue18_pr17head_viability.json"),
+        Path("data/dev/llm_dev_qrels.txt"),
+        Path("reports/trec_2026_issue18_pr17head_evaluation.json"),
+    )
+    alternates = (
+        (tmp_path / "artifact", *canonical[1:]),
+        (canonical[0], tmp_path / "receipt.json", *canonical[2:]),
+        (*canonical[:2], tmp_path / "qrels", canonical[3]),
+        (*canonical[:3], tmp_path / "evaluation.json"),
+    )
+    for paths in alternates:
+        with pytest.raises(ValueError, match="canonical"):
+            module._validate_sealed_paths(*paths)
+    assert qrel_touched is False
+
+
+def test_evaluation_refuses_existing_canonical_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_mlm import profile_multiresolution_evaluation as module
+
+    paths = tuple(tmp_path / name for name in ("artifact", "receipt", "qrels", "output"))
+    monkeypatch.setattr(module, "ISSUE18_FROZEN_ARTIFACT_PATH", str(paths[0]))
+    monkeypatch.setattr(module, "CANONICAL_VIABILITY_RECEIPT_PATH", paths[1])
+    monkeypatch.setattr(module, "CANONICAL_QRELS_PATH", paths[2])
+    monkeypatch.setattr(module, "CANONICAL_EVALUATION_OUTPUT_PATH", paths[3])
+    paths[3].write_text("sealed\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        module._validate_sealed_paths(*paths)

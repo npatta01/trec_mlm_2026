@@ -44,6 +44,12 @@ EVALUATED_CONSTRUCTION_PATH = (
 EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 = (
     "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
 )
+ISSUE18_FROZEN_ARTIFACT_PATH = (
+    "artifacts/multiresolution_profiles/issue18_pr17head"
+)
+ISSUE18_FROZEN_AGGREGATE_SHA256 = (
+    "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9"
+)
 EXPECTED_SYSTEMS = (
     "c0_max_k10",
     "c0_max_k10_dense_equal",
@@ -156,7 +162,7 @@ def _expected_artifact_files() -> set[str]:
 @dataclass(frozen=True, slots=True)
 class MultiResolutionConfig:
     construction_path: str = EVALUATED_CONSTRUCTION_PATH
-    output_root: str = "artifacts/multiresolution_profiles/issue18_pr17head"
+    output_root: str = ISSUE18_FROZEN_ARTIFACT_PATH
     resolutions: tuple[int, ...] = LOCKED_RESOLUTIONS
     top_count: int = 2
     seed: int = 2026
@@ -896,6 +902,290 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
     )
 
 
+def _validate_frozen_manifest(
+    root: Path,
+    *,
+    artifact_type: str,
+    version: int,
+    aggregate_sha256: str,
+    expected_files: set[str] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    manifest = _read_json(root / "manifest.json")
+    if (
+        set(manifest)
+        != {"artifact_type", "version", "qrel_free", "files", "aggregate_sha256"}
+        or manifest.get("artifact_type") != artifact_type
+        or manifest.get("version") != version
+        or manifest.get("qrel_free") is not True
+    ):
+        raise ValueError("frozen manifest schema changed")
+    entries = manifest.get("files")
+    if not isinstance(entries, dict):
+        raise ValueError("frozen manifest file inventory changed")
+    if (
+        manifest.get("aggregate_sha256") != aggregate_sha256
+        or _aggregate_hash(entries) != aggregate_sha256
+    ):
+        raise ValueError("frozen manifest aggregate differs from locked snapshot")
+    actual = {
+        item.relative_to(root).as_posix()
+        for item in root.rglob("*")
+        if item.is_file() and item.relative_to(root).as_posix() != "manifest.json"
+    }
+    if actual != set(entries) or (
+        expected_files is not None and actual != expected_files
+    ):
+        raise ValueError("frozen artifact file inventory changed")
+    for name, expected in entries.items():
+        if (
+            not isinstance(name, str)
+            or not isinstance(expected, dict)
+            or set(expected) != {"byte_size", "sha256"}
+            or not isinstance(expected.get("byte_size"), int)
+            or isinstance(expected.get("byte_size"), bool)
+            or expected["byte_size"] < 0
+            or not isinstance(expected.get("sha256"), str)
+            or len(expected["sha256"]) != 64
+            or any(character not in "0123456789abcdef" for character in expected["sha256"])
+        ):
+            raise ValueError("frozen manifest entry schema changed")
+        target = root / name
+        if (
+            not target.is_file()
+            or target.stat().st_size != expected["byte_size"]
+            or _sha256(target) != expected["sha256"]
+        ):
+            raise ValueError(f"frozen artifact hash mismatch: {name}")
+    return manifest, entries
+
+
+def _validate_normalized_matrix(
+    matrix: NDArray[np.float32],
+    *,
+    rows: int,
+    dimensions: int | None = None,
+    label: str,
+) -> int:
+    if (
+        matrix.dtype.str != "<f4"
+        or matrix.ndim != 2
+        or matrix.shape[0] != rows
+        or (dimensions is not None and matrix.shape[1] != dimensions)
+    ):
+        raise ValueError(f"{label} embedding schema changed")
+    for start in range(0, rows, 4096):
+        chunk = np.asarray(matrix[start : start + 4096])
+        if not np.isfinite(chunk).all() or not np.allclose(
+            np.linalg.norm(chunk, axis=1), 1.0, atol=1e-5, rtol=0.0
+        ):
+            raise ValueError(f"{label} embeddings are not finite normalized vectors")
+    return int(matrix.shape[1])
+
+
+def _rank_stored_scores(
+    scores: NDArray[np.float32],
+    query_ids: Sequence[str],
+    candidate_ids: Sequence[str],
+) -> dict[str, list[str]]:
+    return {
+        query_id: [
+            candidate_ids[index]
+            for index in sorted(
+                range(len(candidate_ids)),
+                key=lambda index: (-float(scores[row, index]), candidate_ids[index]),
+            )
+        ]
+        for row, query_id in enumerate(query_ids)
+    }
+
+
+def load_issue18_frozen_snapshot(path: str | Path) -> MultiResolutionResult:
+    """Load the exact pass-one snapshot without reconstructing scientific content."""
+
+    root = Path(path)
+    canonical = Path(ISSUE18_FROZEN_ARTIFACT_PATH)
+    if root.resolve() != canonical.resolve():
+        raise ValueError("artifact must resolve to the canonical issue-18 artifact root")
+    if not root.is_dir():
+        raise ValueError("canonical issue-18 artifact root is missing")
+    _manifest, entries = _validate_frozen_manifest(
+        root,
+        artifact_type="issue18_multiresolution_profile_manifest",
+        version=ARTIFACT_VERSION,
+        aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
+        expected_files=_expected_artifact_files(),
+    )
+
+    config_values = asdict(MultiResolutionConfig())
+    config_values["resolutions"] = list(config_values["resolutions"])
+    expected_config = {
+        "artifact_type": "issue18_multiresolution_profiles",
+        "version": ARTIFACT_VERSION,
+        "qrel_free": True,
+        **config_values,
+    }
+    config_payload = _read_json(root / "config.json")
+    if config_payload != expected_config:
+        raise ValueError("frozen artifact config differs from the exact locked config")
+    config = MultiResolutionConfig()
+    if _read_json(root / "source.json") != {
+        "source_commit": LOCKED_SOURCE_COMMIT,
+        "construction_aggregate_sha256": EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+    }:
+        raise ValueError("frozen artifact source binding changed")
+    validation = _read_json(root / "validation.json")
+    if validation != {
+        "status": "passed",
+        "qrel_free": True,
+        "systems": list(EXPECTED_SYSTEMS),
+        "integrity_checks": {
+            "source_binding": True,
+            "inventory": True,
+            "semantic_reconstruction": True,
+            "complete_rankings": True,
+        },
+    }:
+        raise ValueError("frozen validation schema or evidence changed")
+
+    source_root = Path(EVALUATED_CONSTRUCTION_PATH)
+    if source_root.resolve() != Path(config.construction_path).resolve():
+        raise ValueError("frozen issue-12 source root changed")
+    _source_manifest, source_entries = _validate_frozen_manifest(
+        source_root,
+        artifact_type="candidate_semantic_profile_manifest",
+        version=2,
+        aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+    )
+    direct_source_files = {
+        "records.json": "records.json",
+        "query_embeddings.npy": "query_embeddings.npy",
+        "record_embeddings.npy": "record_embeddings.npy",
+        "rankings/dense_reference.json": "rankings/dense_reference.json",
+        "profiles/k10.json": "profiles.json",
+        "component_scores/max_k10.npy": "profile_scores.npy",
+        "scores/c0_max_k10.npy": "profile_scores.npy",
+        "rankings/c0_max_k10.json": "rankings/profile_only.json",
+        "scores/c0_max_k10_dense_equal.npy": "scores/dense_profile_equal.npy",
+        "rankings/c0_max_k10_dense_equal.json": "rankings/dense_profile_equal.json",
+    }
+    for frozen_name, source_name in direct_source_files.items():
+        if entries[frozen_name] != source_entries[source_name]:
+            raise ValueError(f"frozen file differs directly from issue-12: {frozen_name}")
+
+    inputs = _read_json(root / "inputs.json")
+    source_inputs = _read_json(source_root / "inputs.json")
+    if set(inputs) != {"query_ids", "candidate_ids"}:
+        raise ValueError("frozen input schema changed")
+    query_ids = tuple(inputs["query_ids"])
+    candidate_ids = tuple(inputs["candidate_ids"])
+    if (
+        len(query_ids) != 322
+        or len(candidate_ids) != 150
+        or len(set(query_ids)) != 322
+        or len(set(candidate_ids)) != 150
+        or query_ids != tuple(source_inputs.get("query_ids", ()))
+        or candidate_ids != tuple(source_inputs.get("candidate_ids", ()))
+    ):
+        raise ValueError("frozen query or candidate identities changed")
+
+    records = _read_json(root / "records.json")
+    query_embeddings = np.load(
+        root / "query_embeddings.npy", allow_pickle=False, mmap_mode="r"
+    )
+    record_embeddings = np.load(
+        root / "record_embeddings.npy", allow_pickle=False, mmap_mode="r"
+    )
+    dimensions = _validate_normalized_matrix(
+        query_embeddings, rows=len(query_ids), label="query"
+    )
+    _validate_normalized_matrix(
+        record_embeddings,
+        rows=len(records),
+        dimensions=dimensions,
+        label="record",
+    )
+    profiles = {
+        str(resolution): _read_json(root / "profiles" / f"k{resolution}.json")
+        for resolution in LOCKED_RESOLUTIONS
+    }
+    _validate_profile_semantics(
+        profiles=profiles,
+        candidate_ids=candidate_ids,
+        records=records,
+        record_embeddings=record_embeddings,
+    )
+
+    dense_rankings = _read_json(root / "rankings" / "dense_reference.json")
+    _validate_complete_rankings(dense_rankings, query_ids, candidate_ids)
+    expected_shape = (len(query_ids), len(candidate_ids))
+    component_scores: dict[str, NDArray[np.float32]] = {}
+    contributors: dict[str, NDArray[np.int32]] = {}
+    for resolution in LOCKED_RESOLUTIONS:
+        for label, width in (("max", 1), ("top2", config.top_count)):
+            key = f"{label}_k{resolution}"
+            scores = np.load(
+                root / "component_scores" / f"{key}.npy", allow_pickle=False
+            )
+            contributor_ids = np.load(
+                root / "contributors" / f"{key}.npy", allow_pickle=False
+            )
+            if (
+                scores.dtype.str != "<f4"
+                or scores.shape != expected_shape
+                or not np.isfinite(scores).all()
+                or contributor_ids.dtype.str != "<i4"
+                or contributor_ids.shape != (*expected_shape, width)
+            ):
+                raise ValueError(f"frozen component schema changed: {key}")
+            component_scores[key] = scores
+            contributors[key] = contributor_ids
+
+    rankings: dict[str, dict[str, list[str]]] = {}
+    system_scores: dict[str, NDArray[np.float32]] = {}
+    for system in EXPECTED_SYSTEMS:
+        ranking = _read_json(root / "rankings" / f"{system}.json")
+        scores = np.load(root / "scores" / f"{system}.npy", allow_pickle=False)
+        _validate_complete_rankings(ranking, query_ids, candidate_ids)
+        if (
+            scores.dtype.str != "<f4"
+            or scores.shape != expected_shape
+            or not np.isfinite(scores).all()
+            or _rank_stored_scores(scores, query_ids, candidate_ids) != ranking
+        ):
+            raise ValueError(f"frozen ranking and score consistency changed: {system}")
+        if rankings_from_run(root / "runs" / f"{system}.trec") != ranking:
+            raise ValueError(f"frozen TREC run disagrees with ranking: {system}")
+        rankings[system] = ranking
+        system_scores[system] = scores
+
+    if (
+        not np.array_equal(component_scores["max_k10"], system_scores["c0_max_k10"])
+        or profiles["10"] != _read_json(source_root / "profiles.json")
+        or rankings["c0_max_k10"]
+        != _read_json(source_root / "rankings" / "profile_only.json")
+        or rankings["c0_max_k10_dense_equal"]
+        != _read_json(source_root / "rankings" / "dense_profile_equal.json")
+    ):
+        raise ValueError("stored C0 content differs directly from issue-12")
+
+    return MultiResolutionResult(
+        config=config,
+        source_aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+        records=records,
+        query_embeddings=query_embeddings,
+        record_embeddings=record_embeddings,
+        profiles=profiles,
+        source_c0_profiles=profiles["10"],
+        dense_rankings=dense_rankings,
+        component_scores=component_scores,
+        contributing_centroid_ids=contributors,
+        rankings=rankings,
+        system_scores=system_scores,
+    )
+
+
 def _passes(value: float | int, operator: str, threshold: float | int) -> bool:
     if operator == ">=":
         return value >= threshold
@@ -1315,7 +1605,7 @@ def assess_multiresolution_viability(
     if isinstance(artifact, MultiResolutionResult):
         raise TypeError("persisted artifact path is required for a viability receipt")
     root = Path(artifact)
-    result = load_multiresolution_artifact(root)
+    result = load_issue18_frozen_snapshot(root)
     return _assess_multiresolution_viability(
         result,
         require_official_coverage=True,
@@ -1711,12 +2001,15 @@ __all__ = [
     "EVALUATED_CONSTRUCTION_AGGREGATE_SHA256",
     "EVALUATED_CONSTRUCTION_PATH",
     "EXPECTED_SYSTEMS",
+    "ISSUE18_FROZEN_AGGREGATE_SHA256",
+    "ISSUE18_FROZEN_ARTIFACT_PATH",
     "MultiResolutionConfig",
     "MultiResolutionResult",
     "VIABILITY_THRESHOLDS",
     "assess_multiresolution_viability",
     "compare_multiresolution_artifacts",
     "construct_multiresolution",
+    "load_issue18_frozen_snapshot",
     "load_multiresolution_artifact",
     "write_multiresolution_receipt",
     "write_multiresolution_artifact",

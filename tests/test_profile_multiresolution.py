@@ -29,6 +29,8 @@ from trec_mlm.profile_multiresolution import (
 
 AUDIT_FINAL_ROOT = "artifacts/candidate_semantic_profiles/run1_record_id_v2_auditfinal"
 AUDIT_FINAL_AGGREGATE = "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
+ISSUE18_ROOT = Path("artifacts/multiresolution_profiles/issue18_pr17head")
+ISSUE18_AGGREGATE = "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9"
 
 
 def _set_locked_manifest_mtime(root: Path) -> None:
@@ -67,6 +69,78 @@ def test_evaluated_source_constants_are_public_and_exact() -> None:
 
     assert module.EVALUATED_CONSTRUCTION_PATH == AUDIT_FINAL_ROOT
     assert module.EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 == AUDIT_FINAL_AGGREGATE
+
+
+def test_issue18_frozen_loader_is_nonconstructive_and_pins_exact_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("frozen loader invoked construction or scoring")
+
+    for name in (
+        "construct_multiresolution",
+        "canonical_kmeans",
+        "score_profiles",
+        "_freeze_systems",
+        "reciprocal_rank_fusion",
+    ):
+        monkeypatch.setattr(module, name, forbidden)
+
+    result = module.load_issue18_frozen_snapshot(ISSUE18_ROOT)
+    assert result.config == MultiResolutionConfig()
+    assert result.query_ids and len(result.query_ids) == 322
+    assert result.candidate_ids and len(result.candidate_ids) == 150
+    assert (
+        json.loads((ISSUE18_ROOT / "manifest.json").read_text())["aggregate_sha256"]
+        == ISSUE18_AGGREGATE
+    )
+
+
+def test_issue18_frozen_loader_rejects_noncanonical_root(tmp_path: Path) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    with pytest.raises(ValueError, match="canonical issue-18 artifact root"):
+        module.load_issue18_frozen_snapshot(tmp_path)
+
+
+def test_frozen_manifest_rejects_alternate_self_consistent_aggregate(
+    tmp_path: Path,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    alternate = module._aggregate_hash({})
+    (tmp_path / "manifest.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "issue18_multiresolution_profile_manifest",
+                "version": 1,
+                "qrel_free": True,
+                "files": {},
+                "aggregate_sha256": alternate,
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="locked snapshot"):
+        module._validate_frozen_manifest(
+            tmp_path,
+            artifact_type="issue18_multiresolution_profile_manifest",
+            version=1,
+            aggregate_sha256=ISSUE18_AGGREGATE,
+        )
+
+
+def test_viability_repair_locks_external_canonical_receipt_path(tmp_path: Path) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    with pytest.raises(ValueError, match="canonical viability receipt"):
+        script._validate_viability_repair_paths(
+            ISSUE18_ROOT, ISSUE18_ROOT / "receipt.json"
+        )
+    with pytest.raises(ValueError, match="canonical viability receipt"):
+        script._validate_viability_repair_paths(ISSUE18_ROOT, tmp_path / "receipt.json")
 
 
 @pytest.mark.parametrize(
@@ -432,8 +506,8 @@ def test_loader_rejects_extra_schema_keys(
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     if target_name != "manifest.json":
         _refresh_manifest(destination, target_name)
-        with pytest.raises(ValueError, match="schema"):
-            load_multiresolution_artifact(destination)
+    with pytest.raises(ValueError, match="schema"):
+        load_multiresolution_artifact(destination)
 
 
 def _diagnostic_fixture(tmp_path: Path):
@@ -826,7 +900,7 @@ def test_receipt_validator_recomputes_authoritative_artifact_evidence(
         }
         for name in module.CONTROL_NAMES
     }
-    monkeypatch.setattr(module, "load_multiresolution_artifact", lambda path: result)
+    monkeypatch.setattr(module, "load_issue18_frozen_snapshot", lambda path: result)
     monkeypatch.setattr(module, "_load_control_rankings", lambda *_args: (sources, controls))
     monkeypatch.setattr(module, "_tree_bytes", lambda path: 100 if path == root else 50)
     monkeypatch.setattr(module, "_source_elapsed_seconds", lambda _path: 10.0)
@@ -1207,7 +1281,7 @@ def test_cli_existing_canonical_artifact_repairs_receipt_without_reconstruction(
     config_path = tmp_path / "config.json"
     _write_cli_config(config_path, output_root=config.output_root)
     Path(config.output_root).mkdir(parents=True)
-    output = tmp_path / "supplemental.json"
+    output = script.CANONICAL_VIABILITY_RECEIPT_PATH
     expected = {"artifact_type": "issue18_multiresolution_viability_receipt"}
     monkeypatch.setattr(
         script,

@@ -10,6 +10,7 @@ from pathlib import Path
 import time
 
 from trec_mlm.profile_multiresolution import (
+    ISSUE18_FROZEN_ARTIFACT_PATH,
     MultiResolutionConfig,
     assess_multiresolution_viability,
     compare_multiresolution_artifacts,
@@ -18,6 +19,11 @@ from trec_mlm.profile_multiresolution import (
     validate_multiresolution_viability_receipt,
     write_multiresolution_artifact,
     write_multiresolution_receipt,
+)
+
+
+CANONICAL_VIABILITY_RECEIPT_PATH = Path(
+    "reports/trec_2026_issue18_pr17head_viability.json"
 )
 
 
@@ -177,10 +183,26 @@ def _run_viability_repair(args: argparse.Namespace, artifact_root: str) -> int:
 
     if not args.viability_receipt:
         raise ValueError("supplemental viability repair requires an output receipt")
+    _validate_viability_repair_paths(artifact_root, args.viability_receipt)
     viability = assess_multiresolution_viability(artifact_root)
     write_multiresolution_receipt(viability, args.viability_receipt)
     print(json.dumps({"viability": viability}, indent=2, allow_nan=False))
     return 0
+
+
+def _validate_viability_repair_paths(
+    artifact_root: str | Path, receipt_path: str | Path
+) -> None:
+    artifact = Path(artifact_root)
+    receipt = Path(receipt_path)
+    if artifact.resolve() != Path(ISSUE18_FROZEN_ARTIFACT_PATH).resolve():
+        raise ValueError("supplemental repair requires the canonical issue-18 artifact")
+    if receipt.resolve() != CANONICAL_VIABILITY_RECEIPT_PATH.resolve():
+        raise ValueError("supplemental repair requires the canonical viability receipt")
+    if receipt.resolve() == artifact.resolve() or artifact.resolve() in receipt.resolve().parents:
+        raise ValueError("canonical viability receipt must be outside the artifact")
+    if receipt.exists():
+        raise FileExistsError(f"receipt already exists: {receipt}")
 
 
 def main(argv: list[str] | None = None) -> int:

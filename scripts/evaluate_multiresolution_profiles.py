@@ -5,12 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 
-from trec_mlm.profile_multiresolution import load_multiresolution_artifact
 from trec_mlm.profile_multiresolution_evaluation import (
     evaluate_multiresolution,
-    validate_viability_receipt,
 )
 
 
@@ -29,12 +26,6 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    load_multiresolution_artifact(args.artifact)
-    try:
-        receipt = json.loads(Path(args.viability_receipt).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError("invalid viability receipt") from error
-    validate_viability_receipt(receipt, args.artifact)
     payload = evaluate_multiresolution(
         args.artifact, args.viability_receipt, args.qrels, args.output
     )

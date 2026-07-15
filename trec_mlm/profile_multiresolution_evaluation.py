@@ -13,13 +13,15 @@ from typing import Any
 
 from trec_mlm.metrics import EvaluationResult, evaluate_rankings
 from trec_mlm.profile_evaluation import paired_interval, win_tie_loss, zero_transitions
-from trec_mlm.profile_experiment import load_profile_artifacts
 from trec_mlm.profile_multiresolution import (
+    EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
+    EVALUATED_CONSTRUCTION_PATH,
     EXPECTED_SYSTEMS,
-    load_multiresolution_artifact,
+    ISSUE18_FROZEN_ARTIFACT_PATH,
+    load_issue18_frozen_snapshot,
     validate_multiresolution_viability_receipt,
 )
-from trec_mlm.profile_retrieval import reciprocal_rank_fusion
+from trec_mlm.runio import rankings_from_run
 from trec_mlm.query_knn import load_complete_qrels
 
 
@@ -27,6 +29,16 @@ EVALUATION_VERSION = 1
 TRACK_A_SYSTEM = "dense_profile_profile_heavy"
 DIAGNOSTIC_EVALUATION_DECISIONS = frozenset(
     {"continue", "stop-query-sensitivity", "stop-no-incremental-value"}
+)
+CANONICAL_VIABILITY_RECEIPT_PATH = Path(
+    "reports/trec_2026_issue18_pr17head_viability.json"
+)
+CANONICAL_QRELS_PATH = Path("data/dev/llm_dev_qrels.txt")
+LOCKED_QRELS_SHA256 = (
+    "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35"
+)
+CANONICAL_EVALUATION_OUTPUT_PATH = Path(
+    "reports/trec_2026_issue18_pr17head_evaluation.json"
 )
 
 
@@ -143,38 +155,75 @@ def _track_a_rankings(construction: Any, source: Any) -> dict[str, list[str]]:
         != construction.config.source_aggregate_sha256
     ):
         raise ValueError("issue-12 source identities differ from frozen construction")
-    try:
-        profiles = json.loads((source.root / "profiles.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError("invalid issue-12 profile availability inventory") from error
-    if set(profiles) != set(construction.candidate_ids):
-        raise ValueError("issue-12 profile candidate inventory changed")
-    unavailable = frozenset(
-        candidate_id
-        for candidate_id in construction.candidate_ids
-        if profiles[candidate_id].get("available") is False
-    )
-    reproduced = reciprocal_rank_fusion(
-        query_ids=construction.query_ids,
-        candidate_ids=construction.candidate_ids,
-        rankings_by_signal={
-            "dense": source.source_rankings["dense_reference"],
-            "profile": source.rankings["profile_only"],
+    ranking = source.rankings[TRACK_A_SYSTEM]
+    if set(ranking) != set(construction.query_ids) or any(
+        len(ranking[query_id]) != len(construction.candidate_ids)
+        or set(ranking[query_id]) != set(construction.candidate_ids)
+        for query_id in construction.query_ids
+    ):
+        raise ValueError("stored Track A ranking inventory differs from frozen issue-12")
+    return ranking
+
+
+def _load_issue12_evaluation_rankings(construction: Any) -> Any:
+    root = Path(EVALUATED_CONSTRUCTION_PATH)
+    inputs = json.loads((root / "inputs.json").read_text(encoding="utf-8"))
+    if (
+        tuple(inputs.get("query_ids", ())) != construction.query_ids
+        or tuple(inputs.get("candidate_ids", ())) != construction.candidate_ids
+    ):
+        raise ValueError("issue-12 evaluation inventories changed")
+    source_rankings = {
+        key: json.loads(
+            (root / "rankings" / f"{key}.json").read_text(encoding="utf-8")
+        )
+        for key in ("dense_reference", "contextual_e5_control")
+    }
+    rankings = {
+        key: json.loads(
+            (root / "rankings" / f"{key}.json").read_text(encoding="utf-8")
+        )
+        for key in ("profile_only", TRACK_A_SYSTEM)
+    }
+    for key, ranking in {**source_rankings, **rankings}.items():
+        if (
+            set(ranking) != set(construction.query_ids)
+            or any(
+                len(ranking[query_id]) != len(construction.candidate_ids)
+                or set(ranking[query_id]) != set(construction.candidate_ids)
+                for query_id in construction.query_ids
+            )
+            or rankings_from_run(root / "runs" / f"{key}.trec") != ranking
+        ):
+            raise ValueError(f"stored issue-12 ranking or run changed: {key}")
+    return type(
+        "FrozenIssue12Rankings",
+        (),
+        {
+            "query_ids": construction.query_ids,
+            "candidate_ids": construction.candidate_ids,
+            "source_rankings": source_rankings,
+            "rankings": rankings,
+            "manifest": {"aggregate_sha256": EVALUATED_CONSTRUCTION_AGGREGATE_SHA256},
         },
-        weights={"dense": 1.0, "profile": 2.0},
-        unavailable_profile_ids=unavailable,
-        k=60,
-    ).rankings
-    if reproduced != source.rankings[TRACK_A_SYSTEM]:
-        raise ValueError("Track A reproduction differs from frozen issue-12 ranking")
-    return reproduced
+    )()
 
 
-def _validate_output_path(artifact_path: Path, output_path: Path) -> None:
-    construction = artifact_path.resolve()
-    destination = output_path.resolve()
-    if destination == construction or construction in destination.parents:
-        raise ValueError("evaluation output must be outside construction")
+def _validate_sealed_paths(
+    artifact_path: Path,
+    receipt_path: Path,
+    qrels_path: Path,
+    output_path: Path,
+) -> None:
+    identities = (
+        (artifact_path, Path(ISSUE18_FROZEN_ARTIFACT_PATH), "artifact"),
+        (receipt_path, CANONICAL_VIABILITY_RECEIPT_PATH, "viability receipt"),
+        (qrels_path, CANONICAL_QRELS_PATH, "qrels"),
+        (output_path, CANONICAL_EVALUATION_OUTPUT_PATH, "evaluation output"),
+    )
+    for observed, expected, label in identities:
+        if observed.resolve() != expected.resolve():
+            raise ValueError(f"{label} must use the canonical sealed path")
     if output_path.exists():
         raise FileExistsError(f"evaluation output already exists: {output_path}")
 
@@ -204,13 +253,14 @@ def evaluate_multiresolution(
     """Evaluate only immutable, frozen rankings on the already-seen dev queries."""
 
     artifact_root = Path(artifact_path)
+    receipt_path = Path(viability_receipt_path)
+    qrels_file = Path(qrels_path)
     destination = Path(output_path)
-    construction = load_multiresolution_artifact(artifact_root)
-    _validate_output_path(artifact_root, destination)
+    _validate_sealed_paths(artifact_root, receipt_path, qrels_file, destination)
+    construction = load_issue18_frozen_snapshot(artifact_root)
     manifest = _read_manifest(artifact_root)
     before = _construction_snapshot(artifact_root)
 
-    receipt_path = Path(viability_receipt_path)
     try:
         receipt_bytes = receipt_path.read_bytes()
         receipt = json.loads(receipt_bytes)
@@ -222,13 +272,14 @@ def evaluate_multiresolution(
     validated_receipt = validate_viability_receipt(receipt, artifact_root)
     viability_decision = _authorize_diagnostic_evaluation(validated_receipt)
 
-    source = load_profile_artifacts(construction.config.construction_path)
+    source = _load_issue12_evaluation_rankings(construction)
     track_a_rankings = _track_a_rankings(construction, source)
 
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed before qrels were opened")
-    qrels_file = Path(qrels_path)
     qrels_sha256 = _sha256(qrels_file)
+    if qrels_sha256 != LOCKED_QRELS_SHA256:
+        raise ValueError("qrel SHA-256 differs from the locked sealed identity")
     qrels = load_complete_qrels(qrels_file, expected_query_ids=construction.query_ids)
     if _sha256(qrels_file) != qrels_sha256:
         raise RuntimeError("qrel file changed while it was being loaded")
@@ -283,7 +334,7 @@ def evaluate_multiresolution(
             "dense_weight": 1.0,
             "profile_weight": 2.0,
             "rrf_k": 60,
-            "reconstruction_matches_issue12_frozen": True,
+            "stored_ranking_matches_issue12_frozen": True,
             "metrics": _metrics_payload(track_a_evaluation),
             "paired_comparison_vs_query_knn": _paired_payload(
                 baseline, track_a_evaluation
@@ -303,7 +354,7 @@ def evaluate_multiresolution(
     }
 
     try:
-        load_multiresolution_artifact(artifact_root)
+        load_issue18_frozen_snapshot(artifact_root)
         after_manifest = _read_manifest(artifact_root)
         after = _construction_snapshot(artifact_root)
     except (OSError, ValueError) as error:

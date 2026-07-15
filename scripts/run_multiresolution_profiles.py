@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import fields
 import json
+import math
 from pathlib import Path
 import time
 
@@ -29,6 +30,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--viability-receipt",
         help="write the qrel-free viability and cost receipt to this new path",
+    )
+    parser.add_argument(
+        "--repeat-construction",
+        action="store_true",
+        help="construct a fresh repeat only after validating pass-one authorization",
     )
     parser.add_argument(
         "--first-artifact",
@@ -61,7 +67,11 @@ def _comparison_mode(args: argparse.Namespace) -> bool:
     return all(values)
 
 
-def _run_repeat_comparison(args: argparse.Namespace) -> int:
+def _load_repeat_authorization(args: argparse.Namespace) -> dict[str, object]:
+    if not args.first_artifact or not args.first_viability_receipt:
+        raise ValueError(
+            "repeat construction or comparison requires first artifact and viability receipt"
+        )
     try:
         authorization = json.loads(
             Path(args.first_viability_receipt).read_text(encoding="utf-8")
@@ -69,6 +79,15 @@ def _run_repeat_comparison(args: argparse.Namespace) -> int:
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("invalid first viability receipt") from error
     cost = authorization.get("cost_evidence")
+    storage_ratio = cost.get("storage_ratio") if isinstance(cost, dict) else None
+    wall_time_ratio = cost.get("wall_time_ratio") if isinstance(cost, dict) else None
+    ratios_valid = all(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 0.0 <= value <= 4.0
+        for value in (storage_ratio, wall_time_ratio)
+    )
     authorized = (
         authorization.get("artifact_type")
         == "issue18_multiresolution_viability_receipt"
@@ -77,6 +96,7 @@ def _run_repeat_comparison(args: argparse.Namespace) -> int:
         and authorization.get("decision") == "continue"
         and authorization.get("repeat_authorized") is True
         and isinstance(cost, dict)
+        and ratios_valid
         and cost.get("storage_at_most_four_times_issue12") is True
         and cost.get("wall_time_at_most_four_times_issue12") is True
         and cost.get("repeat_cost_authorized") is True
@@ -93,6 +113,11 @@ def _run_repeat_comparison(args: argparse.Namespace) -> int:
         "artifact_aggregate_sha256"
     ):
         raise ValueError("viability authorization does not bind the first artifact")
+    return authorization
+
+
+def _run_repeat_comparison(args: argparse.Namespace) -> int:
+    authorization = _load_repeat_authorization(args)
     repeatability = compare_multiresolution_artifacts(
         args.first_artifact, args.repeat_artifact
     )
@@ -149,6 +174,13 @@ def _run_pass_one(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.repeat_construction:
+        if args.repeat_artifact or args.repeatability_receipt:
+            raise ValueError(
+                "repeat construction and repeat comparison are separate CLI modes"
+            )
+        _load_repeat_authorization(args)
+        return _run_pass_one(args)
     if _comparison_mode(args):
         return _run_repeat_comparison(args)
     return _run_pass_one(args)

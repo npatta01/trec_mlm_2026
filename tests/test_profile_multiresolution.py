@@ -631,6 +631,7 @@ def test_cli_accepts_only_qrel_free_viability_and_repeat_receipts() -> None:
     args = _parser().parse_args(
         [
             "--config", "config.json",
+            "--repeat-construction",
             "--viability-receipt", "viability.json",
             "--first-artifact", "first",
             "--first-viability-receipt", "first-viability.json",
@@ -639,6 +640,7 @@ def test_cli_accepts_only_qrel_free_viability_and_repeat_receipts() -> None:
         ]
     )
     assert args.viability_receipt == "viability.json"
+    assert args.repeat_construction is True
     assert args.first_artifact == "first"
     assert args.first_viability_receipt == "first-viability.json"
     assert args.repeat_artifact == "repeat"
@@ -656,11 +658,83 @@ def _authorization_receipt(*, authorized: bool) -> dict[str, object]:
         "artifact_aggregate_sha256": "a" * 64,
         "repeat_authorized": authorized,
         "cost_evidence": {
+            "storage_ratio": 1.0 if authorized else 5.0,
+            "wall_time_ratio": 1.0 if authorized else 5.0,
             "storage_at_most_four_times_issue12": authorized,
             "wall_time_at_most_four_times_issue12": authorized,
             "repeat_cost_authorized": authorized,
         },
     }
+
+
+def test_cli_default_mode_preserves_pass_one_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    monkeypatch.setattr(script, "_run_pass_one", lambda args: 17)
+    assert script.main([]) == 17
+
+
+@pytest.mark.parametrize(
+    "receipt_kind", ("absent", "invalid", "noncontinue", "overbudget")
+)
+def test_cli_repeat_construction_is_blocked_before_construct_without_authorization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    receipt_kind: str,
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    first = tmp_path / "first"
+    first.mkdir()
+    (first / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64})
+    )
+    arguments = ["--repeat-construction", "--first-artifact", str(first)]
+    if receipt_kind != "absent":
+        authorization = tmp_path / "viability.json"
+        if receipt_kind == "invalid":
+            authorization.write_text("not-json")
+        else:
+            payload = _authorization_receipt(authorized=True)
+            if receipt_kind == "noncontinue":
+                payload["decision"] = "stop-no-incremental-value"
+            else:
+                payload["cost_evidence"]["wall_time_ratio"] = 4.01
+            authorization.write_text(json.dumps(payload))
+        arguments.extend(["--first-viability-receipt", str(authorization)])
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda config: pytest.fail("unauthorized repeat construction began"),
+    )
+    with pytest.raises(ValueError):
+        script.main(arguments)
+
+
+def test_cli_authorized_repeat_construction_dispatches_after_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    first = tmp_path / "first"
+    first.mkdir()
+    (first / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64})
+    )
+    authorization = tmp_path / "viability.json"
+    authorization.write_text(json.dumps(_authorization_receipt(authorized=True)))
+    called = []
+    monkeypatch.setattr(script, "_run_pass_one", lambda args: called.append(args) or 0)
+    assert script.main(
+        [
+            "--repeat-construction",
+            "--first-artifact", str(first),
+            "--first-viability-receipt", str(authorization),
+        ]
+    ) == 0
+    assert len(called) == 1
 
 
 def test_cli_repeat_comparison_mode_never_constructs(

@@ -99,6 +99,7 @@ EXPECTED_VERSIONS = {
 EXPECTED_IMPLEMENTATION_FILES = (
     "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
+    "trec_mlm/dense_aggregation_clustering.py",
     "trec_mlm/dense_aggregation_contract.py",
     "trec_mlm/dense_aggregation_entrypoint.py",
     "trec_mlm/dense_aggregation_hashing.py",

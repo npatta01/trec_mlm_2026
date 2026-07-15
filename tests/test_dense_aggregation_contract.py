@@ -100,9 +100,11 @@ EXPECTED_IMPLEMENTATION_FILES = (
     "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
     "trec_mlm/dense_aggregation_cache.py",
+    "trec_mlm/dense_aggregation_cli.py",
     "trec_mlm/dense_aggregation_clustering.py",
     "trec_mlm/dense_aggregation_contract.py",
     "trec_mlm/dense_aggregation_entrypoint.py",
+    "trec_mlm/dense_aggregation_feasibility.py",
     "trec_mlm/dense_aggregation_hashing.py",
     "trec_mlm/dense_aggregation_runtime.py",
 )

@@ -213,6 +213,33 @@ def _write_json(path: Path, payload: Any) -> None:
     )
 
 
+def _json_native_profile_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize tuple containers without weakening exact JSON comparison."""
+
+    def require_string_keys(value: Any) -> None:
+        if isinstance(value, Mapping):
+            if any(not isinstance(key, str) for key in value):
+                raise ValueError("profile payload mappings must use string keys")
+            for nested in value.values():
+                require_string_keys(nested)
+        elif isinstance(value, (list, tuple)):
+            for nested in value:
+                require_string_keys(nested)
+
+    if not isinstance(payload, Mapping):
+        raise TypeError("profile payload must be a mapping")
+    require_string_keys(payload)
+    try:
+        normalized = json.loads(
+            json.dumps(payload, allow_nan=False, ensure_ascii=False, sort_keys=True)
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError("profile payload must contain finite JSON values") from error
+    if not isinstance(normalized, dict):
+        raise AssertionError("JSON-normalized profile payload must remain an object")
+    return normalized
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -416,11 +443,13 @@ def construct_multiresolution(config: MultiResolutionConfig) -> MultiResolutionR
             )
             count = len(candidate_records)
             if not count:
-                resolution_payload[candidate_id] = {
-                    "available": False,
-                    "audit": source_profiles[candidate_id]["audit"],
-                    "clusters": [],
-                }
+                resolution_payload[candidate_id] = _json_native_profile_payload(
+                    {
+                        "available": False,
+                        "audit": source_profiles[candidate_id]["audit"],
+                        "clusters": [],
+                    }
+                )
                 continue
             profile = canonical_kmeans(
                 candidate_id,
@@ -441,8 +470,8 @@ def construct_multiresolution(config: MultiResolutionConfig) -> MultiResolutionR
                 )
                 annotated.append(replace(cluster, annotation=annotation))
             profile = replace(profile, clusters=tuple(annotated))
-            resolution_payload[candidate_id] = _profile_to_json(
-                profile, source_profiles[candidate_id]["audit"]
+            resolution_payload[candidate_id] = _json_native_profile_payload(
+                _profile_to_json(profile, source_profiles[candidate_id]["audit"])
             )
         if cursor != len(records):
             raise ValueError("record embedding inventory was not exactly consumed")

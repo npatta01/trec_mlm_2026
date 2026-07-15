@@ -5,6 +5,7 @@ import hashlib
 import inspect
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -82,6 +83,125 @@ def test_source_aggregate_binding_is_checked_before_construction(monkeypatch) ->
     )
     with pytest.raises(ValueError, match="aggregate"):
         construct_multiresolution(config)
+
+
+@pytest.mark.parametrize("true_content_change", (False, True))
+def test_construct_compares_profiles_using_strict_json_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    true_content_change: bool,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    root = tmp_path / "source"
+    root.mkdir()
+    records = [
+        {
+            "record_id": "r1",
+            "source_query_id": "s1",
+            "candidate_id": "A",
+            "question": "question",
+            "response": "response",
+        }
+    ]
+    tuple_payload = {
+        "available": True,
+        "candidate_id": "A",
+        "requested_clusters": 1,
+        "actual_clusters": 1,
+        "centroids": [[1.0, 0.0]],
+        "clusters": [
+            {
+                "cluster_id": 0,
+                "member_record_ids": ("r1",),
+                "support_count": 1,
+                "membership_sha256": module._length_framed_hash(["r1"]),
+                "dispersion": 0.0,
+                "medoid_record_id": "r1",
+                "representative_questions": ("question",),
+                "annotation": {
+                    "primary_label": "A",
+                    "secondary_label": None,
+                    "top_score": 1.0,
+                    "second_score": None,
+                    "margin": None,
+                    "support_count": 1,
+                    "status": "primary",
+                    "affects_ranking": False,
+                },
+            }
+        ],
+        "converged": True,
+        "iteration_count": 1,
+        "audit": {"usable": 1},
+    }
+    source_payload = json.loads(json.dumps(tuple_payload, allow_nan=False))
+    if true_content_change:
+        source_payload["clusters"][0]["support_count"] = 2
+    (root / "records.json").write_text(json.dumps(records), encoding="utf-8")
+    (root / "profiles.json").write_text(
+        json.dumps({"A": source_payload}), encoding="utf-8"
+    )
+    (root / "inputs.json").write_text(
+        json.dumps({"label_question_ids": ["s1"]}), encoding="utf-8"
+    )
+    source = SimpleNamespace(
+        manifest={"aggregate_sha256": AUDIT_FINAL_AGGREGATE},
+        root=root,
+        query_ids=("q1",),
+        candidate_ids=("A",),
+        source_rankings={"dense_reference": {"q1": ["A"]}},
+        profile_scores=np.asarray([[1.0]], dtype=np.float32),
+        rankings={"profile_only": {"q1": ["A"]}},
+    )
+    arrays = {
+        "query_embeddings.npy": np.asarray([[1.0, 0.0]], dtype=np.float32),
+        "record_embeddings.npy": np.asarray([[1.0, 0.0]], dtype=np.float32),
+        "label_question_embeddings.npy": np.asarray([[1.0, 0.0]], dtype=np.float32),
+        "label_embeddings.npy": np.asarray([[1.0, 0.0]], dtype=np.float32),
+    }
+    monkeypatch.setattr(module, "load_profile_artifacts", lambda _: source)
+    monkeypatch.setattr(
+        module,
+        "canonical_kmeans",
+        lambda *_args, **_kwargs: module.CandidateProfile(
+            "A",
+            1,
+            np.asarray([[1.0, 0.0]], dtype=np.float32),
+            (),
+            True,
+            1,
+        ),
+    )
+    monkeypatch.setattr(
+        module.np,
+        "load",
+        lambda path, **_kwargs: arrays[Path(path).name],
+    )
+    monkeypatch.setattr(
+        module,
+        "_profile_to_json",
+        lambda _profile, _audit: tuple_payload,
+    )
+
+    if true_content_change:
+        with pytest.raises(ValueError, match="C0 reconstruction differs"):
+            construct_multiresolution(MultiResolutionConfig())
+    else:
+        result = construct_multiresolution(MultiResolutionConfig())
+        assert result.profiles["10"] == {"A": source_payload}
+        assert isinstance(
+            result.profiles["10"]["A"]["clusters"][0]["member_record_ids"], list
+        )
+
+
+def test_json_profile_canonicalization_rejects_nonfinite_and_nonstring_keys() -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    with pytest.raises(ValueError, match="finite JSON"):
+        module._json_native_profile_payload({"score": float("nan")})
+    with pytest.raises(ValueError, match="string keys"):
+        module._json_native_profile_payload({1: "changed"})
 
 
 def _fixture_result(tmp_path: Path):

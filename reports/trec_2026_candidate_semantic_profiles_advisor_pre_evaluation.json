@@ -1,0 +1,24 @@
+{
+  "artifact_type": "candidate_semantic_profiles_advisor_review",
+  "version": 1,
+  "recorded_at": "2026-07-15T07:55:31-04:00",
+  "stage": "pre_evaluation",
+  "initial_verdict": "revise",
+  "scope": "bounded documentation and construction isolation only; no inference rerun and no scientific rejection",
+  "confirmed": {
+    "validator_fix_matches_constructor_arithmetic": true,
+    "validator_fix_changes_rankings": false,
+    "inference_maximum_absolute_difference": 0.0,
+    "construction_rankings_identical": true,
+    "construction_canonical_files_identical": true,
+    "construction_maximum_absolute_score_difference": 0.0,
+    "both_frozen_constructions_validate": true
+  },
+  "requirements_before_evaluation": [
+    "persist qrel-absent construction-two isolation evidence or rerun only construction two in instrumented isolation",
+    "record the validator correction as a non-ranking protocol amendment and state artifacts were not rewritten",
+    "describe the dispersion tolerance accurately as two float32 machine epsilons and boundary-test it",
+    "commit and freeze code, protocol, receipts, isolation evidence, and this verdict; rerun frozen verification and receipt hash checks"
+  ],
+  "conditional_authorization": "legitimate qrel evaluation may proceed without another advisor cycle after every requirement passes with the stated hashes unchanged; return for review if they do not"
+}

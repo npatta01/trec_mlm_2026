@@ -45,6 +45,31 @@ E5 = {"q1": ["B", "A", "C"], "q2": ["A", "C", "B"]}
 PROFILE = {"q1": ["C", "A", "B"], "q2": ["B", "C", "A"]}
 
 
+def test_loader_recomputes_centroids_with_constructor_float32_normalization() -> None:
+    rng = np.random.default_rng(2026)
+    members = np.asarray(rng.normal(size=(127, 4096)), dtype=np.float32)
+    members /= np.linalg.norm(members, axis=1, keepdims=True)
+    constructor_members = np.asarray(
+        members / np.linalg.norm(members, axis=1, keepdims=True),
+        dtype=np.float32,
+        order="C",
+    )
+    mean = np.mean(constructor_members, axis=0, dtype=np.float64)
+    constructor_input = np.asarray([mean], dtype=np.float32)
+    expected = np.asarray(
+        constructor_input / np.linalg.norm(constructor_input, axis=1, keepdims=True),
+        dtype=np.float32,
+    )[0]
+
+    actual = profile_experiment._recompute_profile_centroid(members)
+
+    np.testing.assert_array_equal(
+        profile_experiment._normalize_profile_members(members),
+        constructor_members,
+    )
+    np.testing.assert_array_equal(actual, expected)
+
+
 def _fixture_question(candidate_id: str, index: int) -> str:
     return f"question {candidate_id}{index}"
 
@@ -62,6 +87,13 @@ def _fixture_record_id(candidate_id: str, index: int) -> str:
     )
 
 
+def _fixture_singleton_dispersion(
+    raw_vector: np.ndarray, centroid: np.ndarray
+) -> float:
+    similarities = np.asarray(raw_vector[None, :] @ centroid, dtype=np.float32)
+    return float(np.mean(1.0 - similarities, dtype=np.float64))
+
+
 def _refresh_manifest(root: Path, relative_path: str) -> None:
     path = root / relative_path
     manifest_path = root / "manifest.json"
@@ -75,10 +107,16 @@ def _refresh_manifest(root: Path, relative_path: str) -> None:
 
 
 def _result() -> ProfileExperimentResult:
-    centroids = {
+    raw_centroids = {
         "A": np.asarray([[0.7, 0.0, np.sqrt(0.51)], [0.0, 0.1, np.sqrt(0.99)]], dtype=np.float32),
         "B": np.asarray([[0.6, 0.0, 0.8], [0.0, 0.9, np.sqrt(0.19)]], dtype=np.float32),
         "C": np.asarray([[0.8, 0.0, 0.6], [0.0, 0.8, 0.6]], dtype=np.float32),
+    }
+    centroids = {
+        candidate_id: np.stack(
+            [profile_experiment._recompute_profile_centroid(row[None, :]) for row in values]
+        )
+        for candidate_id, values in raw_centroids.items()
     }
     query_embeddings = np.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32)
     label_question_embeddings = query_embeddings.copy()
@@ -134,7 +172,9 @@ def _result() -> ProfileExperimentResult:
                         "cluster_id": index,
                         "member_record_ids": [_fixture_record_id(candidate_id, index)],
                         "support_count": 1,
-                        "dispersion": 0.0,
+                        "dispersion": _fixture_singleton_dispersion(
+                            raw_centroids[candidate_id][index], values[index]
+                        ),
                         "medoid_record_id": _fixture_record_id(candidate_id, index),
                         "representative_questions": [_fixture_question(candidate_id, index)],
                         "membership_sha256": profile_experiment._length_framed_strings(
@@ -186,7 +226,7 @@ def _result() -> ProfileExperimentResult:
         },
         label_question_ids=("s0", "s1"),
         query_embeddings=query_embeddings,
-        record_embeddings=np.concatenate([centroids[item] for item in CANDIDATE_IDS]),
+        record_embeddings=np.concatenate([raw_centroids[item] for item in CANDIDATE_IDS]),
         label_question_embeddings=label_question_embeddings,
         label_embeddings=label_embeddings,
     )
@@ -411,6 +451,38 @@ def test_loader_recomputes_cluster_diagnostics_even_after_rehash(tmp_path: Path)
     _refresh_manifest(destination, "profiles.json")
     with pytest.raises(ValueError, match="cluster diagnostics"):
         load_profile_artifacts(destination)
+
+
+def test_cluster_dispersion_tolerance_is_bounded(tmp_path: Path) -> None:
+    accepted = tmp_path / "accepted"
+    write_profile_artifacts(_result(), accepted)
+    profiles = json.loads((accepted / "profiles.json").read_text())
+    stored = float(profiles["A"]["clusters"][0]["dispersion"])
+    profiles["A"]["clusters"][0]["dispersion"] = (
+        stored + profile_experiment.PROFILE_DIAGNOSTIC_ATOL
+    )
+    (accepted / "profiles.json").write_text(
+        json.dumps(profiles, indent=2, sort_keys=True) + "\n"
+    )
+    _refresh_manifest(accepted, "profiles.json")
+    load_profile_artifacts(accepted)
+
+    rejected = tmp_path / "rejected"
+    write_profile_artifacts(_result(), rejected)
+    profiles = json.loads((rejected / "profiles.json").read_text())
+    stored = float(profiles["A"]["clusters"][0]["dispersion"])
+    profiles["A"]["clusters"][0]["dispersion"] = stored + float(
+        np.nextafter(
+            profile_experiment.PROFILE_DIAGNOSTIC_ATOL,
+            np.inf,
+        )
+    )
+    (rejected / "profiles.json").write_text(
+        json.dumps(profiles, indent=2, sort_keys=True) + "\n"
+    )
+    _refresh_manifest(rejected, "profiles.json")
+    with pytest.raises(ValueError, match="cluster diagnostics"):
+        load_profile_artifacts(rejected)
 
 
 def test_loader_recomputes_annotations_even_after_rehash(tmp_path: Path) -> None:

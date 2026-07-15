@@ -531,6 +531,45 @@ path is absent, enumerate open file descriptors, recompute the construction mani
 aggregate, and require the exact manifested file inventory. A host-side claim that
 qrels are unmounted is insufficient even when there is no evidence they were opened.
 
+## Recorded execution exceptions after repeat-two inference
+
+Repeat-two inference completed and atomically finalized its schema-v2 artifact before
+the CLI failed while writing the separate execution receipt. The failure was an
+`UnboundLocalError` caused by branch-local `Path` imports shadowing the module import.
+An advisor approved deterministic reconstruction of the intended receipt from the
+fully validated immutable artifact; the inference artifact itself is not rewritten.
+The exact recovery evidence is retained in
+`reports/trec_2026_candidate_semantic_profiles_execution_receipt_recovery.json`.
+
+During recovery evidence collection, `sha256sum data/dev/llm_dev_qrels.txt` was run
+before the repeat gates. This is recorded as a literal procedural seal violation. It
+printed only a digest already present in tracked pre-experiment reports and exposed no
+query IDs, candidates, grades, or relevance structure; it did not enter Python or any
+ranking/configuration path. The advisor classified it as non-semantic audit-only access
+and approved continuation without rerunning inference. Construction two must therefore
+run with qrels absent/unmounted, then both repeat gates must pass before any legitimate
+qrel evaluation. The bounded deviation evidence is retained in
+`reports/trec_2026_candidate_semantic_profiles_qrel_seal_deviation.json`.
+
+The first construction-repeat validation exposed a validation-only arithmetic defect:
+the loader recomputed centroids without the constructor's float32 row renormalization,
+float64 mean, then float32 normalization sequence. The loader now mirrors that sequence
+exactly. Cluster-dispersion reconstruction permits an absolute tolerance of two
+float32 machine epsilons for alternate float32 BLAS paths, with an explicit boundary
+test. No frozen inference, construction, score, or ranking artifact was rewritten by
+this correction. The original and corrected loaders both use only qrel-free artifact
+contents. The code diff, tests, artifact bindings, and non-ranking classification are
+recorded in
+`reports/trec_2026_candidate_semantic_profiles_validator_amendment.json`.
+
+Because the original construction-two isolation evidence was not durably persisted,
+construction two was rerun into a new immutable directory under an instrumented
+Bubblewrap sandbox. Only declared inputs were mounted read-only; the artifact root was
+the sole writable bind; qrel path probes and a complete name scan were empty; and the
+mount, file-descriptor, input-hash, runtime, output-manifest, and repeat-gate evidence
+was recorded before qrels were legitimately opened. The durable receipt is
+`reports/trec_2026_candidate_semantic_profiles_construction_isolation.json`.
+
 ## Deliverables
 
 - this locked protocol and a config-driven implementation;

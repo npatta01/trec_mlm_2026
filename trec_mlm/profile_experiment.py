@@ -57,6 +57,7 @@ from trec_mlm.runio import (
 
 
 ARTIFACT_VERSION = 2
+PROFILE_DIAGNOSTIC_ATOL = float(2.0 * np.finfo(np.float32).eps)
 OFFICIAL_DISCOVERY_SHA256 = (
     "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25"
 )
@@ -623,6 +624,34 @@ def _length_framed_strings(values: Sequence[str]) -> str:
     return digest.hexdigest()
 
 
+def _normalize_profile_members(
+    member_matrix: NDArray[np.float32],
+) -> NDArray[np.float32]:
+    """Mirror the constructor's persisted-row normalization exactly."""
+
+    values = np.asarray(member_matrix, dtype=np.float32, order="C")
+    row_norms = np.linalg.norm(values, axis=1, keepdims=True)
+    if (
+        not np.isfinite(values).all()
+        or not np.isfinite(row_norms).all()
+        or np.any(row_norms == 0.0)
+    ):
+        raise ValueError("profile centroid members must be finite nonzero vectors")
+    return np.asarray(values / row_norms, dtype=np.float32, order="C")
+
+
+def _recompute_profile_centroid(member_matrix: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Mirror the constructor's float64 mean then float32 normalization exactly."""
+
+    normalized_members = _normalize_profile_members(member_matrix)
+    mean = np.mean(normalized_members, axis=0, dtype=np.float64)
+    values = np.asarray([mean], dtype=np.float32)
+    norm = np.linalg.norm(values, axis=1, keepdims=True)
+    if not np.isfinite(values).all() or not np.isfinite(norm).all() or np.any(norm == 0.0):
+        raise ValueError("profile centroid members do not define a finite nonzero mean")
+    return np.asarray(values / norm, dtype=np.float32)[0]
+
+
 def write_profile_artifacts(
     result: ProfileExperimentResult, output_dir: str | Path
 ) -> dict[str, str]:
@@ -966,11 +995,12 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
             member_matrix = record_embeddings[
                 np.asarray([record_positions[item] for item in cluster_members])
             ]
-            recomputed = np.mean(member_matrix, axis=0, dtype=np.float64)
-            recomputed = np.asarray(recomputed / np.linalg.norm(recomputed), dtype=np.float32)
+            recomputed = _recompute_profile_centroid(member_matrix)
             if not np.array_equal(recomputed, centroids[index]):
                 raise ValueError("centroid arithmetic disagrees with memberships")
-            similarities = np.asarray(member_matrix @ centroids[index], dtype=np.float32)
+            similarities = np.asarray(
+                member_matrix @ centroids[index], dtype=np.float32
+            )
             ranked_offsets = sorted(
                 range(len(cluster_members)),
                 key=lambda offset: (-float(similarities[offset]), cluster_members[offset]),
@@ -992,7 +1022,11 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
                 and cluster["medoid_record_id"]
                 == cluster_members[ranked_offsets[0]]
                 and cluster["representative_questions"] == representative_questions
-                and abs(float(cluster["dispersion"]) - expected_dispersion) <= 1e-7
+                # Construction and validation may take distinct float32 BLAS
+                # paths. Two float32 machine epsilons bound their observed
+                # dot-product rounding without masking a meaningful change.
+                and abs(float(cluster["dispersion"]) - expected_dispersion)
+                <= PROFILE_DIAGNOSTIC_ATOL
             )
             if not diagnostics_valid:
                 raise ValueError("cluster diagnostics disagree with embeddings")

@@ -1,0 +1,46 @@
+{
+  "advisor_decision": "approve_continuation_with_documented_deviation",
+  "artifact_type": "candidate_semantic_profiles_qrel_seal_deviation",
+  "classification": {
+    "literal_qrel_seal_violation": true,
+    "new_information_disclosed": false,
+    "semantic_relevance_exposure": false
+  },
+  "command": "sha256sum data/dev/llm_dev_qrels.txt",
+  "construction_two_existed_at_detection": false,
+  "detected_at": "2026-07-15T07:25:13-04:00",
+  "execution_time": {
+    "exact_wall_clock_available": false,
+    "reason": "the command runner did not expose a per-command timestamp",
+    "recorded_sequence": "after repeat-two artifact validation and CLI-fix commit, immediately before detection",
+    "upper_bound": "2026-07-15T07:25:13-04:00"
+  },
+  "git_state_at_detection": {
+    "branch": "codex/issue-12-candidate-profiles",
+    "commit": "567e46e3dd5d7a5a8fd7a078ec330d83834eca21",
+    "status": "clean"
+  },
+  "inference_artifacts": {
+    "pass_one_repaired_aggregate_sha256": "16c959174a6e844a2e960120645da5d65547508d1e8a8dd6acfa5827bc337d3b",
+    "repeat_two_aggregate_sha256": "fe765b36cadda7168f2aa73775be9fe9f224585e9c2dc4c3204f3d1d29524266",
+    "repeat_two_finalized_at": "2026-07-15T06:44:04.154273001-04:00"
+  },
+  "no_content_or_grade_parsing": true,
+  "no_qrel_content_printed": true,
+  "no_qrel_python_access": true,
+  "no_ranking_or_configuration_mutation": true,
+  "preexisting_tracked_digest_locations": [
+    "reports/trec_2026_response_retrieval_results.json",
+    "reports/trec_2026_response_volume_normalization_results.json",
+    "reports/trec_2026_source_query_first_results.json"
+  ],
+  "qrel_sha256": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
+  "required_continuation_controls": [
+    "run construction two with the qrel file absent or unmounted",
+    "freeze construction-two rankings before repeat comparison",
+    "require passing inference and construction repeat receipts",
+    "do not legitimately open qrels until both repeat gates pass"
+  ],
+  "stdout": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35  data/dev/llm_dev_qrels.txt",
+  "version": 1
+}

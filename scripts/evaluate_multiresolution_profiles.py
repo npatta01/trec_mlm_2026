@@ -38,7 +38,9 @@ def main(argv: list[str] | None = None) -> int:
         (Path(args.artifact) / "manifest.json").read_text(encoding="utf-8")
     )
     validate_viability_receipt(receipt, manifest.get("aggregate_sha256"))
-    payload = evaluate_multiresolution(args.artifact, args.qrels, args.output)
+    payload = evaluate_multiresolution(
+        args.artifact, args.viability_receipt, args.qrels, args.output
+    )
     print(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False))
     return 0
 

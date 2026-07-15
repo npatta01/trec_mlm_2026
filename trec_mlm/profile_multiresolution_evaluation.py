@@ -17,6 +17,7 @@ from trec_mlm.profile_experiment import load_profile_artifacts
 from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
     load_multiresolution_artifact,
+    validate_multiresolution_viability_receipt,
 )
 from trec_mlm.profile_retrieval import reciprocal_rank_fusion
 from trec_mlm.query_knn import load_complete_qrels
@@ -81,25 +82,11 @@ def validate_multiresolution_qrel_inventories(
 def validate_viability_receipt(
     payload: Mapping[str, Any], artifact_aggregate_sha256: str
 ) -> Mapping[str, Any]:
-    """Validate the qrel-free receipt that authorizes opening judgments."""
+    """Expose the centralized strict receipt validator for evaluation callers."""
 
-    checks = payload.get("integrity_checks")
-    authorized = (
-        payload.get("artifact_type")
-        == "issue18_multiresolution_viability_receipt"
-        and payload.get("version") == 1
-        and payload.get("qrel_free") is True
-        and payload.get("decision") == "continue"
-        and isinstance(checks, Mapping)
-        and bool(checks)
-        and all(value is True for value in checks.values())
-        and payload.get("failed_integrity_thresholds") == []
+    return validate_multiresolution_viability_receipt(
+        payload, artifact_aggregate_sha256
     )
-    if not authorized:
-        raise ValueError("viability receipt does not authorize diagnostic evaluation")
-    if payload.get("artifact_aggregate_sha256") != artifact_aggregate_sha256:
-        raise ValueError("viability receipt does not bind the evaluated artifact")
-    return payload
 
 
 def _metrics_payload(result: EvaluationResult) -> dict[str, Any]:
@@ -202,6 +189,7 @@ def _write_evaluation(payload: Mapping[str, Any], output_path: Path) -> None:
 
 def evaluate_multiresolution(
     artifact_path: str | Path,
+    viability_receipt_path: str | Path,
     qrels_path: str | Path,
     output_path: str | Path,
 ) -> dict[str, Any]:
@@ -214,9 +202,22 @@ def evaluate_multiresolution(
     manifest = _read_manifest(artifact_root)
     before = _construction_snapshot(artifact_root)
 
+    receipt_path = Path(viability_receipt_path)
+    try:
+        receipt_bytes = receipt_path.read_bytes()
+        receipt = json.loads(receipt_bytes)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("invalid viability receipt") from error
+    receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
+    if _sha256(receipt_path) != receipt_sha256:
+        raise RuntimeError("viability receipt changed while it was being loaded")
+    validate_viability_receipt(receipt, manifest["aggregate_sha256"])
+
     source = load_profile_artifacts(construction.config.construction_path)
     track_a_rankings = _track_a_rankings(construction, source)
 
+    if _sha256(receipt_path) != receipt_sha256:
+        raise RuntimeError("viability receipt changed before qrels were opened")
     qrels_file = Path(qrels_path)
     qrels_sha256 = _sha256(qrels_file)
     qrels = load_complete_qrels(qrels_file, expected_query_ids=construction.query_ids)
@@ -248,6 +249,7 @@ def evaluate_multiresolution(
         "promotion_permitted": False,
         "construction_aggregate_sha256": manifest["aggregate_sha256"],
         "source_issue12_aggregate_sha256": construction.config.source_aggregate_sha256,
+        "viability_receipt_sha256": receipt_sha256,
         "qrels_sha256": qrels_sha256,
         "query_count": len(construction.query_ids),
         "candidate_count": len(construction.candidate_ids),
@@ -298,6 +300,8 @@ def evaluate_multiresolution(
         raise RuntimeError("construction changed during evaluation") from error
     if before != after or manifest != after_manifest:
         raise RuntimeError("construction changed during evaluation")
+    if _sha256(receipt_path) != receipt_sha256:
+        raise RuntimeError("viability receipt changed during evaluation")
     payload["construction_integrity"] = {
         "status": "passed",
         "before_aggregate_sha256": manifest["aggregate_sha256"],

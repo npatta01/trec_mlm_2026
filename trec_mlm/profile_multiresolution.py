@@ -77,6 +77,30 @@ VIABILITY_THRESHOLDS: dict[str, tuple[str, float | int]] = {
     "incremental_candidate_coverage_retention": (">=", 0.90),
 }
 
+VIABILITY_INTEGRITY_CHECKS = frozenset(
+    {
+        "source_binding",
+        "query_identities",
+        "candidate_identities",
+        "official_322_by_150_coverage",
+        "complete_rankings",
+        "component_score_schema",
+        "system_score_schema",
+        "contributor_schema",
+        "finite_scores",
+        "ranking_score_consistency",
+        "normalized_centroids",
+    }
+)
+VIABILITY_COMPONENT_SYSTEMS = frozenset(
+    f"{label}_k{resolution}"
+    for resolution in LOCKED_RESOLUTIONS
+    for label in ("max", "top2")
+)
+VIABILITY_DIAGNOSTIC_SYSTEMS = frozenset(
+    {*VIABILITY_COMPONENT_SYSTEMS, *EXPECTED_SYSTEMS}
+)
+
 
 def _expected_artifact_files() -> set[str]:
     names = {
@@ -830,6 +854,207 @@ def _passes(value: float | int, operator: str, threshold: float | int) -> bool:
     if operator == "==":
         return value == threshold
     raise AssertionError(f"unsupported threshold operator: {operator}")
+
+
+def _finite_receipt_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and bool(np.isfinite(value))
+    )
+
+
+def validate_multiresolution_viability_receipt(
+    payload: Mapping[str, Any], artifact_aggregate_sha256: str
+) -> Mapping[str, Any]:
+    """Require the complete, internally consistent viability receipt."""
+
+    top_level_keys = {
+        "artifact_type",
+        "version",
+        "qrel_free",
+        "artifact_aggregate_sha256",
+        "decision",
+        "thresholds",
+        "integrity_checks",
+        "failed_thresholds",
+        "failed_integrity_thresholds",
+        "failed_incremental_thresholds",
+        "cluster_diagnostics",
+        "ranking_diagnostics",
+        "cost_evidence",
+        "repeat_authorized",
+    }
+    if set(payload) != top_level_keys:
+        raise ValueError("viability receipt schema is incomplete or changed")
+    if payload.get("artifact_aggregate_sha256") != artifact_aggregate_sha256:
+        raise ValueError("viability receipt does not bind the evaluated artifact")
+    if (
+        payload.get("artifact_type")
+        != "issue18_multiresolution_viability_receipt"
+        or payload.get("version") != 1
+        or payload.get("qrel_free") is not True
+    ):
+        raise ValueError("viability receipt schema is incomplete or changed")
+
+    integrity = payload.get("integrity_checks")
+    if (
+        not isinstance(integrity, Mapping)
+        or set(integrity) != VIABILITY_INTEGRITY_CHECKS
+        or not all(value is True for value in integrity.values())
+    ):
+        raise ValueError("viability receipt integrity checks are inconsistent")
+
+    cluster_diagnostics = payload.get("cluster_diagnostics")
+    cluster_fields = {"candidate_count", *tuple(VIABILITY_THRESHOLDS)[:8]}
+    if (
+        not isinstance(cluster_diagnostics, Mapping)
+        or set(cluster_diagnostics)
+        != {f"k{resolution}" for resolution in LOCKED_RESOLUTIONS}
+        or any(
+            not isinstance(values, Mapping)
+            or set(values) != cluster_fields
+            or any(not _finite_receipt_number(value) for value in values.values())
+            for values in cluster_diagnostics.values()
+        )
+    ):
+        raise ValueError("viability receipt cluster diagnostic schema changed")
+
+    ranking_diagnostics = payload.get("ranking_diagnostics")
+    base_ranking_fields = set(tuple(VIABILITY_THRESHOLDS)[8:12])
+    incremental_diagnostic_fields = {
+        "top10_difference_query_share",
+        "mean_top10_jaccard",
+        "unique_top10_retention",
+        "candidate_coverage_retention",
+    }
+    if (
+        not isinstance(ranking_diagnostics, Mapping)
+        or set(ranking_diagnostics) != VIABILITY_DIAGNOSTIC_SYSTEMS
+    ):
+        raise ValueError("viability receipt ranking diagnostic schema changed")
+    for system, values in ranking_diagnostics.items():
+        expected_fields = base_ranking_fields | (
+            incremental_diagnostic_fields if system in NEW_PROFILE_SYSTEMS else set()
+        )
+        if (
+            not isinstance(values, Mapping)
+            or set(values) != expected_fields
+            or any(not _finite_receipt_number(value) for value in values.values())
+        ):
+            raise ValueError("viability receipt ranking diagnostic schema changed")
+
+    thresholds = payload.get("thresholds")
+    if not isinstance(thresholds, Mapping) or set(thresholds) != set(
+        VIABILITY_THRESHOLDS
+    ):
+        raise ValueError("viability receipt threshold schema changed")
+    incremental_fields = {
+        "incremental_top10_difference_query_share": "top10_difference_query_share",
+        "incremental_mean_top10_jaccard": "mean_top10_jaccard",
+        "incremental_unique_top10_retention": "unique_top10_retention",
+        "incremental_candidate_coverage_retention": "candidate_coverage_retention",
+    }
+    for index, (name, (operator, threshold)) in enumerate(
+        VIABILITY_THRESHOLDS.items()
+    ):
+        item = thresholds[name]
+        if not isinstance(item, Mapping) or set(item) != {
+            "operator",
+            "threshold",
+            "values",
+            "passed",
+        }:
+            raise ValueError("viability receipt threshold schema changed")
+        if item["operator"] != operator or item["threshold"] != threshold:
+            raise ValueError("viability receipt threshold contract is inconsistent")
+        if index < 8:
+            expected_values = {
+                key: values[name] for key, values in cluster_diagnostics.items()
+            }
+        elif name in incremental_fields:
+            field = incremental_fields[name]
+            expected_values = {
+                system: ranking_diagnostics[system][field]
+                for system in NEW_PROFILE_SYSTEMS
+            }
+        else:
+            expected_values = {
+                system: values[name] for system, values in ranking_diagnostics.items()
+            }
+        values = item["values"]
+        if (
+            not isinstance(values, Mapping)
+            or dict(values) != expected_values
+            or any(not _finite_receipt_number(value) for value in values.values())
+        ):
+            raise ValueError("viability receipt thresholds and diagnostics are inconsistent")
+        recomputed_pass = all(
+            _passes(value, operator, threshold) for value in values.values()
+        )
+        if item["passed"] is not recomputed_pass or recomputed_pass is not True:
+            raise ValueError("viability receipt threshold pass state is inconsistent")
+
+    for field in (
+        "failed_thresholds",
+        "failed_integrity_thresholds",
+        "failed_incremental_thresholds",
+    ):
+        if payload.get(field) != []:
+            raise ValueError("viability receipt failure lists are inconsistent")
+
+    cost = payload.get("cost_evidence")
+    cost_keys = {
+        "issue12_construction_storage_bytes",
+        "multiresolution_artifact_storage_bytes",
+        "storage_ratio",
+        "storage_at_most_four_times_issue12",
+        "issue12_construction_elapsed_seconds",
+        "multiresolution_construction_elapsed_seconds",
+        "wall_time_ratio",
+        "wall_time_at_most_four_times_issue12",
+        "repeat_cost_authorized",
+    }
+    if not isinstance(cost, Mapping) or set(cost) != cost_keys:
+        raise ValueError("viability receipt cost schema changed")
+    numeric_cost_fields = cost_keys - {
+        "storage_at_most_four_times_issue12",
+        "wall_time_at_most_four_times_issue12",
+        "repeat_cost_authorized",
+    }
+    if any(not _finite_receipt_number(cost[field]) for field in numeric_cost_fields):
+        raise ValueError("viability receipt cost values are invalid")
+    source_storage = cost["issue12_construction_storage_bytes"]
+    artifact_storage = cost["multiresolution_artifact_storage_bytes"]
+    source_elapsed = cost["issue12_construction_elapsed_seconds"]
+    artifact_elapsed = cost["multiresolution_construction_elapsed_seconds"]
+    cost_consistent = (
+        source_storage > 0
+        and artifact_storage >= 0
+        and source_elapsed > 0
+        and artifact_elapsed >= 0
+        and cost["storage_ratio"] == artifact_storage / source_storage
+        and cost["wall_time_ratio"] == artifact_elapsed / source_elapsed
+        and cost["storage_at_most_four_times_issue12"]
+        is (artifact_storage <= 4 * source_storage)
+        and cost["wall_time_at_most_four_times_issue12"]
+        is (artifact_elapsed <= 4 * source_elapsed)
+        and cost["repeat_cost_authorized"]
+        is (
+            cost["storage_at_most_four_times_issue12"] is True
+            and cost["wall_time_at_most_four_times_issue12"] is True
+        )
+    )
+    if not cost_consistent:
+        raise ValueError("viability receipt cost evidence is inconsistent")
+
+    if (
+        payload.get("decision") != "continue"
+        or payload.get("repeat_authorized") is not True
+        or cost["repeat_cost_authorized"] is not True
+    ):
+        raise ValueError("viability receipt does not authorize diagnostic evaluation")
+    return payload
 
 
 def _threshold_receipt(

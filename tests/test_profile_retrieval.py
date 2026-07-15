@@ -117,6 +117,26 @@ def test_identical_embeddings_collapse_and_centroids_are_canonical() -> None:
     assert profile.clusters[0].medoid_record_id == records[0].record_id
 
 
+def test_requested_clusters_accepts_record_count_while_default_stays_capped() -> None:
+    records = tuple(_record(f"q{i:02d}", "A") for i in range(20))
+    embeddings = np.eye(20, dtype=np.float32)
+
+    explicit = canonical_kmeans(
+        "A",
+        records,
+        embeddings,
+        requested_clusters=20,
+        enforce_thread_contract=False,
+    )
+    default = canonical_kmeans(
+        "A", records, embeddings, enforce_thread_contract=False
+    )
+
+    assert explicit.requested_clusters == 20
+    assert len(explicit.clusters) == 20
+    assert default.requested_clusters == 10
+
+
 def test_clusters_use_stable_member_ids_and_representative_questions() -> None:
     records = (
         _record("z", "A", "same"),
@@ -149,6 +169,72 @@ def test_profile_scoring_uses_max_cosine_and_deterministic_ties() -> None:
 
     np.testing.assert_allclose(result.scores, [[1.0, 0.0]])
     assert result.winning_centroid_ids.tolist() == [[1, 0]]
+    assert result.rankings["q"] == ["A", "B"]
+
+
+def test_top_two_profile_scoring_uses_mean_and_records_contributors() -> None:
+    result = score_profiles(
+        query_ids=("q",),
+        candidate_ids=("A",),
+        query_embeddings=np.asarray([[1.0, 0.0]], dtype=np.float32),
+        profiles={"A": _profile("A", [[1.0, 0.0], [0.8, 0.6], [-1.0, 0.0]])},
+        top_n=2,
+    )
+
+    np.testing.assert_allclose(result.scores, [[0.9]])
+    assert result.winning_centroid_ids.tolist() == [[0]]
+    assert result.contributing_centroid_ids.tolist() == [[[0, 1]]]
+
+
+def test_top_two_profile_scoring_falls_back_to_one_occupied_centroid() -> None:
+    result = score_profiles(
+        query_ids=("q",),
+        candidate_ids=("A",),
+        query_embeddings=np.asarray([[1.0, 0.0]], dtype=np.float32),
+        profiles={"A": _profile("A", [[1.0, 0.0]])},
+        top_n=2,
+    )
+
+    np.testing.assert_allclose(result.scores, [[1.0]])
+    assert result.contributing_centroid_ids.tolist() == [[[0, -1]]]
+
+
+def test_top_n_contributors_break_exact_similarity_ties_by_centroid_id() -> None:
+    result = score_profiles(
+        query_ids=("q",),
+        candidate_ids=("A",),
+        query_embeddings=np.asarray([[1.0, 0.0]], dtype=np.float32),
+        profiles={"A": _profile("A", [[1.0, 1.0], [1.0, -1.0], [0.0, 1.0]])},
+        top_n=2,
+    )
+
+    assert result.contributing_centroid_ids.tolist() == [[[0, 1]]]
+
+
+def test_top_n_profile_scoring_rejects_nonfinite_inputs() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        score_profiles(
+            query_ids=("q",),
+            candidate_ids=("A",),
+            query_embeddings=np.asarray([[np.nan, 0.0]], dtype=np.float32),
+            profiles={"A": _profile("A", [[1.0, 0.0]])},
+            top_n=2,
+        )
+
+
+def test_top_n_profile_scoring_breaks_candidate_ties_by_candidate_id() -> None:
+    result = score_profiles(
+        query_ids=("q",),
+        candidate_ids=("B", "A"),
+        query_embeddings=np.asarray([[1.0, 0.0]], dtype=np.float32),
+        profiles={
+            "A": _profile("A", [[1.0, 0.0], [0.0, 1.0]]),
+            "B": _profile("B", [[1.0, 0.0], [0.0, 1.0]]),
+        },
+        top_n=2,
+    )
+
+    assert np.isfinite(result.scores).all()
     assert result.rankings["q"] == ["A", "B"]
 
 

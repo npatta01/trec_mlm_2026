@@ -731,3 +731,103 @@ def test_finalize_identity_failure_preserves_foreign_header_path(
     assert cache._state == "failed"
     assert header_path.exists()
     assert header_path.read_bytes() == foreign_payload
+
+
+class _RejectUnboundedRead:
+    def __init__(self, handle: Any, read_sizes: list[int]) -> None:
+        self._handle = handle
+        self._read_sizes = read_sizes
+
+    def read(self, size: int = -1) -> bytes:
+        self._read_sizes.append(size)
+        if size < 0:
+            raise AssertionError("header payload read must be bounded")
+        return self._handle.read(size)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._handle, name)
+
+
+def test_open_readonly_uses_a_bounded_header_payload_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "cache"
+    cache, _fit = _populate_one_fit_cache(root)
+    cache.finalize()
+    header_path = root / "header.json"
+    real_open_regular_binary = cache_module._open_regular_binary
+    read_sizes: list[int] = []
+
+    def guarded_open(path: Path) -> Any:
+        handle = real_open_regular_binary(path)
+        if path == header_path:
+            return _RejectUnboundedRead(handle, read_sizes)
+        return handle
+
+    monkeypatch.setattr(cache_module, "_open_regular_binary", guarded_open)
+
+    reopened = StreamingFitCache.open_readonly(root)
+
+    assert reopened._state == "finalized"
+    assert len(read_sizes) == 1
+    assert 0 < read_sizes[0] <= cache_module._CACHE_HEADER_BYTE_LIMIT + 1
+
+
+def test_open_readonly_rejects_oversized_sparse_header_before_payload_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "cache"
+    cache, _fit = _populate_one_fit_cache(root)
+    cache.finalize()
+    header_path = root / "header.json"
+    with header_path.open("r+b") as handle:
+        handle.truncate(cache_module._CACHE_HEADER_BYTE_LIMIT + 1)
+    real_open_regular_binary = cache_module._open_regular_binary
+    read_sizes: list[int] = []
+
+    def guarded_open(path: Path) -> Any:
+        handle = real_open_regular_binary(path)
+        if path == header_path:
+            return _RejectUnboundedRead(handle, read_sizes)
+        return handle
+
+    monkeypatch.setattr(cache_module, "_open_regular_binary", guarded_open)
+
+    with pytest.raises(ValueError, match="cache header exceeds"):
+        StreamingFitCache.open_readonly(root)
+
+    assert read_sizes == []
+
+
+def test_create_rejects_header_larger_than_reader_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    header = _valid_header()
+    header_bytes = _independent_canonical_json(header) + b"\n"
+    monkeypatch.setattr(
+        cache_module,
+        "_CACHE_HEADER_BYTE_LIMIT",
+        len(header_bytes) - 1,
+        raising=False,
+    )
+    root = tmp_path / "cache"
+
+    with pytest.raises(ValueError, match="cache header exceeds"):
+        StreamingFitCache.create(root, header=header)
+
+    assert not root.exists()
+
+
+def test_header_at_exact_reader_byte_limit_round_trips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    header = _valid_header()
+    header_size = len(_independent_canonical_json(header)) + 1
+    monkeypatch.setattr(cache_module, "_CACHE_HEADER_BYTE_LIMIT", header_size)
+    root = tmp_path / "cache"
+    cache, _fit = _populate_one_fit_cache(root, header=header)
+
+    cache.finalize()
+
+    assert (root / "header.json").stat().st_size == header_size
+    assert StreamingFitCache.open_readonly(root)._state == "finalized"

@@ -150,6 +150,11 @@ _TIMING_KEYS = {
     "n_iter",
 }
 
+# The authoritative header is small relative to its multi-gigabyte shards.  A
+# finite ceiling keeps a corrupt sparse header from becoming an unbounded read,
+# while leaving ample room for the complete preregistered inventory.
+_CACHE_HEADER_BYTE_LIMIT = 16 * 1024 * 1024
+
 
 @dataclass(frozen=True, slots=True)
 class StoredFitRecord:
@@ -319,8 +324,14 @@ def _validate_header(header: object) -> dict[str, object]:
         raise ValueError("cache header expected counts are inconsistent")
 
     try:
-        owned = json.loads(canonical_json(header))
-    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        canonical_payload = canonical_json(header)
+    except (TypeError, ValueError) as error:
+        raise ValueError("cache header is not canonical JSON data") from error
+    if len(canonical_payload) + 1 > _CACHE_HEADER_BYTE_LIMIT:
+        raise ValueError("cache header exceeds its conservative byte limit")
+    try:
+        owned = json.loads(canonical_payload)
+    except (UnicodeError, json.JSONDecodeError) as error:
         raise ValueError("cache header is not canonical JSON data") from error
     if type(owned) is not dict:
         raise ValueError("cache header is not an object")
@@ -725,7 +736,22 @@ def _parse_canonical_json_record(payload: bytes, *, label: str) -> dict[str, obj
 def _read_header(root: Path) -> dict[str, object]:
     handle = _open_regular_binary(root / "header.json")
     try:
-        payload = handle.read()
+        try:
+            header_size = os.fstat(handle.fileno()).st_size
+        except (OSError, ValueError) as error:
+            raise ValueError("cache header byte length cannot be inspected") from error
+        if header_size < 0:
+            raise ValueError("cache header has an invalid byte length")
+        if header_size > _CACHE_HEADER_BYTE_LIMIT:
+            raise ValueError("cache header exceeds its conservative byte limit")
+        try:
+            payload = handle.read(header_size + 1)
+        except OSError as error:
+            raise ValueError("cache header cannot be read") from error
+        if type(payload) is not bytes:
+            raise ValueError("cache header read did not return bytes")
+        if len(payload) != header_size:
+            raise ValueError("cache header byte length changed while being read")
     except BaseException:
         _close_handles((handle,), suppress_errors=True)
         raise

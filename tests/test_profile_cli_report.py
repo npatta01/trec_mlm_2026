@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from scripts.build_candidate_profile_report import build_report
+from trec_mlm import cli, profile_inference_artifact
 from trec_mlm.cli import build_parser
 
 
@@ -85,6 +87,48 @@ def test_profile_infer_is_qrel_free_and_fixed() -> None:
     )
     assert not any("qrel" in key for key in vars(args))
     assert not hasattr(args, "batch_size")
+
+
+def test_profile_infer_writes_execution_receipt_after_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "inference"
+    execution = tmp_path / "execution.json"
+    result = SimpleNamespace(metadata={"qrel_free": True})
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "run_profile_inference_artifact",
+        lambda config: result,
+    )
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "write_profile_inference_artifacts",
+        lambda value, destination: {"manifest.json": str(Path(destination) / "manifest.json")},
+    )
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "build_profile_inference_execution_receipt",
+        lambda destination: {"status": "fresh", "artifact": str(destination)},
+    )
+
+    status = cli.main(
+        [
+            "profile-infer",
+            "--queries", "q.tsv",
+            "--discovery", "d.json",
+            "--candidates", "c.json",
+            "--e5-artifact", "e5",
+            "--smoke-repeat-receipt", "smoke.json",
+            "--output-dir", str(output),
+            "--execution-receipt", str(execution),
+        ]
+    )
+
+    assert status == 0
+    assert json.loads(execution.read_text(encoding="utf-8")) == {
+        "artifact": str(output),
+        "status": "fresh",
+    }
 
 
 def test_profile_infer_repair_is_qrel_free_and_bounded() -> None:

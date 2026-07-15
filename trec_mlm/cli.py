@@ -459,7 +459,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "profile-infer-repeat-check":
-        from pathlib import Path
         from trec_mlm.profile_inference_artifact import (
             compare_profile_inference_repeats,
         )
@@ -476,7 +475,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "profile-infer-repair-v1":
-        from pathlib import Path
         from trec_mlm.profile_inference_artifact import (
             repair_legacy_profile_inference_artifact,
         )
@@ -529,7 +527,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "profile-repeat-check":
-        from pathlib import Path
         from trec_mlm.profile_experiment import compare_profile_repeats
 
         receipt = compare_profile_repeats(

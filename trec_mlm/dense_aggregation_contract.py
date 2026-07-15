@@ -56,6 +56,7 @@ _LOWERCASE_HEX = frozenset("0123456789abcdef")
 
 
 IMPLEMENTATION_FILES: tuple[str, ...] = (
+    "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
     "trec_mlm/dense_aggregation_contract.py",
     "trec_mlm/dense_aggregation_entrypoint.py",

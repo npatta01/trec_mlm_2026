@@ -97,6 +97,7 @@ EXPECTED_VERSIONS = {
     "scikit_learn": "1.9.0",
 }
 EXPECTED_IMPLEMENTATION_FILES = (
+    "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
     "trec_mlm/dense_aggregation_contract.py",
     "trec_mlm/dense_aggregation_entrypoint.py",

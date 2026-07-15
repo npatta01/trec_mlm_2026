@@ -249,12 +249,21 @@ def _patch_loaders(
         else json.loads((source.root.parent / "viability.json").read_text())
     )
     multi.source_snapshot = source
+    if not hasattr(multi, "artifact_token"):
+        multi.artifact_token = SimpleNamespace(
+            aggregate_sha256="a" * 64,
+            entries=(),
+        )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation.load_issue18_frozen_snapshot",
         lambda _: multi,
     )
     monkeypatch.setattr(
         "trec_mlm.profile_multiresolution_evaluation.validate_issue12_source_snapshot",
+        lambda _: None,
+    )
+    monkeypatch.setattr(
+        "trec_mlm.profile_multiresolution_evaluation.validate_frozen_tree_token",
         lambda _: None,
     )
 
@@ -314,6 +323,55 @@ def test_invalid_or_unfrozen_artifact_is_rejected_before_qrels(
             tmp_path / "out.json",
         )
     assert opened is False
+
+
+def test_artifact_mutation_after_loader_return_is_rejected_before_qrels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_mlm import profile_multiresolution as multiresolution
+    from trec_mlm import profile_multiresolution_evaluation as module
+
+    root, multi, source = _construction(tmp_path)
+    empty_aggregate = multiresolution._aggregate_hash({})
+    (root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "issue18_multiresolution_profile_manifest",
+                "version": 1,
+                "qrel_free": True,
+                "files": {},
+                "aggregate_sha256": empty_aggregate,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    multi.artifact_token = multiresolution._capture_frozen_tree_token(root)
+    original_validate_token = multiresolution.validate_frozen_tree_token
+    _patch_loaders(monkeypatch, multi, source)
+    monkeypatch.setattr(module, "validate_frozen_tree_token", original_validate_token)
+
+    def load_then_mutate(_path):
+        (root / "manifest.json").write_text("changed after validation\n")
+        return multi
+
+    monkeypatch.setattr(module, "load_issue18_frozen_snapshot", load_then_mutate)
+    qrels_path = tmp_path / "qrels"
+    original_sha256 = module._sha256
+
+    def guard_qrels(path):
+        if Path(path) == qrels_path:
+            raise AssertionError("mutated artifact reached qrel hashing")
+        return original_sha256(path)
+
+    monkeypatch.setattr(module, "_sha256", guard_qrels)
+    with pytest.raises(ValueError, match="tree token|manifest token"):
+        evaluate_multiresolution(
+            root,
+            tmp_path / "viability.json",
+            qrels_path,
+            tmp_path / "evaluation.json",
+        )
 
 
 def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
@@ -723,22 +781,18 @@ def test_evaluation_detects_any_construction_change(
 ) -> None:
     root, multi, source = _construction(tmp_path)
 
-    from trec_mlm import profile_multiresolution_evaluation as module
-
-    original_snapshot = module._construction_snapshot
     calls = 0
 
-    def mutate_before_second_snapshot(path):
+    def fail_second_validation(_token):
         nonlocal calls
         calls += 1
         if calls == 2:
-            (root / "manifest.json").write_text("changed\n")
-        return original_snapshot(path)
+            raise ValueError("artifact token changed")
 
     _patch_loaders(monkeypatch, multi, source)
     monkeypatch.setattr(
-        "trec_mlm.profile_multiresolution_evaluation._construction_snapshot",
-        mutate_before_second_snapshot,
+        "trec_mlm.profile_multiresolution_evaluation.validate_frozen_tree_token",
+        fail_second_validation,
     )
     with pytest.raises(RuntimeError, match="construction changed"):
         evaluate_multiresolution(

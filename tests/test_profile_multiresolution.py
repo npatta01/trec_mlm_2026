@@ -170,6 +170,71 @@ def test_frozen_manifest_rejects_alternate_self_consistent_aggregate(
         )
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "records.json",
+        "query_embeddings.npy",
+        "record_embeddings.npy",
+        "profiles.json",
+    ),
+)
+def test_issue12_snapshot_token_detects_every_direct_bound_file_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    relative_path: str,
+) -> None:
+    from trec_mlm import profile_multiresolution as module
+
+    for name in (
+        "records.json",
+        "query_embeddings.npy",
+        "record_embeddings.npy",
+        "profiles.json",
+        "inputs.json",
+    ):
+        (tmp_path / name).write_bytes(f"original:{name}\n".encode())
+    entries = {
+        name: {
+            "byte_size": (tmp_path / name).stat().st_size,
+            "sha256": hashlib.sha256((tmp_path / name).read_bytes()).hexdigest(),
+        }
+        for name in (
+            "records.json",
+            "query_embeddings.npy",
+            "record_embeddings.npy",
+            "profiles.json",
+            "inputs.json",
+        )
+    }
+    aggregate = module._aggregate_hash(entries)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "candidate_semantic_profile_manifest",
+                "version": 2,
+                "qrel_free": True,
+                "files": entries,
+                "aggregate_sha256": aggregate,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "EVALUATED_CONSTRUCTION_PATH", str(tmp_path))
+    monkeypatch.setattr(module, "EVALUATED_CONSTRUCTION_AGGREGATE_SHA256", aggregate)
+    token = module._capture_frozen_tree_token(tmp_path)
+    snapshot = SimpleNamespace(
+        root=tmp_path,
+        tree_token=token,
+        manifest=json.loads((tmp_path / "manifest.json").read_text()),
+    )
+
+    (tmp_path / relative_path).write_bytes(b"changed\n")
+    with pytest.raises(ValueError, match="token|file changed"):
+        module.validate_issue12_source_snapshot(snapshot)
+
+
 def test_viability_repair_locks_external_canonical_receipt_path(tmp_path: Path) -> None:
     from scripts import run_multiresolution_profiles as script
 

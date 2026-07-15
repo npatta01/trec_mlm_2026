@@ -194,6 +194,14 @@ class MultiResolutionConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class FrozenTreeToken:
+    root: Path
+    manifest_sha256: str
+    aggregate_sha256: str
+    entries: tuple[tuple[str, int, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Issue12SourceSnapshot:
     root: Path
     manifest: dict[str, Any]
@@ -203,6 +211,7 @@ class Issue12SourceSnapshot:
     source_rankings: dict[str, dict[str, list[str]]]
     rankings: dict[str, dict[str, list[str]]]
     scores: dict[str, NDArray[np.float32]]
+    tree_token: FrozenTreeToken
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +231,7 @@ class MultiResolutionResult:
     rankings: dict[str, dict[str, list[str]]]
     system_scores: dict[str, NDArray[np.float32]]
     source_snapshot: Issue12SourceSnapshot | None = None
+    artifact_token: FrozenTreeToken | None = None
 
 
 def _validate_config(config: MultiResolutionConfig) -> None:
@@ -994,6 +1004,63 @@ def _validate_frozen_manifest(
     return manifest, entries
 
 
+def _capture_frozen_tree_token(root: str | Path) -> FrozenTreeToken:
+    path = Path(root)
+    manifest_path = path / "manifest.json"
+    manifest = _read_json(manifest_path)
+    entries = manifest.get("files")
+    aggregate = manifest.get("aggregate_sha256")
+    if not isinstance(entries, dict) or not isinstance(aggregate, str):
+        raise ValueError("cannot capture invalid frozen tree token")
+    return FrozenTreeToken(
+        root=path.resolve(),
+        manifest_sha256=_sha256(manifest_path),
+        aggregate_sha256=aggregate,
+        entries=tuple(
+            (name, int(entries[name]["byte_size"]), str(entries[name]["sha256"]))
+            for name in sorted(entries)
+        ),
+    )
+
+
+def validate_frozen_tree_token(token: FrozenTreeToken) -> None:
+    """Require the exact manifest bytes, inventory, sizes, and hashes in one token."""
+
+    root = token.root
+    manifest_path = root / "manifest.json"
+    try:
+        manifest_sha256 = _sha256(manifest_path)
+        manifest = _read_json(manifest_path)
+    except (OSError, ValueError) as error:
+        raise ValueError("frozen tree manifest token changed") from error
+    entries = manifest.get("files")
+    token_entries = {
+        name: {"byte_size": byte_size, "sha256": sha256}
+        for name, byte_size, sha256 in token.entries
+    }
+    actual = {
+        item.relative_to(root).as_posix()
+        for item in root.rglob("*")
+        if item.is_file() and item.relative_to(root).as_posix() != "manifest.json"
+    }
+    if (
+        manifest_sha256 != token.manifest_sha256
+        or not isinstance(entries, dict)
+        or entries != token_entries
+        or actual != set(token_entries)
+        or manifest.get("aggregate_sha256") != token.aggregate_sha256
+        or _aggregate_hash(entries) != token.aggregate_sha256
+    ):
+        raise ValueError("frozen tree manifest token changed")
+    for name, expected in token_entries.items():
+        target = root / name
+        if (
+            target.stat().st_size != expected["byte_size"]
+            or _sha256(target) != expected["sha256"]
+        ):
+            raise ValueError(f"frozen tree token file changed: {name}")
+
+
 def _validate_normalized_matrix(
     matrix: NDArray[np.float32],
     *,
@@ -1069,6 +1136,7 @@ def _load_issue12_source_snapshot(path: str | Path) -> Issue12SourceSnapshot:
         version=2,
         aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
     )
+    tree_token = _capture_frozen_tree_token(root)
     if _read_json(root / "config.json") != ISSUE12_SOURCE_CONFIG:
         raise ValueError("issue-12 source config differs from the exact locked config")
     inputs = _read_json(root / "inputs.json")
@@ -1116,24 +1184,19 @@ def _load_issue12_source_snapshot(path: str | Path) -> Issue12SourceSnapshot:
             loaded[name], matrix, query_ids, candidate_ids
         )
 
-    required_names = {
-        "config.json",
-        "inputs.json",
-        "profile_scores.npy",
-        "scores/dense_profile_equal.npy",
-        *(f"rankings/{name}.json" for name in (*source_names, *ranking_names)),
-        *(f"runs/{name}.trec" for name in (*source_names, *ranking_names)),
-    }
-    return Issue12SourceSnapshot(
+    snapshot = Issue12SourceSnapshot(
         root=root,
         manifest=manifest,
-        required_file_entries={name: dict(entries[name]) for name in required_names},
+        required_file_entries={name: dict(entry) for name, entry in entries.items()},
         query_ids=query_ids,
         candidate_ids=candidate_ids,
         source_rankings={name: loaded[name] for name in source_names},
         rankings={name: loaded[name] for name in ranking_names},
         scores=scores,
+        tree_token=tree_token,
     )
+    validate_frozen_tree_token(tree_token)
+    return snapshot
 
 
 def validate_issue12_source_snapshot(snapshot: Issue12SourceSnapshot) -> None:
@@ -1141,30 +1204,13 @@ def validate_issue12_source_snapshot(snapshot: Issue12SourceSnapshot) -> None:
 
     if snapshot.root.resolve() != Path(EVALUATED_CONSTRUCTION_PATH).resolve():
         raise ValueError("issue-12 source snapshot root changed")
-    observed = _read_json(snapshot.root / "manifest.json")
-    entries = observed.get("files")
-    actual = {
-        item.relative_to(snapshot.root).as_posix()
-        for item in snapshot.root.rglob("*")
-        if item.is_file()
-        and item.relative_to(snapshot.root).as_posix() != "manifest.json"
-    }
     if (
-        observed != snapshot.manifest
-        or not isinstance(entries, dict)
-        or actual != set(entries)
-        or observed.get("aggregate_sha256") != EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
-        or _aggregate_hash(entries) != EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
+        snapshot.tree_token.aggregate_sha256
+        != EVALUATED_CONSTRUCTION_AGGREGATE_SHA256
+        or len(snapshot.tree_token.entries) != len(snapshot.manifest.get("files", {}))
     ):
         raise ValueError("issue-12 source manifest token changed")
-    for name, expected in snapshot.required_file_entries.items():
-        target = snapshot.root / name
-        if (
-            entries.get(name) != expected
-            or target.stat().st_size != expected["byte_size"]
-            or _sha256(target) != expected["sha256"]
-        ):
-            raise ValueError(f"issue-12 required source file changed: {name}")
+    validate_frozen_tree_token(snapshot.tree_token)
 
 
 def _validate_stored_profile_schema(
@@ -1298,6 +1344,7 @@ def load_issue18_frozen_snapshot(path: str | Path) -> MultiResolutionResult:
         aggregate_sha256=ISSUE18_FROZEN_AGGREGATE_SHA256,
         expected_files=_expected_artifact_files(),
     )
+    artifact_token = _capture_frozen_tree_token(root)
 
     config_values = asdict(MultiResolutionConfig())
     config_values["resolutions"] = list(config_values["resolutions"])
@@ -1453,6 +1500,8 @@ def load_issue18_frozen_snapshot(path: str | Path) -> MultiResolutionResult:
     ):
         raise ValueError("stored C0 content differs directly from issue-12")
 
+    validate_issue12_source_snapshot(source_snapshot)
+    validate_frozen_tree_token(artifact_token)
     return MultiResolutionResult(
         config=config,
         source_aggregate_sha256=EVALUATED_CONSTRUCTION_AGGREGATE_SHA256,
@@ -1469,6 +1518,7 @@ def load_issue18_frozen_snapshot(path: str | Path) -> MultiResolutionResult:
         rankings=rankings,
         system_scores=system_scores,
         source_snapshot=source_snapshot,
+        artifact_token=artifact_token,
     )
 
 
@@ -2310,6 +2360,7 @@ __all__ = [
     "EVALUATED_CONSTRUCTION_AGGREGATE_SHA256",
     "EVALUATED_CONSTRUCTION_PATH",
     "EXPECTED_SYSTEMS",
+    "FrozenTreeToken",
     "ISSUE18_FROZEN_AGGREGATE_SHA256",
     "ISSUE18_FROZEN_ARTIFACT_PATH",
     "Issue12SourceSnapshot",
@@ -2321,6 +2372,7 @@ __all__ = [
     "construct_multiresolution",
     "load_issue18_frozen_snapshot",
     "load_multiresolution_artifact",
+    "validate_frozen_tree_token",
     "validate_issue12_source_snapshot",
     "write_multiresolution_receipt",
     "write_multiresolution_artifact",

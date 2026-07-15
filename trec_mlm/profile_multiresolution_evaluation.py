@@ -17,6 +17,7 @@ from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
     ISSUE18_FROZEN_ARTIFACT_PATH,
     load_issue18_frozen_snapshot,
+    validate_frozen_tree_token,
     validate_issue12_source_snapshot,
     validate_multiresolution_viability_receipt,
 )
@@ -46,30 +47,6 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _construction_snapshot(root: Path) -> dict[str, dict[str, int | str]]:
-    if not root.is_dir():
-        raise ValueError(f"construction artifact is not a directory: {root}")
-    return {
-        path.relative_to(root).as_posix(): {
-            "byte_size": path.stat().st_size,
-            "sha256": _sha256(path),
-        }
-        for path in sorted(root.rglob("*"))
-        if path.is_file()
-    }
-
-
-def _read_manifest(root: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError("invalid frozen construction manifest") from error
-    aggregate = payload.get("aggregate_sha256")
-    if not isinstance(aggregate, str) or len(aggregate) != 64:
-        raise ValueError("invalid frozen construction aggregate hash")
-    return payload
 
 
 def validate_multiresolution_qrel_inventories(
@@ -218,8 +195,9 @@ def evaluate_multiresolution(
     destination = Path(output_path)
     _validate_sealed_paths(artifact_root, receipt_path, qrels_file, destination)
     construction = load_issue18_frozen_snapshot(artifact_root)
-    manifest = _read_manifest(artifact_root)
-    before = _construction_snapshot(artifact_root)
+    artifact_token = construction.artifact_token
+    if artifact_token is None:
+        raise ValueError("frozen construction lacks its immutable artifact token")
 
     try:
         receipt_bytes = receipt_path.read_bytes()
@@ -240,6 +218,7 @@ def evaluate_multiresolution(
     track_a_rankings = _track_a_rankings(construction, source)
 
     validate_issue12_source_snapshot(source)
+    validate_frozen_tree_token(artifact_token)
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed before qrels were opened")
     qrels_sha256 = _sha256(qrels_file)
@@ -272,7 +251,7 @@ def evaluate_multiresolution(
         "independent_validation": False,
         "source_query_set_previously_seen": True,
         "promotion_permitted": False,
-        "construction_aggregate_sha256": manifest["aggregate_sha256"],
+        "construction_aggregate_sha256": artifact_token.aggregate_sha256,
         "source_issue12_aggregate_sha256": construction.config.source_aggregate_sha256,
         "viability_decision": viability_decision,
         "viability_receipt_sha256": receipt_sha256,
@@ -312,19 +291,16 @@ def evaluate_multiresolution(
         },
         "construction_integrity": {
             "status": "pending_post_evaluation_check",
-            "before_aggregate_sha256": manifest["aggregate_sha256"],
+            "before_aggregate_sha256": artifact_token.aggregate_sha256,
             "after_aggregate_sha256": None,
             "complete_tree_unchanged": False,
         },
     }
 
     try:
-        after_manifest = _read_manifest(artifact_root)
-        after = _construction_snapshot(artifact_root)
+        validate_frozen_tree_token(artifact_token)
     except (OSError, ValueError) as error:
         raise RuntimeError("construction changed during evaluation") from error
-    if before != after or manifest != after_manifest:
-        raise RuntimeError("construction changed during evaluation")
     if _sha256(receipt_path) != receipt_sha256:
         raise RuntimeError("viability receipt changed during evaluation")
     try:
@@ -333,10 +309,10 @@ def evaluate_multiresolution(
         raise RuntimeError("issue-12 source changed during evaluation") from error
     payload["construction_integrity"] = {
         "status": "passed",
-        "before_aggregate_sha256": manifest["aggregate_sha256"],
-        "after_aggregate_sha256": after_manifest["aggregate_sha256"],
+        "before_aggregate_sha256": artifact_token.aggregate_sha256,
+        "after_aggregate_sha256": artifact_token.aggregate_sha256,
         "complete_tree_unchanged": True,
-        "file_count": len(before),
+        "file_count": len(artifact_token.entries) + 1,
     }
     _write_evaluation(payload, destination)
     return payload

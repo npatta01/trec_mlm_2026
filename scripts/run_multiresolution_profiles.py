@@ -15,6 +15,7 @@ from trec_mlm.profile_multiresolution import (
     assess_multiresolution_viability,
     compare_multiresolution_artifacts,
     construct_multiresolution,
+    load_multiresolution_artifact,
     write_multiresolution_artifact,
     write_multiresolution_receipt,
 )
@@ -30,11 +31,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--viability-receipt",
         help="write the qrel-free viability and cost receipt to this new path",
-    )
-    parser.add_argument(
-        "--repeat-construction",
-        action="store_true",
-        help="construct a fresh repeat only after validating pass-one authorization",
     )
     parser.add_argument(
         "--first-artifact",
@@ -62,9 +58,9 @@ def _comparison_mode(args: argparse.Namespace) -> bool:
         args.repeat_artifact,
         args.repeatability_receipt,
     )
-    if any(values) and not all(values):
+    if (args.repeat_artifact or args.repeatability_receipt) and not all(values):
         raise ValueError("repeat comparison mode requires all four repeat arguments")
-    return all(values)
+    return bool(args.repeat_artifact and args.repeatability_receipt)
 
 
 def _load_repeat_authorization(args: argparse.Namespace) -> dict[str, object]:
@@ -103,6 +99,9 @@ def _load_repeat_authorization(args: argparse.Namespace) -> dict[str, object]:
     )
     if not authorized:
         raise ValueError("pass-one viability and cost receipt does not authorize repeat")
+    first_artifact = load_multiresolution_artifact(args.first_artifact)
+    if first_artifact.config != MultiResolutionConfig():
+        raise ValueError("repeat authorization source is not canonical pass-one")
     try:
         first_manifest = json.loads(
             (Path(args.first_artifact) / "manifest.json").read_text(encoding="utf-8")
@@ -130,13 +129,18 @@ def _run_repeat_comparison(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_pass_one(args: argparse.Namespace) -> int:
+def _load_config(args: argparse.Namespace) -> MultiResolutionConfig:
     payload = json.loads(Path(args.config).read_text(encoding="utf-8"))
     expected = {field.name for field in fields(MultiResolutionConfig)}
     if set(payload) != expected:
         raise ValueError("config fields differ from MultiResolutionConfig")
     payload["resolutions"] = tuple(payload["resolutions"])
-    config = MultiResolutionConfig(**payload)
+    return MultiResolutionConfig(**payload)
+
+
+def _run_construction(
+    args: argparse.Namespace, config: MultiResolutionConfig
+) -> int:
     started = time.perf_counter()
     result = construct_multiresolution(config)
     paths = write_multiresolution_artifact(result, config.output_root)
@@ -174,16 +178,21 @@ def _run_pass_one(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.repeat_construction:
-        if args.repeat_artifact or args.repeatability_receipt:
-            raise ValueError(
-                "repeat construction and repeat comparison are separate CLI modes"
-            )
-        _load_repeat_authorization(args)
-        return _run_pass_one(args)
     if _comparison_mode(args):
         return _run_repeat_comparison(args)
-    return _run_pass_one(args)
+    config = _load_config(args)
+    if config == MultiResolutionConfig():
+        if args.first_artifact or args.first_viability_receipt:
+            raise ValueError(
+                "canonical pass-one construction cannot accept repeat authorization"
+            )
+        if Path(config.output_root).exists():
+            raise FileExistsError(
+                f"canonical pass-one artifact already exists: {config.output_root}"
+            )
+    else:
+        _load_repeat_authorization(args)
+    return _run_construction(args, config)
 
 
 if __name__ == "__main__":

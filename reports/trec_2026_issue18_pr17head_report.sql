@@ -38,4 +38,3 @@ WITH ablations(comparison, mean_delta, lower, upper, zero_change) AS (
     ('X1 minus Track A', -0.00122, -0.02568, 0.02310, -8)
 )
 SELECT * FROM ablations;
-

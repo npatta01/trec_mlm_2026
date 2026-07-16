@@ -396,6 +396,17 @@ def load_label_experiment_artifacts(
     return _load_label_experiment_artifacts(artifact_dir)
 
 
+def load_frozen_legacy_label_experiment_artifacts(
+    artifact_dir: str | Path,
+) -> LabelExperimentResult:
+    """Load the pinned externally frozen legacy artifact schema."""
+
+    return _load_label_experiment_artifacts(
+        artifact_dir,
+        allow_frozen_legacy_provenance=True,
+    )
+
+
 def _load_label_experiment_artifacts(
     artifact_dir: str | Path,
     *,
@@ -723,6 +734,7 @@ __all__ = [
     "LabelExperimentConfig",
     "LabelExperimentResult",
     "load_candidate_manifest",
+    "load_frozen_legacy_label_experiment_artifacts",
     "load_label_experiment_artifacts",
     "run_label_experiment",
     "write_label_experiment_artifacts",

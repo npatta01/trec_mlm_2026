@@ -19,11 +19,17 @@ from zoneinfo import ZoneInfo
 import numpy as np
 from numpy.typing import NDArray
 
+from trec_mlm.artifact_io import (
+    length_framed_sha256,
+    manifest_aggregate_sha256,
+    sha256_file,
+    write_pretty_json,
+)
 from trec_mlm.profile_experiment import (
-    _profile_to_json,
-    _recompute_profile_centroid,
-    _validate_complete_rankings,
     load_profile_artifacts,
+    profile_to_json as _profile_to_json,
+    recompute_profile_centroid as _recompute_profile_centroid,
+    validate_complete_rankings as _validate_complete_rankings,
 )
 from trec_mlm.profile_retrieval import (
     CandidateProfile,
@@ -403,13 +409,7 @@ def validate_multiresolution_config(config: MultiResolutionConfig) -> None:
         raise ValueError("source_aggregate_sha256 must be a lowercase SHA-256")
 
 
-def _length_framed_hash(values: Sequence[str]) -> str:
-    digest = hashlib.sha256()
-    for value in values:
-        encoded = value.encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return digest.hexdigest()
+_length_framed_hash = length_framed_sha256
 
 
 def _read_json(path: Path) -> Any:
@@ -419,12 +419,7 @@ def _read_json(path: Path) -> Any:
         raise ValueError(f"invalid artifact JSON: {path.name}") from error
 
 
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+_write_json = write_pretty_json
 
 
 def _json_native_profile_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -454,22 +449,8 @@ def _json_native_profile_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _aggregate_hash(files: Mapping[str, Mapping[str, Any]]) -> str:
-    entries = [
-        [name, int(files[name]["byte_size"]), str(files[name]["sha256"])]
-        for name in sorted(files)
-    ]
-    return hashlib.sha256(
-        json.dumps(entries, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+_sha256 = sha256_file
+_aggregate_hash = manifest_aggregate_sha256
 
 
 def _profiles_from_payload(

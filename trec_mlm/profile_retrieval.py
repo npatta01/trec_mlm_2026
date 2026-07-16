@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-import hashlib
 import os
 import warnings
 from typing import Any
@@ -13,6 +12,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from trec_mlm.artifact_io import length_framed_sha256
 from trec_mlm.response_retrieval import DiscoveryRecord, response_filter_reason
 
 
@@ -115,13 +115,7 @@ class RRFResult:
     rankings: dict[str, list[str]]
 
 
-def _length_framed_hash(values: Sequence[str]) -> str:
-    digest = hashlib.sha256()
-    for value in values:
-        encoded = value.encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return digest.hexdigest()
+_length_framed_hash = length_framed_sha256
 
 
 def canonical_profile_record_id(

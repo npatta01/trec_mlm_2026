@@ -11,10 +11,9 @@ from unittest import mock
 
 import numpy as np
 
-from trec_mlm import cli
+from trec_mlm import cli, label_experiment
 from trec_mlm.label_experiment import (
     LabelExperimentConfig,
-    _load_label_experiment_artifacts,
     _run_label_experiment_with_embeddings,
     load_label_experiment_artifacts,
     run_label_experiment,
@@ -141,6 +140,19 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
         )
         self.assertEqual("expert_capability", self.config.label_representation)
 
+    def test_public_loader_signature_has_no_legacy_provenance_opt_in(self) -> None:
+        self.assertEqual(
+            ["artifact_dir"],
+            list(inspect.signature(load_label_experiment_artifacts).parameters),
+        )
+
+    def test_public_loader_rejects_legacy_provenance_opt_in_keyword(self) -> None:
+        with self.assertRaises(TypeError):
+            load_label_experiment_artifacts(
+                self.root / "missing",
+                allow_frozen_legacy_provenance=True,
+            )
+
     def test_ranking_succeeds_without_any_judgment_file(self) -> None:
         result = self._run()
 
@@ -204,7 +216,7 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
         with self.assertRaisesRegex(FileExistsError, "exists"):
             write_label_experiment_artifacts(self._run(), destination)
 
-    def test_frozen_legacy_provenance_requires_explicit_private_compatibility(self) -> None:
+    def test_frozen_legacy_provenance_requires_explicit_compatibility_loader(self) -> None:
         destination = self.root / "legacy_artifact"
         write_label_experiment_artifacts(self._run(), destination)
         config_path = destination / "config.json"
@@ -230,9 +242,15 @@ class QrelFreeLabelExperimentTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "resolved config contract"):
             load_label_experiment_artifacts(destination)
-        loaded = _load_label_experiment_artifacts(
-            destination, allow_frozen_legacy_provenance=True
+        compatibility_loader = getattr(
+            label_experiment,
+            "load_frozen_legacy_label_experiment_artifacts",
         )
+        self.assertEqual(
+            ["artifact_dir"],
+            list(inspect.signature(compatibility_loader).parameters),
+        )
+        loaded = compatibility_loader(destination)
         self.assertEqual(("q1", "q2"), loaded.query_ids)
 
     def test_loader_tolerates_cross_blas_noise_but_preserves_stored_ranks(self) -> None:

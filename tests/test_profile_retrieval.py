@@ -5,6 +5,9 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+from trec_mlm.artifact_io import length_framed_sha256
+from trec_mlm import profile_retrieval
+
 from trec_mlm.profile_retrieval import (
     CandidateProfile,
     ProfileRecord,
@@ -17,6 +20,14 @@ from trec_mlm.profile_retrieval import (
     validate_clustering_runtime_identity,
 )
 from trec_mlm.response_retrieval import DiscoveryRecord
+
+
+def test_private_framed_hash_matches_shared_primitive() -> None:
+    values = ("a", "β", "")
+
+    assert profile_retrieval._length_framed_hash(values) == length_framed_sha256(
+        values
+    )
 
 
 def _record(query_id: str, candidate: str, question: str | None = None) -> ProfileRecord:

@@ -177,7 +177,7 @@ The test suite does not establish any of the following:
 No official feasibility receipt, construction, qrel-using evaluation,
 repeat-comparison receipt, or effectiveness decision is reported here.
 
-## Verification evidence available before final branch verification
+## Verification evidence
 
 The following task-scoped checks were recorded while implementing and reviewing
 the direct-HDF5 architecture. Dates are the dates of their associated
@@ -235,10 +235,71 @@ legacy control, feasibility software, and CLI. It includes a reviewed fix that
 preserves the legacy lock hash binding. It is still infrastructure evidence,
 not ranking-quality evidence.
 
-**Final whole-branch verification is pending.** Task 6 will run the final
-whole-branch commands and may replace or extend this section with those exact
-commands and observed counts. Until then, this report makes no claim about a
-final aggregate test count or a complete branch-wide pass.
+### 2026-07-16: final whole-branch verification
+
+Fresh verification was run at commit
+`be258b99c209359be7625cace12edbbcfa726aee` over the branch range
+`origin/main...be258b99c209359be7625cace12edbbcfa726aee`. The shell Anaconda
+Python provides pytest, while the repository `.venv` provides the pinned
+scientific packages, so the selected scientific suites used this exact prefix:
+`PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest`.
+
+The focused final-HDF5 path passed:
+
+```bash
+PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
+  tests/test_dense_aggregation_fit_file.py \
+  tests/test_dense_aggregation_artifacts.py \
+  tests/test_dense_aggregation_feasibility.py \
+  tests/test_dense_aggregation_cli.py \
+  tests/test_dense_aggregation_contract.py \
+  tests/test_legacy_dense_control.py
+# 325 passed in 47.05s
+```
+
+The complete dense-aggregation/qrel-safe suite passed:
+
+```bash
+PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
+  tests/test_dense_aggregation.py \
+  tests/test_dense_aggregation_artifacts.py \
+  tests/test_dense_aggregation_cli.py \
+  tests/test_dense_aggregation_clustering.py \
+  tests/test_dense_aggregation_contract.py \
+  tests/test_dense_aggregation_experiment.py \
+  tests/test_dense_aggregation_feasibility.py \
+  tests/test_dense_aggregation_fit_file.py \
+  tests/test_dense_aggregation_hashing.py \
+  tests/test_dense_aggregation_runtime.py \
+  tests/test_legacy_dense_control.py
+# 616 passed in 49.36s
+```
+
+The required bare full-repository attempt did not collect the suite:
+
+```bash
+python -m pytest -q
+# ERROR tests/test_label_inference.py
+# ModuleNotFoundError: No module named 'torch'
+# 1 error in 0.60s; exit 2
+```
+
+Torch is unavailable in the shell Anaconda environment. It was not installed
+and dependencies were not changed for this optional collection blocker. The
+passing 616-test command above is the complete selected qrel-safe scientific
+suite, not a substitute claim that the full repository suite passed.
+
+Static and safety checks found no whitespace errors, compilation failures,
+HDF5 fit-file qrel-path literals, or credential-like assignments in the design,
+cleanup plan, or this report. The legacy-name sweep returned only the deliberate
+contract assertion that `trec_mlm/dense_aggregation_cache.py` is absent from the
+implementation inventory. `git status --short` was empty before this report
+update. Across `origin/main...HEAD`, the branch contains 35 changed files with
+26,104 insertions and 1 deletion. That whole-branch growth includes the complete
+new experiment foundation. The direct-HDF5 cleanup range `36db726..HEAD`,
+restricted to `trec_mlm` and `tests`, has 3,958 insertions and 8,826 deletions:
+a net reduction of 4,868 lines, including deletion of the custom cache module
+and its two cache-specific test files.
 
 ## Safety and scientific boundaries
 
@@ -261,8 +322,9 @@ they cannot predict whether the resulting ranking will be better.
 
 ## Limitations
 
-- All evidence in this report is development-stage and task-scoped. Final
-  whole-branch verification is pending.
+- All passing evidence in this report is fixture-based infrastructure evidence;
+  the bare full-repository suite remains uncollected because Torch is absent
+  from the shell Anaconda environment.
 - Official host runtime and memory are unknown until the two-repeat qrel-free
   feasibility run is authorized and completed.
 - Construction-scale I/O and validation have not been observed on the full fit

@@ -4,14 +4,17 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+import h5py
 
 from trec_mlm import dense_aggregation_artifacts as artifacts
+from trec_mlm import dense_aggregation_fit_file as fit_file_module
 from trec_mlm.dense_aggregation_artifacts import (
     atomic_artifact_directory,
     raw_file_sha256,
@@ -642,6 +645,80 @@ def test_atomic_publish_never_replaces_racing_destination(tmp_path: Path) -> Non
     assert (root / "sentinel.txt").read_text(encoding="utf-8") == "theirs\n"
     assert not (root / "payload.txt").exists()
     assert not list(tmp_path.glob(".artifact.*"))
+
+
+def test_hdf5_publication_operations_have_durable_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    partial = staging / "fits.partial.h5"
+    destination = staging / "fits.h5"
+    calls: list[str] = []
+
+    with h5py.File(partial, "x") as h5:
+        h5.create_dataset("complete-fixture", data=1)
+    assert not h5.id.valid
+    calls.append("close")
+
+    def recording_fsync(descriptor: int) -> None:
+        if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            calls.append("directory_fsync")
+        else:
+            calls.append("file_fsync")
+
+    def recording_validate(
+        path: Path, *, expected_metadata: object, expected_inventory: object
+    ) -> None:
+        assert path == partial
+        assert expected_metadata == {"fixture": True}
+        assert expected_inventory == ()
+        calls.append("validate")
+
+    def recording_rename(source: str | Path, target: str | Path) -> None:
+        assert Path(source) == partial
+        assert Path(target) == destination
+        calls.append("rename")
+        partial.rename(destination)
+
+    monkeypatch.setattr(os, "fsync", recording_fsync)
+    monkeypatch.setattr(fit_file_module, "validate_fit_file", recording_validate)
+    monkeypatch.setattr(artifacts, "rename_noreplace", recording_rename)
+
+    with partial.open("rb") as handle:
+        os.fsync(handle.fileno())
+    fit_file_module.validate_fit_file(
+        partial,
+        expected_metadata={"fixture": True},
+        expected_inventory=(),
+    )
+    artifacts.rename_noreplace(partial, destination)
+    artifacts._fsync_directory(staging)
+
+    assert calls == [
+        "close",
+        "file_fsync",
+        "validate",
+        "rename",
+        "directory_fsync",
+    ]
+    assert destination.is_file()
+    assert not partial.exists()
+
+
+def test_hdf5_publication_rename_never_replaces_racing_destination(
+    tmp_path: Path,
+) -> None:
+    partial = tmp_path / "fits.partial.h5"
+    destination = tmp_path / "fits.h5"
+    partial.write_bytes(b"ours")
+    destination.write_bytes(b"theirs")
+
+    with pytest.raises(OSError):
+        artifacts.rename_noreplace(partial, destination)
+
+    assert partial.read_bytes() == b"ours"
+    assert destination.read_bytes() == b"theirs"
 
 
 def test_atomic_failure_removes_unpublished_staging(tmp_path: Path) -> None:

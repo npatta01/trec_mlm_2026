@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
+import stat
 import time
 from typing import Literal
 
@@ -24,7 +25,7 @@ from trec_mlm.dense_aggregation_hashing import (
 
 
 FIT_FILE_SCHEMA = "trec-mlm-dense-aggregation-fit-file-final"
-CLUSTER_COUNTS = (20, 40)
+CLUSTER_COUNTS: tuple[Literal[20], Literal[40]] = (20, 40)
 
 _METADATA_KEYS = {
     "query_ids",
@@ -600,33 +601,245 @@ def validate_fit_file(
 ) -> None:
     normalized_metadata, query_ids = _validated_metadata(expected_metadata)
     inventory = _validated_inventory(expected_inventory, query_count=len(query_ids))
-    with h5py.File(path, "r") as h5:
-        if h5.attrs.get("schema_id") != FIT_FILE_SCHEMA:
-            raise ValueError("unknown fit-file schema")
-        if int(h5.attrs.get("complete", 0)) != 1:
-            raise ValueError("file is incomplete")
-        if int(h5.attrs.get("inventory_count", -1)) != len(inventory):
-            raise ValueError("inventory count does not match")
-        if bytes(
-            np.asarray(h5["metadata/canonical_json"], dtype="u1")
-        ) != canonical_json(normalized_metadata):
-            raise ValueError("metadata does not match expected canonical bytes")
-        for row_index, expected in enumerate(inventory):
-            expected_kind_code = 0 if expected.exclusion_kind == "pair" else 1
-            kind_code = int(h5["inventory/exclusion_kind"][row_index])
-            inventory_index = int(h5["inventory/inventory_index"][row_index])
-            stored_indices = np.asarray(
-                h5["inventory/excluded_query_indices"][row_index], dtype="<i2"
-            )
-            expected_indices = np.full(2, _INDEX_SENTINEL, dtype="<i2")
-            expected_indices[: len(expected.excluded_query_indices)] = (
-                expected.excluded_query_indices
+    fit_path = Path(path)
+    try:
+        status = fit_path.lstat()
+    except OSError as error:
+        raise ValueError(f"fit file path could not be inspected: {fit_path}") from error
+    if not stat.S_ISREG(status.st_mode):
+        raise ValueError(f"fit file path is not a regular file: {fit_path}")
+
+    def require_names(
+        container: h5py.File | h5py.Group,
+        expected: set[str],
+        *,
+        label: str,
+    ) -> None:
+        if set(container) != expected:
+            raise ValueError(f"{label} has invalid exact names")
+        if any(
+            not isinstance(container.get(name, getlink=True), h5py.HardLink)
+            for name in expected
+        ):
+            raise ValueError(f"{label} has a non-hard-linked entry")
+
+    def require_empty_attributes(
+        value: h5py.Group | h5py.Dataset, *, label: str
+    ) -> None:
+        if set(value.attrs):
+            raise ValueError(f"{label} has invalid attributes")
+
+    def require_dataset(
+        group: h5py.Group,
+        name: str,
+        *,
+        dtype: str,
+        shape: tuple[int, ...],
+        chunks: tuple[int, ...] | None,
+        fletcher32: bool,
+    ) -> h5py.Dataset:
+        value = group[name]
+        if not isinstance(value, h5py.Dataset):
+            raise ValueError(f"{value.name} is not a dataset")
+        require_empty_attributes(value, label=value.name)
+        if (
+            value.dtype != np.dtype(dtype)
+            or value.shape != shape
+            or value.chunks != chunks
+            or value.fletcher32 is not fletcher32
+            or value.compression is not None
+        ):
+            raise ValueError(f"{value.name} has invalid dataset layout")
+        return value
+
+    expected_metadata_bytes = canonical_json(normalized_metadata)
+    row_count = len(inventory)
+    try:
+        with h5py.File(fit_path, "r") as h5:
+            require_names(h5, {"metadata", "inventory", "fits"}, label="fit file")
+            if set(h5.attrs) != {
+                "schema_id",
+                "complete",
+                "inventory_count",
+                "embedding_width",
+            }:
+                raise ValueError("fit file has invalid root attributes")
+            if h5.attrs["schema_id"] != FIT_FILE_SCHEMA:
+                raise ValueError("unknown fit-file schema")
+            if h5.attrs.get_id("complete").dtype != np.dtype("u1"):
+                raise ValueError("fit file complete attribute has invalid dtype")
+            if int(h5.attrs["complete"]) != 1:
+                raise ValueError("file is incomplete")
+            if h5.attrs.get_id("inventory_count").dtype != np.dtype("<u8"):
+                raise ValueError("inventory count attribute has invalid dtype")
+            if int(h5.attrs["inventory_count"]) != row_count:
+                raise ValueError("inventory count does not match")
+            if h5.attrs.get_id("embedding_width").dtype != np.dtype("<u4"):
+                raise ValueError("embedding width attribute has invalid dtype")
+            embedding_width = int(h5.attrs["embedding_width"])
+            if not 1 <= embedding_width <= 2**32 - 1:
+                raise ValueError("embedding width is invalid")
+
+            metadata_group = h5["metadata"]
+            inventory_group = h5["inventory"]
+            fits_group = h5["fits"]
+            if not all(
+                isinstance(group, h5py.Group)
+                for group in (metadata_group, inventory_group, fits_group)
+            ):
+                raise ValueError("fit file layout contains a non-group entry")
+            for group in (metadata_group, inventory_group, fits_group):
+                require_empty_attributes(group, label=group.name)
+
+            require_names(metadata_group, {"canonical_json"}, label="metadata group")
+            metadata_dataset = require_dataset(
+                metadata_group,
+                "canonical_json",
+                dtype="u1",
+                shape=(len(expected_metadata_bytes),),
+                chunks=None,
+                fletcher32=False,
             )
             if (
-                kind_code != expected_kind_code
-                or inventory_index != expected.inventory_index
-                or not np.array_equal(stored_indices, expected_indices)
+                bytes(np.asarray(metadata_dataset, dtype="u1"))
+                != expected_metadata_bytes
+            ):
+                raise ValueError("metadata does not match expected canonical bytes")
+
+            inventory_names = {
+                "exclusion_kind",
+                "inventory_index",
+                "excluded_query_indices",
+                "support_count",
+            }
+            require_names(inventory_group, inventory_names, label="inventory group")
+            inventory_datasets = {
+                "exclusion_kind": require_dataset(
+                    inventory_group,
+                    "exclusion_kind",
+                    dtype="u1",
+                    shape=(row_count,),
+                    chunks=None,
+                    fletcher32=False,
+                ),
+                "inventory_index": require_dataset(
+                    inventory_group,
+                    "inventory_index",
+                    dtype="<u4",
+                    shape=(row_count,),
+                    chunks=None,
+                    fletcher32=False,
+                ),
+                "excluded_query_indices": require_dataset(
+                    inventory_group,
+                    "excluded_query_indices",
+                    dtype="<i2",
+                    shape=(row_count, 2),
+                    chunks=None,
+                    fletcher32=False,
+                ),
+                "support_count": require_dataset(
+                    inventory_group,
+                    "support_count",
+                    dtype="<u2",
+                    shape=(row_count,),
+                    chunks=None,
+                    fletcher32=False,
+                ),
+            }
+            expected_kind = np.asarray(
+                [0 if row.exclusion_kind == "pair" else 1 for row in inventory],
+                dtype="u1",
+            )
+            expected_index = np.asarray(
+                [row.inventory_index for row in inventory], dtype="<u4"
+            )
+            expected_excluded = np.full((row_count, 2), _INDEX_SENTINEL, dtype="<i2")
+            expected_support_count = np.empty(row_count, dtype="<u2")
+            for row_index, row in enumerate(inventory):
+                expected_excluded[row_index, : len(row.excluded_query_indices)] = (
+                    row.excluded_query_indices
+                )
+                expected_support_count[row_index] = len(query_ids) - len(
+                    row.excluded_query_indices
+                )
+            expected_arrays = {
+                "exclusion_kind": expected_kind,
+                "inventory_index": expected_index,
+                "excluded_query_indices": expected_excluded,
+                "support_count": expected_support_count,
+            }
+            if any(
+                not np.array_equal(np.asarray(inventory_datasets[name]), expected)
+                for name, expected in expected_arrays.items()
             ):
                 raise ValueError("stored inventory does not match expected inventory")
+
+            require_names(
+                fits_group,
+                {f"c{cluster_count}" for cluster_count in CLUSTER_COUNTS},
+                label="fits group",
+            )
+            fit_dataset_names = {
+                "centers",
+                "labels",
+                "cluster_inertia",
+                "cluster_membership_hash",
+                "center_hash",
+                "fit_membership_hash",
+                "sklearn_inertia",
+                "recomputed_total_inertia",
+                "n_iter",
+                "elapsed_ns",
+                "assignment_query_index",
+                "assignment_cluster_id",
+                "assignment_distance",
+                "assignment_support",
+                "complete",
+            }
             for cluster_count in CLUSTER_COUNTS:
-                read_fit_row(h5, row_index, cluster_count)
+                cluster_group = fits_group[f"c{cluster_count}"]
+                if not isinstance(cluster_group, h5py.Group):
+                    raise ValueError(f"fits/c{cluster_count} is not a group")
+                require_empty_attributes(cluster_group, label=cluster_group.name)
+                require_names(
+                    cluster_group,
+                    fit_dataset_names,
+                    label=f"fits/c{cluster_count}",
+                )
+                specifications = {
+                    "centers": ("<f4", (row_count, cluster_count, embedding_width)),
+                    "labels": ("<u2", (row_count, 321)),
+                    "cluster_inertia": ("<f8", (row_count, cluster_count)),
+                    "cluster_membership_hash": (
+                        "u1",
+                        (row_count, cluster_count, 32),
+                    ),
+                    "center_hash": ("u1", (row_count, 32)),
+                    "fit_membership_hash": ("u1", (row_count, 32)),
+                    "sklearn_inertia": ("<f8", (row_count,)),
+                    "recomputed_total_inertia": ("<f8", (row_count,)),
+                    "n_iter": ("<u4", (row_count,)),
+                    "elapsed_ns": ("<u8", (row_count,)),
+                    "assignment_query_index": ("<i2", (row_count, 2)),
+                    "assignment_cluster_id": ("<u2", (row_count, 2)),
+                    "assignment_distance": ("<f8", (row_count, 2)),
+                    "assignment_support": ("<u2", (row_count, 2)),
+                    "complete": ("u1", (row_count,)),
+                }
+                for name, (dtype, shape) in specifications.items():
+                    require_dataset(
+                        cluster_group,
+                        name,
+                        dtype=dtype,
+                        shape=shape,
+                        chunks=(1, *shape[1:]),
+                        fletcher32=True,
+                    )
+
+            for row_index in range(row_count):
+                for cluster_count in CLUSTER_COUNTS:
+                    record = read_fit_row(h5, row_index, cluster_count)
+                    del record
+    except (OSError, KeyError, TypeError) as error:
+        raise ValueError(f"invalid HDF5 fit file: {error}") from error

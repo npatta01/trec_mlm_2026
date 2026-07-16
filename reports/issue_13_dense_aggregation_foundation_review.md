@@ -238,8 +238,7 @@ not ranking-quality evidence.
 ### 2026-07-16: final whole-branch verification
 
 Fresh verification was run at commit
-`be258b99c209359be7625cace12edbbcfa726aee` over the branch range
-`origin/main...be258b99c209359be7625cace12edbbcfa726aee`. The shell Anaconda
+`24f468a8b015ac520c170d3575f649954953d93d` after the final review fixes. The shell Anaconda
 Python provides pytest, while the repository `.venv` provides the pinned
 scientific packages, so the selected scientific suites used this exact prefix:
 `PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest`.
@@ -254,7 +253,7 @@ PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
   tests/test_dense_aggregation_cli.py \
   tests/test_dense_aggregation_contract.py \
   tests/test_legacy_dense_control.py
-# 325 passed in 47.05s
+# 317 passed in 47.41s
 ```
 
 The complete dense-aggregation/qrel-safe suite passed:
@@ -272,7 +271,7 @@ PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
   tests/test_dense_aggregation_hashing.py \
   tests/test_dense_aggregation_runtime.py \
   tests/test_legacy_dense_control.py
-# 616 passed in 49.36s
+# 608 passed in 48.93s
 ```
 
 The required bare full-repository attempt did not collect the suite:
@@ -281,12 +280,12 @@ The required bare full-repository attempt did not collect the suite:
 python -m pytest -q
 # ERROR tests/test_label_inference.py
 # ModuleNotFoundError: No module named 'torch'
-# 1 error in 0.60s; exit 2
+# 1 error in 0.59s; exit 2
 ```
 
 Torch is unavailable in the shell Anaconda environment. It was not installed
 and dependencies were not changed for this optional collection blocker. The
-passing 616-test command above is the complete selected qrel-safe scientific
+passing 608-test command above is the complete selected qrel-safe scientific
 suite, not a substitute claim that the full repository suite passed.
 
 Static and safety checks found no whitespace errors, compilation failures,
@@ -299,8 +298,7 @@ update. Measured at implementation verification commit `be258b9`, the range
 deletion. That whole-branch growth includes the complete new experiment
 foundation. The direct-HDF5 cleanup range `36db726..ee90fe9`,
 restricted to `trec_mlm` and `tests`, has 3,958 insertions and 8,826 deletions:
-a net reduction of 4,868 lines, including deletion of the custom cache module
-and its two cache-specific test files.
+a net reduction of 4,868 lines.
 
 ## Safety and scientific boundaries
 

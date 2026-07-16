@@ -102,6 +102,22 @@ def _result() -> ProfileInferenceArtifactResult:
     )
 
 
+def _refresh_manifest(root: Path, relative_path: str) -> None:
+    path = root / relative_path
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"][relative_path] = {
+        "byte_size": path.stat().st_size,
+        "sha256": profile_inference_artifact._sha256(path),
+    }
+    manifest["aggregate_sha256"] = profile_inference_artifact._aggregate_hash(
+        manifest["files"]
+    )
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
 def test_inference_artifact_public_boundary_has_no_qrels_or_sklearn_options() -> None:
     assert ARTIFACT_VERSION == 2
     assert not any("qrel" in field.name.lower() for field in fields(ProfileInferenceArtifactConfig))
@@ -379,3 +395,24 @@ def test_inference_artifact_round_trip_manifest_and_repeat(tmp_path: Path) -> No
         handle.write(b"mutation")
     with pytest.raises(ValueError, match="hash mismatch"):
         load_profile_inference_artifacts(first)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    (("unexpected", True), ("artifact_type", "changed")),
+)
+def test_inference_loader_rejects_nonexact_configuration_schema(
+    tmp_path: Path, key: str, value: object
+) -> None:
+    destination = tmp_path / f"artifact-{key}"
+    write_profile_inference_artifacts(_result(), destination)
+    config_path = destination / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config[key] = value
+    config_path.write_text(
+        json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    _refresh_manifest(destination, "config.json")
+
+    with pytest.raises(ValueError, match="configuration schema"):
+        load_profile_inference_artifacts(destination)

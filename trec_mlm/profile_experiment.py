@@ -113,6 +113,16 @@ class ProfileExperimentConfig:
     numerical_threads: int = 1
 
 
+PROFILE_EXPERIMENT_CONFIG_KEYS = frozenset(
+    {
+        "artifact_type",
+        "version",
+        "qrel_free",
+        *(field.name for field in fields(ProfileExperimentConfig)),
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class FrozenProfileRankings:
     scores: dict[str, NDArray[np.float32]]
@@ -816,6 +826,14 @@ def load_profile_artifacts(artifact_dir: str | Path) -> LoadedProfileArtifacts:
         ):
             raise ValueError(f"artifact hash mismatch: {name}")
     config_payload = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    if (
+        not isinstance(config_payload, dict)
+        or set(config_payload) != PROFILE_EXPERIMENT_CONFIG_KEYS
+        or config_payload["artifact_type"] != "candidate_semantic_profiles"
+        or config_payload["version"] != ARTIFACT_VERSION
+        or config_payload["qrel_free"] is not True
+    ):
+        raise ValueError("profile configuration schema changed")
     metadata_payload = json.loads((root / "metadata.json").read_text(encoding="utf-8"))
     inference_sha = metadata_payload.get("inference_aggregate_sha256")
     if inference_sha is not None:

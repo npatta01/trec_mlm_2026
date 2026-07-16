@@ -371,6 +371,27 @@ def test_atomic_artifact_round_trip_and_hash_validation(tmp_path: Path) -> None:
         load_profile_artifacts(destination)
 
 
+@pytest.mark.parametrize(
+    ("key", "value"),
+    (("unexpected", True), ("artifact_type", "changed")),
+)
+def test_loader_rejects_nonexact_configuration_schema(
+    tmp_path: Path, key: str, value: object
+) -> None:
+    destination = tmp_path / f"artifact-{key}"
+    write_profile_artifacts(_result(), destination)
+    config_path = destination / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config[key] = value
+    config_path.write_text(
+        json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    _refresh_manifest(destination, "config.json")
+
+    with pytest.raises(ValueError, match="configuration schema"):
+        load_profile_artifacts(destination)
+
+
 def test_loader_rejects_files_not_closed_by_manifest(tmp_path: Path) -> None:
     destination = tmp_path / "artifact"
     write_profile_artifacts(_result(), destination)

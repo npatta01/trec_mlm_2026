@@ -113,6 +113,16 @@ class ProfileInferenceArtifactConfig:
     seed: int = PROFILE_SEED
 
 
+PROFILE_INFERENCE_CONFIG_KEYS = frozenset(
+    {
+        "artifact_type",
+        "version",
+        "qrel_free",
+        *(field.name for field in fields(ProfileInferenceArtifactConfig)),
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ProfileInferenceArtifactResult:
     config: ProfileInferenceArtifactConfig
@@ -674,8 +684,14 @@ def load_profile_inference_artifacts(
         if path.stat().st_size != entry.get("byte_size") or _sha256(path) != entry.get("sha256"):
             raise ValueError(f"profile inference artifact hash mismatch: {name}")
     config_payload = json.loads((root / "config.json").read_text(encoding="utf-8"))
-    if config_payload.get("artifact_type") != "profile_inference" or config_payload.get("version") != ARTIFACT_VERSION or config_payload.get("qrel_free") is not True:
-        raise ValueError("profile inference config contract changed")
+    if (
+        not isinstance(config_payload, dict)
+        or set(config_payload) != PROFILE_INFERENCE_CONFIG_KEYS
+        or config_payload["artifact_type"] != "profile_inference"
+        or config_payload["version"] != ARTIFACT_VERSION
+        or config_payload["qrel_free"] is not True
+    ):
+        raise ValueError("profile inference configuration schema changed")
     config = ProfileInferenceArtifactConfig(**{field.name: config_payload[field.name] for field in fields(ProfileInferenceArtifactConfig)})
     _validate_config(config)
     inputs = json.loads((root / "inputs.json").read_text(encoding="utf-8"))

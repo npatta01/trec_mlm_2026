@@ -1200,6 +1200,12 @@ def run_feasibility_worker(
                             "n_iter": n_iter,
                         }
                     )
+            completion_arrays = tuple(
+                np.asarray(h5[f"fits/c{cluster_count}/complete"][...], dtype="u1")
+                for cluster_count in (20, 40)
+            )
+            if any(np.any(completion != 1) for completion in completion_arrays):
+                raise ValueError("fit construction is incomplete")
             h5.attrs.modify("complete", np.uint8(1))
             h5.flush()
         require_same_numerical_environment(numerical_environment)

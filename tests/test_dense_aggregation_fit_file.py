@@ -261,6 +261,8 @@ def test_validate_fit_file_accepts_all_complete_slots(tmp_path: Path) -> None:
                 assignments,
                 started_ns=time.perf_counter_ns(),
             )
+        assert int(h5.attrs["complete"]) == 0
+        h5.attrs.modify("complete", np.uint8(1))
 
     validate_fit_file(path, expected_metadata=metadata, expected_inventory=inventory)
 
@@ -309,6 +311,34 @@ def valid_final_file(tmp_path: Path) -> Path:
                 assignments,
                 started_ns=time.perf_counter_ns(),
             )
+        h5.attrs.modify("complete", np.uint8(1))
+    return path
+
+
+@pytest.fixture
+def valid_last_query_single_file(tmp_path: Path) -> Path:
+    path = tmp_path / "last-query-single.h5"
+    metadata = _expected_metadata()
+    inventory = (FitInventoryRow("single", 0, (321,)),)
+    query_ids = tuple(f"q{index:03d}" for index in range(322))
+    with h5py.File(path, "x") as h5:
+        initialize_fit_datasets(
+            h5, metadata=metadata, inventory=inventory, embedding_width=2
+        )
+        for cluster_count in (20, 40):
+            fit, assignments = _fit_and_assignments(
+                query_ids=query_ids,
+                excluded=(321,),
+                cluster_count=cluster_count,
+            )
+            write_fit_row(
+                h5,
+                0,
+                fit,
+                assignments,
+                started_ns=time.perf_counter_ns(),
+            )
+        h5.attrs.modify("complete", np.uint8(1))
     return path
 
 
@@ -476,7 +506,49 @@ def test_validate_fit_file_rejects_assignment_mutation(valid_final_file: Path) -
     with h5py.File(valid_final_file, "r+") as h5:
         h5["fits/c20/assignment_query_index"][0, 0] = np.int16(2)
 
-    with pytest.raises(ValueError, match="assignment targets"):
+    with pytest.raises(ValueError, match="assignment query indices"):
+        validate_fit_file(
+            valid_final_file,
+            expected_metadata=_expected_metadata(),
+            expected_inventory=_expected_inventory(),
+        )
+
+
+def test_validate_fit_file_rejects_negative_active_assignment_query_index(
+    valid_last_query_single_file: Path,
+) -> None:
+    with h5py.File(valid_last_query_single_file, "r+") as h5:
+        h5["fits/c20/assignment_query_index"][0, 0] = np.int16(-1)
+
+    with pytest.raises(ValueError, match="assignment query indices"):
+        validate_fit_file(
+            valid_last_query_single_file,
+            expected_metadata=_expected_metadata(),
+            expected_inventory=(FitInventoryRow("single", 0, (321,)),),
+        )
+
+
+def test_validate_fit_file_rejects_out_of_range_assignment_query_index(
+    valid_final_file: Path,
+) -> None:
+    with h5py.File(valid_final_file, "r+") as h5:
+        h5["fits/c20/assignment_query_index"][0, 0] = np.int16(322)
+
+    with pytest.raises(ValueError, match="assignment query indices"):
+        validate_fit_file(
+            valid_final_file,
+            expected_metadata=_expected_metadata(),
+            expected_inventory=_expected_inventory(),
+        )
+
+
+def test_validate_fit_file_rejects_out_of_range_assignment_cluster_id(
+    valid_final_file: Path,
+) -> None:
+    with h5py.File(valid_final_file, "r+") as h5:
+        h5["fits/c20/assignment_cluster_id"][0, 0] = np.uint16(20)
+
+    with pytest.raises(ValueError, match="assignment cluster IDs"):
         validate_fit_file(
             valid_final_file,
             expected_metadata=_expected_metadata(),

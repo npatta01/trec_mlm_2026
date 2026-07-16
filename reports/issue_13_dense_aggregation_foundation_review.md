@@ -294,9 +294,10 @@ HDF5 fit-file qrel-path literals, or credential-like assignments in the design,
 cleanup plan, or this report. The legacy-name sweep returned only the deliberate
 contract assertion that `trec_mlm/dense_aggregation_cache.py` is absent from the
 implementation inventory. `git status --short` was empty before this report
-update. Across `origin/main...HEAD`, the branch contains 35 changed files with
-26,104 insertions and 1 deletion. That whole-branch growth includes the complete
-new experiment foundation. The direct-HDF5 cleanup range `36db726..HEAD`,
+update. Measured at implementation verification commit `be258b9`, the range
+`origin/main...be258b9` contains 35 changed files with 26,104 insertions and 1
+deletion. That whole-branch growth includes the complete new experiment
+foundation. The direct-HDF5 cleanup range `36db726..HEAD`,
 restricted to `trec_mlm` and `tests`, has 3,958 insertions and 8,826 deletions:
 a net reduction of 4,868 lines, including deletion of the custom cache module
 and its two cache-specific test files.

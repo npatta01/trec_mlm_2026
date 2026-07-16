@@ -442,8 +442,6 @@ def write_fit_row(
     finished_ns = time.perf_counter_ns()
     group["elapsed_ns"][inventory_row] = finished_ns - started_ns
     group["complete"][inventory_row] = np.uint8(1)
-    if all(np.all(h5[f"fits/c{count}/complete"][...] == 1) for count in CLUSTER_COUNTS):
-        h5.attrs.modify("complete", np.uint8(1))
 
 
 def read_fit_row(
@@ -563,15 +561,29 @@ def read_fit_row(
         or int(supports[1]) != 0
     ):
         raise ValueError("single assignment sentinel is invalid")
+    expected_query_indices = np.full(2, _INDEX_SENTINEL, dtype="<i2")
+    expected_query_indices[:assignment_count] = excluded
+    active_query_indices = tuple(
+        int(query_indices[position]) for position in range(assignment_count)
+    )
+    if any(
+        not 0 <= index < len(query_ids) for index in active_query_indices
+    ) or not np.array_equal(query_indices, expected_query_indices):
+        raise ValueError("stored assignment query indices are invalid")
+    active_cluster_ids = tuple(
+        int(cluster_ids[position]) for position in range(assignment_count)
+    )
+    if any(not 0 <= cluster_id < cluster_count for cluster_id in active_cluster_ids):
+        raise ValueError("stored assignment cluster IDs are invalid")
     query_index_by_id = {query_id: index for index, query_id in enumerate(query_ids)}
     assignment_values = tuple(
         TargetAssignment(
-            query_id=query_ids[int(query_indices[position])],
-            canonical_cluster_id=int(cluster_ids[position]),
+            query_id=query_ids[active_query_indices[position]],
+            canonical_cluster_id=active_cluster_ids[position],
             squared_distance=float(distances[position]),
             member_indices=tuple(
                 query_index_by_id[query_id]
-                for query_id in validated_memberships[int(cluster_ids[position])]
+                for query_id in validated_memberships[active_cluster_ids[position]]
             ),
             cluster_support=int(supports[position]),
         )

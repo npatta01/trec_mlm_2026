@@ -778,9 +778,13 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
     events: list[tuple[str, object]] = []
     environment_file_checks: list[tuple[Path, str]] = []
     clock_calls = 0
+    full_completion_reads = {20: 0, 40: 0}
+    write_completion_read_deltas: list[int] = []
 
     real_preflight = feasibility.preflight_atomic_paths
     real_initialize_fit_datasets = feasibility.initialize_fit_datasets
+    real_write_fit_row = feasibility.write_fit_row
+    real_dataset_getitem = h5py.Dataset.__getitem__
 
     def preflight(*, fit_work_file: Path, output_dir: Path) -> None:
         events.append(("preflight", (fit_work_file, output_dir)))
@@ -816,6 +820,21 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
     def initialize_fit_datasets(*args: object, **kwargs: object) -> None:
         events.append(("hdf5_initialize", None))
         real_initialize_fit_datasets(*args, **kwargs)
+
+    def track_completion_reads(dataset: h5py.Dataset, index: object) -> object:
+        if dataset.name in ("/fits/c20/complete", "/fits/c40/complete") and (
+            index is Ellipsis
+        ):
+            cluster_count = int(dataset.parent.name.removeprefix("/fits/c"))
+            full_completion_reads[cluster_count] += 1
+        return real_dataset_getitem(dataset, index)
+
+    def tracked_write_fit_row(*args: object, **kwargs: object) -> None:
+        before = sum(full_completion_reads.values())
+        real_write_fit_row(*args, **kwargs)
+        write_completion_read_deltas.append(
+            sum(full_completion_reads.values()) - before
+        )
 
     def perf_counter_ns() -> int:
         nonlocal clock_calls
@@ -902,6 +921,8 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
         "initialize_fit_datasets",
         initialize_fit_datasets,
     )
+    monkeypatch.setattr(feasibility, "write_fit_row", tracked_write_fit_row)
+    monkeypatch.setattr(h5py.Dataset, "__getitem__", track_completion_reads)
     monkeypatch.setattr(
         feasibility, "fit_canonical_clusters", fit_clusters, raising=False
     )
@@ -961,6 +982,8 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
     assert clock_calls == 1_728
     assert receipt.fit_count == 576
     assert receipt.start_count == 5_760
+    assert write_completion_read_deltas == [0] * 576
+    assert full_completion_reads == {20: 1, 40: 1}
     fixture = json.loads(SAMPLE_FIXTURE.read_text(encoding="utf-8"))
     assert receipt.pair_indices == tuple(fixture["pair_indices"])
     assert receipt.single_indices == tuple(fixture["single_indices"])
@@ -1089,6 +1112,7 @@ def _publish_repeat_fixture(
                             "n_iter": fit.n_iter,
                         }
                     )
+            h5.attrs.modify("complete", np.uint8(1))
         timing_summary = _summarize_timing_rows(timing_rows)
         fit_evidence_sha256 = feasibility._fit_evidence_sha256(
             fits_path, row_count=len(inventory)

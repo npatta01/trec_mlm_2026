@@ -7,6 +7,7 @@ import argparse
 from dataclasses import asdict, fields
 import json
 from pathlib import Path
+import sys
 import time
 
 from trec_mlm.profile_multiresolution import (
@@ -279,5 +280,15 @@ def main(argv: list[str] | None = None) -> int:
     return _run_construction(args, config)
 
 
+def cli(argv: list[str] | None = None) -> int:
+    """Run the command with concise failures for expected input and path errors."""
+
+    try:
+        return main(argv)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())

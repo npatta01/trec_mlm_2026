@@ -405,6 +405,22 @@ def test_cli_validate_config_succeeds_without_ignored_artifacts_or_construction(
     }
 
 
+def test_cli_invalid_json_prints_one_error_line_and_returns_2(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    config_path = tmp_path / "invalid.json"
+    config_path.write_text("{not JSON}", encoding="utf-8")
+
+    assert script.cli(["--validate-config", "--config", str(config_path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert len(captured.err.splitlines()) == 1
+    assert captured.err.startswith("error: ")
+
+
 def test_validate_config_report_checks_manifest_aggregate_and_output_presence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

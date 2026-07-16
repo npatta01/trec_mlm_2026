@@ -583,72 +583,6 @@ def _validate_task7_manifest(
     return validate_manifest(artifact_root)
 
 
-def _read_exact_canonical_jsonl(
-    path: Path,
-    *,
-    expected_count: int,
-    byte_limit: int,
-    label: str,
-    retained_fields: Sequence[str] | None = None,
-) -> tuple[tuple[dict[str, object], ...], str]:
-    if type(expected_count) is not int or expected_count < 0:
-        raise ValueError(f"{label} expected count is invalid")
-    if type(byte_limit) is not int or byte_limit <= 0:
-        raise ValueError(f"{label} byte limit is invalid")
-    rows: list[dict[str, object]] = []
-    digest = hashlib.sha256()
-    source = Path(path)
-    try:
-        descriptor, before = _open_bounded_regular_descriptor(
-            source,
-            byte_limit=expected_count * byte_limit,
-            label=label,
-        )
-    except ValueError as error:
-        if "exceeds its" in str(error):
-            raise ValueError(f"{label} row is oversized") from error
-        raise
-    handle = os.fdopen(descriptor, "rb", closefd=False)
-    try:
-        for sequence in range(expected_count):
-            line = handle.readline(byte_limit + 1)
-            if line == b"":
-                raise ValueError(f"{label} stream ended before its expected count")
-            if len(line) > byte_limit or not line.endswith(b"\n"):
-                raise ValueError(f"{label} row is oversized or unterminated")
-            value = json.loads(line)
-            if type(value) is not dict:
-                raise ValueError(f"{label} row is not an object")
-            if canonical_json(value) + b"\n" != line:
-                raise ValueError(f"{label} row is not canonical JSON")
-            if value.get("sequence") != sequence:
-                raise ValueError(f"{label} sequence is not canonical")
-            digest.update(line)
-            if retained_fields is None:
-                rows.append(dict(value))
-            else:
-                try:
-                    rows.append({field: value[field] for field in retained_fields})
-                except KeyError as error:
-                    raise ValueError(
-                        f"{label} row is missing a retained field"
-                    ) from error
-        if handle.read(1) != b"":
-            raise ValueError(f"{label} stream contains data after its expected count")
-        _verify_bounded_regular_descriptor(
-            source,
-            descriptor=descriptor,
-            before=before,
-            label=label,
-        )
-        return tuple(rows), digest.hexdigest()
-    except OSError as error:
-        raise ValueError(f"{label} changed while it was read: {source}") from error
-    finally:
-        handle.close()
-        os.close(descriptor)
-
-
 def official_sample_indices() -> tuple[NDArray[np.int64], NDArray[np.int64]]:
     rng = np.random.Generator(np.random.PCG64(2026))
     pair_indices = np.sort(
@@ -1209,16 +1143,16 @@ def run_feasibility_worker(
 
     with atomic_artifact_directory(output_root, quarantine_on_error=True) as staging:
         _write_new_file(staging / "environment.json", environment_bytes)
-        require_same_numerical_environment(numerical_environment)
-        _verify_environment_file(
-            staging / "environment.json", numerical_environment_sha256
-        )
         with h5py.File(work_file, "x") as h5:
             initialize_fit_datasets(
                 h5,
                 metadata=metadata,
                 inventory=inventory,
                 embedding_width=int(inputs.embeddings.shape[1]),
+            )
+            require_same_numerical_environment(numerical_environment)
+            _verify_environment_file(
+                staging / "environment.json", numerical_environment_sha256
             )
             for inventory_row, row in enumerate(inventory):
                 excluded = row.excluded_query_indices

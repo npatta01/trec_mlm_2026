@@ -467,52 +467,6 @@ def test_gnu_time_verbose_rejects_missing_ambiguous_or_noninteger(
         parse_gnu_time_verbose(source)
 
 
-@pytest.mark.parametrize(
-    ("rows", "expected_count", "byte_limit", "message"),
-    (
-        ([{"sequence": 0}], 2, 128, "ended before"),
-        ([{"sequence": 0}, {"sequence": 1}], 1, 128, "after its expected"),
-        ([{"sequence": 0, "payload": "x" * 256}], 1, 128, "oversized"),
-    ),
-)
-def test_exact_jsonl_evidence_reader_rejects_early_extra_and_oversized_rows(
-    tmp_path: Path,
-    rows: list[dict[str, object]],
-    expected_count: int,
-    byte_limit: int,
-    message: str,
-) -> None:
-    source = tmp_path / "evidence.jsonl"
-    source.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
-
-    with pytest.raises(ValueError, match=message):
-        feasibility._read_exact_canonical_jsonl(
-            source,
-            expected_count=expected_count,
-            byte_limit=byte_limit,
-            label="synthetic evidence",
-        )
-
-
-def test_exact_jsonl_evidence_reader_retains_only_requested_fields(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "evidence.jsonl"
-    source.write_bytes(
-        canonical_json({"sequence": 0, "discarded_payload": "x" * 1_024}) + b"\n"
-    )
-
-    rows, _digest = feasibility._read_exact_canonical_jsonl(
-        source,
-        expected_count=1,
-        byte_limit=2_048,
-        label="synthetic evidence",
-        retained_fields=("sequence",),
-    )
-
-    assert rows == ({"sequence": 0},)
-
-
 def test_bounded_reader_uses_nonblocking_descriptor_when_regular_file_becomes_fifo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -578,13 +532,13 @@ def test_bounded_reader_rejects_same_size_inode_swap(
         )
 
 
-def test_exact_jsonl_reader_rejects_same_size_inode_swap(
+def test_bounded_canonical_json_reader_rejects_same_size_inode_swap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    source = tmp_path / "evidence.jsonl"
-    replacement = tmp_path / "replacement.jsonl"
-    source.write_bytes(canonical_json({"sequence": 0, "value": "a"}) + b"\n")
-    replacement.write_bytes(canonical_json({"sequence": 0, "value": "b"}) + b"\n")
+    source = tmp_path / "evidence.json"
+    replacement = tmp_path / "replacement.json"
+    source.write_bytes(canonical_json({"value": "a"}) + b"\n")
+    replacement.write_bytes(canonical_json({"value": "b"}) + b"\n")
     assert source.stat().st_size == replacement.stat().st_size
     original_open = os.open
 
@@ -602,10 +556,8 @@ def test_exact_jsonl_reader_rejects_same_size_inode_swap(
     monkeypatch.setattr(os, "open", swapped_open)
 
     with pytest.raises(ValueError, match="changed while opening"):
-        feasibility._read_exact_canonical_jsonl(
+        feasibility._read_bounded_canonical_json(
             source,
-            expected_count=1,
-            byte_limit=128,
             label="synthetic evidence",
         )
 
@@ -828,6 +780,7 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
     clock_calls = 0
 
     real_preflight = feasibility.preflight_atomic_paths
+    real_initialize_fit_datasets = feasibility.initialize_fit_datasets
 
     def preflight(*, fit_work_file: Path, output_dir: Path) -> None:
         events.append(("preflight", (fit_work_file, output_dir)))
@@ -857,7 +810,12 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
 
     def check_environment_file(path: Path, expected_sha256: str) -> None:
         assert raw_file_sha256(path) == expected_sha256
+        events.append(("environment_file_check", None))
         environment_file_checks.append((path, expected_sha256))
+
+    def initialize_fit_datasets(*args: object, **kwargs: object) -> None:
+        events.append(("hdf5_initialize", None))
+        real_initialize_fit_datasets(*args, **kwargs)
 
     def perf_counter_ns() -> int:
         nonlocal clock_calls
@@ -940,6 +898,11 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
         raising=False,
     )
     monkeypatch.setattr(
+        feasibility,
+        "initialize_fit_datasets",
+        initialize_fit_datasets,
+    )
+    monkeypatch.setattr(
         feasibility, "fit_canonical_clusters", fit_clusters, raising=False
     )
     monkeypatch.setattr(feasibility, "assign_targets", assign, raising=False)
@@ -977,6 +940,24 @@ def test_worker_runs_exact_inventory_timing_window_and_publishes_manifest(
         "build_contract",
         "capture_environment",
     ]
+    first_fit = next(
+        index for index, (name, _value) in enumerate(events) if name == "fit"
+    )
+    pre_fit_attestation = next(
+        index
+        for index, (name, _value) in enumerate(events)
+        if name == "environment_check"
+    )
+    assert [name for name, _value in events[pre_fit_attestation - 1 : first_fit]] == [
+        "hdf5_initialize",
+        "environment_check",
+        "environment_file_check",
+        "clock",
+    ]
+    assert all(
+        name != "hdf5_initialize"
+        for name, _value in events[pre_fit_attestation + 1 : first_fit]
+    )
     assert clock_calls == 1_728
     assert receipt.fit_count == 576
     assert receipt.start_count == 5_760

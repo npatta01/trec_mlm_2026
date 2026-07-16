@@ -388,14 +388,6 @@ def _write_artifact_files(result: LabelExperimentResult, destination: Path) -> N
     _write_json(destination / "validation.json", validation)
 
 
-def load_label_experiment_artifacts(
-    artifact_dir: str | Path,
-) -> LabelExperimentResult:
-    """Load an artifact only after hashes and derived rankings validate."""
-
-    return _load_label_experiment_artifacts(artifact_dir)
-
-
 def _load_label_experiment_artifacts(
     artifact_dir: str | Path,
     *,
@@ -717,6 +709,9 @@ def _write_json(path: Path, value: object) -> None:
         json.dumps(value, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+load_label_experiment_artifacts = _load_label_experiment_artifacts
 
 
 __all__ = [

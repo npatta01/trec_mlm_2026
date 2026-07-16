@@ -26,10 +26,10 @@ from trec_mlm.artifact_io import (
     write_pretty_json,
 )
 from trec_mlm.profile_experiment import (
-    _profile_to_json,
-    _recompute_profile_centroid,
-    _validate_complete_rankings,
     load_profile_artifacts,
+    profile_to_json as _profile_to_json,
+    recompute_profile_centroid as _recompute_profile_centroid,
+    validate_complete_rankings as _validate_complete_rankings,
 )
 from trec_mlm.profile_retrieval import (
     CandidateProfile,

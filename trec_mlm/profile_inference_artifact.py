@@ -24,10 +24,13 @@ from trec_mlm.artifact_io import (
     write_pretty_json,
 )
 from trec_mlm.label_experiment import (
-    _load_label_experiment_artifacts,
     load_candidate_manifest,
+    load_label_experiment_artifacts as _load_label_experiment_artifacts,
 )
-from trec_mlm.label_inference import ROCM_IMAGE, _encode_contextual_e5
+from trec_mlm.label_inference import (
+    ROCM_IMAGE,
+    encode_contextual_e5 as _encode_contextual_e5,
+)
 from trec_mlm.label_retrieval import CONTEXTUAL_E5_SPEC, format_query
 from trec_mlm.profile_inference import (
     PROFILE_BATCH_SIZE,

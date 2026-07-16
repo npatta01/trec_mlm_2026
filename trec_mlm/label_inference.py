@@ -291,9 +291,13 @@ def _hash_texts(texts: Sequence[str]) -> str:
     return digest.hexdigest()
 
 
+encode_contextual_e5 = _encode_contextual_e5
+
+
 __all__ = [
     "ROCM_IMAGE",
     "build_e5_token_ids",
+    "encode_contextual_e5",
     "encode_label_inputs",
     "last_token_pool",
     "snapshot_revision_from_path",

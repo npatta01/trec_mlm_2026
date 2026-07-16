@@ -1219,6 +1219,11 @@ def compare_profile_repeats(
     }
 
 
+profile_to_json = _profile_to_json
+recompute_profile_centroid = _recompute_profile_centroid
+validate_complete_rankings = _validate_complete_rankings
+
+
 __all__ = [
     "FROZEN_RANKING_KEYS",
     "FrozenProfileRankings",
@@ -1228,6 +1233,9 @@ __all__ = [
     "compare_profile_repeats",
     "freeze_profile_rankings",
     "load_profile_artifacts",
+    "profile_to_json",
+    "recompute_profile_centroid",
     "run_profile_experiment",
+    "validate_complete_rankings",
     "write_profile_artifacts",
 ]

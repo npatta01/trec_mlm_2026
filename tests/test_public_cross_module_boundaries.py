@@ -29,11 +29,6 @@ from trec_mlm import (
             "_validate_complete_rankings",
         ),
         (label_inference, "encode_contextual_e5", "_encode_contextual_e5"),
-        (
-            label_experiment,
-            "load_label_experiment_artifacts",
-            "_load_label_experiment_artifacts",
-        ),
     ),
 )
 def test_cross_module_helpers_have_public_exports_with_private_aliases(
@@ -46,6 +41,19 @@ def test_cross_module_helpers_have_public_exports_with_private_aliases(
 
     assert public is private
     assert public_name in module.__all__
+
+
+def test_label_experiment_loaders_are_explicit_public_boundaries() -> None:
+    ordinary = label_experiment.load_label_experiment_artifacts
+    compatibility = getattr(
+        label_experiment,
+        "load_frozen_legacy_label_experiment_artifacts",
+    )
+
+    assert ordinary is not label_experiment._load_label_experiment_artifacts
+    assert compatibility is not label_experiment._load_label_experiment_artifacts
+    assert "load_label_experiment_artifacts" in label_experiment.__all__
+    assert "load_frozen_legacy_label_experiment_artifacts" in label_experiment.__all__
 
 
 @pytest.mark.parametrize(
@@ -63,7 +71,7 @@ def test_cross_module_helpers_have_public_exports_with_private_aliases(
         (
             profile_inference_artifact,
             "trec_mlm.label_experiment",
-            {"load_label_experiment_artifacts": "_load_label_experiment_artifacts"},
+            {"load_frozen_legacy_label_experiment_artifacts": None},
         ),
         (
             profile_inference_artifact,

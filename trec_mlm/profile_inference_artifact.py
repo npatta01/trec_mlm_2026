@@ -25,7 +25,7 @@ from trec_mlm.artifact_io import (
 )
 from trec_mlm.label_experiment import (
     load_candidate_manifest,
-    load_label_experiment_artifacts as _load_label_experiment_artifacts,
+    load_frozen_legacy_label_experiment_artifacts,
 )
 from trec_mlm.label_inference import (
     ROCM_IMAGE,
@@ -316,9 +316,7 @@ def run_profile_inference_artifact(
     e5_validation = Path(config.e5_artifact_path) / "validation.json"
     if _sha256(e5_validation) != FROZEN_E5_VALIDATION_SHA256:
         raise ValueError("contextual E5 validation differs from frozen control")
-    e5 = _load_label_experiment_artifacts(
-        config.e5_artifact_path, allow_frozen_legacy_provenance=True
-    )
+    e5 = load_frozen_legacy_label_experiment_artifacts(config.e5_artifact_path)
     if e5.query_ids != tuple(queries) or e5.candidate_ids != candidate_ids:
         raise ValueError("contextual E5 inventory differs from inference inputs")
     query_embeddings, record_embeddings, profile_metadata = encode_profile_inputs(

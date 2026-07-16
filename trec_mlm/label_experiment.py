@@ -388,6 +388,25 @@ def _write_artifact_files(result: LabelExperimentResult, destination: Path) -> N
     _write_json(destination / "validation.json", validation)
 
 
+def load_label_experiment_artifacts(
+    artifact_dir: str | Path,
+) -> LabelExperimentResult:
+    """Load an artifact only after hashes and derived rankings validate."""
+
+    return _load_label_experiment_artifacts(artifact_dir)
+
+
+def load_frozen_legacy_label_experiment_artifacts(
+    artifact_dir: str | Path,
+) -> LabelExperimentResult:
+    """Load the pinned externally frozen legacy artifact schema."""
+
+    return _load_label_experiment_artifacts(
+        artifact_dir,
+        allow_frozen_legacy_provenance=True,
+    )
+
+
 def _load_label_experiment_artifacts(
     artifact_dir: str | Path,
     *,
@@ -711,13 +730,11 @@ def _write_json(path: Path, value: object) -> None:
     )
 
 
-load_label_experiment_artifacts = _load_label_experiment_artifacts
-
-
 __all__ = [
     "LabelExperimentConfig",
     "LabelExperimentResult",
     "load_candidate_manifest",
+    "load_frozen_legacy_label_experiment_artifacts",
     "load_label_experiment_artifacts",
     "run_label_experiment",
     "write_label_experiment_artifacts",

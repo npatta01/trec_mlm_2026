@@ -1,0 +1,52 @@
+{
+  "advisor_decision": "approve_recovery_without_rerun",
+  "artifact_aggregate_sha256": "fe765b36cadda7168f2aa73775be9fe9f224585e9c2dc4c3204f3d1d29524266",
+  "artifact_finalized_at": "2026-07-15T06:44:04.154273001-04:00",
+  "artifact_manifest_file_sha256": "61556b64642b6df28a1bbb74fdf8804dd78d6854f543c953692f395d827afcba",
+  "artifact_type": "profile_inference_execution_receipt_recovery",
+  "atomic_artifact_validation": {
+    "candidate_count": 150,
+    "label_question_count": 7759,
+    "loader_status": "passed",
+    "manifest_version": 2,
+    "qrel_free": true,
+    "query_count": 322,
+    "record_count": 182764,
+    "record_id_repair": null
+  },
+  "cli_fix": {
+    "commit": "567e46e3dd5d7a5a8fd7a078ec330d83834eca21",
+    "diff_sha256": "e3ab1c5deb0f5be25e210d756bd5ef426d30d35a6cc2a3bb0567083e45f76084",
+    "parent": "e782d56c616ad5124297aacddfd0e81f843b909a",
+    "root_cause": "branch-local pathlib.Path imports made Path local to main(), raising UnboundLocalError after the atomic artifact write",
+    "summary": "remove three branch-local Path imports and use the module-level import"
+  },
+  "execution_receipt_reconstructed": true,
+  "failure": {
+    "class": "UnboundLocalError",
+    "message": "cannot access local variable 'Path' where it is not associated with a value",
+    "site": "trec_mlm/cli.py:452 in the pre-fix source",
+    "stage": "after write_profile_inference_artifacts returned; before execution receipt write"
+  },
+  "fresh_execution_evidence": {
+    "embedding_arrays_reused": false,
+    "label_encoder_input_sha256": "75045fbbf4a8a82057821484180dc5bdd1e70672cedefbe6ae077cdeb5ef9a0c",
+    "label_encoding_seconds": 544.7758028740063,
+    "profile_encoder_input_sha256": "cd9557bf2885db119a85e1592f2cf1abf1174cc0a862dad493b833b211a946e9",
+    "profile_encoding_seconds": 31578.929094900028,
+    "record_id_repair": null,
+    "source_tree_sha256": "977d64d95cba5f4826445961a9aca9c8d1d92ffda8545e028f50817baede122c"
+  },
+  "qrels_mounted_in_inference_container": false,
+  "qrels_opened_during_inference": false,
+  "recovery_reason": "the deterministic receipt builder validates and reproduces the intended receipt from the immutable artifact; another full inference adds no evidence",
+  "status": "approved_recovery",
+  "tests": {
+    "behavioral_red": "failed with the exact UnboundLocalError",
+    "focused_green": "13 passed",
+    "full_green": "204 passed, 11 subtests passed",
+    "lint": "passed",
+    "temp_quota_note": "the first full-suite attempt exhausted /tmp quota; the identical rerun under /var/tmp passed"
+  },
+  "version": 1
+}

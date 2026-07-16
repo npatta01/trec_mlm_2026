@@ -1,0 +1,58 @@
+{
+  "artifact_type": "candidate_semantic_profiles_delivery_receipt",
+  "version": 1,
+  "generated_at": "2026-07-15T08:30:28-04:00",
+  "decision": "promote",
+  "report_qa": {
+    "portable_artifact_validation": "passed",
+    "portable_artifact_packaging": "passed",
+    "portable_artifact_verification": "passed",
+    "source_dialog": "passed",
+    "source_interaction": "keyboard_menu_semantic_click",
+    "viewports_px": [
+      1440,
+      390
+    ],
+    "block_count": 22,
+    "chart_count": 2,
+    "metric_count": 4,
+    "table_count": 3,
+    "relative_query_explorer_link_present": true,
+    "relative_query_explorer_link_navigation": "passed at 1440px and 390px"
+  },
+  "query_explorer_qa": {
+    "structural_validation": "passed",
+    "desktop_visual_inspection": "passed",
+    "mobile_visual_inspection": "passed",
+    "query_count": 322,
+    "candidate_count": 150,
+    "query_candidate_pair_count": 48300,
+    "centroid_count": 1500,
+    "winning_centroid_for_every_pair": true,
+    "centroid_support_and_dispersion_present": true,
+    "centroid_labels_present": true,
+    "representative_questions_and_responses_complete": true,
+    "failure_slice_filters_present": true,
+    "validated_construction_manifest_bound": true,
+    "evaluation_construction_aggregate_bound": true,
+    "exact_prediction_and_dense_inventories_required": true,
+    "finite_scores_and_complete_ranks_required": true,
+    "representative_lookup_fails_closed": true,
+    "deterministic_rebuild_byte_identical": true,
+    "unlabeled_centroid_display": "Mixed / unclear"
+  },
+  "sha256": {
+    "results_json": "21cfe833c2d48658c6c8ecceffa5a2d9e5a27646e11bfc2a58769f80074ff31a",
+    "report_artifact_json": "9471542067a3689422f91d0fd70644b177b2391c8050a1342d9844535f6c4726",
+    "report_html": "085046c879929699622b8c57ae8ed95ee54f0cbd1bc3245f4cb186c4a1a7fb6e",
+    "report_sql": "046e39283bc48980a9af1d43a443d75c6702ceb0a747d90b771472995272b682",
+    "query_explorer_html": "9fdfab1dc95de46fa29c86f12146ed7f0db3e820115832502e13efcf20acbb2d",
+    "query_explorer_builder": "42c08055c64cc6b39f4d1dcddc936beaf123458c0de9e77f13adb957aa7e7e71",
+    "query_explorer_tests": "9721e5c751e5a121946bdb59d2a12ca2e70f9e482967da04e787e74de36d32c4"
+  },
+  "evaluation_sha256": {
+    "evaluation_json": "3c0a992e913e88265e88580f57a996ae0092487e3e245b894ed85f07074d94ac",
+    "comparisons_json": "0b431b7f8e6ef2b86ba67cc0aa17bb65cd8f24ac52583ca43ba2d8036a3f2bbf",
+    "per_query_tsv": "b6d1d891aba7fe3b7662b9737dee51a88b1eeecf27e3f1715bf0420343b2d152"
+  }
+}

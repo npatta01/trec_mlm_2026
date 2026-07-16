@@ -1,0 +1,653 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Candidate semantic profiles beat query-kNN",
+    "description": "Technical evaluation of qrel-free multi-vector candidate profiles against frozen 2026 development controls.",
+    "generatedAt": "2026-07-15T12:04:09Z",
+    "cards": [
+      {
+        "id": "primary_ndcg",
+        "description": "Frozen equal-weight query-kNN and profile fusion.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {
+            "label": "Primary nDCG@10",
+            "field": "primary_ndcg",
+            "format": "number"
+          },
+          {
+            "label": "vs query-kNN",
+            "field": "ndcg_delta",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "primary_mrr",
+        "description": "Mean reciprocal rank over all 322 queries.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {
+            "label": "Primary MRR",
+            "field": "primary_mrr",
+            "format": "number"
+          },
+          {
+            "label": "vs query-kNN",
+            "field": "mrr_delta",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "primary_zeros",
+        "description": "Queries whose top 10 contain no positive gain.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {
+            "label": "Zero-nDCG queries",
+            "field": "primary_zeros",
+            "format": "number"
+          },
+          {
+            "label": "Change vs query-kNN",
+            "field": "zero_delta",
+            "format": "number",
+            "signed": true
+          }
+        ]
+      },
+      {
+        "id": "ci_lower",
+        "description": "Paired percentile bootstrap, 10,000 query resamples.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {
+            "label": "95% CI lower bound",
+            "field": "ci_lower",
+            "format": "number"
+          },
+          {
+            "label": "Upper bound",
+            "field": "ci_upper",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "system_ndcg_chart",
+        "title": "nDCG@10 by frozen system",
+        "subtitle": "All 322 development queries; systems sorted by nDCG@10 in the reviewed snapshot.",
+        "type": "bar",
+        "dataset": "system_metrics",
+        "sourceId": "report_queries",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "System"
+          },
+          "y": {
+            "field": "ndcg_at_10",
+            "type": "quantitative",
+            "label": "nDCG@10"
+          },
+          "tooltip": [
+            {
+              "field": "mrr",
+              "type": "quantitative",
+              "label": "MRR",
+              "format": "number"
+            },
+            {
+              "field": "zero_queries",
+              "type": "quantitative",
+              "label": "Zero-nDCG queries",
+              "format": "number"
+            }
+          ]
+        }
+      },
+      {
+        "id": "density_delta_chart",
+        "title": "Primary metric deltas by relevance density",
+        "subtitle": "Primary equal-weight fusion minus query-kNN; 248, 30, and 44 queries from sparse to dense.",
+        "type": "bar",
+        "dataset": "density_deltas",
+        "sourceId": "report_queries",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "density_group",
+            "type": "nominal",
+            "label": "Positive qrels per query"
+          },
+          "y": {
+            "field": "delta",
+            "type": "quantitative",
+            "label": "Absolute metric delta"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "query_count",
+              "type": "quantitative",
+              "label": "Queries",
+              "format": "number"
+            }
+          ]
+        }
+      }
+    ],
+    "tables": [
+      {
+        "id": "system_table",
+        "title": "Frozen system metrics",
+        "subtitle": "Exact macro metrics and absolute deltas against query-kNN over 322 queries.",
+        "dataset": "system_metrics",
+        "sourceId": "report_queries",
+        "defaultSort": {
+          "field": "ndcg_at_10",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "system",
+            "label": "System",
+            "type": "text"
+          },
+          {
+            "field": "role",
+            "label": "Role",
+            "type": "text"
+          },
+          {
+            "field": "ndcg_at_10",
+            "label": "nDCG@10",
+            "format": "number"
+          },
+          {
+            "field": "ndcg_delta",
+            "label": "nDCG delta",
+            "format": "number",
+            "semantic": "movement"
+          },
+          {
+            "field": "mrr",
+            "label": "MRR",
+            "format": "number"
+          },
+          {
+            "field": "mrr_delta",
+            "label": "MRR delta",
+            "format": "number",
+            "semantic": "movement"
+          },
+          {
+            "field": "zero_queries",
+            "label": "Zero queries",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "zero_table",
+        "title": "Primary zero-query transitions",
+        "subtitle": "Every query classified by whether query-kNN and the primary system achieve nonzero nDCG@10.",
+        "dataset": "zero_transitions",
+        "sourceId": "report_queries",
+        "columns": [
+          {
+            "field": "transition",
+            "label": "Transition",
+            "type": "text"
+          },
+          {
+            "field": "query_count",
+            "label": "Queries",
+            "format": "number"
+          },
+          {
+            "field": "interpretation",
+            "label": "Interpretation",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "integrity_table",
+        "title": "Frozen-artifact validation",
+        "subtitle": "Repeatability, isolation, and post-evaluation immutability checks used by the promote receipt.",
+        "dataset": "integrity_checks",
+        "sourceId": "report_queries",
+        "columns": [
+          {
+            "field": "check",
+            "label": "Check",
+            "type": "text"
+          },
+          {
+            "field": "result",
+            "label": "Result",
+            "type": "text"
+          },
+          {
+            "field": "evidence",
+            "label": "Evidence",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "report_queries",
+        "label": "SQLite report reshaping queries",
+        "path": "reports/trec_2026_candidate_semantic_profiles_report.sql"
+      },
+      {
+        "id": "results_summary",
+        "label": "Candidate semantic profile results receipt",
+        "path": "reports/trec_2026_candidate_semantic_profiles_results.json"
+      },
+      {
+        "id": "evaluation_full",
+        "label": "Frozen-ranking evaluation",
+        "path": "artifacts/candidate_semantic_profiles/evaluation_v2/evaluation.json"
+      },
+      {
+        "id": "comparisons",
+        "label": "Paired comparisons and zero transitions",
+        "path": "artifacts/candidate_semantic_profiles/evaluation_v2/comparisons.json"
+      },
+      {
+        "id": "protocol",
+        "label": "Locked candidate-profile protocol",
+        "path": "protocols/trec_2026_candidate_semantic_profiles.md"
+      },
+      {
+        "id": "repeat_gate",
+        "label": "Construction repeat receipt",
+        "path": "artifacts/candidate_semantic_profiles/construction_repeat_receipt_v2.json"
+      },
+      {
+        "id": "isolation",
+        "label": "Instrumented qrel-absent construction receipt",
+        "path": "reports/trec_2026_candidate_semantic_profiles_construction_isolation.json"
+      },
+      {
+        "id": "deviation",
+        "label": "Qrel seal deviation receipt",
+        "path": "reports/trec_2026_candidate_semantic_profiles_qrel_seal_deviation.json"
+      },
+      {
+        "id": "advisor",
+        "label": "Advisor pre-evaluation review",
+        "path": "reports/trec_2026_candidate_semantic_profiles_advisor_pre_evaluation.json"
+      },
+      {
+        "id": "query_explorer",
+        "label": "All-pairs candidate profile query explorer",
+        "path": "reports/trec_2026_candidate_semantic_profiles_query_explorer.html"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "report_title",
+        "type": "markdown",
+        "body": "# Candidate semantic profiles beat query-kNN"
+      },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "sourceId": "results_summary",
+        "body": "## Technical summary\n\n**Promote the candidate-aware semantic profile approach.** The preregistered primary system—equal reciprocal-rank fusion of frozen query-kNN and the multi-vector profile ranker—reaches **0.4202 nDCG@10, 0.4530 MRR, and 99 zero-nDCG queries**. Against query-kNN at 0.3599 / 0.4041 / 116, that is **+0.0604 nDCG@10, +0.0490 MRR, and 17 fewer zeros**. The paired 95% bootstrap interval for the nDCG gain is **[+0.0384, +0.0814]**, entirely above zero.\n\nThe result demonstrates useful qrel-free profile signal and fusion value. It does not authorize choosing the best-looking diagnostic weight after evaluation: profile-heavy and three-way variants are reported as frozen diagnostics, while the receipt promotes the preregistered equal-weight primary."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "primary_ndcg",
+          "primary_mrr",
+          "primary_zeros",
+          "ci_lower"
+        ]
+      },
+      {
+        "id": "system_finding",
+        "type": "markdown",
+        "sourceId": "evaluation_full",
+        "body": "## Profiles add signal beyond both controls\n\n**Every frozen profile-based system beats query-kNN on nDCG@10, while contextual E5 alone does not.** Profile-only reaches 0.4149, and the primary equal fusion reaches 0.4202. Equal query-kNN+E5 fusion also passes its phase gate at 0.3863, confirming the complementary control errors translate into modest fusion value. The profile-heavy diagnostic is highest at 0.4376, but it remains diagnostic because weights were not selected with qrels."
+      },
+      {
+        "id": "system_chart_block",
+        "type": "chart",
+        "chartId": "system_ndcg_chart"
+      },
+      {
+        "id": "system_chart_note",
+        "type": "markdown",
+        "body": "The bars compare absolute nDCG@10 on one common 322-query denominator. Use the exact table below for MRR, zero counts, and role labels; raw fusion scores are not comparable across systems."
+      },
+      {
+        "id": "system_table_block",
+        "type": "table",
+        "tableId": "system_table"
+      },
+      {
+        "id": "paired_finding",
+        "type": "markdown",
+        "sourceId": "comparisons",
+        "body": "## The primary gain survives paired comparison\n\n**The primary result is not driven only by a few large wins.** Its paired nDCG improvement is +0.0604 with a 10,000-resample interval that stays above zero; MRR improves +0.0490 with interval [+0.0204, +0.0773]. Among query-kNN's 116 zero queries, the primary rescues 24; it loses 7 previously nonzero queries, for a net reduction of 17 zeros."
+      },
+      {
+        "id": "zero_table_block",
+        "type": "table",
+        "tableId": "zero_table"
+      },
+      {
+        "id": "density_finding",
+        "type": "markdown",
+        "sourceId": "evaluation_full",
+        "body": "## The gain is broadest on sparse-relevance queries\n\n**nDCG improves in all three relevance-density groups.** The primary gains +0.0653 nDCG and +0.0623 MRR on the 248 queries with at most five positive candidates. On the 30 middle-density queries, nDCG still improves +0.0233 but MRR falls -0.0161; that slice is the clearest failure mode to inspect. The 44 densest queries improve +0.0580 nDCG and +0.0182 MRR."
+      },
+      {
+        "id": "density_chart_block",
+        "type": "chart",
+        "chartId": "density_delta_chart"
+      },
+      {
+        "id": "density_chart_note",
+        "type": "markdown",
+        "body": "Bars are absolute metric deltas versus query-kNN; the zero line separates improvement from regression. The middle slice contains only 30 queries, so its negative MRR result should guide failure inspection rather than weight retuning on this evaluated set."
+      },
+      {
+        "id": "definitions",
+        "type": "markdown",
+        "sourceId": "results_summary",
+        "body": "## What was measured\n\n- **Population:** all 322 development queries and the same 150 candidates per query.\n- **nDCG@10:** graded relevance quality in the ordered top ten, macro-averaged across queries.\n- **MRR:** reciprocal rank of the first positively graded candidate, macro-averaged across queries.\n- **Zero query:** a query with nDCG@10 equal to zero.\n- **Primary comparison:** frozen equal reciprocal-rank fusion of query-kNN and profile-only rankings versus the frozen query-kNN baseline.\n- **Uncertainty:** paired query-level percentile bootstrap with PCG64 seed 2026 and 10,000 resamples."
+      },
+      {
+        "id": "methodology",
+        "type": "markdown",
+        "sourceId": "protocol",
+        "body": "## Qrel-free profile design\n\nCandidate profiles were built from 182,764 filtered historical response records using pinned E5-Mistral embeddings and ten deterministic candidate-specific clusters each. Query scoring used maximum query-to-centroid cosine; annotations were excluded from ranking. All new profile representations, profile scores and rankings, and fusion choices were frozen without opening semantic qrel contents. The primary consumes the already-frozen qrel-derived leave-one-query-out query-kNN ranking. Aside from the documented digest-only procedural deviation, semantic qrel contents and grades were loaded only after rankings froze. The primary and all diagnostic systems were fixed in the protocol, not selected from these results."
+      },
+      {
+        "id": "validation",
+        "type": "markdown",
+        "sourceId": "repeat_gate",
+        "body": "## Repeatability and artifact integrity passed\n\n**Fresh repeat inference and construction reproduce the result exactly at the decision boundary.** Maximum embedding difference is 0.0, maximum profile-score difference is 0.0, rankings are identical, and canonical profile files are identical. Both constructions pass semantic reconstruction; the instrumented repeat ran with qrels absent; and the frozen construction aggregate remained unchanged after evaluation."
+      },
+      {
+        "id": "integrity_table_block",
+        "type": "table",
+        "tableId": "integrity_table"
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "sourceId": "deviation",
+        "body": "## Limitations and protocol deviations\n\nThis is development-set evidence, not hidden-test performance. The primary includes a frozen leave-one-query-out query-kNN component derived from qrels; the new profile representation, profile scoring, and fusion choices did not use semantic qrel contents. A procedural qrel seal violation occurred before the repeat gates when a SHA-256 command printed only a digest already present in tracked pre-experiment reports; no qrel rows, IDs, candidates, grades, or relevance structure were exposed, and the advisor classified it as non-semantic. Aside from that documented digest-only deviation, semantic qrel contents and grades were loaded only after rankings froze. Construction was rerun in an instrumented qrel-absent sandbox before evaluation. A validator arithmetic bug and an order-only qrel inventory check were also corrected; both were validation/evaluation-boundary defects and did not rewrite or reorder frozen rankings."
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "sourceId": "results_summary",
+        "body": "## Recommended next steps\n\n1. **Promote the equal query-kNN+profile system** as the issue #12 primary result and preserve its exact run artifact.\n2. **Carry profile-heavy and three-way fusion only as frozen diagnostic candidates** for a new independent evaluation; do not retroactively replace the primary because their point estimates are higher here.\n3. **Inspect the 30-query middle-density slice and all 7 primary regressions** in the [all-pairs query explorer](trec_2026_candidate_semantic_profiles_query_explorer.html) to identify query types that move the first relevant candidate downward.\n4. **Keep the query-kNN baseline in the portfolio.** The profile system is complementary, but 92 queries remain zero for both systems."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Does the profile-heavy diagnostic retain its advantage on a new locked query set?\n- Which centroid families cause the seven query-kNN-nonzero to primary-zero regressions?\n- Can a qrel-free query-adaptive fusion rule reduce those regressions without sacrificing the 24 rescues?\n- How stable are gains when discovery histories change or candidates have substantially less profile evidence?"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-15T12:04:09Z",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "primary_ndcg": 0.4202139921941393,
+          "ndcg_delta": 0.060359248099091545,
+          "primary_mrr": 0.45301739378333744,
+          "mrr_delta": 0.04895408567164921,
+          "primary_zeros": 99,
+          "zero_delta": -17,
+          "ci_lower": 0.03838891074585237,
+          "ci_upper": 0.08140657894289419
+        }
+      ],
+      "system_metrics": [
+        {
+          "system": "Profile-heavy fusion",
+          "role": "Frozen diagnostic",
+          "ndcg_at_10": 0.43762953591529047,
+          "ndcg_delta": 0.07777479182024272,
+          "mrr": 0.46999113723621716,
+          "mrr_delta": 0.06592782912452899,
+          "zero_queries": 91
+        },
+        {
+          "system": "Three-way equal fusion",
+          "role": "Frozen diagnostic",
+          "ndcg_at_10": 0.43114468390106364,
+          "ndcg_delta": 0.07128993980601589,
+          "mrr": 0.44648910157134153,
+          "mrr_delta": 0.04242579345965336,
+          "zero_queries": 82
+        },
+        {
+          "system": "Query-kNN + profile equal",
+          "role": "Preregistered primary",
+          "ndcg_at_10": 0.4202139921941393,
+          "ndcg_delta": 0.060359248099091545,
+          "mrr": 0.45301739378333744,
+          "mrr_delta": 0.04895408567164927,
+          "zero_queries": 99
+        },
+        {
+          "system": "Profile only",
+          "role": "Frozen diagnostic",
+          "ndcg_at_10": 0.41492445997856287,
+          "ndcg_delta": 0.055069715883515113,
+          "mrr": 0.441697813928065,
+          "mrr_delta": 0.03763450581637684,
+          "zero_queries": 92
+        },
+        {
+          "system": "Dense-heavy fusion",
+          "role": "Frozen diagnostic",
+          "ndcg_at_10": 0.41032806840144154,
+          "ndcg_delta": 0.050473324306393785,
+          "mrr": 0.44677275604474076,
+          "mrr_delta": 0.04270944793305259,
+          "zero_queries": 101
+        },
+        {
+          "system": "Query-kNN + E5 equal",
+          "role": "Phase control",
+          "ndcg_at_10": 0.38632649282655585,
+          "ndcg_delta": 0.026471748731508093,
+          "mrr": 0.41913428330376484,
+          "mrr_delta": 0.015070975192076674,
+          "zero_queries": 101
+        },
+        {
+          "system": "Query-kNN",
+          "role": "Frozen baseline",
+          "ndcg_at_10": 0.35985474409504775,
+          "ndcg_delta": 0.0,
+          "mrr": 0.40406330811168817,
+          "mrr_delta": 0.0,
+          "zero_queries": 116
+        },
+        {
+          "system": "Contextual E5",
+          "role": "Qrel-free control",
+          "ndcg_at_10": 0.3347215379757303,
+          "ndcg_delta": -0.025133206119317464,
+          "mrr": 0.38656649577390506,
+          "mrr_delta": -0.017496812337783108,
+          "zero_queries": 120
+        }
+      ],
+      "density_deltas": [
+        {
+          "density_group": "At most 5",
+          "metric": "nDCG@10",
+          "delta": 0.06525765376866215,
+          "query_count": 248
+        },
+        {
+          "density_group": "At most 5",
+          "metric": "MRR",
+          "delta": 0.06228783993654553,
+          "query_count": 248
+        },
+        {
+          "density_group": "6 to 20",
+          "metric": "nDCG@10",
+          "delta": 0.023344908674889704,
+          "query_count": 30
+        },
+        {
+          "density_group": "6 to 20",
+          "metric": "MRR",
+          "delta": -0.016138957266408252,
+          "query_count": 30
+        },
+        {
+          "density_group": "More than 20",
+          "metric": "nDCG@10",
+          "delta": 0.057987102114376694,
+          "query_count": 44
+        },
+        {
+          "density_group": "More than 20",
+          "metric": "MRR",
+          "delta": 0.018181818181818184,
+          "query_count": 44
+        }
+      ],
+      "zero_transitions": [
+        {
+          "transition": "Zero in both",
+          "query_count": 92,
+          "interpretation": "Neither system retrieves a positive candidate in the top 10"
+        },
+        {
+          "transition": "Rescued by primary",
+          "query_count": 24,
+          "interpretation": "Query-kNN is zero; primary is nonzero"
+        },
+        {
+          "transition": "Lost by primary",
+          "query_count": 7,
+          "interpretation": "Query-kNN is nonzero; primary is zero"
+        },
+        {
+          "transition": "Nonzero in both",
+          "query_count": 199,
+          "interpretation": "Both systems retrieve positive gain in the top 10"
+        }
+      ],
+      "integrity_checks": [
+        {
+          "check": "Fresh inference repeat",
+          "result": "Passed",
+          "evidence": "Maximum absolute embedding difference 0.0"
+        },
+        {
+          "check": "Construction repeat",
+          "result": "Passed",
+          "evidence": "Identical rankings and canonical profile files; score difference 0.0"
+        },
+        {
+          "check": "Qrel-absent construction",
+          "result": "Passed",
+          "evidence": "Instrumented mount, path, name-scan, and file-descriptor receipt"
+        },
+        {
+          "check": "Post-evaluation immutability",
+          "result": "Passed",
+          "evidence": "Construction aggregate unchanged at 04d6be23…"
+        },
+        {
+          "check": "Decision receipt",
+          "result": "Promote",
+          "evidence": "All five preregistered promotion gates passed"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "report_queries",
+      "label": "SQLite report reshaping queries",
+      "path": "reports/trec_2026_candidate_semantic_profiles_report.sql"
+    },
+    {
+      "id": "results_summary",
+      "label": "Candidate semantic profile results receipt",
+      "path": "reports/trec_2026_candidate_semantic_profiles_results.json"
+    },
+    {
+      "id": "evaluation_full",
+      "label": "Frozen-ranking evaluation",
+      "path": "artifacts/candidate_semantic_profiles/evaluation_v2/evaluation.json"
+    },
+    {
+      "id": "comparisons",
+      "label": "Paired comparisons and zero transitions",
+      "path": "artifacts/candidate_semantic_profiles/evaluation_v2/comparisons.json"
+    },
+    {
+      "id": "protocol",
+      "label": "Locked candidate-profile protocol",
+      "path": "protocols/trec_2026_candidate_semantic_profiles.md"
+    },
+    {
+      "id": "repeat_gate",
+      "label": "Construction repeat receipt",
+      "path": "artifacts/candidate_semantic_profiles/construction_repeat_receipt_v2.json"
+    },
+    {
+      "id": "isolation",
+      "label": "Instrumented qrel-absent construction receipt",
+      "path": "reports/trec_2026_candidate_semantic_profiles_construction_isolation.json"
+    },
+    {
+      "id": "deviation",
+      "label": "Qrel seal deviation receipt",
+      "path": "reports/trec_2026_candidate_semantic_profiles_qrel_seal_deviation.json"
+    },
+    {
+      "id": "advisor",
+      "label": "Advisor pre-evaluation review",
+      "path": "reports/trec_2026_candidate_semantic_profiles_advisor_pre_evaluation.json"
+    },
+    {
+      "id": "query_explorer",
+      "label": "All-pairs candidate profile query explorer",
+      "path": "reports/trec_2026_candidate_semantic_profiles_query_explorer.html"
+    }
+  ]
+}

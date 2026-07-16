@@ -1,0 +1,39 @@
+{
+  "artifact_type": "candidate_semantic_profiles_validator_amendment",
+  "version": 1,
+  "recorded_at": "2026-07-15T07:55:31-04:00",
+  "status": "accepted_non_ranking_correction",
+  "qrel_free": true,
+  "problem": {
+    "component": "construction artifact loader",
+    "old_behavior": "centroid reconstruction normalized a float64 mean directly and omitted the constructor's float32 row renormalization and float32 normalization boundary",
+    "effect": "valid frozen artifacts could fail semantic reconstruction by float32 rounding",
+    "ranking_impact": "none; the loader validates persisted artifacts and does not construct scores or rankings"
+  },
+  "correction": {
+    "centroid_reconstruction": "float32 row renormalization, float64 mean, float32 cast, float32 normalization",
+    "dispersion_absolute_tolerance": 2.384185791015625e-07,
+    "tolerance_definition": "two float32 machine epsilons",
+    "frozen_artifacts_rewritten": false,
+    "qrels_loaded": false
+  },
+  "bindings": {
+    "pre_amendment_commit": "567e46e3dd5d7a5a8fd7a078ec330d83834eca21",
+    "uncommitted_code_and_test_diff_sha256": "04e9308f74f433e7ed29d73e1f6d6d888625e982e735090604b7009d5e115745",
+    "first_construction_aggregate_sha256": "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4",
+    "original_second_construction_aggregate_sha256": "50bf7e40de6dd1ec01f3114e2041ee07fb73a7cbca3d3c511202a8daf35c3876",
+    "instrumented_second_construction_aggregate_sha256": "3476d446cb9174bde20c486b863bf3235b78d9765ae19589be0940a1ca91e585",
+    "inference_repeat_receipt_sha256": "0af4e349672a0859eb6dd2cb53cc2e4b190581f8c0f3aaabbb4b41b0792cf3dc",
+    "construction_repeat_receipt_sha256": "265d28b3ac0f44040d6aaa83d988c92559308cc2812c2bfafbb90f413fa1d49e"
+  },
+  "verification_before_commit": {
+    "focused_profile_tests": "22 passed",
+    "ruff": "passed",
+    "first_profile_validate": "passed",
+    "instrumented_second_profile_validate": "passed",
+    "repeat_rankings_identical": true,
+    "repeat_canonical_files_identical": true,
+    "repeat_maximum_absolute_score_difference": 0.0
+  },
+  "advisor_classification": "technically sound, bounded validation-only amendment; freeze and rerun locked verification before evaluation"
+}

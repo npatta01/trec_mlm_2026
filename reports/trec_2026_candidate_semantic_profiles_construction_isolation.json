@@ -1,0 +1,94 @@
+{
+  "artifact_type": "candidate_semantic_profiles_construction_isolation_receipt",
+  "version": 1,
+  "recorded_at": "2026-07-15T07:55:31-04:00",
+  "construction_started_at": "2026-07-15T11:51:56+00:00",
+  "status": "passed",
+  "qrel_free": true,
+  "sandbox": {
+    "runtime": "bubblewrap 0.11.1",
+    "network_unshared": true,
+    "all_namespaces_unshared": true,
+    "writable_mounts": [
+      "/outputs"
+    ],
+    "read_only_inputs": {
+      "/inputs/queries.tsv": "data/dev/llm_dev_data.tsv",
+      "/inputs/discovery.json": "data/dev/llm_discovery_data.json resolved shared-data target",
+      "/inputs/candidates.json": "reports/trec_2026_discovery_profile_audit.json",
+      "/inputs/dense": "frozen dense_query_knn_baseline artifact",
+      "/workspace/trec_mlm": "active source tree",
+      "/outputs/inference2_record_id_v2": "fresh repeat-two inference artifact under the output-root bind"
+    },
+    "qrel_path_probes": {
+      "/inputs/qrels": "absent",
+      "/inputs/llm_dev_qrels.txt": "absent",
+      "/workspace/data/dev/llm_dev_qrels.txt": "absent",
+      "/data/dev/llm_dev_qrels.txt": "absent"
+    },
+    "qrel_name_scan_roots": [
+      "/inputs",
+      "/workspace",
+      "/outputs"
+    ],
+    "qrel_name_scan_result": "none",
+    "file_descriptors_before_exec": {
+      "0": "/dev/null",
+      "1": "stdout pipe",
+      "2": "stderr pipe",
+      "3": "/proc/self/fd directory used for the inventory"
+    }
+  },
+  "command": {
+    "entrypoint": "python -m trec_mlm.cli profile-construct",
+    "queries": "/inputs/queries.tsv",
+    "discovery": "/inputs/discovery.json",
+    "candidates": "/inputs/candidates.json",
+    "dense_artifact": "/inputs/dense",
+    "inference_artifact": "/outputs/inference2_record_id_v2",
+    "output_dir": "/outputs/run2_record_id_v2_isolated",
+    "environment": {
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "runtime": {
+    "python": "3.13.9",
+    "numpy": "2.5.1",
+    "scipy": "1.18.0",
+    "scikit_learn": "1.9.0",
+    "elapsed_seconds": 122.63530645193532
+  },
+  "input_sha256": {
+    "queries": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
+    "discovery": "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25",
+    "candidates": "4a770b919024dffd1cffe85edd2f0219aeec31cdbb2a96d1005861fa1bf03f91",
+    "dense_run": "1ec008416befc8996be01ef26afb2701a2765983fa5b475acafc21c217ca7a92",
+    "inference_manifest_file": "61556b64642b6df28a1bbb74fdf8804dd78d6854f543c953692f395d827afcba",
+    "inference_aggregate": "fe765b36cadda7168f2aa73775be9fe9f224585e9c2dc4c3204f3d1d29524266"
+  },
+  "output": {
+    "artifact_dir": "artifacts/candidate_semantic_profiles/run2_record_id_v2_isolated",
+    "source_tree_sha256": "efd9a681cfa87048773723f1cf7361c788924bbeba98a25033a74bdb3eca01fb",
+    "manifest_file_sha256": "57b54e2783d454ad55333e8859754a97510ebf97fbdf263010a2f99395b2435f",
+    "aggregate_sha256": "3476d446cb9174bde20c486b863bf3235b78d9765ae19589be0940a1ca91e585",
+    "manifested_file_count": 54,
+    "actual_non_root_manifest_file_count": 54,
+    "profile_validation_status": "passed",
+    "query_count": 322,
+    "candidate_count": 150
+  },
+  "repeat_gate": {
+    "receipt_path": "artifacts/candidate_semantic_profiles/construction_repeat_receipt_v2.json",
+    "receipt_sha256": "265d28b3ac0f44040d6aaa83d988c92559308cc2812c2bfafbb90f413fa1d49e",
+    "status": "passed",
+    "first_aggregate_sha256": "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4",
+    "second_aggregate_sha256": "3476d446cb9174bde20c486b863bf3235b78d9765ae19589be0940a1ca91e585",
+    "rankings_identical": true,
+    "canonical_profile_files_identical": true,
+    "maximum_absolute_score_difference": 0.0,
+    "maximum_absolute_embedding_difference": 0.0
+  }
+}

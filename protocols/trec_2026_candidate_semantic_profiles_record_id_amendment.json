@@ -1,0 +1,48 @@
+{
+  "advisor_decision": "approve_with_safeguards",
+  "artifact_type": "candidate_semantic_profiles_protocol_amendment",
+  "effective_date": "2026-07-14",
+  "qrels_must_remain_sealed": true,
+  "record_id_scheme": {
+    "digest": "sha256",
+    "digest_length_hex": 64,
+    "framing": "unsigned-64-bit-big-endian UTF-8 byte length followed by bytes for each field",
+    "ordered_fields": [
+      "candidate_id",
+      "source_query_id",
+      "question",
+      "response"
+    ],
+    "prefix": "profile-record-v2:"
+  },
+  "repair_contract": {
+    "allowed_source_aggregate_sha256": "20a72f0cbb04ef1c1e58a7caf2d10c9357f3529c1bcd3e66f4a7ec5f371657c5",
+    "artifact_schema_version": 2,
+    "change_only": [
+      "record_id",
+      "artifact_schema_version",
+      "repair_provenance",
+      "manifest"
+    ],
+    "legacy_schema_version": 1,
+    "preserve_non_id_record_fields_and_order": true,
+    "require_byte_identical_embedding_arrays": true,
+    "require_byte_identical_formatted_inputs": true,
+    "write_new_immutable_artifact": true
+  },
+  "repeat_contract": {
+    "construction_repeat_required": true,
+    "embedding_maximum_absolute_difference": 0.00001,
+    "fresh_full_second_inference_required": true,
+    "inference_repeat_required": true,
+    "metadata_exceptions_must_be_explicit": true
+  },
+  "supersedes_original_stop_receipt": false,
+  "version": 1,
+  "viability_contract": {
+    "original_stop_receipt_is_retained": true,
+    "repeat_two_requires_repaired_decision": "continue",
+    "rerun_complete_qrel_free_gate": true,
+    "write_superseding_receipt": true
+  }
+}

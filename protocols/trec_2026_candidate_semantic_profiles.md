@@ -1,0 +1,584 @@
+# TREC 2026 candidate-aware semantic profiles preregistration
+
+Status: advisor approved and locked before implementation or effectiveness scoring.
+
+Base revision: `08cb6c6cb2110ac94d82900525fe97ae78d69bb1`, the fetched
+`origin/main` revision that merges PR #16.
+
+This protocol implements GitHub issue #12. It tests candidate-specific,
+multi-vector semantic profiles alone and in fixed reciprocal-rank fusion with the
+frozen dense query-kNN reference. It also runs one fixed diagnostic fusion between
+the dense reference and contextual E5.
+
+The frozen dense reference is 0.3599 nDCG@10, 0.4041 MRR, and 116 zero-nDCG
+queries. Contextual E5 is the stable control at 0.3347 nDCG@10, 0.3866 MRR, and
+120 zeros. E5 rescues 40 dense-zero queries, dense rescues 44 E5-zero queries,
+and 76 queries are zero for both. These values motivate the experiment but do not
+select any representation, fusion weight, or per-query output in this protocol.
+
+The advisor rejected nested or post-hoc fusion selection. Even selection among
+previously frozen rankings would use qrels to determine the final ranking. This
+protocol therefore names one fixed promotion candidate and retains all other
+fusion rankings only as preregistered diagnostics or ablations.
+
+## Scope and non-goals
+
+The experiment includes:
+
+- one fixed dense-plus-E5 Phase 0 diagnostic;
+- one candidate-specific profile representation;
+- profile-only ranking;
+- one fixed dense-plus-profile promotion candidate;
+- two fixed dense/profile weight ablations;
+- one fixed, initially dormant three-way ablation;
+- qrel-independent construction and post-lock evaluation;
+- complete artifacts, an accessible report, a query explorer, and a decision
+  receipt.
+
+It excludes encoder sweeps, support penalties, learned rankers, LLM judges,
+response-quality labels, global shared clusters, supervised fusion, and tuning of
+RRF constants or weights. Completed Qwen, Jina, pointwise, generated-listwise,
+GroupRank, and FirstMistral work is not continued. Exploratory programs and scratch
+artifacts cannot enter the final pull request.
+
+## Frozen evidence boundary
+
+Profile construction may consume only:
+
+- target query IDs and text;
+- organizer-provided discovery query IDs, query text, candidate IDs, and responses;
+- the tracked 150-candidate manifest;
+- the pinned encoder and tokenizer;
+- the shared cleaned candidate-label vocabulary;
+- the already-frozen dense and contextual-E5 run artifacts for fusion.
+
+The dense artifact deserves a precise qualification. Its held-out development
+predictions were produced by leakage-safe nested evaluation, but its neighbor
+evidence and configuration selection use fold-local qrels. The new profile
+construction and fixed fusion are qrel-free conditional on consuming that already
+frozen dense artifact; the dense signal itself is not end-to-end qrel-free.
+
+Construction and evaluation use separate public entry points and configuration
+types. No construction configuration, command, or public function accepts a qrel
+path, qrel object, relevance grade, evaluation metric, or effectiveness threshold.
+Construction must succeed when the qrel file is absent or unreadable. It writes an
+atomic, immutable manifest containing canonical hashes for every construction
+artifact. Evaluation validates that manifest read-only and writes to a separate
+directory; it cannot replace or rewrite a construction file.
+
+Qrels may be opened only after every ranking listed in the frozen ranking matrix has
+been written, validated as 322 queries by 150 unique candidates, repeated, and
+locked by hash. Qrel mutation must leave unchanged every input inventory,
+formatted input, embedding, cluster membership, centroid, annotation, profile
+score, winning-centroid ID, fusion score, prediction table, ranking, TREC run, and
+construction-manifest hash.
+
+## Input corpus, filtering, and exact deduplication
+
+The discovery corpus is `llm_discovery_data.json`, SHA-256
+`b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25`.
+It contains 7,759 discovery questions, 150 candidates, and 1,163,850
+question/candidate response records.
+
+Reuse the existing `basic` response filter exactly:
+
+1. remove null responses;
+2. remove Unicode-whitespace-blank responses;
+3. normalize with Unicode NFKC, casefold, and whitespace collapse;
+4. remove a response only when the normalized text is exactly `i don't know`.
+
+Do not apply the aggressive length or prefix filter. For each candidate, deduplicate
+the remaining records by exact raw Python string equality on
+`(discovery_question, response)`. There is no Unicode normalization, case folding,
+whitespace collapse, or semantic deduplication at this step. Sort usable records by
+`(source_query_id, sha256(raw_question, raw_response))`; assign the resulting
+stable record ID before encoding.
+
+The qrel-free structural audit at protocol time found 182,800 basic-filtered
+records, 36 candidate-local exact duplicates, and 182,764 usable distinct records.
+Every candidate has at least 36 usable records, so all official candidates request
+10 clusters. Preserve raw, excluded-by-reason, duplicate, usable, and truncated
+counts per candidate. Tests must still cover zero and one-to-nine usable records.
+
+## Frozen profile encoder contract
+
+Use the retained contextual E5 checkpoint and runtime:
+
+| Item | Frozen value |
+| --- | --- |
+| Model | `intfloat/e5-mistral-7b-instruct` |
+| Revision | `d62cc4417be0e3289c03dd459d1ef2d137e2554e` |
+| License | MIT |
+| Container | `vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28` |
+| Container Python / NumPy | `3.12.13` / `2.1.3` |
+| Backend | Transformers on ROCm, not the vLLM server |
+| Torch runtime | `2.11.0+gitd0c8b1f`, HIP `7.2.53211` |
+| Transformers | `5.12.1` |
+| Device requirement | available Torch HIP device whose architecture starts with `gfx` |
+| Inference dtype | BF16 |
+| Pooling | normalized last non-padding token |
+| Persisted dtype | C-contiguous normalized float32 |
+| Embedding dimension | 4,096 |
+| Seed | 2026 |
+| Batch size | 8, with no adaptive fallback |
+| Maximum length | 512 tokens including the terminal EOS |
+| Padding | left |
+
+The target task instruction is exactly:
+
+```text
+Given a user question, retrieve historical question-and-response records from LLMs that are likely to answer it correctly.
+```
+
+The target query string is exactly:
+
+```text
+Instruct: {instruction}
+Query: {target_question.strip()}
+```
+
+The discovery record string is exactly:
+
+```text
+Question: {discovery_question.strip()}
+Response: {response.strip()}
+```
+
+Tokenize with `add_special_tokens=True` and right truncation. First tokenize without
+truncation to record the original length. For the encoded form, tokenize to at most
+511 tokens, remove every trailing EOS token ID, right-truncate again if required to
+leave at most 511 tokens, and append exactly one EOS token ID 2 (`</s>`). Left-pad
+batches. This rule deliberately preserves the beginning of the question-response
+record. If the template and question consume the entire budget, the response may be
+fully truncated; record this separately from ordinary partial truncation.
+
+Run BF16 inference, pool and normalize in Torch, cast to float32, copy into a
+C-contiguous NumPy array, and normalize again in float32 before persistence. Reject
+non-finite or zero embeddings. Save formatted-input and embedding hashes together
+with model, tokenizer, software, device, memory, token-length, truncation, batch, and
+elapsed-time metadata.
+
+Before the full run, execute a qrel-free batch-8 smoke over deterministically selected
+short, median-length, and over-512-token records. It must confirm the pinned snapshot,
+`gfx1151` ROCm execution, memory headroom, finite normalized outputs, and repeated
+scores within `1e-5`. Failure stops the experiment and requires an explicit protocol
+amendment; it cannot trigger a silent batch-size or model fallback.
+
+## Deterministic candidate-specific clustering
+
+### Locked two-stage execution boundary
+
+The ROCm image and clustering environment are intentionally different and must not be
+collapsed into one Python process. Run two qrel-free, hash-locked stages:
+
+1. `profile-infer` runs only formatting, tokenization, and E5 embedding in the pinned
+   ROCm image. It writes an atomic inference artifact containing input inventories,
+   exact formatted strings and hashes, target-query embeddings, the 182,764 ordered
+   record embeddings, the 7,759 ordered supporting-question embeddings, the 150
+   ordered label-document embeddings, the ordered label inventory, truncation audits,
+   encoder/runtime metadata, source hashes, and a complete manifest. The supporting-
+   question and label-document arrays are authoritative for annotation reconstruction;
+   Stage 2 recomputes and validates the complete question-to-label cosine matrix.
+   It does not import scikit-learn and cannot accept qrels, dense rankings, fusion
+   weights, or evaluation options.
+2. `profile-construct` runs under the clustering environment pinned below. It validates
+   the entire inference manifest, rechecks official input hashes and formatted-input
+   correspondence, then performs only clustering, annotation, profile scoring, and the
+   already-fixed ranking/fusion construction. It consumes persisted inference arrays
+   without re-encoding, recasting, renormalizing, or reordering. Each array is NumPy
+   `.npy`, little-endian float32, C-contiguous, non-pickle data loaded with
+   `allow_pickle=False`; its exact shape and ordered row-ID mapping are manifest-locked
+   and validated before clustering. It cannot encode or accept qrels.
+
+The construction manifest embeds the validated inference aggregate hash and copies all
+inference inventories/arrays needed for standalone semantic reconstruction. Copied
+inference files must be byte-identical to their inference-manifest counterparts. Both
+full repeats rerun both stages in fresh processes; run 2 may not reuse run 1 inference.
+Before comparing constructions, the Stage 1 repeat gate requires identical inventories,
+row mappings, formatted strings and hashes, token/truncation audits, shapes, and dtypes.
+For each corresponding embedding array, require maximum absolute element difference
+`<=1e-5`; all values must be finite and normalized, and the downstream gate still
+requires identical memberships, centroids, annotations, winners, and rankings. Qrels
+remain absent from both stages and may be opened only after both inference artifacts
+and both completed construction artifacts pass their respective repeat receipts.
+
+Every inference and construction aggregate digest is SHA-256 over the canonical JSON
+encoding of the lexicographically ordered list of `(relative_path, byte_size, sha256)`
+entries, excluding `manifest.json` itself. A consumer recomputes file inventory, byte
+sizes, individual hashes, and the aggregate digest before reading any array.
+
+Run clustering separately for each candidate. Records from another candidate never
+participate in a candidate's fit.
+
+The clustering environment is Python 3.13.9, NumPy 2.5.1, SciPy 1.18.0, and
+scikit-learn 1.9.0. Set `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`,
+`OPENBLAS_NUM_THREADS=1`, and the equivalent thread-pool limits to one before
+importing the numerical stack. Record and validate these values.
+
+For `n` usable distinct records, request `K = min(10, n)`. Fit scikit-learn
+`KMeans` to the stable C-contiguous float32 embedding matrix with:
+
+- `init="k-means++"`;
+- `random_state=2026`;
+- `n_init=10`;
+- `algorithm="lloyd"`;
+- `max_iter=300`;
+- `tol=1e-4`.
+
+Assignments use scikit-learn's declared Euclidean K-means behavior. Persist the
+installed package versions and the convergence result. After fitting:
+
+1. discard a fitted center with no assigned records;
+2. group fitted centers whose C-contiguous float32 centroid bytes are identical;
+3. merge each such group's memberships;
+4. recompute each occupied centroid as the float64 mean of its member float32
+   embeddings, cast it to float32, and L2-normalize it;
+5. order occupied clusters by the lexicographically smallest stable member record ID;
+6. assign canonical cluster IDs `0..K_actual-1` in that order.
+
+Identical input embeddings may therefore collapse to one occupied centroid. The
+profile contains up to 10 centroids, not necessarily exactly 10. Hash the ordered
+membership list for every canonical centroid and the complete candidate membership.
+
+For centroid `j` with normalized vector `c_j` and normalized member vectors `x_i`,
+define dispersion as:
+
+```text
+mean_i (1 - cosine(x_i, c_j))
+```
+
+The medoid is the member with maximum cosine to the centroid, with stable record ID
+breaking exact ties. Representative questions are the first three distinct question
+strings under the same ordering. Preserve support, dispersion, medoid, representatives,
+iteration count, convergence, and membership hash.
+
+## Profile scoring and unavailable candidates
+
+For target query `q` and candidate `c`:
+
+```text
+profile_score(q, c) = max_j cosine(query_embedding(q), centroid(c, j))
+```
+
+There is no support penalty, calibration, clipping, prior, or label-derived adjustment.
+Save the canonical winning centroid ID; a centroid tie uses the smaller canonical ID.
+Rank by descending float32 profile score and then candidate ID.
+
+A candidate with no usable record has internal score negative infinity. In the
+human-readable profile prediction table it receives the finite sentinel `-2.0` and is
+placed after every available profile, ordered by candidate ID. Its profile signal
+contributes exactly zero to every fusion rather than receiving an arbitrary tail-rank
+RRF contribution. The official structural audit predicts full profile coverage, but
+the behavior remains part of the executable contract.
+
+## Explanation-only propagated labels
+
+Cluster labels cannot influence filtering, deduplication, embeddings, cluster fitting,
+centroids, profile scores, winning centroids, fusion scores, or rankings.
+
+Reuse the retained contextual-E5 label-document embeddings and its exact label query
+contract. Encode each of the 7,759 unique supporting discovery questions with:
+
+```text
+Instruct: Given a user question, retrieve topic labels describing the LLM experts most likely to answer it correctly.
+Query: {discovery_question.strip()}
+```
+
+For a cluster and label, take the arithmetic mean of the supporting question-to-label
+cosine similarities. Sort labels by descending mean similarity and candidate ID. Let
+`s1` and `s2` be the first two scores and `margin = s1 - s2`:
+
+- if `s1 >= 0.60` and `margin >= 0.02`, store one primary label;
+- if `s1 >= 0.60` and `margin < 0.02`, store primary and secondary labels;
+- otherwise store `mixed_or_unclear` with no forced primary.
+
+Save `s1`, `s2`, margin, support, and representative questions. A mutation test must
+replace every annotation and prove all non-annotation construction hashes remain
+unchanged.
+
+## Frozen ranking and fusion matrix
+
+RRF uses one-based complete ranks and `k=60`. For signal `s` with weight `w_s`, its
+contribution is `w_s / (60 + rank_s)`. Sum contributions and break exact fused-score
+ties by candidate ID. An unavailable profile contributes zero as specified above.
+
+Before qrels are opened, construct and lock exactly these complete rankings:
+
+| Ranking | Weights | Role |
+| --- | --- | --- |
+| Profile only | profile score | Independent evidence test |
+| Dense + E5 | `1:1` | Phase 0 diagnostic |
+| Dense + profile | `1:1` | Sole promotion candidate |
+| Dense + profile | `2:1` | Dense-heavy descriptive ablation |
+| Dense + profile | `1:2` | Profile-heavy descriptive ablation |
+| Dense + profile + E5 | `1:1:1` | Dormant conditional ablation |
+
+The three-way ranking is constructed unconditionally before Phase 0 is evaluated. It
+is reported as an effectiveness ablation only if Phase 0 passes. No fixed ablation can
+replace the sole promotion candidate, and there is no nested, global, per-fold, or
+per-query weight selection.
+
+Repeat Phase 0 fusion twice in fresh processes and require byte-identical canonical
+rank tables. Repeat the complete profile construction and all dependent rankings in a
+fresh process. Require identical input inventories, formatted-input hashes, cluster
+memberships, centroid hashes, annotation hashes, winning-centroid IDs, and canonical
+rank tables; require maximum absolute corresponding profile and fusion score difference
+at most `1e-5`. Timestamp-bearing metadata is excluded from canonical comparison
+hashes but retained in runtime receipts.
+
+## Artifact contract and validation
+
+Use versioned schemas and atomic directory writes. The construction manifest hashes
+every file and also contains one canonical aggregate manifest hash.
+
+Per-record and per-candidate artifacts include:
+
+- raw, excluded, duplicate, usable, partial-truncation, and full-response-truncation
+  counts;
+- stable record IDs, raw-membership hashes, formatted text hashes, and embeddings;
+- encoder/tokenizer identity, exact revisions, license, formatting, tokenization,
+  pooling, dtype, dimensions, batch, seed, runtime, and source hashes;
+- deterministic memberships and normalized centroids;
+- centroid support, dispersion, medoid, representatives, and membership hashes;
+- primary/secondary annotation scores, confidence status, and the explicit
+  `affects_ranking=false` invariant.
+
+Per-run artifacts include:
+
+- target query embeddings;
+- all 48,300 query-candidate profile scores and winning centroid IDs;
+- source run hashes, fusion scores, predictions, rankings, and complete TREC runs;
+- canonical ranking hashes and repeatability receipts;
+- qrel-independence and label-independence receipts;
+- software, hardware, time, memory, token, truncation, cluster-support, and coverage
+  metadata;
+- validation that every run contains exactly 322 query IDs and all 150 unique
+  candidate IDs per query.
+
+The artifact loader recomputes and validates hashes, score/rank consistency, centroid
+normalization, membership coverage, winning centroids, fusion arithmetic, prediction
+ranks, and TREC completeness. It rejects missing, extra, reordered, mutated, non-finite,
+or internally inconsistent data.
+
+## Post-lock evaluation
+
+Only after construction validation and ranking lock may the evaluator load qrels.
+Positive means grade strictly greater than zero. Report nDCG@10, MRR, and zero-nDCG
+count for every reportable ranking.
+
+For comparisons against frozen dense, compute per-query candidate-minus-dense metric
+differences. Win, tie, and loss use absolute equality tolerance `1e-12`. Paired
+intervals are percentile intervals over 10,000 bootstrap samples of the 322 query
+differences, using `numpy.random.Generator(numpy.random.PCG64(2026))`; report the
+2.5th and 97.5th percentiles and the full-precision mean difference.
+
+For zero transitions report exactly:
+
+- zero in both;
+- dense zero, candidate nonzero (rescued);
+- dense nonzero, candidate zero (harmed);
+- nonzero in both.
+
+Report qrel-density slices of at most 5, 6 through 20, and more than 20 positive qrels.
+The frozen question-type classifier strips leading whitespace and punctuation, takes
+the first casefolded ASCII word, maps `what`, `who`, `when`, `where`, `which`, `how`,
+and `why` to their own slices, and maps everything else to `other`. Slices are
+descriptive and cannot select a run.
+
+## Phase 0 decision
+
+Evaluate the already-frozen equal-weight dense-plus-E5 RRF ranking. Phase 0 passes only
+if all full-precision conditions hold:
+
+- mean nDCG@10 minus dense is greater than zero;
+- mean MRR minus dense is at least `-0.005`;
+- zero-nDCG count is less than 116.
+
+Always report its paired intervals, win/tie/loss counts, and zero transitions. If it
+passes, report the already-frozen three-way ranking as a conditional ablation. If it
+fails, retain E5 only as the stable qrel-free/cold-start control and do not tune or
+replace the Phase 0 fusion.
+
+## Profile decision receipt
+
+Apply the promotion gate only to equal-weight dense-plus-profile RRF. Promote it only
+if all conditions hold at full precision:
+
+- the paired nDCG@10 interval lower bound versus dense is greater than zero;
+- mean MRR minus dense is at least `-0.005`;
+- zero-nDCG count is less than 116;
+- mean nDCG@10 difference is greater than zero on queries with at most 20 positive
+  qrels;
+- qrel-independence, label-independence, leakage, deterministic clustering,
+  fresh-process repeatability, inventory, and artifact validation all pass.
+
+If promotion fails but all integrity checks pass, classify the method as diagnostic
+when at least one of these holds: overall nDCG@10 point difference is positive, the
+zero count is lower than 116, or at least one dense-zero query is rescued. Otherwise
+classify it as reject. Any integrity failure produces `reject-invalid`, records the
+failed invariant, and prohibits an effectiveness claim.
+
+The receipt records the Phase 0 decision, each promotion-gate value, final
+`promote`/`diagnostic`/`reject` outcome, and exact reasons. A failed method cannot enter
+the production ranking path.
+
+## Tests required before the official run
+
+- exact query and record formatting;
+- exact EOS, padding, right-truncation, question-only budget, and batch behavior;
+- filter reasons and raw exact deduplication;
+- stable record IDs and candidate-local input isolation;
+- zero-through-nine-record rules and official 10-cluster rule;
+- deterministic membership, empty/duplicate centroid canonicalization, and identical
+  embedding behavior;
+- centroid normalization, dispersion, medoid, and representative tie handling;
+- maximum-cosine scoring, winning-centroid ties, and candidate-ID rank ties;
+- unavailable profile sentinel, tail order, and zero fusion contribution;
+- question-to-label aggregation, ambiguity thresholds, and annotation mutation;
+- fixed RRF arithmetic for all five fusion rankings;
+- public construction APIs and configs contain no qrel boundary;
+- construction succeeds with qrels absent;
+- qrel mutation leaves every construction hash unchanged;
+- 322 complete rankings with exactly 150 unique candidates;
+- valid complete TREC output and immutable manifest validation;
+- fresh-process repeat receipts and maximum score difference;
+- bootstrap, win/tie/loss, zero transition, density slice, question-type, Phase 0,
+  and final decision logic.
+
+## Amendment: pass-one qrel-free viability gate
+
+Approved by advisor on 2026-07-14 before pass-one output inspection. The frozen
+amendment receipt has SHA-256
+`77c15ad341561ac19245e9fe810cff2f609baa1f70c8a11057cf1dd3d4f408a6`.
+Pause after the first full Stage 1 pass. Keep qrels absent, unmounted, and unopened;
+freeze and hash exactly one `profile_only` ranking; use dense and contextual E5 only
+as comparison references; do not inspect fusion rankings or select weights. Execute
+the gate once with seed 2026 and do not alter thresholds after inspection.
+
+Continue requires validated hashes and exact 322/150/182764/7759 inventories;
+little-endian C-contiguous float32 arrays; finite nonzero rows with maximum norm error
+at most `1e-5`; at least 10 records and a profile per candidate; overall/per-candidate
+full truncation at most 1%/5% and any truncation at most 50%/75%; within-candidate
+exact record duplicates at most 0.1%; at least 95% of candidates with eight occupied
+clusters and none below two; largest cluster share at most 0.80; normalized occupancy
+entropy median/minimum at least 0.65/0.35; singleton clusters at most 25%; supported
+cluster median dispersion in `[1e-4, 0.40]`, p95 at most 0.60, and zero dispersion at
+most 1%; no exact duplicate centroids; centroid cosine at least 0.9999 for at most 1%
+of all within-candidate pairs and 20% per candidate; symmetric nearest-other centroid
+Chamfer separation median at least 0.005 and at least 95% of candidates at least
+0.001.
+
+The frozen ranking must have at least 306 unique full rankings, 258 unique top-10
+lists, no identical top-10 group above 16, at least 15 unique top-1 candidates,
+effective top-1 count at least 10, maximum top-1 share at most 10%, top-10 coverage
+at least 90 candidates, and no candidate in more than 50% of top tens. Median/p05
+per-query score range must be at least 0.05/0.01, median top gap above `1e-5`, and
+exact top ties at most 1%. Versus each reference, mean top-10 Jaccard must be at most
+0.80 and at least 80% of queries must differ. Report Jaccard, RBO with `p=0.9`, and
+full-rank correlation without optimization. For any candidate winning at least 5%
+of queries, assigned-query mean pairwise cosine must reach the 75th percentile of
+10,000 same-size random subsets under seed 2026.
+
+`continue` requires every threshold and is the only decision permitting repeat two.
+`revise` applies when integrity and leakage pass but a non-severe geometry,
+truncation, separation, or sensitivity threshold fails. `stop` applies on leakage or
+integrity/inventory/numeric/coverage failure, or severe collapse: fewer than 50
+unique top tens, effective top-1 below 3, median separation below `1e-4`, more than
+25% of candidates dominated by near-identical centroids, or mean top-10 Jaccard at
+least 0.90 against both references. Report pass-one cost and project repeat two at
+the same GPU-hours and bytes with a +/-10% time range. Repeat two cannot improve the
+ranking; its only value is deterministic confirmation that unlocks qrel evaluation.
+
+## Amendment: candidate-aware record identity after pass one
+
+Approved with safeguards by the advisor on 2026-07-14 before repair implementation
+or qrel access. The prior pass-one `stop` receipt remains immutable and authoritative
+for the original artifact. The collision is a bookkeeping defect: the schema-v1 ID
+omitted `candidate_id`, while construction required IDs to be globally unique. It did
+not alter formatted model inputs, embedding row order, or embedding values.
+The frozen amendment JSON has SHA-256
+`a43e13518aa74365dc7bbe2022c4ee22fec47cb7b5f44ee65523f6ba6e5cb31a`.
+
+Schema v2 defines each record ID as `profile-record-v2:` followed by the full SHA-256
+digest of length-framed UTF-8 values `(candidate_id, source_query_id, question,
+response)`. Global uniqueness and exact canonical identity are checked before encoding,
+when writing, when loading, and before construction. Both the Stage-1 inference artifact
+and downstream construction artifact use contract version 2; normal loaders reject
+their respective version-1 forms.
+
+The sole legacy migration source is the immutable pass-one inference aggregate
+`20a72f0cbb04ef1c1e58a7caf2d10c9357f3529c1bcd3e66f4a7ec5f371657c5`.
+Normal schema-v2 loading must reject schema v1. A narrowly scoped atomic migration may
+read that pinned source only after validating its complete manifest and its legacy ID
+formula. It writes a new artifact, preserves record order and every non-ID record
+field, and requires byte-identical formatted inputs and four embedding array files.
+It records qrel-free repair provenance, source/destination manifests, the repair code
+tree, and the frozen amendment hash. The original directory is never modified.
+
+The full qrel-free viability gate is rerun without changing thresholds, and its new
+receipt supersedes rather than overwrites the original `stop` result. A fresh full
+second inference is authorized only if the repaired receipt says `continue`. The
+migration-aware repeat gate requires exact schema-v2 records, inputs, formatted inputs,
+audits, and E5 rankings; maximum absolute embedding difference remains at most `1e-5`.
+Only individually enumerated runtime and lineage differences may be waived. Both
+inference and construction repeat gates, plus advisor code-and-result approval, must
+pass before qrels can be loaded.
+
+Following post-implementation advisor review, the viability gate must execute in a
+network-disabled container that mounts only the schema-v2 construction read-only, the
+gate program read-only, and its output directory. It must record that the official qrel
+path is absent, enumerate open file descriptors, recompute the construction manifest
+aggregate, and require the exact manifested file inventory. A host-side claim that
+qrels are unmounted is insufficient even when there is no evidence they were opened.
+
+## Recorded execution exceptions after repeat-two inference
+
+Repeat-two inference completed and atomically finalized its schema-v2 artifact before
+the CLI failed while writing the separate execution receipt. The failure was an
+`UnboundLocalError` caused by branch-local `Path` imports shadowing the module import.
+An advisor approved deterministic reconstruction of the intended receipt from the
+fully validated immutable artifact; the inference artifact itself is not rewritten.
+The exact recovery evidence is retained in
+`reports/trec_2026_candidate_semantic_profiles_execution_receipt_recovery.json`.
+
+During recovery evidence collection, `sha256sum data/dev/llm_dev_qrels.txt` was run
+before the repeat gates. This is recorded as a literal procedural seal violation. It
+printed only a digest already present in tracked pre-experiment reports and exposed no
+query IDs, candidates, grades, or relevance structure; it did not enter Python or any
+ranking/configuration path. The advisor classified it as non-semantic audit-only access
+and approved continuation without rerunning inference. Construction two must therefore
+run with qrels absent/unmounted, then both repeat gates must pass before any legitimate
+qrel evaluation. The bounded deviation evidence is retained in
+`reports/trec_2026_candidate_semantic_profiles_qrel_seal_deviation.json`.
+
+The first construction-repeat validation exposed a validation-only arithmetic defect:
+the loader recomputed centroids without the constructor's float32 row renormalization,
+float64 mean, then float32 normalization sequence. The loader now mirrors that sequence
+exactly. Cluster-dispersion reconstruction permits an absolute tolerance of two
+float32 machine epsilons for alternate float32 BLAS paths, with an explicit boundary
+test. No frozen inference, construction, score, or ranking artifact was rewritten by
+this correction. The original and corrected loaders both use only qrel-free artifact
+contents. The code diff, tests, artifact bindings, and non-ranking classification are
+recorded in
+`reports/trec_2026_candidate_semantic_profiles_validator_amendment.json`.
+
+Because the original construction-two isolation evidence was not durably persisted,
+construction two was rerun into a new immutable directory under an instrumented
+Bubblewrap sandbox. Only declared inputs were mounted read-only; the artifact root was
+the sole writable bind; qrel path probes and a complete name scan were empty; and the
+mount, file-descriptor, input-hash, runtime, output-manifest, and repeat-gate evidence
+was recorded before qrels were legitimately opened. The durable receipt is
+`reports/trec_2026_candidate_semantic_profiles_construction_isolation.json`.
+
+## Deliverables
+
+- this locked protocol and a config-driven implementation;
+- a reproducible qrel-free construction command and separate evaluation command;
+- focused unit, integration, leakage, and repeatability tests;
+- complete local artifact directories and compact tracked receipts;
+- Markdown and standalone accessible HTML comparison reports;
+- a query explorer showing the winning profile centroid for every query-candidate pair,
+  with support, dispersion, labels, and representative questions;
+- Phase 0 and final promote/diagnostic/reject receipts;
+- a final pull request containing only retained implementation, tests, protocol,
+  reports, receipts, and necessary documentation.

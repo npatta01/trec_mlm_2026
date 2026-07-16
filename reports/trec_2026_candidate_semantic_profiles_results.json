@@ -1,0 +1,174 @@
+{
+  "artifact_type": "candidate_semantic_profiles_results",
+  "version": 1,
+  "generated_at": "2026-07-15T08:04:09-04:00",
+  "status": "evaluated",
+  "decision": "promote",
+  "primary_system": "dense_profile_equal",
+  "baseline_system": "dense_reference",
+  "query_count": 322,
+  "candidate_count": 150,
+  "qrel_policy": "All new profile representations, profile scoring, and fusion choices were qrel-free. The primary consumes the frozen qrel-derived leave-one-query-out query-kNN baseline. Aside from the documented digest-only procedural deviation, semantic qrel contents and grades were loaded only after rankings were frozen for evaluation and failure inspection.",
+  "headline": {
+    "baseline": {
+      "ndcg_at_10": 0.35985474409504775,
+      "mrr": 0.40406330811168817,
+      "zero_ndcg_queries": 116
+    },
+    "primary": {
+      "ndcg_at_10": 0.4202139921941393,
+      "mrr": 0.45301739378333744,
+      "zero_ndcg_queries": 99
+    },
+    "primary_delta": {
+      "ndcg_at_10": 0.060359248099091545,
+      "mrr": 0.04895408567164921,
+      "zero_ndcg_queries": -17,
+      "ndcg_at_10_paired_95_percent_interval": [
+        0.03838891074585237,
+        0.08140657894289419
+      ]
+    },
+    "zero_transitions": {
+      "zero_both": 92,
+      "dense_zero_primary_nonzero": 24,
+      "dense_nonzero_primary_zero": 7,
+      "nonzero_both": 199
+    }
+  },
+  "systems": {
+    "contextual_e5_control": {
+      "ndcg_at_10": 0.3347215379757303,
+      "mrr": 0.38656649577390506,
+      "zero_ndcg_queries": 120
+    },
+    "dense_e5_equal": {
+      "ndcg_at_10": 0.38632649282655585,
+      "mrr": 0.41913428330376484,
+      "zero_ndcg_queries": 101
+    },
+    "dense_profile_dense_heavy": {
+      "ndcg_at_10": 0.41032806840144154,
+      "mrr": 0.44677275604474076,
+      "zero_ndcg_queries": 101
+    },
+    "dense_profile_e5_equal": {
+      "ndcg_at_10": 0.43114468390106364,
+      "mrr": 0.44648910157134153,
+      "zero_ndcg_queries": 82
+    },
+    "dense_profile_equal": {
+      "ndcg_at_10": 0.4202139921941393,
+      "mrr": 0.45301739378333744,
+      "zero_ndcg_queries": 99
+    },
+    "dense_profile_profile_heavy": {
+      "ndcg_at_10": 0.43762953591529047,
+      "mrr": 0.46999113723621716,
+      "zero_ndcg_queries": 91
+    },
+    "dense_reference": {
+      "ndcg_at_10": 0.35985474409504775,
+      "mrr": 0.40406330811168817,
+      "zero_ndcg_queries": 116
+    },
+    "profile_only": {
+      "ndcg_at_10": 0.41492445997856287,
+      "mrr": 0.441697813928065,
+      "zero_ndcg_queries": 92
+    }
+  },
+  "density_slices": {
+    "at_most_5_positives": {
+      "query_count": 248,
+      "primary_ndcg_at_10_delta": 0.06525765376866215,
+      "primary_mrr_delta": 0.06228783993654553
+    },
+    "6_to_20_positives": {
+      "query_count": 30,
+      "primary_ndcg_at_10_delta": 0.023344908674889704,
+      "primary_mrr_delta": -0.016138957266408252
+    },
+    "more_than_20_positives": {
+      "query_count": 44,
+      "primary_ndcg_at_10_delta": 0.057987102114376694,
+      "primary_mrr_delta": 0.018181818181818184
+    }
+  },
+  "repeatability": {
+    "inference_receipt_sha256": "0af4e349672a0859eb6dd2cb53cc2e4b190581f8c0f3aaabbb4b41b0792cf3dc",
+    "construction_receipt_sha256": "265d28b3ac0f44040d6aaa83d988c92559308cc2812c2bfafbb90f413fa1d49e",
+    "maximum_absolute_embedding_difference": 0.0,
+    "maximum_absolute_score_difference": 0.0,
+    "rankings_identical": true,
+    "canonical_profile_files_identical": true
+  },
+  "construction": {
+    "record_count": 182764,
+    "available_candidate_count": 150,
+    "cluster_count": 1500,
+    "partial_response_truncation": 0,
+    "full_response_truncation": 0,
+    "model": "intfloat/e5-mistral-7b-instruct",
+    "model_revision": "d62cc4417be0e3289c03dd459d1ef2d137e2554e",
+    "embedding_dimension": 4096,
+    "construction_unchanged_after_evaluation": true
+  },
+  "protocol_exceptions": {
+    "repeat_two_execution_receipt_reconstructed": true,
+    "qrel_digest_only_procedural_seal_deviation": true,
+    "semantic_qrel_leakage_detected": false,
+    "advisor_approved_continuation": true,
+    "instrumented_qrel_absent_construction_repeat_passed": true
+  },
+  "evaluation_artifact_sha256": {
+    "evaluation.json": "3c0a992e913e88265e88580f57a996ae0092487e3e245b894ed85f07074d94ac",
+    "comparisons.json": "0b431b7f8e6ef2b86ba67cc0aa17bb65cd8f24ac52583ca43ba2d8036a3f2bbf",
+    "per_query.tsv": "b6d1d891aba7fe3b7662b9737dee51a88b1eeecf27e3f1715bf0420343b2d152",
+    "profile_receipt.json": "43dd8c23af70a6adeb312bc12161aefa62be4f47996e1f9646c39cde5b546491",
+    "zero_transitions.json": "fbc101e776999390178c06ee1efbc1b252cd742181e7a8b42579330c71a3d0d3",
+    "construction_integrity_receipt.json": "2c1f5dd7cf95678aa2c4582a9b5d3231885265883cdf62850c9f1248684d5450"
+  },
+  "supporting_artifacts": {
+    "evaluation_dir": "artifacts/candidate_semantic_profiles/evaluation_v2",
+    "query_explorer": "reports/trec_2026_candidate_semantic_profiles_query_explorer.html",
+    "protocol": "protocols/trec_2026_candidate_semantic_profiles.md",
+    "isolation_receipt": "reports/trec_2026_candidate_semantic_profiles_construction_isolation.json",
+    "advisor_review": "reports/trec_2026_candidate_semantic_profiles_advisor_pre_evaluation.json",
+    "query_explorer_inventory": {
+      "query_count": 322,
+      "candidate_count": 150,
+      "query_candidate_pair_count": 48300,
+      "centroid_count": 1500,
+      "includes_winning_centroid_for_every_pair": true,
+      "deterministic_rebuild_byte_identical": true,
+      "html_sha256": "9fdfab1dc95de46fa29c86f12146ed7f0db3e820115832502e13efcf20acbb2d",
+      "builder_sha256": "42c08055c64cc6b39f4d1dcddc936beaf123458c0de9e77f13adb957aa7e7e71"
+    }
+  },
+  "chart_map": [
+    {
+      "section": "Profiles add signal beyond both controls",
+      "question": "How do frozen systems compare on nDCG@10?",
+      "family": "comparison",
+      "type": "horizontal bar",
+      "fields": [
+        "system",
+        "ndcg_at_10"
+      ],
+      "takeaway": "Every frozen profile system beats query-kNN on nDCG@10; contextual E5 alone does not."
+    },
+    {
+      "section": "The gain is broadest on sparse-relevance queries",
+      "question": "Where does the primary system gain or lose by qrel density?",
+      "family": "comparison",
+      "type": "grouped horizontal bar",
+      "fields": [
+        "density_group",
+        "metric",
+        "delta"
+      ],
+      "takeaway": "nDCG improves in every density group; MRR is lower only in the 30-query middle-density slice."
+    }
+  ]
+}

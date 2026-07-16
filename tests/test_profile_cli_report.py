@@ -1,0 +1,211 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from scripts.build_candidate_profile_report import build_report
+from trec_mlm import cli, profile_inference_artifact
+from trec_mlm.cli import build_parser
+
+
+def _evaluation() -> dict:
+    return {
+        "status": "evaluated",
+        "construction_aggregate_sha256": "a" * 64,
+        "construction_unchanged": True,
+        "metrics": {
+            "dense_reference": {"ndcg_at_10": 0.3599, "mrr": 0.4041, "zero_ndcg_queries": 116},
+            "dense_e5_equal": {"ndcg_at_10": 0.36, "mrr": 0.403, "zero_ndcg_queries": 114},
+            "dense_profile_equal": {"ndcg_at_10": 0.37, "mrr": 0.405, "zero_ndcg_queries": 110},
+        },
+        "comparisons": {
+            "dense_profile_equal": {
+                "ndcg_at_10_delta": {"mean_difference": 0.0101, "lower": 0.001, "upper": 0.02},
+                "mrr_delta": {"mean_difference": 0.0009, "lower": -0.01, "upper": 0.01},
+                "ndcg_at_10_win_tie_loss": {"wins": 100, "ties": 100, "losses": 122},
+                "zero_transitions": {
+                    "zero_both": 100,
+                    "dense_zero_candidate_nonzero": 16,
+                    "dense_nonzero_candidate_zero": 10,
+                    "nonzero_both": 196,
+                    "query_count": 322,
+                },
+            }
+        },
+        "density_slices": {"at_most_5": {"query_count": 50, "query_ids": []}},
+        "question_type_slices": {"what": {"query_count": 80, "query_ids": []}},
+        "phase0_receipt": {"decision": "pass", "checks": {}, "values": {}},
+        "profile_receipt": {"decision": "promote", "gates": {}, "values": {}},
+        "three_way_reportable": True,
+        "construction_summary": {
+            "record_count": 182764,
+            "available_candidate_count": 150,
+            "partial_response_truncation": 12,
+            "full_response_truncation": 3,
+            "encoding_seconds": 99.0,
+            "peak_memory_allocated_bytes": 14800000000,
+            "discovery_sha256": "b" * 64,
+            "dense_run_sha256": "c" * 64,
+            "e5_validation_sha256": "d" * 64,
+        },
+    }
+
+
+def test_construction_cli_has_no_qrel_option() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "profile-construct",
+            "--queries", "q.tsv",
+            "--discovery", "d.json",
+            "--candidates", "c.json",
+            "--dense-artifact", "dense",
+            "--inference-artifact", "inference",
+            "--output-dir", "out",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(args))
+    assert not hasattr(args, "batch_size")
+    assert not hasattr(args, "weights")
+
+
+def test_profile_infer_is_qrel_free_and_fixed() -> None:
+    args = build_parser().parse_args(
+        [
+            "profile-infer",
+            "--queries", "q.tsv",
+            "--discovery", "d.json",
+            "--candidates", "c.json",
+            "--e5-artifact", "e5",
+            "--smoke-repeat-receipt", "smoke.json",
+            "--output-dir", "out",
+            "--execution-receipt", "execution.json",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(args))
+    assert not hasattr(args, "batch_size")
+
+
+def test_profile_infer_writes_execution_receipt_after_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "inference"
+    execution = tmp_path / "execution.json"
+    result = SimpleNamespace(metadata={"qrel_free": True})
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "run_profile_inference_artifact",
+        lambda config: result,
+    )
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "write_profile_inference_artifacts",
+        lambda value, destination: {"manifest.json": str(Path(destination) / "manifest.json")},
+    )
+    monkeypatch.setattr(
+        profile_inference_artifact,
+        "build_profile_inference_execution_receipt",
+        lambda destination: {"status": "fresh", "artifact": str(destination)},
+    )
+
+    status = cli.main(
+        [
+            "profile-infer",
+            "--queries", "q.tsv",
+            "--discovery", "d.json",
+            "--candidates", "c.json",
+            "--e5-artifact", "e5",
+            "--smoke-repeat-receipt", "smoke.json",
+            "--output-dir", str(output),
+            "--execution-receipt", str(execution),
+        ]
+    )
+
+    assert status == 0
+    assert json.loads(execution.read_text(encoding="utf-8")) == {
+        "artifact": str(output),
+        "status": "fresh",
+    }
+
+
+def test_profile_infer_repair_is_qrel_free_and_bounded() -> None:
+    args = build_parser().parse_args(
+        [
+            "profile-infer-repair-v1",
+            "--source", "legacy",
+            "--protocol-amendment", "amendment.json",
+            "--output-dir", "repaired",
+            "--receipt", "receipt.json",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(args))
+    assert not hasattr(args, "expected_source_hash")
+
+
+def test_only_profile_evaluate_accepts_qrels() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "profile-evaluate", "--construction", "run", "--qrels", "qrels",
+            "--repeat-receipt", "repeat.json", "--output-dir", "eval",
+        ]
+    )
+    assert args.qrels == "qrels"
+    repeat = parser.parse_args(
+        [
+            "profile-repeat-check", "--first", "one", "--second", "two",
+            "--inference-repeat-receipt", "inference.json",
+            "--receipt", "receipt.json",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(repeat))
+
+    inference_repeat = parser.parse_args(
+        [
+            "profile-infer-repeat-check",
+            "--first", "one",
+            "--second", "two",
+            "--second-execution-receipt", "execution.json",
+            "--receipt", "receipt.json",
+        ]
+    )
+    assert not any("qrel" in key for key in vars(inference_repeat))
+
+
+def test_profile_evaluate_requires_repeat_receipt() -> None:
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["profile-evaluate", "--construction", "run", "--qrels", "qrels", "--output-dir", "eval"]
+        )
+
+
+def test_report_is_deterministic_standalone_and_accessible(tmp_path: Path) -> None:
+    source = tmp_path / "evaluation.json"
+    source.write_text(json.dumps(_evaluation()))
+    markdown = tmp_path / "report.md"
+    html = tmp_path / "report.html"
+    build_report(source, markdown, html)
+    first_md = markdown.read_text()
+    first_html = html.read_text()
+    build_report(source, markdown, html)
+    assert markdown.read_text() == first_md
+    assert html.read_text() == first_html
+    assert "# Candidate-aware semantic profiles" in first_md
+    assert "promote" in first_md.lower()
+    assert "Zero-query transitions" in first_md
+    assert "Promotion gates" in first_md
+    assert "Density slices" in first_md
+    assert "Question-type slices" in first_md
+    assert "Runtime and coverage" in first_md
+    assert "Limitations" in first_md
+    assert '<a class="skip-link" href="#main">Skip to main content</a>' in first_html
+    assert '<main id="main">' in first_html
+    assert "focus-visible" in first_html
+    assert "<table>" in first_html and "<caption>" in first_html
+    assert "Promotion gates" in first_html and "Density slices" in first_html
+    assert "<script" not in first_html
+    assert "http://" not in first_html and "https://" not in first_html

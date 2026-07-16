@@ -14,7 +14,6 @@ import pytest
 import trec_mlm.dense_aggregation_cli as cli
 from trec_mlm import dense_aggregation_artifacts as artifacts
 from trec_mlm.dense_aggregation_artifacts import raw_file_sha256, validate_manifest
-from trec_mlm.dense_aggregation_cache import StreamingFitCache
 import trec_mlm.dense_aggregation_feasibility as feasibility
 from trec_mlm.dense_aggregation_feasibility import (
     FEASIBILITY_PROVENANCE_KEYS,
@@ -96,6 +95,19 @@ def test_parser_disables_abbreviations_and_requires_all_public_inputs() -> None:
         parser.parse_args(["build-feasibility-config", "--output", "x.json"])
     with pytest.raises(SystemExit):
         parser.parse_args(["prepare-frozen-input", "--output-dir", "out"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "feasibility-worker",
+                "--config",
+                "config.json",
+                "--cache-dir",
+                "cache",
+                "--output-dir",
+                "out",
+                "--exclusive-resource-attested",
+            ]
+        )
 
 
 def test_cli_and_worker_import_graphs_remain_qrel_free_and_lazy() -> None:
@@ -154,7 +166,7 @@ try:
     cli.main([
         "feasibility-worker",
         "--config", "missing-config.json",
-        "--cache-dir", destination,
+        "--fit-work-file", destination + "/fits.partial.h5",
         "--output-dir", destination,
         "--exclusive-resource-attested",
     ])
@@ -322,7 +334,7 @@ def test_cli_frozen_validator_rejects_oversized_npy_before_numpy_load(
         cli._validate_frozen_files(embedding, metadata)
 
 
-def _cli_receipt(output_root: Path, cache_root: Path, pid: int) -> FeasibilityReceipt:
+def _cli_receipt(output_root: Path, fit_work_file: Path, pid: int) -> FeasibilityReceipt:
     provenance: dict[str, object] = {
         name: "1" * 64 for name in FEASIBILITY_PROVENANCE_KEYS
     }
@@ -340,7 +352,7 @@ def _cli_receipt(output_root: Path, cache_root: Path, pid: int) -> FeasibilityRe
                 "VECLIB_MAXIMUM_THREADS": "1",
                 "NUMEXPR_NUM_THREADS": "1",
             },
-            "cache_root": str(cache_root.resolve()),
+            "fit_work_file": str(fit_work_file.resolve()),
             "output_root": str(output_root.resolve()),
             "worker_pid": pid,
         }
@@ -366,7 +378,8 @@ def _cli_receipt(output_root: Path, cache_root: Path, pid: int) -> FeasibilityRe
             name: summary
             for name in ("pair_c20", "pair_c40", "single_c20", "single_c40")
         },
-        fit_receipt_sha256="3" * 64,
+        fit_file_sha256="3" * 64,
+        fit_evidence_sha256="4" * 64,
         provenance=provenance,
         exclusive_resource_attested=True,
     )
@@ -376,21 +389,12 @@ def _write_cli_worker_fixture(
     tmp_path: Path, *, canonical_receipt: bool = True
 ) -> tuple[Path, FeasibilityReceipt]:
     output_root = (tmp_path / "worker-output").resolve()
-    fits_root = output_root / "fits"
-    fits_root.mkdir(parents=True)
-    for name in (
-        "centers.f4",
-        "labels.u2",
-        "cluster_inertia.f8",
-        "fit_receipts.jsonl",
-        "timings.jsonl",
-    ):
-        (fits_root / name).write_bytes(b"")
-    (fits_root / "header.json").write_bytes(b"{}\n")
+    output_root.mkdir(parents=True)
+    (output_root / "fits.h5").write_bytes(b"synthetic hdf5 fixture")
     (output_root / "environment.json").write_bytes(b"{}\n")
     receipt = replace(
-        _cli_receipt(output_root, tmp_path / "worker-cache", 101),
-        fit_receipt_sha256=hashlib.sha256(b"").hexdigest(),
+        _cli_receipt(output_root, tmp_path / "worker-fits.partial.h5", 101),
+        fit_file_sha256=raw_file_sha256(output_root / "fits.h5"),
     )
     receipt_value = _receipt_to_dict(receipt)
     receipt_bytes = canonical_json(receipt_value) + b"\n"
@@ -408,12 +412,12 @@ def _write_cli_aggregate_fixture(
     root.mkdir(parents=True)
     repeat_a = _cli_receipt(
         (tmp_path / "worker-a-output").resolve(),
-        (tmp_path / "worker-a-cache").resolve(),
+        (tmp_path / "worker-a-fits.partial.h5").resolve(),
         101,
     )
     repeat_b = _cli_receipt(
         (tmp_path / "worker-b-output").resolve(),
-        (tmp_path / "worker-b-cache").resolve(),
+        (tmp_path / "worker-b-fits.partial.h5").resolve(),
         202,
     )
     gate = FeasibilityGate(
@@ -459,11 +463,6 @@ def test_worker_output_requires_canonical_bounded_receipt_and_exact_layout(
     output_root, _receipt = _write_cli_worker_fixture(
         tmp_path / "noncanonical", canonical_receipt=False
     )
-    monkeypatch.setattr(
-        StreamingFitCache,
-        "open_readonly",
-        classmethod(lambda _cls, root: object()),
-    )
     with pytest.raises(ValueError, match="canonical"):
         cli._load_worker_output(output_root)
 
@@ -485,19 +484,17 @@ def test_worker_output_requires_canonical_bounded_receipt_and_exact_layout(
         cli._load_worker_output(output_root)
 
 
-def test_worker_output_loader_defers_cache_reopen_to_repeat_evaluation(
+def test_worker_output_loader_defers_hdf5_scan_to_repeat_evaluation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     output_root, expected = _write_cli_worker_fixture(tmp_path)
 
-    def forbidden_reopen(_cls: object, root: Path) -> object:
-        del root
-        raise AssertionError("worker output loader reopened the repeat cache")
-
     monkeypatch.setattr(
-        StreamingFitCache,
-        "open_readonly",
-        classmethod(forbidden_reopen),
+        feasibility,
+        "validate_fit_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("worker output loader scanned fits.h5")
+        ),
     )
 
     assert cli._load_worker_output(output_root) == expected
@@ -643,10 +640,12 @@ def test_coordinator_runs_exact_sequential_workers_and_publishes_gate(
         subprocess_calls.append((argv, Path(cwd), env))
         time_path = (Path(cwd) / argv[argv.index("-o") + 1]).resolve()
         output_path = (Path(cwd) / argv[argv.index("--output-dir") + 1]).resolve()
-        cache_path = (Path(cwd) / argv[argv.index("--cache-dir") + 1]).resolve()
+        fit_work_file = (
+            Path(cwd) / argv[argv.index("--fit-work-file") + 1]
+        ).resolve()
         assert not time_path.exists()
         assert not output_path.exists()
-        assert not cache_path.exists()
+        assert not fit_work_file.exists()
         time_path.write_text(
             "Maximum resident set size (kbytes): 123456\n", encoding="utf-8"
         )
@@ -655,7 +654,7 @@ def test_coordinator_runs_exact_sequential_workers_and_publishes_gate(
             f"synthetic-manifest-{len(subprocess_calls)}\n".encode()
         )
         worker_receipts[output_path] = _cli_receipt(
-            output_path, cache_path, 100 + len(subprocess_calls)
+            output_path, fit_work_file, 100 + len(subprocess_calls)
         )
         return subprocess.CompletedProcess(argv, 0)
 
@@ -847,10 +846,10 @@ def test_coordinator_rejects_configured_input_directory_destinations_before_side
         output_root,
         compact_receipt,
         output_root.parent / f"{prefix}-a.time.txt",
-        output_root.parent / f"{prefix}-a-cache",
+        output_root.parent / f"{prefix}-a-fits.partial.h5",
         output_root.parent / f"{prefix}-a-output",
         output_root.parent / f"{prefix}-b.time.txt",
-        output_root.parent / f"{prefix}-b-cache",
+        output_root.parent / f"{prefix}-b-fits.partial.h5",
         output_root.parent / f"{prefix}-b-output",
     )[destination_index]
     config = type(

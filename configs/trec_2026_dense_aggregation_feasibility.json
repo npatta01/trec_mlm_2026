@@ -1,7 +1,1 @@
-{
-  "schema": "trec-mlm-dense-aggregation-feasibility-config-v1",
-  "query_path": "data/dev/llm_dev_data.tsv",
-  "embedding_path": "artifacts/frozen_dense_input/mpnet_base_v2.npy",
-  "encoder_metadata_path": "artifacts/frozen_dense_input/encoder_metadata.json",
-  "protocol_path": "protocols/trec_2026_dense_aggregation.md"
-}
+{"embedding_path":"artifacts/frozen_dense_input/mpnet_base_v2.npy","encoder_metadata_path":"artifacts/frozen_dense_input/encoder_metadata.json","protocol_path":"protocols/trec_2026_dense_aggregation.md","query_path":"data/dev/llm_dev_data.tsv","schema":"trec-mlm-dense-aggregation-feasibility-config-v1"}

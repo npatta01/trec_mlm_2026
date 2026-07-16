@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     worker = subparsers.add_parser("feasibility-worker", allow_abbrev=False)
     worker.add_argument("--config", required=True)
-    worker.add_argument("--cache-dir", required=True)
+    worker.add_argument("--fit-work-file", required=True)
     worker.add_argument("--output-dir", required=True)
     worker.add_argument(
         "--exclusive-resource-attested", action="store_true", required=True
@@ -86,19 +86,17 @@ def _configured_input_directories(config: object) -> tuple[Path, ...]:
     return tuple(sorted(directories, key=str))
 
 
-def _preflight_worker_destinations(*, cache_dir: Path, output_dir: Path) -> None:
-    cache_path = Path(cache_dir)
+def _preflight_worker_destinations(*, fit_work_file: Path, output_dir: Path) -> None:
+    work_path = Path(fit_work_file)
     output_path = Path(output_dir)
-    cache_root = cache_path.resolve()
+    work_file = work_path.resolve()
     output_root = output_path.resolve()
-    if (
-        cache_root == output_root
-        or cache_root in output_root.parents
-        or output_root in cache_root.parents
-    ):
-        raise ValueError("cache and output destinations overlap")
+    if work_path.suffixes[-2:] != [".partial", ".h5"]:
+        raise ValueError("fit work file must end with .partial.h5")
+    if _paths_overlap(work_file, output_root):
+        raise ValueError("fit work file and output destinations overlap")
     for destination_kind, destination_path, destination_root in (
-        ("cache", cache_path, cache_root),
+        ("fit work file", work_path, work_file),
         ("output", output_path, output_root),
     ):
         for candidate in (destination_path, destination_root):
@@ -106,10 +104,10 @@ def _preflight_worker_destinations(*, cache_dir: Path, output_dir: Path) -> None
                 raise FileExistsError(
                     f"{destination_kind} destination exists: {destination_path}"
                 )
-    cache_root.parent.mkdir(parents=True, exist_ok=True)
+    work_file.parent.mkdir(parents=True, exist_ok=True)
     output_root.parent.mkdir(parents=True, exist_ok=True)
-    if cache_root.parent.stat().st_dev != output_root.parent.stat().st_dev:
-        raise OSError("cache and output must share one filesystem")
+    if work_file.parent.stat().st_dev != output_root.parent.stat().st_dev:
+        raise OSError("fit work file and output must share one filesystem")
 
 
 def _atomic_publish_bytes(destination: Path, payload: bytes) -> None:
@@ -262,7 +260,7 @@ def _validate_frozen_root(input_dir: Path) -> None:
 
 
 def _load_config(path: Path) -> object:
-    from trec_mlm.dense_aggregation_contract import load_feasibility_config
+    from trec_mlm.dense_aggregation_feasibility import load_feasibility_config
 
     return load_feasibility_config(path)
 
@@ -291,10 +289,10 @@ def _load_worker_output(root: Path) -> object:
     if receipt.provenance.get("output_root") != str(output_root):
         raise ValueError("worker receipt output root is not self-binding")
     if (
-        raw_file_sha256(output_root / "fits/fit_receipts.jsonl")
-        != receipt.fit_receipt_sha256
+        raw_file_sha256(output_root / "fits.h5")
+        != receipt.fit_file_sha256
     ):
-        raise ValueError("worker fit receipt stream digest mismatch")
+        raise ValueError("worker fit file digest mismatch")
     return receipt
 
 
@@ -395,15 +393,17 @@ def _handle_validate_frozen_input(args: argparse.Namespace) -> int:
 
 
 def _handle_worker(args: argparse.Namespace) -> int:
-    cache_dir = Path(args.cache_dir)
+    fit_work_file = Path(args.fit_work_file)
     output_dir = Path(args.output_dir)
-    _preflight_worker_destinations(cache_dir=cache_dir, output_dir=output_dir)
+    _preflight_worker_destinations(
+        fit_work_file=fit_work_file, output_dir=output_dir
+    )
     from trec_mlm.dense_aggregation_feasibility import run_feasibility_worker
 
     config = _load_config(Path(args.config))
     run_feasibility_worker(
         config,
-        cache_dir=cache_dir,
+        fit_work_file=fit_work_file,
         output_dir=output_dir,
         exclusive_resource_attested=args.exclusive_resource_attested,
     )
@@ -439,21 +439,25 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
     for label in ("a", "b"):
         prefix = f".{output_root.name}-repeat-{label}"
         time_path = output_root.parent / f"{prefix}.time.txt"
-        cache_path = output_root.parent / f"{prefix}-cache"
+        fit_work_file = output_root.parent / f"{prefix}-fits.partial.h5"
         worker_output = output_root.parent / f"{prefix}-output"
-        repeat_paths.append((time_path, cache_path, worker_output))
+        repeat_paths.append((time_path, fit_work_file, worker_output))
 
     destinations = [
         ("output root", output_argument, output_root),
         ("compact receipt", compact_argument, compact_receipt),
     ]
-    for label, (time_path, cache_path, worker_output) in zip(
+    for label, (time_path, fit_work_file, worker_output) in zip(
         ("a", "b"), repeat_paths, strict=True
     ):
         destinations.extend(
             (
                 (f"repeat {label} time", time_path, time_path.resolve()),
-                (f"repeat {label} cache", cache_path, cache_path.resolve()),
+                (
+                    f"repeat {label} fit work file",
+                    fit_work_file,
+                    fit_work_file.resolve(),
+                ),
                 (f"repeat {label} output", worker_output, worker_output.resolve()),
             )
         )
@@ -483,7 +487,7 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
     receipts = []
     rss_values: list[int] = []
     worker_manifest_sha256: list[str] = []
-    for time_path, cache_path, worker_output in repeat_paths:
+    for time_path, fit_work_file, worker_output in repeat_paths:
         command = [
             "/usr/bin/time",
             "-v",
@@ -500,8 +504,8 @@ def _handle_coordinate(args: argparse.Namespace) -> int:
             "feasibility-worker",
             "--config",
             _repo_argument(Path(config.source_path), repo_root),
-            "--cache-dir",
-            _repo_argument(cache_path, repo_root),
+            "--fit-work-file",
+            _repo_argument(fit_work_file, repo_root),
             "--output-dir",
             _repo_argument(worker_output, repo_root),
             "--exclusive-resource-attested",

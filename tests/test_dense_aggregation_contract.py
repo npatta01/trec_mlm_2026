@@ -100,13 +100,13 @@ EXPECTED_IMPLEMENTATION_FILES = (
     "scripts/export_fixed_mpnet_k50_control.py",
     "trec_mlm/dense_aggregation.py",
     "trec_mlm/dense_aggregation_artifacts.py",
-    "trec_mlm/dense_aggregation_cache.py",
     "trec_mlm/dense_aggregation_cli.py",
     "trec_mlm/dense_aggregation_clustering.py",
     "trec_mlm/dense_aggregation_contract.py",
     "trec_mlm/dense_aggregation_entrypoint.py",
     "trec_mlm/dense_aggregation_experiment.py",
     "trec_mlm/dense_aggregation_feasibility.py",
+    "trec_mlm/dense_aggregation_fit_file.py",
     "trec_mlm/dense_aggregation_hashing.py",
     "trec_mlm/dense_aggregation_runtime.py",
     "trec_mlm/legacy_dense_control.py",
@@ -118,6 +118,11 @@ EXPECTED_DEPENDENCY_FILES = (
     "trec_mlm/runio.py",
 )
 EXPECTED_RUNTIME_FILES = ("pyproject.toml", "uv.lock")
+
+
+def test_final_implementation_inventory_replaces_custom_cache() -> None:
+    assert "trec_mlm/dense_aggregation_fit_file.py" in IMPLEMENTATION_FILES
+    assert "trec_mlm/dense_aggregation_cache.py" not in IMPLEMENTATION_FILES
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

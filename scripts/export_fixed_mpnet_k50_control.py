@@ -687,7 +687,7 @@ def _coordinate(
         from trec_mlm.legacy_dense_control import (
             _parse_legacy_tsv,
             _trec_bytes_from_rankings,
-            validate_legacy_control_lock,
+            validate_legacy_control_lock_bindings,
         )
 
         rankings, _candidate_ids, row_count = _parse_legacy_tsv(staging / _TSV_FILENAME)
@@ -720,13 +720,16 @@ def _coordinate(
             "repeat_b_receipt_sha256": _raw_file_sha256(staging / "repeat_b.json"),
         }
         _write_exclusive_json(staging / _LOCK_FILENAME, lock)
+        expected_lock_sha256 = _raw_file_sha256(staging / _LOCK_FILENAME)
         _write_manifest(staging)
         for path in staging.iterdir():
             if path.is_file():
                 with path.open("rb") as handle:
                     os.fsync(handle.fileno())
-        validate_legacy_control_lock(
-            staging / _LOCK_FILENAME, str(common["tsv_sha256"])
+        validate_legacy_control_lock_bindings(
+            staging / _LOCK_FILENAME,
+            expected_lock_sha256=expected_lock_sha256,
+            expected_tsv_sha256=str(common["tsv_sha256"]),
         )
         _require_unchanged_feasibility_manifest(feasibility_receipt, feasibility_sha256)
         _fsync_directory(staging)
@@ -734,8 +737,10 @@ def _coordinate(
         published = True
         _fsync_directory(output_root.parent)
 
-        validation = validate_legacy_control_lock(
-            output_root / _LOCK_FILENAME, str(common["tsv_sha256"])
+        validation = validate_legacy_control_lock_bindings(
+            output_root / _LOCK_FILENAME,
+            expected_lock_sha256=expected_lock_sha256,
+            expected_tsv_sha256=str(common["tsv_sha256"]),
         )
         compact = {
             "schema": _COMPACT_SCHEMA,

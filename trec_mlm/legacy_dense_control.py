@@ -1029,31 +1029,3 @@ def validate_legacy_control_lock_bindings(
         mean_ndcg_at_10=float(lock["mean_ndcg_at_10"]),
         mean_reciprocal_rank=float(lock["mean_reciprocal_rank"]),
     )
-
-
-def validate_legacy_control_lock(
-    lock_path: str | Path, expected_tsv_sha256: str
-) -> LegacyControlValidation:
-    """Validate one complete manifested legacy-control root."""
-
-    source_lock = Path(lock_path)
-    if source_lock.name != _LOCK_FILENAME:
-        raise ValueError("legacy control lock filename is invalid")
-    if not _is_sha256(expected_tsv_sha256):
-        raise ValueError("expected TSV hash is invalid")
-    lock_bytes = _read_bounded_regular_file(
-        source_lock,
-        byte_limit=256 * 1024,
-        label="legacy control lock",
-    )
-    rich = validate_legacy_control_lock_bindings(
-        source_lock,
-        expected_lock_sha256=hashlib.sha256(lock_bytes).hexdigest(),
-        expected_tsv_sha256=expected_tsv_sha256,
-    )
-    return LegacyControlValidation(
-        tsv_sha256=rich.tsv_sha256,
-        row_count=rich.row_count,
-        mean_ndcg_at_10=rich.mean_ndcg_at_10,
-        mean_reciprocal_rank=rich.mean_reciprocal_rank,
-    )

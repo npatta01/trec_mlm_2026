@@ -1,235 +1,309 @@
-# Dense Aggregation Foundation Review
+# Issue 13: Dense Aggregation Foundation Review
 
-## Technical summary
+## Executive summary
 
-This pull request promotes the qrel-free foundation for the TREC 2026 dense
-aggregation experiment in Issue #13. The promoted tree is internally
-consistent and well tested, but it is not the completed experiment and it does
-not contain a new effectiveness result.
+This project ranks 150 candidate LLM responses for each of 322 development
+queries. The current MPNet nearest-neighbor baseline reaches 0.3599 mean
+nDCG@10 and 0.4041 mean reciprocal rank. It selected k=50 in 320 of 322 folds,
+but 116 queries still have zero nDCG@10.
 
-The promoted implementation scope, measured before adding this review file,
-is large: 29,220 inserted lines across 33 files. That number is easy to
-misread. Only 8,673 lines, or about 30%, are production modules and scripts.
-Tests account for 16,318 lines, or about 56%. The locked protocol and
-implementation plan account for 4,204 lines, or about 14%. Configuration and
-small fixtures account for the remaining 25 lines.
+Issue 13 tests whether combining local-neighbor evidence, semantic-domain
+evidence, and a global prior can improve that ranking without leakage. This PR
+builds and validates the qrel-safe infrastructure needed to run that experiment.
+It does not yet contain an effectiveness result.
 
-The decision for this review is to keep one pull request. No stacked six-PR
-split is planned. The test suite should remain with the implementation because
-the tests are the audit evidence for leakage prevention, deterministic
-numerics, artifact integrity, and qrel embargo. A later cleanup may consolidate
-duplicated fixture construction, but behavioral checks should not be deleted
-merely to reduce the displayed line count.
+The scientific protocol is frozen, the scoring and clustering building blocks
+are implemented, and completed fits now go directly into one validated HDF5
+file. The qrel-free feasibility software is also implemented. However, the
+official feasibility gate, authoritative construction, and ranking evaluation
+have not run. Passing the infrastructure tests below shows that the implemented
+contracts behave as specified on test fixtures; it does not show that rankings
+improve.
 
-## Key findings
+This remains one pull request, [PR #20](../../../pull/20), rather than a series
+of six stacked pull requests. Merging it would make the experiment foundation
+reviewable and ready for the next authorization decision. It would not mean
+that the proposed method wins.
 
-1. **The promoted scope is clean.** The PR branch contains 22 promoted commits
-   from remote `main` commit `08cb6c6` through head commit `2ea4d3d`. Two local
-   follow-up files are uncommitted and absent from the PR. Neither development
-   queries nor development qrels changed.
-2. **Most added lines are verification, not implementation.** Tests and
-   protocol material make up roughly 70% of the additions.
-3. **The test volume has a specific purpose.** The experiment relies on a
-   custom streaming binary cache, exact canonical receipts, deterministic
-   clustering, strict fold exclusions, and atomic artifact publication. These
-   behaviors have more failure modes than an ordinary in-memory analysis.
-4. **The verified subsystem is green.** A clean detached checkout at the
-   promoted head passed 1,124 dense-aggregation and qrel-safe tests in 20.26
-   seconds. Compilation, diff checks, locked hashes, and a basic credential
-   pattern scan also passed.
-5. **The result is still incomplete.** The official construction engine,
-   official feasibility execution, qrel-authorized evaluation, repeat
-   comparison, final decision, and final reports remain future work.
+## The problem, from first principles
 
-## What the line count contains
+For each development query, the system must order the same 150 candidate LLMs
+from most to least useful. Historical relevance judgments, called **qrels**,
+say how useful each candidate was for each development query. They are needed
+to evaluate a frozen ranking, but careless use during model selection can leak
+the answer into the system being tested.
 
-| Category | Files | Insertions | Share | What it contains |
-| --- | ---: | ---: | ---: | --- |
-| Tests | 15 | 16,318 | 56% | Scientific invariants, mutation tests, filesystem failures, schema validation, and qrel-access guards |
-| Production | 13 | 8,673 | 30% | Scoring, clustering, streaming cache, feasibility gate, artifact publication, CLI, and legacy control |
-| Protocol and plan | 2 | 4,204 | 14% | Locked scientific protocol and executable implementation plan |
-| Configuration and fixtures | 3 | 25 | <1% | Frozen feasibility config and small deterministic fixtures |
-| **Total** | **33** | **29,220** | **100%** | Promoted PR scope |
+The current baseline represents each query with **MPNet**, a pretrained text
+encoder that turns text into a numeric vector. A **nearest-neighbor** method
+finds earlier queries whose vectors are most similar to the target query and
+transfers evidence from them. Here, `k` is the number of neighbors used.
 
-This table measures the promoted implementation tree through commit `2ea4d3d`
-and intentionally excludes this review report. It is a scope measure, not a
-claim that every line has equal complexity.
+The experiment adds two broader sources of evidence to that local signal:
 
-## Why there are 16,318 lines of tests
+- A **semantic domain** is a cluster of training queries that discuss similar
+  subjects. Domain evidence averages candidate relevance within the target
+  query's cluster.
+- A **global prior** is the average training-fold relevance of each candidate,
+  without regard to the target query. It provides a conservative fallback when
+  local evidence is sparse.
 
-### The streaming cache is the largest test surface
+The central hypothesis is that a locked combination of local-neighbor,
+semantic-domain, and global-prior evidence will rank candidates more robustly
+than the nearest-neighbor baseline alone, especially for sparse queries.
 
-The cache tests and cache regression tests contribute 5,992 lines, about 37%
-of all test lines. The cache is not a dictionary wrapper. It stores a large
-sequence of centers, labels, inertia values, canonical receipts, and timing
-records while keeping memory bounded. It must support release and reload,
-durable finalization, read-only reopening, and exact corruption detection.
+### Terms used in this report
 
-The cache tests cover:
+| Term | Plain-language meaning |
+| --- | --- |
+| qrels | Human or benchmark relevance judgments that grade how useful each candidate is for a query. |
+| nDCG@10 | A score of how well the ranking places highly relevant candidates in its first 10 positions; higher is better, and early positions matter most. |
+| MRR | Mean reciprocal rank: the average of `1 / position` for the first relevant candidate, so putting a useful candidate first scores best. |
+| fold | One held-out-query evaluation split. The held-out query is evaluated while the remaining queries supply selection and ranking evidence. |
+| leakage | Letting held-out qrels, directly or indirectly, influence the ranking or configuration being evaluated. This can create an unrealistically strong result. |
+| MPNet | The frozen pretrained encoder used to convert query text into vectors for similarity comparisons. |
+| nearest neighbor | A previously judged query whose MPNet vector is close to the target query's vector. |
+| semantic domain | A cluster formed only from allowed training-query vectors, used to summarize broader topic-level evidence. |
+| global prior | A candidate's average qrel grade within the allowed training fold, used as query-independent fallback evidence. |
 
-- exact pair and singleton fit inventories;
-- duplicate, missing, reordered, and malformed fit records;
-- binary shard offsets, shapes, dtypes, and truncation;
-- independent release and reload behavior;
-- finalized versus writable state transitions;
-- same-filesystem no-replace moves;
-- interrupted or racing finalization;
-- canonical receipt and timing reconstruction.
+## Where we started
 
-Without this coverage, a run could finish with a plausible-looking cache that
-silently associates the wrong cluster fit with a query fold.
+The primary comparison is the leakage-safe, nested dense query-neighbor result
+already frozen in the [scientific protocol](../protocols/trec_2026_dense_aggregation.md).
+The displayed values below are rounded for readability; the protocol preserves
+their full precision.
 
-### The legacy control must remain isolated
+| Baseline observation | Frozen result |
+| --- | ---: |
+| Mean nDCG@10 | **0.3599** |
+| Mean reciprocal rank (MRR) | **0.4041** |
+| MPNet `k=50` selected | **320/322 folds** |
+| Queries with zero nDCG@10 | **116** |
 
-Legacy-control tests contribute 2,220 lines, about 14% of test lines. They
-verify that the fixed MPNet `k=50` control is exported identically in two fresh
-processes, that its complete artifact root is manifested, and that downstream
-construction receives only validated bindings. The control's numerical result
-must not influence candidate selection.
+The 116 zero-nDCG queries motivate testing broader evidence, but they do not
+authorize tuning after results are observed. The protocol locks the candidate
+grid, selection procedure, comparison, diagnostics, and decision thresholds in
+advance.
 
-These tests also verify bounded file reads, same-byte hashing and parsing,
-exact TREC reconstruction, lock/receipt cross-bindings, and compatibility with
-the existing public validator.
+## What the experiment is testing
 
-### Scientific leakage requires explicit negative tests
+For every held-out outer query, the experiment selects among 16 predefined
+local/domain/prior configurations using only permitted inner-fold evidence.
+An inner prediction excludes both the outer query and the inner target from
+the evidence used to fit clusters and compute scores. The final outer ranking
+excludes the outer query. These exclusions are what make the comparison
+leakage-safe.
 
-Clustering and scoring tests contribute more than 2,000 lines. They prove that
-an inner prediction for outer query `o` and target query `i` uses only
-`Q - {o, i}`, and that a singleton prediction uses only `Q - {o}`. They also
-exercise deterministic tie handling, canonical cluster labels, positive-only
-neighbors, fold-local priors, float validation, and rank permutations.
+The method succeeds only if all five locked criteria hold at full precision:
 
-These are negative guarantees: a normal happy-path test cannot prove that an
-excluded query never entered a fit or score.
+1. Paired nDCG confidence-interval lower bound above zero.
+2. MRR delta at least `-0.005`.
+3. Fewer than `116` zero-nDCG queries.
+4. Positive gain on low-density queries.
+5. All integrity checks pass.
 
-### Provenance and artifact tests protect the experiment boundary
+“Low-density” means queries with at most 20 positively relevant candidates,
+as defined by the frozen protocol. The paired confidence interval measures
+candidate-minus-baseline nDCG differences for the same 322 queries; requiring
+its lower bound to exceed zero is stronger than requiring only a positive
+average point estimate.
 
-Contract, feasibility, hashing, artifact, experiment-schema, and CLI tests
-cover exact keys, types, hashes, row orders, path rules, source inventories,
-runtime versions, bounded input sizes, filesystem substitutions, publication
-collisions, and qrel-free import/preflight behavior.
+### The actual scale
 
-Many cases are parameterized mutations of one valid artifact. The resulting
-test file is long because every accepted field is also tested in rejected
-forms such as missing, extra, reordered, wrong type, non-finite, aliased, or
-stale.
+“About 180,000 responses” describes the broader source corpus, not the
+immediate unit of this effectiveness test. Ranking quality is measured on one
+locked **322 × 150** task: 322 query rankings, each containing 150 candidates.
 
-## What these tests prove
+Producing those rankings is nevertheless computationally expensive. Exact
+nested construction requires 51,681 leave-two-query-out support sets and 322
+leave-one-query-out support sets, each at two cluster counts. That is
+**104,006 clustering fits** and, with 10 initializations per fit,
+**1,040,060 clustering starts** for each authoritative construction run.
 
-The passing suite supports the following claims about the promoted tree:
+## What this pull request implements
 
-- fold exclusions and deterministic scoring rules are enforced;
-- canonical hashes bind values, shapes, inventories, and domains;
-- the fit cache rejects incomplete, corrupted, and inconsistent layouts;
-- feasibility repetitions must agree on locked provenance and fit evidence;
-- artifact publication is no-replace and validates the published inode;
-- the fixed legacy control is isolated and fully cross-bound;
-- qrel-free commands do not import the official evaluation path;
-- the construction configuration and receipt schemas are frozen.
+| Area | Status |
+| --- | --- |
+| Scientific protocol | Frozen |
+| Scoring/clustering primitives | Implemented and unit tested |
+| Direct HDF5 fit artifact | Implemented and unit tested |
+| Qrel-free feasibility software | Implemented and unit tested |
+| Official feasibility gate | Not run |
+| Authoritative construction | Not run |
+| Ranking evaluation | Not run |
+| Effectiveness finding | None yet |
 
-## What these tests do not prove
+The implementation currently provides:
 
-The suite does **not** establish that:
+- deterministic scoring, ranking, clustering, fold-exclusion, and hashing
+  primitives;
+- a fixed HDF5 layout that writes each scheduled fit once, reconstructs a
+  bounded row, validates the complete file independently, and publishes it
+  without replacing an existing artifact;
+- qrel-free feasibility sampling, two-repeat coordination, timing and memory
+  evidence, provenance checks, canonical configuration bytes, and stop-gate
+  validation;
+- immutable artifact and manifest checks, exact experiment schemas, and an
+  isolated fixed MPNet `k=50` legacy-control lock;
+- command-line preflight boundaries that keep the official qrel leaf outside
+  the feasibility command path.
 
-- the new aggregation method improves effectiveness;
-- the projected 104,006-fit construction completes within the approved time
-  and memory limits on the authoritative host;
-- the official qrel-free feasibility gate passes;
-- the full construction artifact can yet be written and reloaded;
-- two authoritative construction/evaluation runs are byte- or semantically
-  equivalent;
-- the complete repository suite passes with every optional ML dependency.
+The HDF5 cleanup deliberately removed the custom multi-shard cache and its
+compatibility surface. The replacement uses direct `h5py.File` access and one
+final fit-file schema. This changes storage mechanics, not the frozen folds,
+candidate set, scoring formula, clustering contract, metrics, or promotion
+criteria. The design rationale and exact artifact lifecycle are in the
+[HDF5 fit-store design](../docs/superpowers/specs/2026-07-15-dense-aggregation-hdf5-fit-store-design.md).
 
-The unrestricted repository suite was attempted, but collection stopped in an
-unrelated label-inference test because optional `torch` was not installed. No
-large dependency was installed solely for that unrelated check.
+## What this pull request does not test
 
-## Scope and evidence
+The test suite does not establish any of the following:
 
-### Promoted implementation scope
+- that the official two-repeat feasibility gate meets its time, memory,
+  repeatability, and integrity thresholds on the authoritative host;
+- that a full 104,006-fit construction completes successfully;
+- that authoritative construction artifacts pass their final-scale validation;
+- that the proposed rankings improve nDCG@10, preserve MRR, rescue zero-nDCG
+  queries, or help low-density queries;
+- that two authoritative construction and evaluation runs agree;
+- that the locked success criteria are met.
 
-- Base: `08cb6c6cb2110ac94d82900525fe97ae78d69bb1`
-- Implementation head: `2ea4d3d48a283001afde069f8f8fc5602de1a14c`
-- Commits: 22
-- Changed files: 33
-- Insertions/deletions: 29,220/1
-- Remote relationship at publication: 0 commits behind, 22 commits ahead
+No official feasibility receipt, construction, qrel-using evaluation,
+repeat-comparison receipt, or effectiveness decision is reported here.
 
-The following local follow-up files were not staged or committed and are not
-part of the promoted tree:
+## Verification evidence available before final branch verification
 
-- `trec_mlm/dense_aggregation_feasibility.py`
-- `tests/test_dense_aggregation_feasibility.py`
+The following task-scoped checks were recorded while implementing and reviewing
+the HDF5 cleanup. Dates are the dates of their associated cleanup commits.
+These commands overlap in coverage, so their passing counts must not be added
+together.
 
-### Verification evidence
+### 2026-07-15: HDF5 fit file and artifact validation
 
-The clean-worktree test run covered the dense aggregation runtime, hashing,
-contracts, scoring, clustering, cache, cache regressions, feasibility gate,
-legacy control, experiment schemas, artifacts, CLI, and locked dense-query
-control.
+```bash
+python -m pytest -q tests/test_dense_aggregation_fit_file.py
+# 34 passed in 0.77s
 
-Result:
-
-```text
-1124 passed in 20.26s
+python -m pytest -q \
+  tests/test_dense_aggregation_fit_file.py \
+  tests/test_dense_aggregation_artifacts.py
+# 100 passed in 0.90s
 ```
 
-Locked values rechecked during promotion:
+These checks cover the final direct-HDF5 fit-file contract and its integration
+with artifact validation. They use controlled fixtures, not the authoritative
+construction workload.
 
-- Protocol SHA-256:
-  `bbe6b50fd3d20efe3213a446f6665cbe0527114f34bf5c1e90236af4f998ad49`
-- Legacy dense scorer SHA-256:
-  `90f8db3abbb2887d8513fb881c631a3843319c29da02e935e1ecdb6c3c85e248`
+### 2026-07-16: feasibility and command-line boundaries
 
-## How to review this single PR
+```bash
+python -m pytest -q \
+  tests/test_dense_aggregation_feasibility.py \
+  tests/test_dense_aggregation_cli.py
+# 101 passed in 32.56s
 
-Because GitHub's generated diff endpoint rejects diffs larger than 20,000
-lines, reviewers should use the commit sequence and this report as the reading
-map rather than trying to read all files alphabetically.
+python -m pytest -q tests/test_dense_aggregation_feasibility.py -k \
+  'fifo or inode_swap or qrel or drift or fresh_passing_retry or canonical'
+# 33 passed, 29 deselected in 5.49s
+```
 
-Recommended order:
+The 101-test result covers the feasibility and CLI suites. The 33-test
+adversarial selection exercises named pipe, inode-swap, qrel-embargo, drift,
+fresh-retry, and canonical-byte failure paths. Passing these simulated and
+fixture-based checks does not mean the official feasibility gate has run.
 
-1. Read `protocols/trec_2026_dense_aggregation.md` for the scientific rules.
-2. Review `trec_mlm/dense_aggregation.py` and
-   `trec_mlm/dense_aggregation_clustering.py` with their tests.
-3. Review `trec_mlm/dense_aggregation_cache.py` and its two test files.
-4. Review `trec_mlm/dense_aggregation_feasibility.py` and the CLI tests.
-5. Review `trec_mlm/legacy_dense_control.py` and its exporter/tests.
-6. Review artifact publication and construction schemas.
-7. Use the 22 commits to separate initial implementations from subsequent
-   hardening fixes.
+### 2026-07-16: affected cleanup suites
 
-## Limitations and uncertainty
+```bash
+PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
+  tests/test_dense_aggregation_fit_file.py \
+  tests/test_dense_aggregation_contract.py \
+  tests/test_legacy_dense_control.py \
+  tests/test_dense_aggregation_feasibility.py \
+  tests/test_dense_aggregation_cli.py
+# 259 passed in 46.87s
+```
 
-The main uncertainty is not whether the promoted unit tests pass; they do. The
-uncertainty is whether the remaining construction pipeline can preserve the
-same guarantees at official scale. The uncommitted follow-up validator work
-also contains additional filesystem-race hardening and must receive its own
-promotion decision before it joins this PR.
+This affected-suite run followed deletion of the custom cache and legacy
+wrapper and included a reviewed fix that preserves the legacy lock hash
+binding. It is still infrastructure evidence, not ranking-quality evidence.
 
-The test suite may contain opportunities to reduce duplicated fixture setup or
-combine mutation cases. That should be a behavior-preserving refactor with
-coverage counts and failure assertions compared before and after. Removing
-tests solely to shrink the PR would weaken the evidence without simplifying
-the production system.
+**Final whole-branch verification is pending.** Task 6 will run the final
+whole-branch commands and may replace or extend this section with those exact
+commands and observed counts. Until then, this report makes no claim about a
+final aggregate test count or a complete branch-wide pass.
 
-## Recommended next steps
+## Safety and scientific boundaries
 
-1. Keep this as one draft PR, with this report as its primary review entry
-   point.
-2. Review by subsystem and commit order rather than raw file order.
-3. Do not merge the two unfinished local validator files until their race and
-   qrel-embargo findings are closed and independently verified.
-4. After the foundation is accepted, finish the construction engine and strict
-   loader using synthetic fixtures before any official qrel access.
-5. Run the official qrel-free feasibility gate only after the pre-gate source,
-   runtime, environment, and input hashes are frozen.
+The design separates construction from evaluation deliberately:
 
-## Further questions
+- The feasibility gate has no qrel argument and must finish twice in fresh
+  processes before the experiment can proceed.
+- Qrels remain embargoed until both the qrel-free feasibility gate and the
+  subsequent legacy-control lock pass.
+- Training evidence for an evaluated query is restricted by the frozen fold
+  rules; tests exercise mutations intended to catch excluded-query leakage.
+- Candidate configuration selection cannot use outer-fold nDCG, MRR, zero
+  counts, density slices, or the legacy control result.
+- Artifacts fail closed on missing, extra, reordered, malformed, mutated, or
+  inconsistent content.
 
-- Can the cache-test fixtures be consolidated without reducing corruption and
-  failure-path coverage?
-- Should the implementation plan remain in the final repository after the
-  experiment is complete, or be archived with the final report?
-- What review evidence is required before promoting the unfinished public
-  feasibility-manifest validator?
+These are implementation and protocol safeguards. Their passing tests increase
+confidence that an authorized run will follow the preregistered experiment;
+they cannot predict whether the resulting ranking will be better.
+
+## Limitations
+
+- All evidence in this report is development-stage and task-scoped. Final
+  whole-branch verification is pending.
+- Official host runtime and memory are unknown until the two-repeat qrel-free
+  feasibility run is authorized and completed.
+- Construction-scale I/O and validation have not been observed on the full fit
+  inventory.
+- No official qrels have been used for this experiment's ranking evaluation,
+  so there is no candidate ranking result to compare with the baseline.
+- Even a future passing development result would be a preregistered development
+  finding, not confirmation of generalization to unseen TREC 2026 test qrels.
+
+## Next decision
+
+After merge, the next decision is whether to authorize the official two-repeat
+qrel-free feasibility run on the authoritative host. That run must use fresh
+artifact roots and satisfy the locked runtime, memory, repeatability,
+provenance, and integrity conditions. A stop result ends the experiment before
+qrel access and requires an advisor-approved amendment discussion.
+
+If the feasibility gate passes, the fixed legacy MPNet control is exported and
+locked in a separate qrel-using step. Only after both checkpoints pass may the
+authoritative construction and read-only ranking evaluation begin. The five
+locked success criteria then determine `promote`, `reject`, or
+`reject-invalid`; infrastructure test counts do not enter that decision.
+
+## Review map
+
+Suggested order for a newcomer:
+
+1. [Frozen scientific protocol](../protocols/trec_2026_dense_aggregation.md) —
+   research question, folds, qrel embargo, workload, evaluation, and locked
+   decision rule.
+2. [HDF5 fit-store design](../docs/superpowers/specs/2026-07-15-dense-aggregation-hdf5-fit-store-design.md) —
+   why the custom cache was replaced and how the final artifact is written and
+   validated.
+3. [Original implementation plan](../docs/superpowers/plans/2026-07-14-dense-aggregation.md) —
+   the complete preregistered experiment sequence.
+4. [HDF5 cleanup plan](../docs/superpowers/plans/2026-07-15-dense-aggregation-hdf5-cleanup.md) —
+   the scoped storage migration, deletions, and review gates in this cleanup.
+5. [Scoring primitives](../trec_mlm/dense_aggregation.py) and
+   [clustering primitives](../trec_mlm/dense_aggregation_clustering.py) — the
+   numerical core.
+6. [Direct HDF5 fit file](../trec_mlm/dense_aggregation_fit_file.py) and
+   [artifact validation](../trec_mlm/dense_aggregation_artifacts.py) — fit
+   persistence and immutable publication.
+7. [Qrel-free feasibility software](../trec_mlm/dense_aggregation_feasibility.py),
+   [CLI](../trec_mlm/dense_aggregation_cli.py), and
+   [entry point](../trec_mlm/dense_aggregation_entrypoint.py) — preflight,
+   sampled execution, repeat evidence, and command boundaries.
+8. [Experiment contracts](../trec_mlm/dense_aggregation_experiment.py) and
+   [legacy control](../trec_mlm/legacy_dense_control.py) — frozen construction
+   schemas and the isolated MPNet comparison lock.
+9. [PR #20](../../../pull/20) — the single review and merge discussion for this
+   foundation.

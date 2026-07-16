@@ -75,6 +75,7 @@ def test_evaluated_source_constants_are_public_and_exact() -> None:
 
     assert module.EVALUATED_CONSTRUCTION_PATH == AUDIT_FINAL_ROOT
     assert module.EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 == AUDIT_FINAL_AGGREGATE
+    assert "validate_multiresolution_config" in module.__all__
 
 
 @REQUIRES_LOCAL_ISSUE18_ARTIFACT
@@ -448,11 +449,16 @@ def test_validate_config_report_checks_manifest_aggregate_and_output_presence(
         "--repeatability-receipt",
     ),
 )
+@pytest.mark.parametrize("operational_value", ("unused", ""))
 def test_cli_validate_config_rejects_operational_receipt_and_repeat_flags(
-    tmp_path: Path, operational_flag: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operational_flag: str,
+    operational_value: str,
 ) -> None:
     from scripts import run_multiresolution_profiles as script
 
+    monkeypatch.chdir(tmp_path)
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(asdict(MultiResolutionConfig())))
     with pytest.raises(ValueError, match="cannot be combined"):
@@ -462,7 +468,7 @@ def test_cli_validate_config_rejects_operational_receipt_and_repeat_flags(
                 "--config",
                 str(config_path),
                 operational_flag,
-                "unused",
+                operational_value,
             ]
         )
 

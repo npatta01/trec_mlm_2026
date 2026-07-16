@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             args.repeat_artifact,
             args.repeatability_receipt,
         )
-        if any(operational_values):
+        if any(value is not None for value in operational_values):
             raise ValueError(
                 "--validate-config cannot be combined with receipt or repeat flags"
             )

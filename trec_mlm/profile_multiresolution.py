@@ -2536,6 +2536,7 @@ __all__ = [
     "validate_frozen_tree_token",
     "validate_issue12_source_snapshot",
     "validate_legacy_viability_evidence",
+    "validate_multiresolution_config",
     "write_multiresolution_receipt",
     "write_multiresolution_artifact",
 ]

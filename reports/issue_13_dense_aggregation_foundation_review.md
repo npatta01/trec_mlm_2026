@@ -47,9 +47,13 @@ The experiment adds two broader sources of evidence to that local signal:
   without regard to the target query. It provides a conservative fallback when
   local evidence is sparse.
 
-The central hypothesis is that a locked combination of local-neighbor,
-semantic-domain, and global-prior evidence will rank candidates more robustly
-than the nearest-neighbor baseline alone, especially for sparse queries.
+The comparator is the current single 50-neighbor similarity-weighted mean: it
+takes the 50 most similar allowed queries and produces one mean relevance grade
+for each candidate. The central hypothesis is that explicitly separating
+local-neighbor evidence, semantic-domain evidence, and a global prior—and then
+combining those three signals under a locked formula—will rank candidates more
+robustly than relying on that single 50-neighbor weighted mean, especially for
+sparse queries.
 
 ### Terms used in this report
 
@@ -147,11 +151,14 @@ The implementation currently provides:
 - command-line preflight boundaries that keep the official qrel leaf outside
   the feasibility command path.
 
-The HDF5 cleanup deliberately removed the custom multi-shard cache and its
-compatibility surface. The replacement uses direct `h5py.File` access and one
-final fit-file schema. This changes storage mechanics, not the frozen folds,
-candidate set, scoring formula, clustering contract, metrics, or promotion
-criteria. The design rationale and exact artifact lifecycle are in the
+Fits are stored in one directly accessed HDF5 file with a fixed final schema
+and fixed datasets. Each scheduled fit occupies a predetermined slot; readers
+load bounded rows, full-file validation checks the completed artifact, and
+publication atomically installs the validated file without replacing an
+existing destination. The final code supports only this architecture. Storage
+mechanics do not change the frozen folds, candidate set, scoring formula,
+clustering contract, metrics, or promotion criteria. The exact dataset layout,
+validation rules, and artifact lifecycle are in the
 [HDF5 fit-store design](../docs/superpowers/specs/2026-07-15-dense-aggregation-hdf5-fit-store-design.md).
 
 ## What this pull request does not test
@@ -173,9 +180,9 @@ repeat-comparison receipt, or effectiveness decision is reported here.
 ## Verification evidence available before final branch verification
 
 The following task-scoped checks were recorded while implementing and reviewing
-the HDF5 cleanup. Dates are the dates of their associated cleanup commits.
-These commands overlap in coverage, so their passing counts must not be added
-together.
+the direct-HDF5 architecture. Dates are the dates of their associated
+implementation commits. These commands overlap in coverage, so their passing
+counts must not be added together.
 
 ### 2026-07-15: HDF5 fit file and artifact validation
 
@@ -211,7 +218,7 @@ adversarial selection exercises named pipe, inode-swap, qrel-embargo, drift,
 fresh-retry, and canonical-byte failure paths. Passing these simulated and
 fixture-based checks does not mean the official feasibility gate has run.
 
-### 2026-07-16: affected cleanup suites
+### 2026-07-16: affected infrastructure suites
 
 ```bash
 PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
@@ -223,9 +230,10 @@ PYTHONPATH=.venv/lib/python3.13/site-packages python -m pytest -q \
 # 259 passed in 46.87s
 ```
 
-This affected-suite run followed deletion of the custom cache and legacy
-wrapper and included a reviewed fix that preserves the legacy lock hash
-binding. It is still infrastructure evidence, not ranking-quality evidence.
+This affected-suite run covers the fit-file contract, experiment contract,
+legacy control, feasibility software, and CLI. It includes a reviewed fix that
+preserves the legacy lock hash binding. It is still infrastructure evidence,
+not ranking-quality evidence.
 
 **Final whole-branch verification is pending.** Task 6 will run the final
 whole-branch commands and may replace or extend this section with those exact
@@ -286,24 +294,22 @@ Suggested order for a newcomer:
    research question, folds, qrel embargo, workload, evaluation, and locked
    decision rule.
 2. [HDF5 fit-store design](../docs/superpowers/specs/2026-07-15-dense-aggregation-hdf5-fit-store-design.md) —
-   why the custom cache was replaced and how the final artifact is written and
-   validated.
+   fixed datasets, bounded reads, complete-file validation, and atomic
+   publication.
 3. [Original implementation plan](../docs/superpowers/plans/2026-07-14-dense-aggregation.md) —
    the complete preregistered experiment sequence.
-4. [HDF5 cleanup plan](../docs/superpowers/plans/2026-07-15-dense-aggregation-hdf5-cleanup.md) —
-   the scoped storage migration, deletions, and review gates in this cleanup.
-5. [Scoring primitives](../trec_mlm/dense_aggregation.py) and
+4. [Scoring primitives](../trec_mlm/dense_aggregation.py) and
    [clustering primitives](../trec_mlm/dense_aggregation_clustering.py) — the
    numerical core.
-6. [Direct HDF5 fit file](../trec_mlm/dense_aggregation_fit_file.py) and
+5. [Direct HDF5 fit file](../trec_mlm/dense_aggregation_fit_file.py) and
    [artifact validation](../trec_mlm/dense_aggregation_artifacts.py) — fit
    persistence and immutable publication.
-7. [Qrel-free feasibility software](../trec_mlm/dense_aggregation_feasibility.py),
+6. [Qrel-free feasibility software](../trec_mlm/dense_aggregation_feasibility.py),
    [CLI](../trec_mlm/dense_aggregation_cli.py), and
    [entry point](../trec_mlm/dense_aggregation_entrypoint.py) — preflight,
    sampled execution, repeat evidence, and command boundaries.
-8. [Experiment contracts](../trec_mlm/dense_aggregation_experiment.py) and
+7. [Experiment contracts](../trec_mlm/dense_aggregation_experiment.py) and
    [legacy control](../trec_mlm/legacy_dense_control.py) — frozen construction
    schemas and the isolated MPNet comparison lock.
-9. [PR #20](../../../pull/20) — the single review and merge discussion for this
+8. [PR #20](../../../pull/20) — the single review and merge discussion for this
    foundation.

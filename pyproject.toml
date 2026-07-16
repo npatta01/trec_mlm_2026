@@ -13,6 +13,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+    "pytest>=8.4,<9",
+    "ruff>=0.12,<1",
+]
 dense = [
     "scikit-learn==1.9.0",
     "sentence-transformers>=5.1.0,<6",

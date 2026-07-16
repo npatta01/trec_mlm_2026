@@ -372,7 +372,9 @@ class MultiResolutionResult:
     artifact_token: FrozenTreeToken | None = None
 
 
-def _validate_config(config: MultiResolutionConfig) -> None:
+def validate_multiresolution_config(config: MultiResolutionConfig) -> None:
+    """Validate the frozen issue-18 construction configuration."""
+
     if not isinstance(config, MultiResolutionConfig):
         raise TypeError("config must be MultiResolutionConfig")
     if not config.construction_path or not config.output_root:
@@ -583,7 +585,7 @@ def _assemble_result_for_test(
 ) -> MultiResolutionResult:
     """Assemble a small already-clustered payload for artifact contract tests."""
 
-    _validate_config(config)
+    validate_multiresolution_config(config)
     component_scores, contributors, rankings, system_scores = _freeze_systems(
         query_ids=query_ids,
         candidate_ids=candidate_ids,
@@ -614,7 +616,7 @@ def _assemble_result_for_test(
 def construct_multiresolution(config: MultiResolutionConfig) -> MultiResolutionResult:
     """Reconstruct every issue-18 profile and freeze all preregistered rankings."""
 
-    _validate_config(config)
+    validate_multiresolution_config(config)
     source = load_profile_artifacts(config.construction_path)
     observed_aggregate = source.manifest.get("aggregate_sha256")
     if observed_aggregate != config.source_aggregate_sha256:
@@ -932,7 +934,7 @@ def load_multiresolution_artifact(path: str | Path) -> MultiResolutionResult:
     }
     config_values["resolutions"] = tuple(config_values["resolutions"])
     config = MultiResolutionConfig(**config_values)
-    _validate_config(config)
+    validate_multiresolution_config(config)
     source = _read_json(root / "source.json")
     if source != {
         "source_commit": config.source_commit,
@@ -2534,6 +2536,7 @@ __all__ = [
     "validate_frozen_tree_token",
     "validate_issue12_source_snapshot",
     "validate_legacy_viability_evidence",
+    "validate_multiresolution_config",
     "write_multiresolution_receipt",
     "write_multiresolution_artifact",
 ]

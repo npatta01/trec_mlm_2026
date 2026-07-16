@@ -33,6 +33,24 @@ Install [`uv`](https://docs.astral.sh/uv/), then create the locked project envir
 uv sync
 ```
 
+For development and the full test runtime, install the dense and response runtimes
+with the locked test/lint tools:
+
+```bash
+uv sync --extra dense --extra response --extra dev
+```
+
+Validate the locked multi-resolution configuration without constructing an artifact,
+then run the tests and Ruff from the repository root:
+
+```bash
+uv run --extra dense python scripts/run_multiresolution_profiles.py \
+  --validate-config \
+  --config configs/trec_2026_multiresolution_profiles.json
+uv run --extra dense --extra response --extra dev pytest
+uv run --extra dev ruff check trec_mlm scripts tests
+```
+
 Open the notebooks interactively:
 
 ```bash

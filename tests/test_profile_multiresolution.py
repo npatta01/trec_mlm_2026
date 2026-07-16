@@ -75,6 +75,7 @@ def test_evaluated_source_constants_are_public_and_exact() -> None:
 
     assert module.EVALUATED_CONSTRUCTION_PATH == AUDIT_FINAL_ROOT
     assert module.EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 == AUDIT_FINAL_AGGREGATE
+    assert "validate_multiresolution_config" in module.__all__
 
 
 @REQUIRES_LOCAL_ISSUE18_ARTIFACT
@@ -361,7 +362,169 @@ def test_validate_config_rejects_alternate_valid_source(changed) -> None:
     from trec_mlm import profile_multiresolution as module
 
     with pytest.raises(ValueError, match="evaluated issue-12 source"):
-        module._validate_config(changed)
+        module.validate_multiresolution_config(changed)
+
+
+def test_cli_validate_config_succeeds_without_ignored_artifacts_or_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+    from trec_mlm import profile_multiresolution as module
+
+    monkeypatch.chdir(tmp_path)
+    config = MultiResolutionConfig()
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(asdict(config)))
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda _config: pytest.fail("config validation constructed an artifact"),
+    )
+    monkeypatch.setattr(
+        module,
+        "load_profile_artifacts",
+        lambda _path: pytest.fail("config validation loaded the source artifact"),
+    )
+
+    assert script.main(["--validate-config", "--config", str(config_path)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report == {
+        "status": "valid",
+        "qrel_free": True,
+        "config": json.loads(json.dumps(asdict(config))),
+        "source_artifact": {
+            "path": config.construction_path,
+            "status": "missing",
+        },
+        "output": {
+            "path": config.output_root,
+            "exists": False,
+        },
+    }
+
+
+def test_cli_invalid_json_prints_one_error_line_and_returns_2(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    config_path = tmp_path / "invalid.json"
+    config_path.write_text("{not JSON}", encoding="utf-8")
+
+    assert script.cli(["--validate-config", "--config", str(config_path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert len(captured.err.splitlines()) == 1
+    assert captured.err.startswith("error: ")
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_error"),
+    (
+        (None, "config must be a JSON object"),
+        (
+            {**asdict(MultiResolutionConfig()), "resolutions": 5},
+            "resolutions must be a JSON list",
+        ),
+        (
+            {**asdict(MultiResolutionConfig()), "output_root": 5},
+            "output_root must be a string",
+        ),
+    ),
+)
+def test_cli_wrong_json_types_print_one_error_line_without_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    payload: object,
+    expected_error: str,
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    config_path = tmp_path / "wrong-type.json"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda _config: pytest.fail("invalid config reached construction"),
+    )
+
+    assert script.cli(["--validate-config", "--config", str(config_path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"error: {expected_error}\n"
+    assert "Traceback" not in captured.err
+
+
+def test_validate_config_report_checks_manifest_aggregate_and_output_presence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+    from trec_mlm import profile_multiresolution as module
+
+    monkeypatch.chdir(tmp_path)
+    config = MultiResolutionConfig()
+    source = Path(config.construction_path)
+    source.mkdir(parents=True)
+    (source / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": config.source_aggregate_sha256})
+    )
+    Path(config.output_root).mkdir(parents=True)
+    monkeypatch.setattr(
+        module,
+        "load_profile_artifacts",
+        lambda _path: pytest.fail("config report used the expensive artifact loader"),
+    )
+
+    report = script._validate_config_report(config)
+    assert report["source_artifact"] == {
+        "path": config.construction_path,
+        "status": "verified",
+    }
+    assert report["output"] == {"path": config.output_root, "exists": True}
+
+    (source / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64})
+    )
+    with pytest.raises(ValueError, match="aggregate"):
+        script._validate_config_report(config)
+
+
+@pytest.mark.parametrize(
+    "operational_flag",
+    (
+        "--viability-receipt",
+        "--first-artifact",
+        "--first-viability-receipt",
+        "--repeat-artifact",
+        "--repeatability-receipt",
+    ),
+)
+@pytest.mark.parametrize("operational_value", ("unused", ""))
+def test_cli_validate_config_rejects_operational_receipt_and_repeat_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operational_flag: str,
+    operational_value: str,
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(asdict(MultiResolutionConfig())))
+    with pytest.raises(ValueError, match="cannot be combined"):
+        script.main(
+            [
+                "--validate-config",
+                "--config",
+                str(config_path),
+                operational_flag,
+                operational_value,
+            ]
+        )
 
 
 def test_source_aggregate_binding_is_checked_before_construction(monkeypatch) -> None:

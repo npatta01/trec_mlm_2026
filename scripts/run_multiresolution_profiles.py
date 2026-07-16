@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import fields
+from dataclasses import asdict, fields
 import json
 from pathlib import Path
+import sys
 import time
 
 from trec_mlm.profile_multiresolution import (
@@ -16,6 +17,7 @@ from trec_mlm.profile_multiresolution import (
     compare_multiresolution_artifacts,
     construct_multiresolution,
     load_multiresolution_artifact,
+    validate_multiresolution_config,
     validate_multiresolution_viability_receipt,
     write_multiresolution_artifact,
     write_multiresolution_receipt,
@@ -33,6 +35,11 @@ def _parser() -> argparse.ArgumentParser:
         "--config",
         default="configs/trec_2026_multiresolution_profiles.json",
         help="locked qrel-free construction config",
+    )
+    parser.add_argument(
+        "--validate-config",
+        action="store_true",
+        help="validate and report configuration readiness without construction",
     )
     parser.add_argument(
         "--viability-receipt",
@@ -133,11 +140,60 @@ def _run_repeat_comparison(args: argparse.Namespace) -> int:
 
 def _load_config(args: argparse.Namespace) -> MultiResolutionConfig:
     payload = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("config must be a JSON object")
     expected = {field.name for field in fields(MultiResolutionConfig)}
     if set(payload) != expected:
         raise ValueError("config fields differ from MultiResolutionConfig")
+    for name in (
+        "construction_path",
+        "output_root",
+        "source_commit",
+        "source_aggregate_sha256",
+    ):
+        if not isinstance(payload[name], str):
+            raise ValueError(f"{name} must be a string")
+    if not isinstance(payload["resolutions"], list):
+        raise ValueError("resolutions must be a JSON list")
+    if any(type(resolution) is not int for resolution in payload["resolutions"]):
+        raise ValueError("resolutions entries must be integers")
+    for name in ("top_count", "seed", "rrf_k"):
+        if type(payload[name]) is not int:
+            raise ValueError(f"{name} must be an integer")
     payload["resolutions"] = tuple(payload["resolutions"])
     return MultiResolutionConfig(**payload)
+
+
+def _validate_config_report(config: MultiResolutionConfig) -> dict[str, object]:
+    validate_multiresolution_config(config)
+    source_path = Path(config.construction_path)
+    source_status = "missing"
+    if source_path.exists():
+        try:
+            manifest = json.loads(
+                (source_path / "manifest.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("invalid source artifact manifest") from error
+        observed_aggregate = (
+            manifest.get("aggregate_sha256") if isinstance(manifest, dict) else None
+        )
+        if observed_aggregate != config.source_aggregate_sha256:
+            raise ValueError("source artifact aggregate differs from the config binding")
+        source_status = "verified"
+    return {
+        "status": "valid",
+        "qrel_free": True,
+        "config": asdict(config),
+        "source_artifact": {
+            "path": config.construction_path,
+            "status": source_status,
+        },
+        "output": {
+            "path": config.output_root,
+            "exists": Path(config.output_root).exists(),
+        },
+    }
 
 
 def _run_construction(
@@ -207,6 +263,21 @@ def _validate_viability_repair_paths(
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.validate_config:
+        operational_values = (
+            args.viability_receipt,
+            args.first_artifact,
+            args.first_viability_receipt,
+            args.repeat_artifact,
+            args.repeatability_receipt,
+        )
+        if any(value is not None for value in operational_values):
+            raise ValueError(
+                "--validate-config cannot be combined with receipt or repeat flags"
+            )
+        config = _load_config(args)
+        print(json.dumps(_validate_config_report(config), indent=2, allow_nan=False))
+        return 0
     if _comparison_mode(args):
         return _run_repeat_comparison(args)
     config = _load_config(args)
@@ -226,5 +297,15 @@ def main(argv: list[str] | None = None) -> int:
     return _run_construction(args, config)
 
 
+def cli(argv: list[str] | None = None) -> int:
+    """Run the command with concise failures for expected input and path errors."""
+
+    try:
+        return main(argv)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())

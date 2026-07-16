@@ -1,0 +1,83 @@
+{
+  "artifact_type": "issue18_multiresolution_diagnostic_receipt",
+  "version": 1,
+  "decision": "diagnostic",
+  "promotion_permitted": false,
+  "independent_validation": false,
+  "source_query_set_previously_seen": true,
+  "query_count": 322,
+  "candidate_count": 150,
+  "viability_decision": "stop-query-sensitivity",
+  "repeat_authorized": false,
+  "best_new_system": {
+    "system": "x1_multires_top2",
+    "description": "Equal RRF across k=5,10,20 top-two-centroid profile rankings",
+    "ndcg_at_10": 0.4364094046724061,
+    "mrr": 0.46460983038229936,
+    "zero_ndcg_queries": 83,
+    "delta_vs_query_knn": {
+      "ndcg_at_10": 0.07655466057735831,
+      "ndcg_95pct_interval": [0.04359368564125191, 0.10921442518640734],
+      "mrr": 0.06054652227061116,
+      "mrr_95pct_interval": [0.020928617982330217, 0.09961980655304793],
+      "zero_query_change": -33
+    }
+  },
+  "track_a_reproduction": {
+    "system": "dense_profile_profile_heavy",
+    "ndcg_at_10": 0.43762953591529047,
+    "mrr": 0.46999113723621716,
+    "zero_ndcg_queries": 91,
+    "diagnostic_only": true,
+    "stored_ranking_matches_issue12_frozen": true
+  },
+  "controls": {
+    "query_knn": {
+      "ndcg_at_10": 0.35985474409504775,
+      "mrr": 0.40406330811168817,
+      "zero_ndcg_queries": 116
+    },
+    "contextual_e5": {
+      "ndcg_at_10": 0.3347215379757303,
+      "mrr": 0.38656649577390506,
+      "zero_ndcg_queries": 120
+    }
+  },
+  "posthoc_within_family": {
+    "a1_minus_c0_ndcg": {
+      "mean": 0.00444,
+      "interval": [-0.01726, 0.02608]
+    },
+    "r1_minus_c0_ndcg": {
+      "mean": 0.01066,
+      "interval": [-0.00951, 0.03089]
+    },
+    "x1_minus_r1_ndcg": {
+      "mean": 0.01082,
+      "interval": [-0.00767, 0.03071]
+    },
+    "x1_minus_c0_ndcg": {
+      "mean": 0.02148,
+      "interval": [-0.00354, 0.04672]
+    },
+    "x1_minus_track_a_ndcg": {
+      "mean": -0.00122,
+      "interval": [-0.02568, 0.02310]
+    }
+  },
+  "interpretation": {
+    "top_two_alone": "No persuasive gain over k=10 max scoring.",
+    "multi_resolution": "Directionally useful, with the clearest benefit in zero-query recovery, but within-family intervals cross zero.",
+    "dense_equal_fusion": "No reliable benefit and generally worsens zero-query coverage.",
+    "ceiling": "Likely a ceiling for more scoring/resolution/fusion variants over this embedding geometry, not for semantic profiles generally.",
+    "next_experiment": "Predeclare one alternate embedding representation, keep X1 scoring and clustering fixed, apply qrel-free gates, and evaluate on a newly locked query set."
+  },
+  "integrity": {
+    "construction_aggregate_sha256": "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9",
+    "construction_tree_unchanged": true,
+    "viability_receipt_sha256": "8826edca9a9cc919772c8507522a510efbd449b10af022301284e726ba964859",
+    "legacy_receipt_sha256": "a457df196f7117e3d81dca9cde899cd392d4da4bd7d56653d062d4eaa67cf525",
+    "evaluation_sha256": "60a45dc4317bd2b886b9b2fb993e912bbd2edbe69acca75e5bbcb53fd293e4d2",
+    "qrels_sha256": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35"
+  }
+}

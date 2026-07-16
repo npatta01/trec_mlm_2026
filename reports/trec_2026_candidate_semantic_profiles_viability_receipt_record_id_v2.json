@@ -1,0 +1,51 @@
+{
+  "allowed_inputs": {
+    "construction_manifest_sha256": "d56e8975809fd8556134af019202447a7ee0308748df2b89821dc1d254322bca",
+    "dense_run_sha256": "1ec008416befc8996be01ef26afb2701a2765983fa5b475acafc21c217ca7a92",
+    "e5_validation_sha256": "0049f337106aa0bafa183d43cb8bd08f6426ffc2bb3a4d9d3991f5fb46806c35",
+    "inference_aggregate_sha256": "16c959174a6e844a2e960120645da5d65547508d1e8a8dd6acfa5827bc337d3b"
+  },
+  "artifact_type": "candidate_semantic_profile_pass_one_viability_superseding_receipt",
+  "decision": "continue",
+  "failed_thresholds": [],
+  "frozen_profile_only": {
+    "candidate_count": 150,
+    "complete_unique_rows": true,
+    "query_count": 322,
+    "ranking_sha256": "90c3e77949f794a773430ad5464246921564ba1b6fbf4ab2768030c95697d2b8",
+    "trec_sha256": "bbff2d51d822f64edf5a0a2762bac64324b5d25b5c8a7fe6f9bcba865d08bef7"
+  },
+  "full_receipt_sha256": "1350ddf591dd67b872fb7a2b07b71b1a54e9ed6f4eead028145d809e28728568",
+  "hard_stop_reasons": [],
+  "qrels_loaded": false,
+  "qrels_mounted": false,
+  "qrel_free_isolation": {
+    "construction_root": "/construction",
+    "exact_manifest_file_count": 54,
+    "manifest_aggregate_valid": true,
+    "manifest_contract_v2_valid": true,
+    "mountinfo_sha256": "61daf5c51e795cda77f582302e2b1a65ccbeae9e669d93f8e31bb205cec94f22",
+    "network_interfaces": [
+      "lo"
+    ],
+    "open_qrel_descriptor": false,
+    "passed": true,
+    "qrel_named_mount": false,
+    "qrel_probe_paths_present": 0,
+    "runtime": "rootless Podman with --network none and artifact-only mounts"
+  },
+  "record_id_integrity": {
+    "duplicate_values": 0,
+    "extra_occurrences": 0,
+    "maximum_multiplicity": 1,
+    "unique": 182764
+  },
+  "record_id_protocol_amendment_sha256": "a43e13518aa74365dc7bbe2022c4ee22fec47cb7b5f44ee65523f6ba6e5cb31a",
+  "repeat_two_authorized_by_viability": true,
+  "repeat_two_expected_value": "Deterministic confirmation only; it cannot improve rankings and is required before qrel evaluation.",
+  "repeat_two_incremental_gpu_hours": 8.942882750416675,
+  "supersedes_pass_one_receipt_sha256": "2b9122f3f549fbf8f0a149b1e3a6da1b5e2fbfc2e2a726eca99811d1f347a125",
+  "unchanged_threshold_count_passed": 37,
+  "version": 1,
+  "viability_protocol_amendment_sha256": "77c15ad341561ac19245e9fe810cff2f609baa1f70c8a11057cf1dd3d4f408a6"
+}

@@ -1,0 +1,70 @@
+{
+  "artifact_type": "candidate_semantic_profile_pass_one_viability_receipt",
+  "version": 1,
+  "decision": "stop",
+  "qrels_loaded": false,
+  "qrels_mounted": false,
+  "second_repeat_authorized": false,
+  "protocol_amendment_sha256": "77c15ad341561ac19245e9fe810cff2f609baa1f70c8a11057cf1dd3d4f408a6",
+  "full_receipt_sha256": "2b9122f3f549fbf8f0a149b1e3a6da1b5e2fbfc2e2a726eca99811d1f347a125",
+  "frozen_profile_only": {
+    "ranking_sha256": "90c3e77949f794a773430ad5464246921564ba1b6fbf4ab2768030c95697d2b8",
+    "trec_sha256": "bbff2d51d822f64edf5a0a2762bac64324b5d25b5c8a7fe6f9bcba865d08bef7"
+  },
+  "hard_stop": {
+    "reason": "record IDs are not globally unique",
+    "records": 182764,
+    "unique_record_ids": 176572,
+    "duplicate_id_values": 1600,
+    "extra_occurrences": 6192,
+    "cross_candidate_duplicate_id_values": 1600,
+    "maximum_multiplicity": 105
+  },
+  "integrity_evidence": {
+    "manifest_files_valid": true,
+    "queries": 322,
+    "candidates": 150,
+    "supporting_questions": 7759,
+    "labels": 150,
+    "all_arrays_float32_little_endian_c_contiguous": true,
+    "all_arrays_finite": true,
+    "zero_norm_rows": 0,
+    "maximum_absolute_norm_error": 1.7881393432617188e-07
+  },
+  "non_integrity_thresholds": {
+    "passed": 37,
+    "failed": 0,
+    "minimum_candidate_records": 36,
+    "overall_any_truncation_rate": 0.0,
+    "overall_full_truncation_rate": 0.0,
+    "maximum_within_candidate_exact_vector_duplicate_rate": 0.0,
+    "occupied_clusters_per_candidate": 10,
+    "occupancy_entropy_median": 0.9602143929060238,
+    "occupancy_entropy_minimum": 0.8066811633418443,
+    "largest_cluster_share": 0.45714285714285713,
+    "singleton_cluster_fraction": 0.0033333333333333335,
+    "dispersion_median": 0.2304169918361463,
+    "dispersion_p95": 0.2703607212456446,
+    "near_duplicate_centroid_pair_fraction": 0.0,
+    "candidate_separation_median": 0.02106583397835493,
+    "candidate_separation_ge_0_001_fraction": 1.0,
+    "unique_full_rankings": 322,
+    "unique_top10_lists": 322,
+    "unique_top1_candidates": 88,
+    "effective_top1_candidate_count": 56.907640074916195,
+    "maximum_top1_share": 0.08385093167701864,
+    "top10_candidate_coverage": 148,
+    "mean_top10_jaccard_query_knn": 0.20332889654130734,
+    "mean_top10_jaccard_contextual_e5": 0.2556183814092012,
+    "dominant_candidates_related": true,
+    "severe_collapse": false
+  },
+  "repeat_two_cost_value": {
+    "projected_gpu_hours": 8.942882750416675,
+    "projected_range_hours": [8.048594475375008, 9.837171025458344],
+    "incremental_artifact_bytes": 7060723566,
+    "expected_value": "Reproducibility confirmation only; it cannot improve rankings.",
+    "unchanged_repeat_value_sufficient": false
+  },
+  "next_action": "Do not run repeat two. A candidate-namespaced record-ID revision requires a new protocol amendment and advisor review; qrels remain sealed."
+}

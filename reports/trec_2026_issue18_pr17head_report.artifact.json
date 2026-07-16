@@ -1,0 +1,275 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Multi-resolution profiles nearly match profile-heavy fusion",
+    "description": "Technical diagnostic of candidate-aware multi-vector semantic profiles on the 322 previously seen development queries.",
+    "generatedAt": "2026-07-15T20:10:00Z",
+    "blocks": [
+      {
+        "id": "report_title",
+        "type": "markdown",
+        "body": "# Multi-resolution profiles nearly match profile-heavy fusion"
+      },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "sourceId": "report_queries",
+        "body": "## Technical summary\n\n**Keep the result as a diagnostic; do not promote it.** The best new system, X1 multi-resolution top-two scoring, reaches **0.4364 nDCG@10, 0.4646 MRR, and 83 zero-nDCG queries** across all **322 previously seen development queries**. It beats frozen query-kNN by **+0.0766 nDCG@10** with a paired 95% interval of **[+0.0436, +0.1092]**, and reduces zero queries from 116 to 83.\n\nX1 is effectively tied with the earlier profile-heavy Track A diagnostic at 0.4376 nDCG@10: the post-hoc paired difference is **-0.0012 [-0.0257, +0.0231]**. This is the full 322-query development result, not a holdout. The evidence suggests a ceiling for more scoring, cluster-count, or fusion variants over the same embedding geometry—not a ceiling for semantic profiles generally."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": ["x1_ndcg", "x1_mrr", "x1_zeros", "track_a_gap"]
+      },
+      {
+        "id": "system_finding",
+        "type": "markdown",
+        "sourceId": "evaluation",
+        "body": "## X1 leads the new systems and recovers the most failures\n\n**Combining top-two centroid evidence across k=5, 10, and 20 produces the strongest new ranking.** X1 has the highest new-system nDCG@10 and only 83 zero queries. R1 multi-resolution max has essentially the same MRR and 89 zeros. A1 top-two at k=10 alone adds little over C0, so the useful signal comes from the combination of resolution and aggregation rather than top-two averaging by itself."
+      },
+      {
+        "id": "system_chart_block",
+        "type": "chart",
+        "chartId": "system_ndcg_chart"
+      },
+      {
+        "id": "system_table_block",
+        "type": "table",
+        "tableId": "system_table"
+      },
+      {
+        "id": "ablation_finding",
+        "type": "markdown",
+        "sourceId": "report_queries",
+        "body": "## Within-family gains are directional, not independently decisive\n\n**The step from C0 to X1 is the most promising ablation, but its within-family interval still crosses zero.** A1 minus C0 is +0.0044 nDCG, R1 minus C0 is +0.0107, and X1 minus C0 is +0.0215. X1 also reduces zeros from 92 for C0 to 83. These are post-hoc paired comparisons over stored per-query metrics; they explain the frozen run but must not be used to tune another variant on these same queries."
+      },
+      {
+        "id": "ablation_chart_block",
+        "type": "chart",
+        "chartId": "ablation_delta_chart"
+      },
+      {
+        "id": "ablation_table_block",
+        "type": "table",
+        "tableId": "ablation_table"
+      },
+      {
+        "id": "fusion_finding",
+        "type": "markdown",
+        "sourceId": "evaluation",
+        "body": "## Equal query-kNN fusion does not improve the profile rankings\n\n**Dense-equal fusion is not the next lever.** It changes nDCG by only +0.0008 for A1, +0.0053 for C0, +0.0006 for R1, and -0.0093 for X1; every paired interval crosses zero. It also increases zero-query counts for every family, including X1 from 83 to 92. The profile-only multi-resolution systems are the cleaner diagnostic."
+      },
+      {
+        "id": "viability_finding",
+        "type": "markdown",
+        "sourceId": "viability",
+        "body": "## The stop is localized query sensitivity, not invalid construction\n\n**Integrity, coverage, normalization, and incremental-distinctness checks all pass.** The qrel-free receipt stops because k=5/top-two variants concentrate too often on a few candidates: the maximum top-1 share exceeds 10%, and one top2-k5 candidate appears in 51.6% of query top tens. Rankings otherwise remain diverse, with 321–322 unique top tens and 140–150 candidates represented. No repeat was authorized."
+      },
+      {
+        "id": "integrity_table_block",
+        "type": "table",
+        "tableId": "integrity_table"
+      },
+      {
+        "id": "scope_definitions",
+        "type": "markdown",
+        "sourceId": "protocol",
+        "body": "## Scope, metrics, and experimental design\n\n**Population:** 322 development queries, each ranking the same 150 candidate models. **nDCG@10** rewards graded relevance near the top ten; **MRR** rewards the rank of the first positively judged candidate; a **zero-nDCG query** has no positively judged candidate in its top ten. Query-kNN is the frozen 0.3599/0.4041/116 baseline, while contextual E5 is the qrel-free 0.3347/0.3866/120 control.\n\nC0 uses maximum similarity to k=10 centroids. A1 averages the top two k=10 similarities. R1 fuses maximum-similarity rankings across k=5/10/20 with equal RRF-60. X1 applies the same multi-resolution fusion to top-two scoring. All representations, scores, and rankings were frozen before qrels were opened."
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "sourceId": "report_queries",
+        "body": "## Limitations and robustness\n\n**This is not independent validation.** These 322 query judgments were already seen by the broader project, even though issue-18 construction remained qrel-free. Track A is a stored reproduction, and X1-versus-family intervals are post-hoc diagnostics. The viability receipt also records candidate-dominance failures, so the highest metric cannot override the qrel-free stop. The artifact aggregate remained unchanged before and after evaluation, exact qrel identity passed, and the evaluation output is bound to the canonical receipt and qrel hashes."
+      },
+      {
+        "id": "recommendation",
+        "type": "markdown",
+        "sourceId": "report_queries",
+        "body": "## Next experiment: change the embedding, hold X1 fixed\n\n**Test one preregistered alternate embedding representation rather than more cluster or fusion search.** Keep X1 scoring, k={5,10,20}, RRF-60, normalization, and tie-breaking fixed. Select the embedding for external model-quality reasons only, apply the same qrel-free geometry and dominance gates, and evaluate on a newly locked untouched query set. This isolates whether representation geometry—not centroid count or scoring—is the remaining bottleneck."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Does an alternate embedding reduce the `Popular_music` and `People_by_status` dominance patterns without losing X1's zero-query recovery?\n- On a new locked query set, does X1 retain its 33-query zero reduction versus query-kNN?\n- Are X1 and Track A complementary on new queries, or are their near-equal means produced by the same successes?"
+      }
+    ],
+    "cards": [
+      {
+        "id": "x1_ndcg",
+        "description": "Best new system over all 322 seen development queries.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {"label": "X1 nDCG@10", "field": "x1_ndcg", "format": "number"},
+          {"label": "vs query-kNN", "field": "ndcg_delta", "format": "number", "signed": true}
+        ]
+      },
+      {
+        "id": "x1_mrr",
+        "description": "Mean reciprocal rank across the same query set.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {"label": "X1 MRR", "field": "x1_mrr", "format": "number"},
+          {"label": "vs query-kNN", "field": "mrr_delta", "format": "number", "signed": true}
+        ]
+      },
+      {
+        "id": "x1_zeros",
+        "description": "Queries with no positive candidate in the top ten.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {"label": "X1 zero queries", "field": "x1_zeros", "format": "number"},
+          {"label": "Change vs query-kNN", "field": "zero_delta", "format": "number", "signed": true}
+        ]
+      },
+      {
+        "id": "track_a_gap",
+        "description": "Post-hoc X1 minus stored Track A diagnostic.",
+        "dataset": "headline",
+        "sourceId": "report_queries",
+        "metrics": [
+          {"label": "nDCG gap vs Track A", "field": "track_a_gap", "format": "number", "signed": true},
+          {"label": "Fewer zero queries", "field": "track_a_zero_gain", "format": "number", "signed": true}
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "system_ndcg_chart",
+        "title": "nDCG@10 by frozen system",
+        "subtitle": "All 322 previously seen development queries; Track A and controls included for context.",
+        "type": "bar",
+        "dataset": "system_metrics",
+        "sourceId": "report_queries",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {"field": "system", "type": "nominal", "label": "System"},
+          "y": {"field": "ndcg_at_10", "type": "quantitative", "label": "nDCG@10"},
+          "tooltip": [
+            {"field": "mrr", "type": "quantitative", "label": "MRR", "format": "number"},
+            {"field": "zero_queries", "type": "quantitative", "label": "Zero queries", "format": "number"}
+          ]
+        }
+      },
+      {
+        "id": "ablation_delta_chart",
+        "title": "Post-hoc nDCG differences within the profile family",
+        "subtitle": "Mean paired difference over 322 stored per-query metrics; every 95% interval crosses zero.",
+        "type": "bar",
+        "dataset": "ablation_deltas",
+        "sourceId": "report_queries",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {"field": "comparison", "type": "nominal", "label": "Comparison"},
+          "y": {"field": "mean_delta", "type": "quantitative", "label": "nDCG difference"},
+          "tooltip": [
+            {"field": "lower", "type": "quantitative", "label": "95% lower", "format": "number"},
+            {"field": "upper", "type": "quantitative", "label": "95% upper", "format": "number"}
+          ]
+        }
+      }
+    ],
+    "tables": [
+      {
+        "id": "system_table",
+        "title": "Frozen system metrics",
+        "subtitle": "Exact macro metrics across all 322 queries; sorted by nDCG@10.",
+        "dataset": "system_metrics",
+        "sourceId": "report_queries",
+        "defaultSort": {"field": "ndcg_at_10", "direction": "desc"},
+        "columns": [
+          {"field": "system", "label": "System", "type": "text"},
+          {"field": "role", "label": "Role", "type": "text"},
+          {"field": "ndcg_at_10", "label": "nDCG@10", "format": "number"},
+          {"field": "mrr", "label": "MRR", "format": "number"},
+          {"field": "zero_queries", "label": "Zero queries", "format": "number"}
+        ]
+      },
+      {
+        "id": "ablation_table",
+        "title": "Within-family paired comparisons",
+        "subtitle": "Post-hoc 10,000-resample PCG64 bootstrap over stored per-query metrics; seed 2026.",
+        "dataset": "ablation_deltas",
+        "sourceId": "report_queries",
+        "columns": [
+          {"field": "comparison", "label": "Comparison", "type": "text"},
+          {"field": "mean_delta", "label": "Mean nDCG difference", "format": "number", "semantic": "movement"},
+          {"field": "lower", "label": "95% lower", "format": "number"},
+          {"field": "upper", "label": "95% upper", "format": "number"},
+          {"field": "zero_change", "label": "Zero-query change", "format": "number", "semantic": "movement"}
+        ]
+      },
+      {
+        "id": "integrity_table",
+        "title": "Protocol and integrity receipt",
+        "subtitle": "Checks governing interpretation and whether another repeat or promotion is permitted.",
+        "dataset": "integrity_checks",
+        "sourceId": "report_queries",
+        "columns": [
+          {"field": "check", "label": "Check", "type": "text"},
+          {"field": "result", "label": "Result", "type": "text"},
+          {"field": "evidence", "label": "Evidence", "type": "text"}
+        ]
+      }
+    ],
+    "sources": [
+      {"id": "report_queries", "label": "Issue 18 report reshaping queries", "path": "reports/trec_2026_issue18_pr17head_report.sql"},
+      {"id": "results_receipt", "label": "Issue 18 diagnostic decision receipt", "path": "reports/trec_2026_issue18_pr17head_results.json"},
+      {"id": "evaluation", "label": "Frozen issue 18 evaluation", "path": "reports/trec_2026_issue18_pr17head_evaluation.json"},
+      {"id": "viability", "label": "Qrel-free issue 18 viability receipt", "path": "reports/trec_2026_issue18_pr17head_viability.json"},
+      {"id": "protocol", "label": "Locked issue 18 protocol amendment", "path": "protocols/trec_2026_multiresolution_profiles_amendment.md"},
+      {"id": "query_explorer", "label": "X1 query and candidate explorer", "path": "reports/trec_2026_issue18_pr17head_query_explorer.html"}
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "status": "ready",
+    "generatedAt": "2026-07-15T20:10:00Z",
+    "datasets": {
+      "headline": [
+        {"x1_ndcg": 0.4364094046724061, "ndcg_delta": 0.07655466057735831, "x1_mrr": 0.46460983038229936, "mrr_delta": 0.06054652227061116, "x1_zeros": 83, "zero_delta": -33, "track_a_gap": -0.00122013124288437, "track_a_zero_gain": 8}
+      ],
+      "system_metrics": [
+        {"system": "Track A profile-heavy", "role": "Stored diagnostic", "ndcg_at_10": 0.43762953591529047, "mrr": 0.46999113723621716, "zero_queries": 91},
+        {"system": "X1 multires top-two", "role": "Best new diagnostic", "ndcg_at_10": 0.4364094046724061, "mrr": 0.46460983038229936, "zero_queries": 83},
+        {"system": "X1 dense-equal", "role": "Frozen diagnostic", "ndcg_at_10": 0.42712858500092327, "mrr": 0.4547199024812202, "zero_queries": 92},
+        {"system": "R1 multires max dense-equal", "role": "Frozen diagnostic", "ndcg_at_10": 0.42614083691116733, "mrr": 0.45562557119945485, "zero_queries": 96},
+        {"system": "R1 multires max", "role": "Frozen diagnostic", "ndcg_at_10": 0.42558696846923294, "mrr": 0.4646335088276342, "zero_queries": 89},
+        {"system": "C0 max k10 dense-equal", "role": "Frozen control variant", "ndcg_at_10": 0.4202139921941393, "mrr": 0.45301739378333744, "zero_queries": 99},
+        {"system": "A1 top-two k10 dense-equal", "role": "Frozen diagnostic", "ndcg_at_10": 0.4201503648708051, "mrr": 0.4477858071340355, "zero_queries": 94},
+        {"system": "A1 top-two k10", "role": "Frozen diagnostic", "ndcg_at_10": 0.4193597514876465, "mrr": 0.45213811202689036, "zero_queries": 93},
+        {"system": "C0 max k10", "role": "Issue-12 profile control", "ndcg_at_10": 0.41492445997856287, "mrr": 0.441697813928065, "zero_queries": 92},
+        {"system": "Query-kNN", "role": "Frozen baseline", "ndcg_at_10": 0.35985474409504775, "mrr": 0.40406330811168817, "zero_queries": 116},
+        {"system": "Contextual E5", "role": "Qrel-free control", "ndcg_at_10": 0.3347215379757303, "mrr": 0.38656649577390506, "zero_queries": 120}
+      ],
+      "ablation_deltas": [
+        {"comparison": "A1 minus C0", "mean_delta": 0.00444, "lower": -0.01726, "upper": 0.02608, "zero_change": 1},
+        {"comparison": "R1 minus C0", "mean_delta": 0.01066, "lower": -0.00951, "upper": 0.03089, "zero_change": -3},
+        {"comparison": "X1 minus R1", "mean_delta": 0.01082, "lower": -0.00767, "upper": 0.03071, "zero_change": -6},
+        {"comparison": "X1 minus C0", "mean_delta": 0.02148, "lower": -0.00354, "upper": 0.04672, "zero_change": -9},
+        {"comparison": "X1 minus Track A", "mean_delta": -0.00122, "lower": -0.02568, "upper": 0.02310, "zero_change": -8}
+      ],
+      "integrity_checks": [
+        {"check": "Frozen artifact", "result": "Passed", "evidence": "Aggregate 2a3909…d5b9 unchanged before and after evaluation."},
+        {"check": "Qrel identities", "result": "Passed", "evidence": "Exact 322-query and 150-candidate inventories; canonical qrel hash."},
+        {"check": "Qrel-free viability", "result": "Stop", "evidence": "Localized top-1/top-10 candidate dominance; no integrity or incremental failures."},
+        {"check": "Construction repeat", "result": "Not authorized", "evidence": "Top-level repeat_authorized=false."},
+        {"check": "Independent validation", "result": "No", "evidence": "All 322 development queries were previously seen by the project."},
+        {"check": "Promotion", "result": "Not permitted", "evidence": "Final receipt is diagnostic; a newly locked query set is required."}
+      ]
+    }
+  },
+  "sources": [
+    {"id": "report_queries", "label": "Issue 18 report reshaping queries", "path": "reports/trec_2026_issue18_pr17head_report.sql"},
+    {"id": "results_receipt", "label": "Issue 18 diagnostic decision receipt", "path": "reports/trec_2026_issue18_pr17head_results.json"},
+    {"id": "evaluation", "label": "Frozen issue 18 evaluation", "path": "reports/trec_2026_issue18_pr17head_evaluation.json"},
+    {"id": "viability", "label": "Qrel-free issue 18 viability receipt", "path": "reports/trec_2026_issue18_pr17head_viability.json"},
+    {"id": "protocol", "label": "Locked issue 18 protocol amendment", "path": "protocols/trec_2026_multiresolution_profiles_amendment.md"},
+    {"id": "query_explorer", "label": "X1 query and candidate explorer", "path": "reports/trec_2026_issue18_pr17head_query_explorer.html"}
+  ]
+}

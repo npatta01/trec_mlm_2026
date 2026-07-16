@@ -1,0 +1,41 @@
+{
+  "artifact_type": "candidate_semantic_profiles_evaluation_recovery",
+  "version": 1,
+  "recorded_at": "2026-07-15T08:01:02-04:00",
+  "status": "approved_for_retry",
+  "stage": "post_qrel_unseal_pre_metric_write",
+  "failure": {
+    "message": "qrel candidate inventory differs from frozen construction",
+    "cause": "the evaluator compared insertion-order tuples instead of candidate identities",
+    "frozen_candidate_count": 150,
+    "qrel_candidate_count": 150,
+    "candidate_sets_equal": true,
+    "order_only_swaps": [
+      [
+        "Geography",
+        "Geography-related_lists"
+      ],
+      [
+        "Government",
+        "Government-related_organizations"
+      ]
+    ],
+    "evaluation_output_created": false,
+    "construction_artifact_mutated": false,
+    "ranking_artifact_mutated": false
+  },
+  "fix": {
+    "commit": "932f0ad2e7fd7efa4f9884cba262816614955ee4",
+    "diff_sha256": "2138d21dba42251767c7a0e7b936c010679c0dedd252e57541c5343c2e4cf69b",
+    "behavior": "require exact query-ID set equality and exact candidate-ID set equality for every qrel row",
+    "ranking_or_scoring_change": false
+  },
+  "verification": {
+    "focused_profile_evaluation_tests": "21 passed",
+    "full_tests": "207 passed, 11 subtests passed",
+    "ruff": "passed",
+    "diff_check": "passed",
+    "evaluation_output_path_absent": true
+  },
+  "advisor_verdict": "approve rerunning evaluation after committing the fix and this recovery note; no inference, construction, or ranking rerun required"
+}

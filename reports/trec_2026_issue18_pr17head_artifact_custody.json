@@ -1,0 +1,32 @@
+{
+  "artifact_type": "issue18_scientific_artifact_custody_receipt",
+  "version": 1,
+  "recorded_at_utc": "2026-07-16T02:40:00Z",
+  "scientific_artifact": {
+    "canonical_local_path": "artifacts/multiresolution_profiles/issue18_pr17head",
+    "aggregate_sha256": "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9",
+    "byte_size": 3931931309,
+    "file_count": 48,
+    "git_tracked": false,
+    "durable_remote_uri": null,
+    "remote_restore_verified": false,
+    "availability": "local_workspace_only"
+  },
+  "tracked_merge_scope": {
+    "claim": "software_and_derived_diagnostic_package_only",
+    "includes": [
+      "config-driven construction, viability, and evaluation software",
+      "tests and protocol records",
+      "frozen evaluation and decision receipts",
+      "self-contained accessible technical report",
+      "self-contained query explorer"
+    ],
+    "excludes": [
+      "the ignored 3.7 GB construction tree",
+      "fresh-clone reconstruction or independent restoration of that tree",
+      "production or independent-validation promotion"
+    ]
+  },
+  "limitation": "A fresh clone can audit the tracked derived diagnostic package but cannot reload or reconstruct the complete scientific construction tree without separate access to the local artifact. Uploading that artifact requires explicit authorization for a private durable store.",
+  "next_action": "If independent artifact restoration is required, authorize a private durable artifact destination, upload the exact tree without mutation, record its retrieval URI and access boundary, and verify restoration against the aggregate SHA-256 before changing this custody status."
+}

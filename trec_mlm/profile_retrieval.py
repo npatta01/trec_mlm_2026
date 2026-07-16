@@ -105,6 +105,7 @@ class CandidateProfile:
 class ProfileScoreResult:
     scores: NDArray[np.float32]
     winning_centroid_ids: NDArray[np.int32]
+    contributing_centroid_ids: NDArray[np.int32]
     rankings: dict[str, list[str]]
 
 
@@ -261,11 +262,11 @@ def canonical_kmeans(
     matrix = _normalize_rows(embeddings)
     if matrix.shape[0] != len(record_tuple):
         raise ValueError("record and embedding counts differ")
-    maximum = min(10, len(record_tuple))
-    requested = maximum if requested_clusters is None else requested_clusters
+    default_clusters = min(10, len(record_tuple))
+    requested = default_clusters if requested_clusters is None else requested_clusters
     if isinstance(requested, bool) or not isinstance(requested, int):
         raise TypeError("requested cluster count must be an integer")
-    if requested < 1 or requested > maximum:
+    if requested < 1 or requested > len(record_tuple):
         raise ValueError("requested cluster count exceeds the usable-record rule")
     if enforce_thread_contract:
         _validate_thread_contract()
@@ -348,12 +349,17 @@ def score_profiles(
     candidate_ids: Sequence[str],
     query_embeddings: FloatArray,
     profiles: Mapping[str, CandidateProfile | None],
+    top_n: int = 1,
 ) -> ProfileScoreResult:
-    """Score every query/candidate by its maximum centroid cosine."""
+    """Score by the mean of each query/candidate's top centroid cosines."""
 
     queries = _normalize_rows(query_embeddings)
     query_tuple = tuple(query_ids)
     candidates = tuple(candidate_ids)
+    if isinstance(top_n, bool) or not isinstance(top_n, int):
+        raise TypeError("top_n must be an integer")
+    if top_n < 1:
+        raise ValueError("top_n must be positive")
     if queries.shape[0] != len(query_tuple):
         raise ValueError("query and embedding counts differ")
     if len(set(query_tuple)) != len(query_tuple) or len(set(candidates)) != len(candidates):
@@ -362,6 +368,9 @@ def score_profiles(
         raise ValueError("profiles must match the candidate inventory")
     scores = np.full((len(query_tuple), len(candidates)), -2.0, dtype=np.float32)
     winners = np.full((len(query_tuple), len(candidates)), -1, dtype=np.int32)
+    contributors = np.full(
+        (len(query_tuple), len(candidates), top_n), -1, dtype=np.int32
+    )
     available = np.zeros(len(candidates), dtype=bool)
     for candidate_index, candidate_id in enumerate(candidates):
         profile = profiles[candidate_id]
@@ -373,15 +382,25 @@ def score_profiles(
         if centroids.shape[1] != queries.shape[1]:
             raise ValueError("query and centroid dimensions differ")
         similarities = np.asarray(queries @ centroids.T, dtype=np.float32)
-        winners[:, candidate_index] = np.argmax(similarities, axis=1).astype(np.int32)
-        scores[:, candidate_index] = np.max(similarities, axis=1)
+        centroid_ids = np.arange(centroids.shape[0], dtype=np.int32)
+        contributor_count = min(top_n, centroids.shape[0])
+        for query_index in range(len(query_tuple)):
+            order = np.lexsort((centroid_ids, -similarities[query_index]))
+            selected = np.asarray(order[:contributor_count], dtype=np.int32)
+            contributors[
+                query_index, candidate_index, :contributor_count
+            ] = selected
+            winners[query_index, candidate_index] = selected[0]
+            scores[query_index, candidate_index] = np.mean(
+                similarities[query_index, selected], dtype=np.float64
+            )
         available[candidate_index] = True
     names = np.asarray(candidates)
     rankings: dict[str, list[str]] = {}
     for query_index, query_id in enumerate(query_tuple):
         order = np.lexsort((names, -scores[query_index], -available.astype(np.int8)))
         rankings[query_id] = [candidates[int(index)] for index in order]
-    return ProfileScoreResult(scores, winners, rankings)
+    return ProfileScoreResult(scores, winners, contributors, rankings)
 
 
 def aggregate_cluster_labels(

@@ -1,0 +1,377 @@
+{
+  "artifact_aggregate_sha256": "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9",
+  "artifact_type": "issue18_multiresolution_viability_receipt",
+  "cluster_diagnostics": {
+    "k10": {
+      "candidate_count": 150,
+      "candidate_occupied_cluster_retention": 1.0,
+      "exact_duplicate_centroids": 0,
+      "largest_cluster_share": 0.45714285714285713,
+      "median_centroid_separation": 0.13403212869393372,
+      "median_normalized_occupancy_entropy": 0.960214392906024,
+      "minimum_normalized_occupancy_entropy": 0.8066811633418443,
+      "singleton_cluster_share": 0.0033333333333333335,
+      "within_candidate_near_duplicate_centroid_share": 0.0
+    },
+    "k20": {
+      "candidate_count": 150,
+      "candidate_occupied_cluster_retention": 1.0,
+      "exact_duplicate_centroids": 0,
+      "largest_cluster_share": 0.24369747899159663,
+      "median_centroid_separation": 0.16825610599408064,
+      "median_normalized_occupancy_entropy": 0.9618483040821624,
+      "minimum_normalized_occupancy_entropy": 0.8824845804532939,
+      "singleton_cluster_share": 0.004666666666666667,
+      "within_candidate_near_duplicate_centroid_share": 0.0
+    },
+    "k5": {
+      "candidate_count": 150,
+      "candidate_occupied_cluster_retention": 1.0,
+      "exact_duplicate_centroids": 0,
+      "largest_cluster_share": 0.4444444444444444,
+      "median_centroid_separation": 0.1016065178074369,
+      "median_normalized_occupancy_entropy": 0.9585589460297175,
+      "minimum_normalized_occupancy_entropy": 0.8438089218677617,
+      "singleton_cluster_share": 0.0,
+      "within_candidate_near_duplicate_centroid_share": 0.0
+    }
+  },
+  "cost_evidence": {
+    "issue12_construction_elapsed_seconds": 123.05126005003694,
+    "issue12_construction_storage_bytes": 7090320723,
+    "multiresolution_artifact_storage_bytes": 3931931309,
+    "multiresolution_construction_elapsed_seconds": 428.64752057695296,
+    "repeat_cost_authorized": true,
+    "storage_at_most_four_times_issue12": true,
+    "storage_ratio": 0.5545491470146575,
+    "wall_time_at_most_four_times_issue12": true,
+    "wall_time_ratio": 3.4834874539492717
+  },
+  "decision": "stop-no-incremental-value",
+  "failed_incremental_thresholds": [],
+  "failed_integrity_thresholds": [],
+  "failed_thresholds": [
+    "maximum_top1_candidate_share",
+    "maximum_candidate_top10_query_share"
+  ],
+  "integrity_checks": {
+    "candidate_identities": true,
+    "complete_rankings": true,
+    "component_score_schema": true,
+    "contributor_schema": true,
+    "finite_scores": true,
+    "normalized_centroids": true,
+    "official_322_by_150_coverage": true,
+    "query_identities": true,
+    "ranking_score_consistency": true,
+    "source_binding": true,
+    "system_score_schema": true
+  },
+  "qrel_free": true,
+  "ranking_diagnostics": {
+    "a1_top2_k10": {
+      "candidate_coverage_retention": 1.0,
+      "maximum_candidate_top10_query_share": 0.33540372670807456,
+      "maximum_top1_candidate_share": 0.09937888198757763,
+      "mean_top10_jaccard": 0.5029384105927767,
+      "top10_candidate_coverage": 148,
+      "top10_difference_query_share": 1.0,
+      "unique_top10_rankings": 321,
+      "unique_top10_retention": 0.9968944099378882
+    },
+    "a1_top2_k10_dense_equal": {
+      "maximum_candidate_top10_query_share": 0.38198757763975155,
+      "maximum_top1_candidate_share": 0.08695652173913043,
+      "top10_candidate_coverage": 142,
+      "unique_top10_rankings": 321
+    },
+    "c0_max_k10": {
+      "maximum_candidate_top10_query_share": 0.2453416149068323,
+      "maximum_top1_candidate_share": 0.08385093167701864,
+      "top10_candidate_coverage": 148,
+      "unique_top10_rankings": 322
+    },
+    "c0_max_k10_dense_equal": {
+      "maximum_candidate_top10_query_share": 0.3447204968944099,
+      "maximum_top1_candidate_share": 0.09627329192546584,
+      "top10_candidate_coverage": 143,
+      "unique_top10_rankings": 322
+    },
+    "max_k10": {
+      "maximum_candidate_top10_query_share": 0.2453416149068323,
+      "maximum_top1_candidate_share": 0.08385093167701864,
+      "top10_candidate_coverage": 148,
+      "unique_top10_rankings": 322
+    },
+    "max_k20": {
+      "maximum_candidate_top10_query_share": 0.3447204968944099,
+      "maximum_top1_candidate_share": 0.049689440993788817,
+      "top10_candidate_coverage": 150,
+      "unique_top10_rankings": 322
+    },
+    "max_k5": {
+      "maximum_candidate_top10_query_share": 0.4813664596273292,
+      "maximum_top1_candidate_share": 0.13975155279503104,
+      "top10_candidate_coverage": 147,
+      "unique_top10_rankings": 321
+    },
+    "r1_multires_max": {
+      "candidate_coverage_retention": 1.0067567567567568,
+      "maximum_candidate_top10_query_share": 0.38819875776397517,
+      "maximum_top1_candidate_share": 0.08695652173913043,
+      "mean_top10_jaccard": 0.574606431201243,
+      "top10_candidate_coverage": 149,
+      "top10_difference_query_share": 1.0,
+      "unique_top10_rankings": 322,
+      "unique_top10_retention": 1.0
+    },
+    "r1_multires_max_dense_equal": {
+      "maximum_candidate_top10_query_share": 0.30434782608695654,
+      "maximum_top1_candidate_share": 0.09627329192546584,
+      "top10_candidate_coverage": 146,
+      "unique_top10_rankings": 322
+    },
+    "top2_k10": {
+      "maximum_candidate_top10_query_share": 0.33540372670807456,
+      "maximum_top1_candidate_share": 0.09937888198757763,
+      "top10_candidate_coverage": 148,
+      "unique_top10_rankings": 321
+    },
+    "top2_k20": {
+      "maximum_candidate_top10_query_share": 0.36024844720496896,
+      "maximum_top1_candidate_share": 0.07453416149068323,
+      "top10_candidate_coverage": 148,
+      "unique_top10_rankings": 322
+    },
+    "top2_k5": {
+      "maximum_candidate_top10_query_share": 0.515527950310559,
+      "maximum_top1_candidate_share": 0.14596273291925466,
+      "top10_candidate_coverage": 145,
+      "unique_top10_rankings": 322
+    },
+    "x1_multires_top2": {
+      "candidate_coverage_retention": 1.0067567567567568,
+      "maximum_candidate_top10_query_share": 0.42857142857142855,
+      "maximum_top1_candidate_share": 0.12422360248447205,
+      "mean_top10_jaccard": 0.4661748135802517,
+      "top10_candidate_coverage": 149,
+      "top10_difference_query_share": 1.0,
+      "unique_top10_rankings": 322,
+      "unique_top10_retention": 1.0
+    },
+    "x1_multires_top2_dense_equal": {
+      "maximum_candidate_top10_query_share": 0.43788819875776397,
+      "maximum_top1_candidate_share": 0.09006211180124224,
+      "top10_candidate_coverage": 140,
+      "unique_top10_rankings": 322
+    }
+  },
+  "repeat_authorized": false,
+  "thresholds": {
+    "candidate_occupied_cluster_retention": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.95,
+      "values": {
+        "k10": 1.0,
+        "k20": 1.0,
+        "k5": 1.0
+      }
+    },
+    "exact_duplicate_centroids": {
+      "operator": "==",
+      "passed": true,
+      "threshold": 0,
+      "values": {
+        "k10": 0,
+        "k20": 0,
+        "k5": 0
+      }
+    },
+    "incremental_candidate_coverage_retention": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.9,
+      "values": {
+        "a1_top2_k10": 1.0,
+        "r1_multires_max": 1.0067567567567568,
+        "x1_multires_top2": 1.0067567567567568
+      }
+    },
+    "incremental_mean_top10_jaccard": {
+      "operator": "<",
+      "passed": true,
+      "threshold": 0.95,
+      "values": {
+        "a1_top2_k10": 0.5029384105927767,
+        "r1_multires_max": 0.574606431201243,
+        "x1_multires_top2": 0.4661748135802517
+      }
+    },
+    "incremental_top10_difference_query_share": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.1,
+      "values": {
+        "a1_top2_k10": 1.0,
+        "r1_multires_max": 1.0,
+        "x1_multires_top2": 1.0
+      }
+    },
+    "incremental_unique_top10_retention": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.9,
+      "values": {
+        "a1_top2_k10": 0.9968944099378882,
+        "r1_multires_max": 1.0,
+        "x1_multires_top2": 1.0
+      }
+    },
+    "largest_cluster_share": {
+      "operator": "<=",
+      "passed": true,
+      "threshold": 0.8,
+      "values": {
+        "k10": 0.45714285714285713,
+        "k20": 0.24369747899159663,
+        "k5": 0.4444444444444444
+      }
+    },
+    "maximum_candidate_top10_query_share": {
+      "operator": "<=",
+      "passed": false,
+      "threshold": 0.5,
+      "values": {
+        "a1_top2_k10": 0.33540372670807456,
+        "a1_top2_k10_dense_equal": 0.38198757763975155,
+        "c0_max_k10": 0.2453416149068323,
+        "c0_max_k10_dense_equal": 0.3447204968944099,
+        "max_k10": 0.2453416149068323,
+        "max_k20": 0.3447204968944099,
+        "max_k5": 0.4813664596273292,
+        "r1_multires_max": 0.38819875776397517,
+        "r1_multires_max_dense_equal": 0.30434782608695654,
+        "top2_k10": 0.33540372670807456,
+        "top2_k20": 0.36024844720496896,
+        "top2_k5": 0.515527950310559,
+        "x1_multires_top2": 0.42857142857142855,
+        "x1_multires_top2_dense_equal": 0.43788819875776397
+      }
+    },
+    "maximum_top1_candidate_share": {
+      "operator": "<=",
+      "passed": false,
+      "threshold": 0.1,
+      "values": {
+        "a1_top2_k10": 0.09937888198757763,
+        "a1_top2_k10_dense_equal": 0.08695652173913043,
+        "c0_max_k10": 0.08385093167701864,
+        "c0_max_k10_dense_equal": 0.09627329192546584,
+        "max_k10": 0.08385093167701864,
+        "max_k20": 0.049689440993788817,
+        "max_k5": 0.13975155279503104,
+        "r1_multires_max": 0.08695652173913043,
+        "r1_multires_max_dense_equal": 0.09627329192546584,
+        "top2_k10": 0.09937888198757763,
+        "top2_k20": 0.07453416149068323,
+        "top2_k5": 0.14596273291925466,
+        "x1_multires_top2": 0.12422360248447205,
+        "x1_multires_top2_dense_equal": 0.09006211180124224
+      }
+    },
+    "median_centroid_separation": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.005,
+      "values": {
+        "k10": 0.13403212869393372,
+        "k20": 0.16825610599408064,
+        "k5": 0.1016065178074369
+      }
+    },
+    "median_normalized_occupancy_entropy": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.65,
+      "values": {
+        "k10": 0.960214392906024,
+        "k20": 0.9618483040821624,
+        "k5": 0.9585589460297175
+      }
+    },
+    "minimum_normalized_occupancy_entropy": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 0.35,
+      "values": {
+        "k10": 0.8066811633418443,
+        "k20": 0.8824845804532939,
+        "k5": 0.8438089218677617
+      }
+    },
+    "singleton_cluster_share": {
+      "operator": "<=",
+      "passed": true,
+      "threshold": 0.25,
+      "values": {
+        "k10": 0.0033333333333333335,
+        "k20": 0.004666666666666667,
+        "k5": 0.0
+      }
+    },
+    "top10_candidate_coverage": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 90,
+      "values": {
+        "a1_top2_k10": 148,
+        "a1_top2_k10_dense_equal": 142,
+        "c0_max_k10": 148,
+        "c0_max_k10_dense_equal": 143,
+        "max_k10": 148,
+        "max_k20": 150,
+        "max_k5": 147,
+        "r1_multires_max": 149,
+        "r1_multires_max_dense_equal": 146,
+        "top2_k10": 148,
+        "top2_k20": 148,
+        "top2_k5": 145,
+        "x1_multires_top2": 149,
+        "x1_multires_top2_dense_equal": 140
+      }
+    },
+    "unique_top10_rankings": {
+      "operator": ">=",
+      "passed": true,
+      "threshold": 258,
+      "values": {
+        "a1_top2_k10": 321,
+        "a1_top2_k10_dense_equal": 321,
+        "c0_max_k10": 322,
+        "c0_max_k10_dense_equal": 322,
+        "max_k10": 322,
+        "max_k20": 322,
+        "max_k5": 321,
+        "r1_multires_max": 322,
+        "r1_multires_max_dense_equal": 322,
+        "top2_k10": 321,
+        "top2_k20": 322,
+        "top2_k5": 322,
+        "x1_multires_top2": 322,
+        "x1_multires_top2_dense_equal": 322
+      }
+    },
+    "within_candidate_near_duplicate_centroid_share": {
+      "operator": "<=",
+      "passed": true,
+      "threshold": 0.01,
+      "values": {
+        "k10": 0.0,
+        "k20": 0.0,
+        "k5": 0.0
+      }
+    }
+  },
+  "version": 1
+}

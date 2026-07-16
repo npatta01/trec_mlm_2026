@@ -1,0 +1,44 @@
+{
+  "artifact_type": "issue18_pr17head_delivery_receipt",
+  "version": 1,
+  "decision": "diagnostic",
+  "promotion_permitted": false,
+  "independent_validation": false,
+  "source_query_set_previously_seen": true,
+  "viability_decision": "stop-query-sensitivity",
+  "repeat_authorized": false,
+  "advisor_result_decision": "go-for-diagnostic-reporting",
+  "headline": {
+    "best_new_system": "x1_multires_top2",
+    "ndcg_at_10": 0.4364094046724061,
+    "mrr": 0.46460983038229936,
+    "zero_ndcg_queries": 83,
+    "track_a_ndcg_at_10": 0.43762953591529047,
+    "query_knn_ndcg_at_10": 0.35985474409504775
+  },
+  "files": {
+    "reports/trec_2026_issue18_pr17head_results.json": "f64d15bbb93d771abef0b9e51e9617ecc4f41439422767faf5839862f553b1a0",
+    "reports/trec_2026_issue18_pr17head_report.artifact.json": "6109a07e171d1db47c9e2ef0c22b5314ee5b66fcc81ff63f1ee100b0a0dfc167",
+    "reports/trec_2026_issue18_pr17head_report.html": "9d646c63c9a42c970249e9e6663188c2d0a66d77624b0ad2a29e9f1ce703e779",
+    "reports/trec_2026_issue18_pr17head_query_explorer.html": "86dc88bd64e7658aacb25623b60c32d469391bd6e696fcf566d977b6af5e8b0e",
+    "reports/trec_2026_issue18_pr17head_evaluation.json": "60a45dc4317bd2b886b9b2fb993e912bbd2edbe69acca75e5bbcb53fd293e4d2",
+    "reports/trec_2026_issue18_pr17head_viability.json": "8826edca9a9cc919772c8507522a510efbd449b10af022301284e726ba964859",
+    "reports/trec_2026_issue18_pr17head_viability_legacy.json": "a457df196f7117e3d81dca9cde899cd392d4da4bd7d56653d062d4eaa67cf525"
+  },
+  "report_validation": {
+    "validation": "passed",
+    "package": "passed",
+    "verification": "passed",
+    "viewports": [1440, 390],
+    "source_dialog": "passed"
+  },
+  "query_explorer": {
+    "query_count": 322,
+    "displayed_result_count": 3220,
+    "unique_candidates_shown": 149,
+    "top_candidates_per_query": 10,
+    "profiles_included": true,
+    "responses_included": false,
+    "labels_included": true
+  }
+}

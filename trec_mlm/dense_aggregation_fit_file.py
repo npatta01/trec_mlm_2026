@@ -130,18 +130,6 @@ def _validated_inventory(
     return rows
 
 
-def _create_fit_dataset(
-    group: h5py.Group, name: str, shape: tuple[int, ...], dtype: str
-) -> h5py.Dataset:
-    return group.create_dataset(
-        name,
-        shape=shape,
-        dtype=np.dtype(dtype),
-        chunks=(1, *shape[1:]),
-        fletcher32=True,
-    )
-
-
 def initialize_fit_datasets(
     h5: h5py.File,
     *,
@@ -149,6 +137,17 @@ def initialize_fit_datasets(
     inventory: Sequence[FitInventoryRow],
     embedding_width: int,
 ) -> None:
+    def create_fit_dataset(
+        group: h5py.Group, name: str, shape: tuple[int, ...], dtype: str
+    ) -> h5py.Dataset:
+        return group.create_dataset(
+            name,
+            shape=shape,
+            dtype=np.dtype(dtype),
+            chunks=(1, *shape[1:]),
+            fletcher32=True,
+        )
+
     if len(h5) or len(h5.attrs):
         raise ValueError("HDF5 fit file must be empty")
     normalized_metadata, query_ids = _validated_metadata(metadata)
@@ -194,71 +193,35 @@ def initialize_fit_datasets(
     fits_group = h5.create_group("fits")
     for cluster_count in CLUSTER_COUNTS:
         group = fits_group.create_group(f"c{cluster_count}")
-        _create_fit_dataset(
+        create_fit_dataset(
             group, "centers", (len(rows), cluster_count, embedding_width), "<f4"
         )
-        labels = _create_fit_dataset(group, "labels", (len(rows), 321), "<u2")
+        labels = create_fit_dataset(group, "labels", (len(rows), 321), "<u2")
         labels[...] = _LABEL_SENTINEL
-        _create_fit_dataset(group, "cluster_inertia", (len(rows), cluster_count), "<f8")
-        _create_fit_dataset(
+        create_fit_dataset(group, "cluster_inertia", (len(rows), cluster_count), "<f8")
+        create_fit_dataset(
             group, "cluster_membership_hash", (len(rows), cluster_count, 32), "u1"
         )
-        _create_fit_dataset(group, "center_hash", (len(rows), 32), "u1")
-        _create_fit_dataset(group, "fit_membership_hash", (len(rows), 32), "u1")
-        _create_fit_dataset(group, "sklearn_inertia", (len(rows),), "<f8")
-        _create_fit_dataset(group, "recomputed_total_inertia", (len(rows),), "<f8")
-        _create_fit_dataset(group, "n_iter", (len(rows),), "<u4")
-        _create_fit_dataset(group, "elapsed_ns", (len(rows),), "<u8")
-        assignment_indices = _create_fit_dataset(
+        create_fit_dataset(group, "center_hash", (len(rows), 32), "u1")
+        create_fit_dataset(group, "fit_membership_hash", (len(rows), 32), "u1")
+        create_fit_dataset(group, "sklearn_inertia", (len(rows),), "<f8")
+        create_fit_dataset(group, "recomputed_total_inertia", (len(rows),), "<f8")
+        create_fit_dataset(group, "n_iter", (len(rows),), "<u4")
+        create_fit_dataset(group, "elapsed_ns", (len(rows),), "<u8")
+        assignment_indices = create_fit_dataset(
             group, "assignment_query_index", (len(rows), 2), "<i2"
         )
         assignment_indices[...] = _INDEX_SENTINEL
-        assignment_clusters = _create_fit_dataset(
+        assignment_clusters = create_fit_dataset(
             group, "assignment_cluster_id", (len(rows), 2), "<u2"
         )
         assignment_clusters[...] = _CLUSTER_SENTINEL
-        assignment_distances = _create_fit_dataset(
+        assignment_distances = create_fit_dataset(
             group, "assignment_distance", (len(rows), 2), "<f8"
         )
         assignment_distances[...] = np.nan
-        _create_fit_dataset(group, "assignment_support", (len(rows), 2), "<u2")
-        _create_fit_dataset(group, "complete", (len(rows),), "u1")
-
-
-def _metadata_from_file(h5: h5py.File) -> tuple[dict[str, object], tuple[str, ...]]:
-    raw = bytes(np.asarray(h5["metadata/canonical_json"], dtype="u1"))
-    try:
-        value = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ValueError("metadata canonical_json is invalid") from error
-    if not isinstance(value, dict) or canonical_json(value) != raw:
-        raise ValueError("metadata canonical_json is not canonical")
-    return _validated_metadata(value)
-
-
-def _inventory_row_from_file(
-    h5: h5py.File, inventory_row: int
-) -> tuple[Literal["pair", "single"], int, tuple[int, ...]]:
-    count = int(h5.attrs["inventory_count"])
-    if type(inventory_row) is not int or not 0 <= inventory_row < count:
-        raise ValueError("inventory_row is out of range")
-    kind_code = int(h5["inventory/exclusion_kind"][inventory_row])
-    if kind_code not in (0, 1):
-        raise ValueError("stored exclusion kind is invalid")
-    kind: Literal["pair", "single"] = "pair" if kind_code == 0 else "single"
-    length = 2 if kind == "pair" else 1
-    stored_indices = np.asarray(
-        h5["inventory/excluded_query_indices"][inventory_row], dtype="<i2"
-    )
-    if stored_indices.shape != (2,) or (
-        length == 1 and int(stored_indices[1]) != _INDEX_SENTINEL
-    ):
-        raise ValueError("stored excluded query indices are invalid")
-    return (
-        kind,
-        int(h5["inventory/inventory_index"][inventory_row]),
-        tuple(int(value) for value in stored_indices[:length]),
-    )
+        create_fit_dataset(group, "assignment_support", (len(rows), 2), "<u2")
+        create_fit_dataset(group, "complete", (len(rows),), "u1")
 
 
 def _validate_fit(
@@ -392,14 +355,41 @@ def write_fit_row(
     *,
     started_ns: int,
 ) -> None:
+    def read_metadata() -> tuple[dict[str, object], tuple[str, ...]]:
+        raw = bytes(np.asarray(h5["metadata/canonical_json"], dtype="u1"))
+        try:
+            value = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("metadata canonical_json is invalid") from error
+        if not isinstance(value, dict) or canonical_json(value) != raw:
+            raise ValueError("metadata canonical_json is not canonical")
+        return _validated_metadata(value)
+
+    def read_inventory_row() -> tuple[int, ...]:
+        count = int(h5.attrs["inventory_count"])
+        if type(inventory_row) is not int or not 0 <= inventory_row < count:
+            raise ValueError("inventory_row is out of range")
+        kind_code = int(h5["inventory/exclusion_kind"][inventory_row])
+        if kind_code not in (0, 1):
+            raise ValueError("stored exclusion kind is invalid")
+        length = 2 if kind_code == 0 else 1
+        stored_indices = np.asarray(
+            h5["inventory/excluded_query_indices"][inventory_row], dtype="<i2"
+        )
+        if stored_indices.shape != (2,) or (
+            length == 1 and int(stored_indices[1]) != _INDEX_SENTINEL
+        ):
+            raise ValueError("stored excluded query indices are invalid")
+        return tuple(int(value) for value in stored_indices[:length])
+
     cluster_count = fit.key.cluster_count
     if cluster_count not in CLUSTER_COUNTS:
         raise ValueError("fit cluster_count must be 20 or 40")
     group = h5[f"fits/c{cluster_count}"]
-    kind, _index, excluded = _inventory_row_from_file(h5, inventory_row)
+    excluded = read_inventory_row()
     if int(group["complete"][inventory_row]) != 0:
         raise ValueError("fit slot is already complete")
-    metadata, query_ids = _metadata_from_file(h5)
+    metadata, query_ids = read_metadata()
     centers, labels, memberships, inertia = _validate_fit(
         fit,
         metadata=metadata,
@@ -460,13 +450,45 @@ def read_fit_row(
     inventory_row: int,
     cluster_count: Literal[20, 40],
 ) -> StoredFitRecord:
+    def read_metadata() -> tuple[dict[str, object], tuple[str, ...]]:
+        raw = bytes(np.asarray(h5["metadata/canonical_json"], dtype="u1"))
+        try:
+            value = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("metadata canonical_json is invalid") from error
+        if not isinstance(value, dict) or canonical_json(value) != raw:
+            raise ValueError("metadata canonical_json is not canonical")
+        return _validated_metadata(value)
+
+    def read_inventory_row() -> tuple[Literal["pair", "single"], int, tuple[int, ...]]:
+        count = int(h5.attrs["inventory_count"])
+        if type(inventory_row) is not int or not 0 <= inventory_row < count:
+            raise ValueError("inventory_row is out of range")
+        kind_code = int(h5["inventory/exclusion_kind"][inventory_row])
+        if kind_code not in (0, 1):
+            raise ValueError("stored exclusion kind is invalid")
+        kind: Literal["pair", "single"] = "pair" if kind_code == 0 else "single"
+        length = 2 if kind == "pair" else 1
+        stored_indices = np.asarray(
+            h5["inventory/excluded_query_indices"][inventory_row], dtype="<i2"
+        )
+        if stored_indices.shape != (2,) or (
+            length == 1 and int(stored_indices[1]) != _INDEX_SENTINEL
+        ):
+            raise ValueError("stored excluded query indices are invalid")
+        return (
+            kind,
+            int(h5["inventory/inventory_index"][inventory_row]),
+            tuple(int(value) for value in stored_indices[:length]),
+        )
+
     if cluster_count not in CLUSTER_COUNTS:
         raise ValueError("cluster_count must be 20 or 40")
-    kind, inventory_index, excluded = _inventory_row_from_file(h5, inventory_row)
+    kind, inventory_index, excluded = read_inventory_row()
     group = h5[f"fits/c{cluster_count}"]
     if int(group["complete"][inventory_row]) != 1:
         raise ValueError("fit slot is incomplete")
-    metadata, query_ids = _metadata_from_file(h5)
+    metadata, query_ids = read_metadata()
     support_ids = tuple(
         query_id for index, query_id in enumerate(query_ids) if index not in excluded
     )
@@ -590,11 +612,20 @@ def validate_fit_file(
         ) != canonical_json(normalized_metadata):
             raise ValueError("metadata does not match expected canonical bytes")
         for row_index, expected in enumerate(inventory):
-            kind, inventory_index, excluded = _inventory_row_from_file(h5, row_index)
-            if (kind, inventory_index, excluded) != (
-                expected.exclusion_kind,
-                expected.inventory_index,
-                expected.excluded_query_indices,
+            expected_kind_code = 0 if expected.exclusion_kind == "pair" else 1
+            kind_code = int(h5["inventory/exclusion_kind"][row_index])
+            inventory_index = int(h5["inventory/inventory_index"][row_index])
+            stored_indices = np.asarray(
+                h5["inventory/excluded_query_indices"][row_index], dtype="<i2"
+            )
+            expected_indices = np.full(2, _INDEX_SENTINEL, dtype="<i2")
+            expected_indices[: len(expected.excluded_query_indices)] = (
+                expected.excluded_query_indices
+            )
+            if (
+                kind_code != expected_kind_code
+                or inventory_index != expected.inventory_index
+                or not np.array_equal(stored_indices, expected_indices)
             ):
                 raise ValueError("stored inventory does not match expected inventory")
             for cluster_count in CLUSTER_COUNTS:

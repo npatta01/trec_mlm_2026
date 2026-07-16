@@ -9,6 +9,7 @@ import h5py
 import numpy as np
 import pytest
 
+import trec_mlm.dense_aggregation_fit_file as fit_file_module
 from trec_mlm.dense_aggregation_clustering import (
     CanonicalClusterFit,
     FitKey,
@@ -157,6 +158,12 @@ def test_direct_hdf5_pair_and_single_round_trip(tmp_path: Path) -> None:
     assert np.array_equal(single_loaded.fit.centers, single_fit.centers)
     assert single_loaded.fit.memberships == single_fit.memberships
     assert single_loaded.assignments == single_assignments
+
+
+def test_module_has_no_extra_hdf5_helper_surface() -> None:
+    assert not hasattr(fit_file_module, "_create_fit_dataset")
+    assert not hasattr(fit_file_module, "_metadata_from_file")
+    assert not hasattr(fit_file_module, "_inventory_row_from_file")
 
 
 def _initialized_pair_file(

@@ -134,3 +134,17 @@ formatter.
 
 None. Verification used only synthetic/local fixtures and qrel-safe focused
 suites.
+
+## Minor documentation follow-up
+
+The direct-HDF5 cleanup statistic is now explicitly scoped to the verification
+range `36db726..ee90fe9`. The recorded +3,958/-8,826/net -4,868 values and all
+scientific status and claims are unchanged.
+
+Required-content, prohibited-claim, fixed-range, and diff checks completed with
+exit 0. The prohibited-claim search and `git diff --check` were silent; the
+required-content script printed exactly:
+
+```text
+2361 words
+```

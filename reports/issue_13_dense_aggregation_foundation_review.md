@@ -297,7 +297,7 @@ implementation inventory. `git status --short` was empty before this report
 update. Measured at implementation verification commit `be258b9`, the range
 `origin/main...be258b9` contains 35 changed files with 26,104 insertions and 1
 deletion. That whole-branch growth includes the complete new experiment
-foundation. The direct-HDF5 cleanup range `36db726..HEAD`,
+foundation. The direct-HDF5 cleanup range `36db726..ee90fe9`,
 restricted to `trec_mlm` and `tests`, has 3,958 insertions and 8,826 deletions:
 a net reduction of 4,868 lines, including deletion of the custom cache module
 and its two cache-specific test files.

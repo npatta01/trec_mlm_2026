@@ -748,9 +748,7 @@ def _coordinate(
             "legacy_control_manifest_sha256": _raw_file_sha256(
                 output_root / "manifest.json"
             ),
-            "legacy_control_lock_sha256": _raw_file_sha256(
-                output_root / _LOCK_FILENAME
-            ),
+            "legacy_control_lock_sha256": expected_lock_sha256,
             "legacy_control_tsv_sha256": validation.tsv_sha256,
             "legacy_control_trec_sha256": _raw_file_sha256(
                 output_root / _TREC_FILENAME

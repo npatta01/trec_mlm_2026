@@ -1591,6 +1591,70 @@ def test_coordinator_runs_two_sequential_fresh_workers_and_publishes_exact_root(
     assert exporter is not None
 
 
+def test_coordinator_reuses_single_staging_lock_hash_for_validation_and_compact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_synthetic_lock(tmp_path, monkeypatch)
+    feasibility_receipt = _build_feasibility_root(tmp_path / "feasibility")
+    exporter = _load_exporter_module()
+    _install_fresh_fake_workers(tmp_path, monkeypatch, exporter, fixture)
+    output_root = tmp_path / "authoritative"
+    compact_path = tmp_path / "compact.json"
+    lock_hash_calls: list[tuple[Path, str]] = []
+    validator_calls: list[tuple[Path, str]] = []
+    actual_hash = exporter._raw_file_sha256
+    actual_write_manifest = exporter._write_manifest
+    actual_validate = fixture.worker.module.validate_legacy_control_lock_bindings
+
+    def record_hash(path: str | Path) -> str:
+        candidate = Path(path)
+        digest = actual_hash(candidate)
+        if candidate.name == LOCK_FILENAME:
+            lock_hash_calls.append((candidate, digest))
+        return digest
+
+    def write_manifest_without_tracking(root: Path) -> None:
+        # Manifest inventory hashing is independent of the trusted expected binding.
+        monkeypatch.setattr(exporter, "_raw_file_sha256", actual_hash)
+        try:
+            actual_write_manifest(root)
+        finally:
+            monkeypatch.setattr(exporter, "_raw_file_sha256", record_hash)
+
+    def record_validate(lock_path: str | Path, **kwargs: object) -> object:
+        validator_calls.append((Path(lock_path), str(kwargs["expected_lock_sha256"])))
+        return actual_validate(lock_path, **kwargs)
+
+    monkeypatch.setattr(exporter, "_raw_file_sha256", record_hash)
+    monkeypatch.setattr(exporter, "_write_manifest", write_manifest_without_tracking)
+    monkeypatch.setattr(
+        fixture.worker.module,
+        "validate_legacy_control_lock_bindings",
+        record_validate,
+    )
+
+    exporter._coordinate(
+        query_path=fixture.worker.query_path,
+        qrel_path=fixture.worker.qrel_path,
+        embedding_path=fixture.worker.embedding_path,
+        feasibility_receipt=feasibility_receipt,
+        output_root=output_root,
+        compact_receipt=compact_path,
+    )
+
+    assert len(lock_hash_calls) == 1
+    staging_lock_path, captured_lock_sha256 = lock_hash_calls[0]
+    assert staging_lock_path.name == LOCK_FILENAME
+    assert staging_lock_path.parent != output_root
+    assert validator_calls == [
+        (staging_lock_path, captured_lock_sha256),
+        (output_root / LOCK_FILENAME, captured_lock_sha256),
+    ]
+    assert _read_json(compact_path)["legacy_control_lock_sha256"] == (
+        captured_lock_sha256
+    )
+
+
 @pytest.mark.parametrize(
     ("mode", "expected_log", "message"),
     (

@@ -14,6 +14,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from trec_mlm.artifact_io import (
+    length_framed_sha256,
+    manifest_aggregate_sha256,
+    sha256_file,
+    write_pretty_json,
+)
+from trec_mlm import profile_multiresolution as module
+
 from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
     MultiResolutionConfig,
@@ -38,6 +46,22 @@ REQUIRES_LOCAL_ISSUE18_ARTIFACT = pytest.mark.skipif(
         "see reports/trec_2026_issue18_pr17head_artifact_custody.json"
     ),
 )
+
+
+def test_private_artifact_helpers_match_shared_primitives(tmp_path: Path) -> None:
+    legacy_path = tmp_path / "legacy" / "payload.json"
+    shared_path = tmp_path / "shared" / "payload.json"
+    payload = {"unicode": "β", "values": [2, 1]}
+    module._write_json(legacy_path, payload)
+    write_pretty_json(shared_path, payload)
+    entries = {"β.txt": {"byte_size": 3, "sha256": "a" * 64}}
+
+    assert legacy_path.read_bytes() == shared_path.read_bytes()
+    assert module._sha256(legacy_path) == sha256_file(legacy_path)
+    assert module._aggregate_hash(entries) == manifest_aggregate_sha256(entries)
+    assert module._length_framed_hash(("a", "β", "")) == length_framed_sha256(
+        ("a", "β", "")
+    )
 
 def _set_locked_manifest_mtime(root: Path) -> None:
     seconds = int(datetime.fromisoformat("2026-07-15T12:41:18-04:00").timestamp())

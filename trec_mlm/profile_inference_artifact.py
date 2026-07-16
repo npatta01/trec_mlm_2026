@@ -15,6 +15,14 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from trec_mlm.artifact_io import (
+    length_framed_sha256,
+    manifest_aggregate_sha256,
+    manifest_entries,
+    sha256_file,
+    source_tree_sha256,
+    write_pretty_json,
+)
 from trec_mlm.label_experiment import (
     _load_label_experiment_artifacts,
     load_candidate_manifest,
@@ -132,63 +140,17 @@ class ProfileInferenceArtifactResult:
     root: Path | None = None
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+_sha256 = sha256_file
 
 
 def _source_tree_sha256() -> str:
-    root = Path(__file__).resolve().parent
-    digest = hashlib.sha256()
-    for path in sorted(root.rglob("*.py")):
-        relative = path.relative_to(root).as_posix().encode("utf-8")
-        payload = path.read_bytes()
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
+    return source_tree_sha256(Path(__file__).resolve().parent)
 
 
-def _length_framed(values: tuple[str, ...]) -> str:
-    digest = hashlib.sha256()
-    for value in values:
-        encoded = value.encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return digest.hexdigest()
-
-
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
-
-def _manifest_entries(root: Path) -> dict[str, dict[str, Any]]:
-    return {
-        path.relative_to(root).as_posix(): {
-            "byte_size": path.stat().st_size,
-            "sha256": _sha256(path),
-        }
-        for path in sorted(root.rglob("*"))
-        if path.is_file() and path.name != "manifest.json"
-    }
-
-
-def _aggregate_hash(entries: Mapping[str, Mapping[str, Any]]) -> str:
-    ordered = [
-        [name, int(entries[name]["byte_size"]), str(entries[name]["sha256"])]
-        for name in sorted(entries)
-    ]
-    return hashlib.sha256(
-        json.dumps(ordered, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+_length_framed = length_framed_sha256
+_write_json = write_pretty_json
+_manifest_entries = manifest_entries
+_aggregate_hash = manifest_aggregate_sha256
 
 
 def _canonical_repeat_metadata(value: Any) -> Any:

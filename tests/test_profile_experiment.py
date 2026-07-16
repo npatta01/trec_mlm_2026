@@ -25,6 +25,13 @@ from trec_mlm.profile_experiment import (
     candidate_truncation_audits,
 )
 from trec_mlm import profile_experiment
+from trec_mlm.artifact_io import (
+    length_framed_sha256,
+    manifest_aggregate_sha256,
+    sha256_file,
+    source_tree_sha256,
+    write_pretty_json,
+)
 from trec_mlm.profile_retrieval import (
     CandidateProfile,
     aggregate_cluster_labels,
@@ -43,6 +50,27 @@ CANDIDATE_IDS = ("A", "B", "C")
 DENSE = {"q1": ["A", "B", "C"], "q2": ["C", "B", "A"]}
 E5 = {"q1": ["B", "A", "C"], "q2": ["A", "C", "B"]}
 PROFILE = {"q1": ["C", "A", "B"], "q2": ["B", "C", "A"]}
+
+
+def test_private_artifact_helpers_match_shared_primitives(tmp_path: Path) -> None:
+    legacy_path = tmp_path / "legacy" / "payload.json"
+    shared_path = tmp_path / "shared" / "payload.json"
+    payload = {"unicode": "β", "values": [2, 1]}
+    profile_experiment._write_json(legacy_path, payload)
+    write_pretty_json(shared_path, payload)
+    entries = {"β.txt": {"byte_size": 3, "sha256": "a" * 64}}
+
+    assert legacy_path.read_bytes() == shared_path.read_bytes()
+    assert profile_experiment._sha256(legacy_path) == sha256_file(legacy_path)
+    assert profile_experiment._source_tree_sha256() == source_tree_sha256(
+        Path(profile_experiment.__file__).resolve().parent
+    )
+    assert profile_experiment._aggregate_hash(entries) == manifest_aggregate_sha256(
+        entries
+    )
+    assert profile_experiment._length_framed_strings(
+        ("a", "β", "")
+    ) == length_framed_sha256(("a", "β", ""))
 
 
 def test_loader_recomputes_centroids_with_constructor_float32_normalization() -> None:

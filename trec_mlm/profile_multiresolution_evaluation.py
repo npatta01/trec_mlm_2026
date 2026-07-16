@@ -11,6 +11,7 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from trec_mlm.artifact_io import sha256_file
 from trec_mlm.metrics import EvaluationResult, evaluate_rankings
 from trec_mlm.profile_evaluation import paired_interval, win_tie_loss, zero_transitions
 from trec_mlm.profile_multiresolution import (
@@ -45,12 +46,7 @@ CANONICAL_EVALUATION_OUTPUT_PATH = Path(
 )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+_sha256 = sha256_file
 
 
 def validate_multiresolution_qrel_inventories(

@@ -26,6 +26,39 @@ from trec_mlm.profile_inference_artifact import (
 )
 from trec_mlm.profile_retrieval import canonical_profile_record_id
 from trec_mlm import profile_inference_artifact
+from trec_mlm.artifact_io import (
+    length_framed_sha256,
+    manifest_aggregate_sha256,
+    manifest_entries,
+    sha256_file,
+    source_tree_sha256,
+    write_pretty_json,
+)
+
+
+def test_private_artifact_helpers_match_shared_primitives(tmp_path: Path) -> None:
+    legacy_path = tmp_path / "legacy" / "payload.json"
+    shared_path = tmp_path / "shared" / "payload.json"
+    payload = {"unicode": "β", "values": [2, 1]}
+    profile_inference_artifact._write_json(legacy_path, payload)
+    write_pretty_json(shared_path, payload)
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "data.txt").write_bytes(b"abc")
+    (tmp_path / "nested" / "manifest.json").write_text("ignored")
+    entries = profile_inference_artifact._manifest_entries(tmp_path)
+
+    assert legacy_path.read_bytes() == shared_path.read_bytes()
+    assert profile_inference_artifact._sha256(legacy_path) == sha256_file(legacy_path)
+    assert profile_inference_artifact._source_tree_sha256() == source_tree_sha256(
+        Path(profile_inference_artifact.__file__).resolve().parent
+    )
+    assert profile_inference_artifact._length_framed(
+        ("a", "β", "")
+    ) == length_framed_sha256(("a", "β", ""))
+    assert entries == manifest_entries(tmp_path)
+    assert profile_inference_artifact._aggregate_hash(
+        entries
+    ) == manifest_aggregate_sha256(entries)
 
 
 def _smoke_receipt() -> dict[str, object]:

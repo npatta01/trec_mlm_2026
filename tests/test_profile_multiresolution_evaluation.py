@@ -10,6 +10,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from trec_mlm.artifact_io import sha256_file
+from trec_mlm import profile_multiresolution_evaluation as module
+
 from trec_mlm.profile_multiresolution import (
     EXPECTED_SYSTEMS,
     NEW_PROFILE_SYSTEMS,
@@ -21,6 +24,13 @@ from trec_mlm.profile_multiresolution_evaluation import (
     validate_multiresolution_qrel_inventories,
     validate_viability_receipt,
 )
+
+
+def test_private_sha256_matches_shared_primitive(tmp_path: Path) -> None:
+    path = tmp_path / "payload.bin"
+    path.write_bytes(b"abc")
+
+    assert module._sha256(path) == sha256_file(path)
 
 
 def _rankings() -> dict[str, dict[str, list[str]]]:

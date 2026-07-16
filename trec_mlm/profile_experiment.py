@@ -19,6 +19,13 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from trec_mlm.artifact_io import (
+    length_framed_sha256,
+    manifest_aggregate_sha256,
+    sha256_file,
+    source_tree_sha256,
+    write_pretty_json,
+)
 from trec_mlm.label_experiment import load_candidate_manifest
 from trec_mlm.label_retrieval import format_query, rank_score_matrix
 from trec_mlm.profile_inference import (
@@ -543,33 +550,12 @@ def _profile_to_json(profile: CandidateProfile, audit: dict[str, Any]) -> dict[s
     }
 
 
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+_write_json = write_pretty_json
+_sha256 = sha256_file
 
 
 def _source_tree_sha256() -> str:
-    root = Path(__file__).resolve().parent
-    digest = hashlib.sha256()
-    for path in sorted(root.rglob("*.py")):
-        relative = path.relative_to(root).as_posix().encode("utf-8")
-        payload = path.read_bytes()
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
+    return source_tree_sha256(Path(__file__).resolve().parent)
 
 
 def _prediction_text(
@@ -606,22 +592,8 @@ def _write_predictions(path: Path, **kwargs: Any) -> None:
     path.write_text(_prediction_text(**kwargs), encoding="utf-8")
 
 
-def _aggregate_hash(files: Mapping[str, Mapping[str, Any]]) -> str:
-    entries = [
-        [name, int(files[name]["byte_size"]), str(files[name]["sha256"])]
-        for name in sorted(files)
-    ]
-    payload = json.dumps(entries, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _length_framed_strings(values: Sequence[str]) -> str:
-    digest = hashlib.sha256()
-    for value in values:
-        encoded = value.encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return digest.hexdigest()
+_aggregate_hash = manifest_aggregate_sha256
+_length_framed_strings = length_framed_sha256
 
 
 def _normalize_profile_members(

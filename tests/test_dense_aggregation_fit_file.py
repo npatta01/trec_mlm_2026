@@ -18,6 +18,7 @@ from trec_mlm.dense_aggregation_clustering import (
     TargetAssignment,
 )
 from trec_mlm.dense_aggregation_fit_file import (
+    FIT_FILE_SCHEMA,
     FitInventoryRow,
     initialize_fit_datasets,
     read_fit_row,
@@ -502,6 +503,48 @@ def test_validate_fit_file_rejects_incomplete_slot(valid_final_file: Path) -> No
         h5["fits/c40/complete"][0] = np.uint8(0)
 
     with pytest.raises(ValueError, match="fit slot is incomplete"):
+        validate_fit_file(
+            valid_final_file,
+            expected_metadata=_expected_metadata(),
+            expected_inventory=_expected_inventory(),
+        )
+
+
+def test_validate_fit_file_rejects_ascii_schema_attribute(
+    valid_final_file: Path,
+) -> None:
+    with h5py.File(valid_final_file, "r+") as h5:
+        del h5.attrs["schema_id"]
+        h5.attrs.create(
+            "schema_id",
+            FIT_FILE_SCHEMA,
+            dtype=h5py.string_dtype(encoding="ascii"),
+        )
+
+    with pytest.raises(ValueError, match="schema.*dtype"):
+        validate_fit_file(
+            valid_final_file,
+            expected_metadata=_expected_metadata(),
+            expected_inventory=_expected_inventory(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "dtype"),
+    (
+        ("complete", 1, "u1"),
+        ("inventory_count", 1, "<u8"),
+        ("embedding_width", 2, "<u4"),
+    ),
+)
+def test_validate_fit_file_rejects_one_element_numeric_attribute(
+    valid_final_file: Path, name: str, value: int, dtype: str
+) -> None:
+    with h5py.File(valid_final_file, "r+") as h5:
+        del h5.attrs[name]
+        h5.attrs.create(name, np.asarray([value], dtype=dtype), dtype=dtype)
+
+    with pytest.raises(ValueError, match=f"{name.replace('_', ' ')}.*scalar"):
         validate_fit_file(
             valid_final_file,
             expected_metadata=_expected_metadata(),

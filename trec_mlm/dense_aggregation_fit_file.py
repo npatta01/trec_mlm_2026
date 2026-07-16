@@ -664,17 +664,35 @@ def validate_fit_file(
                 "embedding_width",
             }:
                 raise ValueError("fit file has invalid root attributes")
+            schema_attribute = h5.attrs.get_id("schema_id")
+            schema_string = h5py.check_string_dtype(schema_attribute.dtype)
+            if (
+                schema_attribute.shape != ()
+                or schema_string is None
+                or schema_string.encoding != "utf-8"
+                or schema_string.length is not None
+            ):
+                raise ValueError("fit file schema attribute has invalid dtype")
             if h5.attrs["schema_id"] != FIT_FILE_SCHEMA:
                 raise ValueError("unknown fit-file schema")
-            if h5.attrs.get_id("complete").dtype != np.dtype("u1"):
+            complete_attribute = h5.attrs.get_id("complete")
+            if complete_attribute.shape != ():
+                raise ValueError("fit file complete attribute must be scalar")
+            if complete_attribute.dtype != np.dtype("u1"):
                 raise ValueError("fit file complete attribute has invalid dtype")
             if int(h5.attrs["complete"]) != 1:
                 raise ValueError("file is incomplete")
-            if h5.attrs.get_id("inventory_count").dtype != np.dtype("<u8"):
+            inventory_count_attribute = h5.attrs.get_id("inventory_count")
+            if inventory_count_attribute.shape != ():
+                raise ValueError("inventory count attribute must be scalar")
+            if inventory_count_attribute.dtype != np.dtype("<u8"):
                 raise ValueError("inventory count attribute has invalid dtype")
             if int(h5.attrs["inventory_count"]) != row_count:
                 raise ValueError("inventory count does not match")
-            if h5.attrs.get_id("embedding_width").dtype != np.dtype("<u4"):
+            embedding_width_attribute = h5.attrs.get_id("embedding_width")
+            if embedding_width_attribute.shape != ():
+                raise ValueError("embedding width attribute must be scalar")
+            if embedding_width_attribute.dtype != np.dtype("<u4"):
                 raise ValueError("embedding width attribute has invalid dtype")
             embedding_width = int(h5.attrs["embedding_width"])
             if not 1 <= embedding_width <= 2**32 - 1:

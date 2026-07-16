@@ -421,6 +421,44 @@ def test_cli_invalid_json_prints_one_error_line_and_returns_2(
     assert captured.err.startswith("error: ")
 
 
+@pytest.mark.parametrize(
+    ("payload", "expected_error"),
+    (
+        (None, "config must be a JSON object"),
+        (
+            {**asdict(MultiResolutionConfig()), "resolutions": 5},
+            "resolutions must be a JSON list",
+        ),
+        (
+            {**asdict(MultiResolutionConfig()), "output_root": 5},
+            "output_root must be a string",
+        ),
+    ),
+)
+def test_cli_wrong_json_types_print_one_error_line_without_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    payload: object,
+    expected_error: str,
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    config_path = tmp_path / "wrong-type.json"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda _config: pytest.fail("invalid config reached construction"),
+    )
+
+    assert script.cli(["--validate-config", "--config", str(config_path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"error: {expected_error}\n"
+    assert "Traceback" not in captured.err
+
+
 def test_validate_config_report_checks_manifest_aggregate_and_output_presence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

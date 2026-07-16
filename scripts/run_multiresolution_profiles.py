@@ -140,9 +140,26 @@ def _run_repeat_comparison(args: argparse.Namespace) -> int:
 
 def _load_config(args: argparse.Namespace) -> MultiResolutionConfig:
     payload = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("config must be a JSON object")
     expected = {field.name for field in fields(MultiResolutionConfig)}
     if set(payload) != expected:
         raise ValueError("config fields differ from MultiResolutionConfig")
+    for name in (
+        "construction_path",
+        "output_root",
+        "source_commit",
+        "source_aggregate_sha256",
+    ):
+        if not isinstance(payload[name], str):
+            raise ValueError(f"{name} must be a string")
+    if not isinstance(payload["resolutions"], list):
+        raise ValueError("resolutions must be a JSON list")
+    if any(type(resolution) is not int for resolution in payload["resolutions"]):
+        raise ValueError("resolutions entries must be integers")
+    for name in ("top_count", "seed", "rrf_k"):
+        if type(payload[name]) is not int:
+            raise ValueError(f"{name} must be an integer")
     payload["resolutions"] = tuple(payload["resolutions"])
     return MultiResolutionConfig(**payload)
 

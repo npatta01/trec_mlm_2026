@@ -373,7 +373,12 @@ def test_atomic_artifact_round_trip_and_hash_validation(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("key", "value"),
-    (("unexpected", True), ("artifact_type", "changed")),
+    (
+        ("unexpected", True),
+        ("artifact_type", "changed"),
+        ("version", 999),
+        ("qrel_free", False),
+    ),
 )
 def test_loader_rejects_nonexact_configuration_schema(
     tmp_path: Path, key: str, value: object

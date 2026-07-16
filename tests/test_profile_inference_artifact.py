@@ -399,7 +399,12 @@ def test_inference_artifact_round_trip_manifest_and_repeat(tmp_path: Path) -> No
 
 @pytest.mark.parametrize(
     ("key", "value"),
-    (("unexpected", True), ("artifact_type", "changed")),
+    (
+        ("unexpected", True),
+        ("artifact_type", "changed"),
+        ("version", 999),
+        ("qrel_free", False),
+    ),
 )
 def test_inference_loader_rejects_nonexact_configuration_schema(
     tmp_path: Path, key: str, value: object

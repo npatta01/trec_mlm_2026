@@ -361,7 +361,110 @@ def test_validate_config_rejects_alternate_valid_source(changed) -> None:
     from trec_mlm import profile_multiresolution as module
 
     with pytest.raises(ValueError, match="evaluated issue-12 source"):
-        module._validate_config(changed)
+        module.validate_multiresolution_config(changed)
+
+
+def test_cli_validate_config_succeeds_without_ignored_artifacts_or_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+    from trec_mlm import profile_multiresolution as module
+
+    monkeypatch.chdir(tmp_path)
+    config = MultiResolutionConfig()
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(asdict(config)))
+    monkeypatch.setattr(
+        script,
+        "construct_multiresolution",
+        lambda _config: pytest.fail("config validation constructed an artifact"),
+    )
+    monkeypatch.setattr(
+        module,
+        "load_profile_artifacts",
+        lambda _path: pytest.fail("config validation loaded the source artifact"),
+    )
+
+    assert script.main(["--validate-config", "--config", str(config_path)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report == {
+        "status": "valid",
+        "qrel_free": True,
+        "config": json.loads(json.dumps(asdict(config))),
+        "source_artifact": {
+            "path": config.construction_path,
+            "status": "missing",
+        },
+        "output": {
+            "path": config.output_root,
+            "exists": False,
+        },
+    }
+
+
+def test_validate_config_report_checks_manifest_aggregate_and_output_presence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+    from trec_mlm import profile_multiresolution as module
+
+    monkeypatch.chdir(tmp_path)
+    config = MultiResolutionConfig()
+    source = Path(config.construction_path)
+    source.mkdir(parents=True)
+    (source / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": config.source_aggregate_sha256})
+    )
+    Path(config.output_root).mkdir(parents=True)
+    monkeypatch.setattr(
+        module,
+        "load_profile_artifacts",
+        lambda _path: pytest.fail("config report used the expensive artifact loader"),
+    )
+
+    report = script._validate_config_report(config)
+    assert report["source_artifact"] == {
+        "path": config.construction_path,
+        "status": "verified",
+    }
+    assert report["output"] == {"path": config.output_root, "exists": True}
+
+    (source / "manifest.json").write_text(
+        json.dumps({"aggregate_sha256": "a" * 64})
+    )
+    with pytest.raises(ValueError, match="aggregate"):
+        script._validate_config_report(config)
+
+
+@pytest.mark.parametrize(
+    "operational_flag",
+    (
+        "--viability-receipt",
+        "--first-artifact",
+        "--first-viability-receipt",
+        "--repeat-artifact",
+        "--repeatability-receipt",
+    ),
+)
+def test_cli_validate_config_rejects_operational_receipt_and_repeat_flags(
+    tmp_path: Path, operational_flag: str
+) -> None:
+    from scripts import run_multiresolution_profiles as script
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(asdict(MultiResolutionConfig())))
+    with pytest.raises(ValueError, match="cannot be combined"):
+        script.main(
+            [
+                "--validate-config",
+                "--config",
+                str(config_path),
+                operational_flag,
+                "unused",
+            ]
+        )
 
 
 def test_source_aggregate_binding_is_checked_before_construction(monkeypatch) -> None:

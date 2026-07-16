@@ -38,14 +38,15 @@
 **Files:**
 - Modify: `tests/test_profile_multiresolution.py`
 - Modify: `scripts/run_multiresolution_profiles.py`
+- Modify: `trec_mlm/profile_multiresolution.py`
 
 **Interfaces:**
-- Produces: `_validate_config_report(config: MultiResolutionConfig) -> dict[str, object]` and `--validate-config`.
+- Produces: `validate_multiresolution_config(config: MultiResolutionConfig) -> None`, `_validate_config_report(config: MultiResolutionConfig) -> dict[str, object]`, and `--validate-config`.
 
 - [ ] Add tests proving fresh-clone validation succeeds without source/output artifacts and does not call construction.
 - [ ] Add tests proving a present source manifest must expose the configured aggregate and that output presence is reported.
 - [ ] Run those tests and verify failure because the flag/report do not exist.
-- [ ] Add the parser flag and a finite JSON report path before construction/repeat logic.
+- [ ] Promote the existing private config validator to the public `validate_multiresolution_config()` boundary, then add the parser flag and a finite JSON report path before construction/repeat logic.
 - [ ] Run the focused tests and verify they pass.
 
 ### Task 3: Concise CLI failures and reproducible developer setup

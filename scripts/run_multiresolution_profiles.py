@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import fields
+from dataclasses import asdict, fields
 import json
 from pathlib import Path
 import time
@@ -16,6 +16,7 @@ from trec_mlm.profile_multiresolution import (
     compare_multiresolution_artifacts,
     construct_multiresolution,
     load_multiresolution_artifact,
+    validate_multiresolution_config,
     validate_multiresolution_viability_receipt,
     write_multiresolution_artifact,
     write_multiresolution_receipt,
@@ -33,6 +34,11 @@ def _parser() -> argparse.ArgumentParser:
         "--config",
         default="configs/trec_2026_multiresolution_profiles.json",
         help="locked qrel-free construction config",
+    )
+    parser.add_argument(
+        "--validate-config",
+        action="store_true",
+        help="validate and report configuration readiness without construction",
     )
     parser.add_argument(
         "--viability-receipt",
@@ -140,6 +146,38 @@ def _load_config(args: argparse.Namespace) -> MultiResolutionConfig:
     return MultiResolutionConfig(**payload)
 
 
+def _validate_config_report(config: MultiResolutionConfig) -> dict[str, object]:
+    validate_multiresolution_config(config)
+    source_path = Path(config.construction_path)
+    source_status = "missing"
+    if source_path.exists():
+        try:
+            manifest = json.loads(
+                (source_path / "manifest.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("invalid source artifact manifest") from error
+        observed_aggregate = (
+            manifest.get("aggregate_sha256") if isinstance(manifest, dict) else None
+        )
+        if observed_aggregate != config.source_aggregate_sha256:
+            raise ValueError("source artifact aggregate differs from the config binding")
+        source_status = "verified"
+    return {
+        "status": "valid",
+        "qrel_free": True,
+        "config": asdict(config),
+        "source_artifact": {
+            "path": config.construction_path,
+            "status": source_status,
+        },
+        "output": {
+            "path": config.output_root,
+            "exists": Path(config.output_root).exists(),
+        },
+    }
+
+
 def _run_construction(
     args: argparse.Namespace, config: MultiResolutionConfig
 ) -> int:
@@ -207,6 +245,21 @@ def _validate_viability_repair_paths(
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.validate_config:
+        operational_values = (
+            args.viability_receipt,
+            args.first_artifact,
+            args.first_viability_receipt,
+            args.repeat_artifact,
+            args.repeatability_receipt,
+        )
+        if any(operational_values):
+            raise ValueError(
+                "--validate-config cannot be combined with receipt or repeat flags"
+            )
+        config = _load_config(args)
+        print(json.dumps(_validate_config_report(config), indent=2, allow_nan=False))
+        return 0
     if _comparison_mode(args):
         return _run_repeat_comparison(args)
     config = _load_config(args)

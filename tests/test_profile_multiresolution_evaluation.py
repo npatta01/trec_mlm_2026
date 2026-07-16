@@ -390,6 +390,13 @@ def test_artifact_mutation_after_loader_return_is_rejected_before_qrels(
         )
 
 
+@pytest.mark.skipif(
+    not Path("artifacts/multiresolution_profiles/issue18_pr17head/manifest.json").is_file(),
+    reason=(
+        "requires the ignored local issue-18 scientific artifact; "
+        "see reports/trec_2026_issue18_pr17head_artifact_custody.json"
+    ),
+)
 def test_real_evaluation_pre_qrel_path_avoids_reconstruction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

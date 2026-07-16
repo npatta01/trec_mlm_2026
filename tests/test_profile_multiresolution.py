@@ -31,6 +31,13 @@ AUDIT_FINAL_ROOT = "artifacts/candidate_semantic_profiles/run1_record_id_v2_audi
 AUDIT_FINAL_AGGREGATE = "04d6be23d2f9046ed93eb1c01bb5ad56545bb51a9470d408b96d3241b1ee54f4"
 ISSUE18_ROOT = Path("artifacts/multiresolution_profiles/issue18_pr17head")
 ISSUE18_AGGREGATE = "2a3909cfea23af246eed59565557d57ec4c5b8eb1e2f1d5c2b11d2f9f8c6d5b9"
+REQUIRES_LOCAL_ISSUE18_ARTIFACT = pytest.mark.skipif(
+    not (ISSUE18_ROOT / "manifest.json").is_file(),
+    reason=(
+        "requires the ignored local issue-18 scientific artifact; "
+        "see reports/trec_2026_issue18_pr17head_artifact_custody.json"
+    ),
+)
 
 def _set_locked_manifest_mtime(root: Path) -> None:
     seconds = int(datetime.fromisoformat("2026-07-15T12:41:18-04:00").timestamp())
@@ -70,6 +77,7 @@ def test_evaluated_source_constants_are_public_and_exact() -> None:
     assert module.EVALUATED_CONSTRUCTION_AGGREGATE_SHA256 == AUDIT_FINAL_AGGREGATE
 
 
+@REQUIRES_LOCAL_ISSUE18_ARTIFACT
 def test_issue18_frozen_loader_is_nonconstructive_and_pins_exact_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -97,6 +105,7 @@ def test_issue18_frozen_loader_is_nonconstructive_and_pins_exact_snapshot(
     )
 
 
+@REQUIRES_LOCAL_ISSUE18_ARTIFACT
 def test_real_frozen_assessment_avoids_every_reconstruction_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

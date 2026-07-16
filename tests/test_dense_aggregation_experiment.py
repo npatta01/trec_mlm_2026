@@ -102,7 +102,6 @@ def test_task9b_schema_constants_and_records_are_exact() -> None:
         ("construction_receipt.json", "/started_at_utc"),
         ("construction_receipt.json", "/finished_at_utc"),
         ("construction_receipt.json", "/wall_elapsed_ns"),
-        ("fits/timings.jsonl", "/*/elapsed_ns"),
     )
 
     assert INNER_METRIC_COLUMNS == (
@@ -352,11 +351,7 @@ def test_frozen_file_paths_are_the_exact_sorted_prediction_inventory() -> None:
         "cluster_assignments.tsv",
         "construction_provenance.json",
         "environment.json",
-        "fits/centers.f4",
-        "fits/cluster_inertia.f8",
-        "fits/fit_receipts.jsonl",
-        "fits/header.json",
-        "fits/labels.u2",
+        "fits.h5",
         "inner_metrics.tsv",
         "inner_ranks.npy",
         "inner_scores.npy",

@@ -30,17 +30,12 @@ CONSTRUCTION_VOLATILE_JSON_PATHS = (
     ("construction_receipt.json", "/started_at_utc"),
     ("construction_receipt.json", "/finished_at_utc"),
     ("construction_receipt.json", "/wall_elapsed_ns"),
-    ("fits/timings.jsonl", "/*/elapsed_ns"),
 )
 FROZEN_FILE_PATHS = (
     "cluster_assignments.tsv",
     "construction_provenance.json",
     "environment.json",
-    "fits/centers.f4",
-    "fits/cluster_inertia.f8",
-    "fits/fit_receipts.jsonl",
-    "fits/header.json",
-    "fits/labels.u2",
+    "fits.h5",
     "inner_metrics.tsv",
     "inner_ranks.npy",
     "inner_scores.npy",

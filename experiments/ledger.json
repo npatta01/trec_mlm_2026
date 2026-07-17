@@ -1276,6 +1276,11 @@
             "section": "What we tried",
             "table": "Step | Scope | Outcome | What it established",
             "row": "Initial Qwen8B and E5 sweep",
+            "identity_tokens": [
+              "Initial",
+              "Qwen8B",
+              "sweep"
+            ],
             "metrics": {
               "outcome": "Invalid low scores",
               "scope": "322 × 150",
@@ -1312,6 +1317,11 @@
             "section": "What we tried",
             "table": "Step | Scope | Outcome | What it established",
             "row": "Initial Qwen8B and E5 sweep",
+            "identity_tokens": [
+              "Initial",
+              "E5",
+              "sweep"
+            ],
             "metrics": {
               "outcome": "Invalid low scores",
               "scope": "322 × 150",
@@ -1619,8 +1629,12 @@
             "section": "What we tried",
             "table": "Step | Scope | Outcome | What it established",
             "row": "Six-question LLM pilot",
+            "identity_tokens": [
+              "Six-question LLM pilot",
+              "Pointwise"
+            ],
             "metrics": {
-              "outcome": "Pointwise 5/6 top-three",
+              "outcome": "Pointwise 5/6 top-three; listwise 3/6",
               "relevant_in_top_3": "5/6"
             }
           },
@@ -1658,8 +1672,12 @@
             "section": "What we tried",
             "table": "Step | Scope | Outcome | What it established",
             "row": "Six-question LLM pilot",
+            "identity_tokens": [
+              "Six-question LLM pilot",
+              "generated listwise"
+            ],
             "metrics": {
-              "outcome": "Generated listwise 3/6 top-three",
+              "outcome": "Pointwise 5/6 top-three; listwise 3/6",
               "relevant_in_top_3": "3/6"
             }
           },
@@ -3038,7 +3056,8 @@
           "aggregate_source": {
             "kind": "json_pointer",
             "source_id": "discovery_behavior_profiles",
-            "pointer": "/scope"
+            "pointer": "/scope",
+            "identity_pointer": "/profile_version"
           },
           "per_query_source": null,
           "per_query_blocker": "This artifact is a candidate profile construction, not a query-ranking effectiveness evaluation.",

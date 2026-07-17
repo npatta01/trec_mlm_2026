@@ -9,6 +9,7 @@ from io import StringIO
 import json
 import math
 from pathlib import Path
+import re
 import tempfile
 from typing import Any
 
@@ -98,6 +99,79 @@ TOPIC_SLICE_AGGREGATION_WARNING = (
     "overlapping_relevant_candidate_slices_are_not_official_topics_and_"
     "means_cannot_be_summed_or_averaged_as_disjoint"
 )
+EVIDENCE_SCOPE_CONTRACTS = {
+    "stored_per_query": frozenset({"dev_322x150"}),
+    "recomputed_from_complete_ranking": frozenset({"dev_322x150"}),
+    "aggregate_only": frozenset({"dev_322x150"}),
+    "restricted_diagnostic": frozenset({"restricted_12x20", "restricted_6"}),
+    "invalid": frozenset({"invalid_unscored"}),
+    "unscored": frozenset({"constructed_not_evaluated"}),
+}
+EVIDENCE_SCOPE_PROMOTION_CONTRACTS = frozenset(
+    {
+        ("stored_per_query", "dev_322x150", "promoted_development"),
+        ("stored_per_query", "dev_322x150", "stable_control"),
+        ("stored_per_query", "dev_322x150", "diagnostic_only"),
+        ("aggregate_only", "dev_322x150", "stable_control"),
+        ("aggregate_only", "dev_322x150", "valid_negative"),
+        ("aggregate_only", "dev_322x150", "diagnostic_only"),
+        ("restricted_diagnostic", "restricted_12x20", "restricted_pilot"),
+        ("restricted_diagnostic", "restricted_12x20", "diagnostic_only"),
+        ("restricted_diagnostic", "restricted_6", "restricted_pilot"),
+        ("restricted_diagnostic", "restricted_6", "diagnostic_only"),
+        ("invalid", "invalid_unscored", "invalid"),
+        ("invalid", "invalid_unscored", "stopped_unscored"),
+        (
+            "unscored",
+            "constructed_not_evaluated",
+            "constructed_not_evaluated",
+        ),
+        ("unscored", "constructed_not_evaluated", "diagnostic_only"),
+    }
+)
+EVALUATION_SCOPE_COUNT_CONTRACTS = {
+    "dev_322x150": frozenset({(322, 150)}),
+    "restricted_12x20": frozenset({(12, 20)}),
+    "restricted_6": frozenset({(6, None)}),
+    "invalid_unscored": frozenset({(322, 150), (12, 20), (None, None)}),
+    "constructed_not_evaluated": frozenset({(322, 150), (7759, 150)}),
+}
+QUALITY_METRIC_FIELDS = frozenset(
+    {
+        "mrr",
+        "mrr_delta_vs_dense",
+        "ndcg_at_10",
+        "ndcg_at_k",
+        "ndcg_delta_vs_dense",
+        "reciprocal_rank",
+        "relevant_in_top_3",
+        "zero_ndcg_count",
+        "zero_ndcg_queries",
+    }
+)
+EXACT_SOURCE_POINTER_CONTRACTS = {
+    ("discovery_behavior_topic_v1", "aggregate_source"): (
+        "discovery_behavior_profiles",
+        "/scope",
+        "/profile_version",
+    )
+}
+LITERAL_METRIC_SELECTORS = {
+    ("pointwise_qwen_feasibility_6", "relevant_in_top_3"): (
+        "expert_label_ranking_study",
+        "What we tried",
+        "Step | Scope | Outcome | What it established",
+        "Six-question LLM pilot",
+        "Pointwise {value} top-three",
+    ),
+    ("generated_listwise_feasibility_6", "relevant_in_top_3"): (
+        "expert_label_ranking_study",
+        "What we tried",
+        "Step | Scope | Outcome | What it established",
+        "Six-question LLM pilot",
+        "listwise {value}",
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +296,105 @@ def _require_mapping(value: Any, description: str) -> Mapping[str, Any]:
     return value
 
 
+def _validate_evidence_contract(
+    system: Mapping[str, Any], *, system_id: str
+) -> None:
+    evidence_status = system.get("evidence_status")
+    if not isinstance(evidence_status, str):
+        raise ValueError(f"invalid evidence_status for {system_id}")
+    if evidence_status == "recomputed_from_complete_ranking":
+        raise ValueError(
+            f"recomputed_from_complete_ranking evidence for {system_id} is "
+            "unsupported until a complete-ranking loader exists"
+        )
+    if not isinstance(system.get("aggregate_source"), Mapping):
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} requires aggregate_source"
+        )
+    allowed_scopes = EVIDENCE_SCOPE_CONTRACTS[evidence_status]
+    evaluation_scope = system.get("evaluation_scope")
+    if evaluation_scope not in allowed_scopes:
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} has incompatible "
+            "evaluation_scope"
+        )
+    allowed_counts = EVALUATION_SCOPE_COUNT_CONTRACTS[evaluation_scope]
+    actual_counts = (system.get("query_count"), system.get("candidate_count"))
+    if actual_counts not in allowed_counts:
+        raise ValueError(
+            f"{system_id} has incompatible scope counts for {evaluation_scope}; "
+            f"allowed counts are {sorted(map(repr, allowed_counts))}"
+        )
+
+    per_query_source = system.get("per_query_source")
+    blocker = system.get("per_query_blocker")
+    ranking_coverage = system.get("ranking_coverage")
+    native_scores_available = system.get("native_scores_available")
+    if not isinstance(native_scores_available, bool):
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} requires boolean "
+            "native_scores_available"
+        )
+
+    if evidence_status == "stored_per_query":
+        if not isinstance(per_query_source, Mapping):
+            raise ValueError(
+                f"stored_per_query evidence for {system_id} requires "
+                "per_query_source"
+            )
+        if blocker is not None:
+            raise ValueError(
+                f"stored_per_query evidence for {system_id} must not have a "
+                "per_query_blocker"
+            )
+        if ranking_coverage != "per_query_metrics_only":
+            raise ValueError(
+                f"stored_per_query evidence for {system_id} requires "
+                "ranking_coverage=per_query_metrics_only"
+            )
+        if native_scores_available:
+            raise ValueError(
+                f"stored_per_query evidence for {system_id} requires "
+                "native_scores_available=false"
+            )
+        return
+
+    if per_query_source is not None:
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} forbids per_query_source"
+        )
+    if not isinstance(blocker, str) or not blocker.strip():
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} requires a concrete "
+            "per_query_blocker string"
+        )
+    if ranking_coverage != "none":
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} requires "
+            "ranking_coverage=none"
+        )
+    if native_scores_available:
+        raise ValueError(
+            f"{evidence_status} evidence for {system_id} requires "
+            "native_scores_available=false"
+        )
+
+
+def _validate_evidence_scope_promotion_contract(
+    system: Mapping[str, Any], *, system_id: str
+) -> None:
+    contract = (
+        system.get("evidence_status"),
+        system.get("evaluation_scope"),
+        system.get("promotion_status"),
+    )
+    if contract not in EVIDENCE_SCOPE_PROMOTION_CONTRACTS:
+        raise ValueError(
+            f"{system_id} has an incompatible evidence/scope/promotion contract: "
+            f"{contract!r}"
+        )
+
+
 def _validate_grid_contracts(
     experiment: Mapping[str, Any],
     sources: Mapping[str, Any],
@@ -295,6 +468,10 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
     experiment_ids: set[str] = set()
     system_ids: set[str] = set()
     identity_owners: dict[str, str] = {}
+    pointer_sources: list[
+        tuple[str, str, Mapping[str, Any], set[str], bool]
+    ] = []
+    literal_snapshots: list[tuple[str, Mapping[str, Any], set[str]]] = []
     referenced_sources: set[str] = set()
     promoted_systems: list[Mapping[str, Any]] = []
 
@@ -345,24 +522,33 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
                     raise ValueError(f"duplicate identity or alias: {alias}")
                 seen_aliases.add(alias)
                 claim_identity(alias, system_id)
+            system_identifiers = {
+                system_id,
+                source_system_id,
+                *aliases,
+            }
             if system.get("evaluation_scope") not in EVALUATION_SCOPES:
                 raise ValueError(f"unknown evaluation_scope for {system_id}")
             if system.get("evidence_status") not in EVIDENCE_STATUSES:
                 raise ValueError(f"unknown evidence_status for {system_id}")
             if system.get("promotion_status") not in PROMOTION_STATUSES:
                 raise ValueError(f"unknown promotion_status for {system_id}")
-            if system.get("promotion_status") == "promoted_development":
+            is_promoted = system.get("promotion_status") == "promoted_development"
+            if is_promoted:
                 promoted_systems.append(system)
             if system.get("artifact_state") not in ARTIFACT_STATES:
                 raise ValueError(f"unknown artifact_state for {system_id}")
             if system.get("qrel_usage") not in QREL_USAGE_STATUSES:
                 raise ValueError(f"unknown qrel_usage for {system_id}")
-            blocker = system.get("per_query_blocker")
-            if system.get("evidence_status") == "aggregate_only" and (
-                not isinstance(blocker, str) or not blocker.strip()
+            if not is_promoted:
+                _validate_evidence_contract(system, system_id=system_id)
+            if not (
+                is_promoted
+                and system.get("evidence_status")
+                == "recomputed_from_complete_ranking"
             ):
-                raise ValueError(
-                    f"concrete per_query_blocker string required for {system_id}"
+                _validate_evidence_scope_promotion_contract(
+                    system, system_id=system_id
                 )
             for source_field in ("aggregate_source", "per_query_source"):
                 source_ref = system.get(source_field)
@@ -376,6 +562,27 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
                             f"source_id required in {source_field} for {system_id}"
                         )
                     referenced_sources.add(source_id)
+                    source_kind = source_ref.get("kind")
+                    pointer_backed = source_kind in {
+                        "grid_member",
+                        "issue18_per_query_map",
+                        "json_pointer",
+                    }
+                    if pointer_backed:
+                        pointer_sources.append(
+                            (
+                                system_id,
+                                source_field,
+                                source_ref,
+                                system_identifiers,
+                                system.get("promotion_status")
+                                == "promoted_development",
+                            )
+                        )
+                    elif source_kind == "literal_snapshot":
+                        literal_snapshots.append(
+                            (system_id, source_ref, system_identifiers)
+                        )
             caveat_ids = system.get("caveat_ids", [])
             if not isinstance(caveat_ids, list) or not all(
                 isinstance(caveat_id, str) for caveat_id in caveat_ids
@@ -479,6 +686,7 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
             f"promoted_development system {promoted_id} has promotion-blocking "
             f"caveats: {sorted(blocking_caveats)}"
         )
+    _validate_evidence_contract(promoted, system_id=promoted_id)
 
     unknown_sources = referenced_sources - set(sources)
     if unknown_sources:
@@ -508,6 +716,56 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
         if full_path.suffix == ".json":
             source_values[source_id] = json.loads(full_path.read_text(encoding="utf-8"))
 
+    for system_id, source_field, source_ref, identifiers, promoted_status in (
+        pointer_sources
+    ):
+        source_id = source_ref["source_id"]
+        identity_pointer = source_ref.get("identity_pointer")
+        exact_contract = EXACT_SOURCE_POINTER_CONTRACTS.get(
+            (system_id, source_field)
+        )
+        if exact_contract is None:
+            if identity_pointer is None and _source_reference_identifies(
+                source_ref, identifiers
+            ):
+                continue
+        elif (
+            source_id,
+            source_ref.get("pointer"),
+            identity_pointer,
+        ) != exact_contract:
+            exact_contract = None
+        identity_value: Any = None
+        if exact_contract is not None and source_id in source_values:
+            try:
+                identity_value = resolve_json_pointer(
+                    source_values[source_id], identity_pointer
+                )
+            except (IndexError, KeyError, TypeError, ValueError):
+                identity_value = None
+        if (
+            exact_contract is not None
+            and isinstance(identity_value, str)
+            and identity_value in identifiers
+        ):
+            continue
+        promotion_prefix = (
+            "promoted_development system " if promoted_status else "system "
+        )
+        raise ValueError(
+            f"{promotion_prefix}{system_id} {source_field} identity does not match "
+            "its canonical, source, or alias namespace"
+        )
+
+    for system_id, source_ref, identifiers in literal_snapshots:
+        _validate_literal_snapshot(
+            root,
+            sources,
+            source_ref,
+            system_id=system_id,
+            identifiers=identifiers,
+        )
+
     for raw_experiment in experiments:
         experiment = _require_mapping(raw_experiment, "experiment")
         _validate_grid_contracts(experiment, sources, source_values)
@@ -516,11 +774,244 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
 def _pointer_identifies(pointer: Any, identifiers: set[str]) -> bool:
     if not isinstance(pointer, str) or not pointer.startswith("/"):
         return False
-    tokens = {
+    ordered_tokens = [
         raw_token.replace("~1", "/").replace("~0", "~")
         for raw_token in pointer[1:].split("/")
+    ]
+    tokens = set(ordered_tokens)
+    pointer_paths = {"/".join(ordered_tokens), ".".join(ordered_tokens)}
+    return bool(tokens & identifiers or pointer_paths & identifiers)
+
+
+def _source_reference_identifies(
+    source_ref: Mapping[str, Any], identifiers: set[str]
+) -> bool:
+    key = source_ref.get("key")
+    return _pointer_identifies(source_ref.get("pointer"), identifiers) or (
+        isinstance(key, str) and key in identifiers
+    )
+
+
+def _markdown_cell_text(value: str) -> str:
+    return value.strip().replace("**", "").replace("__", "").strip("` ")
+
+
+def _markdown_cells(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    return [_markdown_cell_text(cell) for cell in stripped[1:-1].split("|")]
+
+
+def _markdown_key(value: str) -> str:
+    return "_".join(
+        re.findall(r"[a-z0-9]+", _markdown_cell_text(value).casefold().replace("@", " at "))
+    )
+
+
+def _is_markdown_divider(cells: list[str]) -> bool:
+    return bool(cells) and all(
+        bool(cell) and set(cell) <= {"-", ":"} and "-" in cell for cell in cells
+    )
+
+
+def _literal_value_matches(expected: Any, cell: str) -> bool:
+    actual = _markdown_cell_text(cell)
+    if isinstance(expected, bool):
+        return False
+    if isinstance(expected, int | float):
+        try:
+            actual_number = float(actual.replace(",", ""))
+        except ValueError:
+            return False
+        return math.isclose(
+            float(expected), actual_number, rel_tol=0.0, abs_tol=1e-12
+        )
+    if not isinstance(expected, str):
+        return False
+    return expected == actual
+
+
+def _parse_declared_markdown_table(
+    text: str,
+    *,
+    section: str,
+    table: str,
+    system_id: str,
+) -> tuple[list[str], list[list[str]]]:
+    lines = text.splitlines()
+    section_line = f"## {section}"
+    try:
+        section_start = next(
+            index for index, line in enumerate(lines) if line.strip() == section_line
+        )
+    except StopIteration as error:
+        raise ValueError(
+            f"literal_snapshot for {system_id} is missing section {section!r}"
+        ) from error
+    section_end = next(
+        (
+            index
+            for index in range(section_start + 1, len(lines))
+            if lines[index].startswith("# ") or lines[index].startswith("## ")
+        ),
+        len(lines),
+    )
+    expected_header = [_markdown_cell_text(cell) for cell in table.split("|")]
+    header_index: int | None = None
+    for index in range(section_start + 1, section_end):
+        cells = _markdown_cells(lines[index])
+        if cells == expected_header:
+            header_index = index
+            break
+    if header_index is None:
+        raise ValueError(
+            f"literal_snapshot for {system_id} is missing table {table!r}"
+        )
+    divider_index = header_index + 1
+    if divider_index >= section_end:
+        raise ValueError(f"literal_snapshot for {system_id} has no table divider")
+    divider = _markdown_cells(lines[divider_index])
+    if divider is None or not _is_markdown_divider(divider):
+        raise ValueError(f"literal_snapshot for {system_id} has invalid table divider")
+    rows: list[list[str]] = []
+    for index in range(divider_index + 1, section_end):
+        cells = _markdown_cells(lines[index])
+        if cells is None:
+            break
+        if len(cells) != len(expected_header):
+            raise ValueError(f"literal_snapshot for {system_id} has malformed row")
+        rows.append(cells)
+    return expected_header, rows
+
+
+def _validate_literal_snapshot(
+    root: Path,
+    sources: Mapping[str, Any],
+    source_ref: Mapping[str, Any],
+    *,
+    system_id: str,
+    identifiers: set[str],
+) -> None:
+    source_id = source_ref.get("source_id")
+    section = source_ref.get("section")
+    table = source_ref.get("table")
+    row_name = source_ref.get("row")
+    metrics = source_ref.get("metrics")
+    if not all(
+        isinstance(value, str) and value
+        for value in (source_id, section, table, row_name)
+    ):
+        raise ValueError(
+            f"literal_snapshot for {system_id} requires source_id, section, table, "
+            "and row strings"
+        )
+    metrics = _require_mapping(metrics, f"literal_snapshot metrics for {system_id}")
+    source_path, _source_sha256 = _source_details(sources, source_id)
+    path = root / source_path
+    if path.suffix.casefold() not in {".md", ".markdown"}:
+        raise ValueError(f"literal_snapshot for {system_id} requires Markdown source")
+    headers, rows = _parse_declared_markdown_table(
+        path.read_text(encoding="utf-8"),
+        section=section,
+        table=table,
+        system_id=system_id,
+    )
+    header_keys = [_markdown_key(header) for header in headers]
+    row_match = next((row for row in rows if row[0] == row_name), None)
+    column_index = next(
+        (index for index, header in enumerate(headers) if header == row_name), None
+    )
+    if row_match is None and column_index is None:
+        raise ValueError(
+            f"literal_snapshot for {system_id} is missing row or column {row_name!r}"
+        )
+    if row_match is not None:
+        identity_matches = row_name in identifiers
+        if not identity_matches:
+            identity_tokens = source_ref.get("identity_tokens")
+            if not isinstance(identity_tokens, list) or not identity_tokens or not all(
+                isinstance(token, str) and token for token in identity_tokens
+            ):
+                raise ValueError(
+                    f"literal_snapshot for {system_id} identity requires explicit "
+                    "identity_tokens for a shared Markdown row"
+                )
+            row_text = " ".join(row_match).casefold()
+            identifier_texts = [identifier.casefold() for identifier in identifiers]
+            identity_matches = all(
+                token.casefold() in row_text
+                and any(token.casefold() in identifier for identifier in identifier_texts)
+                for token in identity_tokens
+            )
+    else:
+        identity_matches = row_name in identifiers
+    if not identity_matches:
+        raise ValueError(
+            f"literal_snapshot for {system_id} identity does not match its "
+            "declared Markdown row or column"
+        )
+
+    header_aliases = {"zero_ndcg_queries": "zero_ndcg"}
+    column_metric_rows = {
+        "ndcg_at_10": ("ndcg_at_10", _markdown_key(row_name)),
+        "mrr": ("mrr", _markdown_key(row_name)),
+        "zero_ndcg_queries": ("zero_ndcg_queries", _markdown_key(row_name)),
+        "ndcg_delta_vs_dense": ("ndcg_at_10", "candidate_minus_baseline"),
+        "mrr_delta_vs_dense": ("mrr", "candidate_minus_baseline"),
     }
-    return bool(tokens & identifiers)
+    if "metric_templates" in source_ref:
+        metric_templates = source_ref["metric_templates"]
+        metric_name = (
+            next(iter(metric_templates), "metric_templates")
+            if isinstance(metric_templates, Mapping)
+            else "metric_templates"
+        )
+        raise ValueError(
+            f"literal_snapshot for {system_id} metric {metric_name!r} forbids "
+            "registry-controlled metric_templates"
+        )
+    for metric_name, expected in metrics.items():
+        matched = False
+        if row_match is not None:
+            header_key = header_aliases.get(metric_name, metric_name)
+            if header_key in header_keys:
+                matched = _literal_value_matches(
+                    expected, row_match[header_keys.index(header_key)]
+                )
+            elif isinstance(expected, str):
+                selector = LITERAL_METRIC_SELECTORS.get((system_id, metric_name))
+                declared_location = (source_id, section, table, row_name)
+                if selector is None or declared_location != selector[:4]:
+                    selector = None
+                rendered = (
+                    selector[4].replace("{value}", expected)
+                    if selector is not None
+                    else None
+                )
+                components = {
+                    component.strip()
+                    for cell in row_match
+                    for component in cell.split(";")
+                }
+                matched = rendered is not None and rendered in components
+        else:
+            coordinates = column_metric_rows.get(metric_name)
+            if coordinates is not None:
+                metric_row_key, target_column_key = coordinates
+                target_row = next(
+                    (row for row in rows if _markdown_key(row[0]) == metric_row_key),
+                    None,
+                )
+                if target_row is not None and target_column_key in header_keys:
+                    matched = _literal_value_matches(
+                        expected, target_row[header_keys.index(target_column_key)]
+                    )
+        if not matched:
+            raise ValueError(
+                f"literal_snapshot for {system_id} metric {metric_name!r} does not "
+                "match its declared Markdown table"
+            )
 
 
 def density_bucket(positive_count: int) -> str:
@@ -1007,6 +1498,14 @@ def build_ledger(
             aggregate = _resolve_source_reference(
                 root, sources, aggregate_source, json_cache
             )
+            evidence_status = str(system["evidence_status"])
+            if evidence_status in {"invalid", "unscored"}:
+                quality_fields = sorted(QUALITY_METRIC_FIELDS & set(aggregate))
+                if quality_fields:
+                    raise ValueError(
+                        f"{evidence_status} evidence for {system_id} forbids quality "
+                        f"metrics: {quality_fields}"
+                    )
             aggregate_payload_json = _canonical_payload_json(aggregate)
             reported_ndcg = _quality_metric(aggregate, "ndcg_at_10", "ndcg_at_k")
             reported_mrr = _quality_metric(aggregate, "mrr", "reciprocal_rank")

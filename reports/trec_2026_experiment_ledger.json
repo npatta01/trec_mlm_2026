@@ -264401,6 +264401,7 @@
         "response_count": 1163850
       },
       "aggregate_source": {
+        "identity_pointer": "/profile_version",
         "kind": "json_pointer",
         "pointer": "/scope",
         "source_id": "discovery_behavior_profiles"
@@ -278053,6 +278054,11 @@
         "what_it_established": "Required model-specific terminal-token behavior was omitted. The runtime does not invent each embedding checkpoint's asymmetric contract."
       },
       "aggregate_source": {
+        "identity_tokens": [
+          "Initial",
+          "E5",
+          "sweep"
+        ],
         "kind": "literal_snapshot",
         "metrics": {
           "outcome": "Invalid low scores",
@@ -278108,6 +278114,11 @@
         "what_it_established": "Required model-specific terminal-token behavior was omitted. The runtime does not invent each embedding checkpoint's asymmetric contract."
       },
       "aggregate_source": {
+        "identity_tokens": [
+          "Initial",
+          "Qwen8B",
+          "sweep"
+        ],
         "kind": "literal_snapshot",
         "metrics": {
           "outcome": "Invalid low scores",
@@ -278499,13 +278510,17 @@
     },
     {
       "aggregate_payload": {
-        "outcome": "Generated listwise 3/6 top-three",
+        "outcome": "Pointwise 5/6 top-three; listwise 3/6",
         "relevant_in_top_3": "3/6"
       },
       "aggregate_source": {
+        "identity_tokens": [
+          "Six-question LLM pilot",
+          "generated listwise"
+        ],
         "kind": "literal_snapshot",
         "metrics": {
-          "outcome": "Generated listwise 3/6 top-three",
+          "outcome": "Pointwise 5/6 top-three; listwise 3/6",
           "relevant_in_top_3": "3/6"
         },
         "row": "Six-question LLM pilot",
@@ -278556,13 +278571,17 @@
     },
     {
       "aggregate_payload": {
-        "outcome": "Pointwise 5/6 top-three",
+        "outcome": "Pointwise 5/6 top-three; listwise 3/6",
         "relevant_in_top_3": "5/6"
       },
       "aggregate_source": {
+        "identity_tokens": [
+          "Six-question LLM pilot",
+          "Pointwise"
+        ],
         "kind": "literal_snapshot",
         "metrics": {
-          "outcome": "Pointwise 5/6 top-three",
+          "outcome": "Pointwise 5/6 top-three; listwise 3/6",
           "relevant_in_top_3": "5/6"
         },
         "row": "Six-question LLM pilot",

@@ -55,6 +55,9 @@ ARTIFACT_STATES = frozenset(
         "construction_artifact_missing",
     }
 )
+MISSING_ARTIFACT_STATES = frozenset(
+    {"local_artifact_missing", "construction_artifact_missing"}
+)
 QREL_USAGE_STATUSES = frozenset(
     {
         "training_and_evaluation",
@@ -1597,13 +1600,11 @@ def render_ledger_markdown(build: LedgerBuild) -> str:
     aggregate_only_count = sum(
         system.evidence_status == "aggregate_only" for system in systems
     )
-    blocked = sorted(
+    missing_artifact_systems = sorted(
         (
             system
             for system in systems
-            if system.blocker is not None
-            or system.artifact_state
-            in {"local_artifact_missing", "construction_artifact_missing"}
+            if system.artifact_state in MISSING_ARTIFACT_STATES
         ),
         key=_system_sort_key,
     )
@@ -1619,7 +1620,11 @@ def render_ledger_markdown(build: LedgerBuild) -> str:
         (f"- Best stable qrel-free control: {_headline_metric(qrel_free_control)}."),
         f"- Systems with complete per-query evidence: {per_query_system_count}.",
         f"- aggregate-only systems: {aggregate_only_count}.",
-        f"- Unresolved artifact blockers: {len(blocked)} systems.",
+        (f"- Unresolved artifact blockers: {len(missing_artifact_systems)} systems."),
+        (
+            "- Artifact blocker count includes only `local_artifact_missing` and "
+            "`construction_artifact_missing` states."
+        ),
         "- All effectiveness scores are development-only evidence; the hidden test is not available.",
         "",
         "## Full development results",
@@ -1695,10 +1700,7 @@ def render_ledger_markdown(build: LedgerBuild) -> str:
     )
     for system in sorted(systems, key=_system_sort_key):
         blocker = system.blocker
-        if blocker is None and system.artifact_state in {
-            "local_artifact_missing",
-            "construction_artifact_missing",
-        }:
+        if blocker is None and system.artifact_state in MISSING_ARTIFACT_STATES:
             blocker = f"Artifact custody: {system.artifact_state}."
         lines.append(
             "| "

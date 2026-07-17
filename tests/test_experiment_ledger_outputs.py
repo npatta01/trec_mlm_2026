@@ -532,6 +532,11 @@ def test_markdown_headlines_distinguish_promoted_diagnostic_and_qrel_free_contro
     assert "stable_system" in headline
     assert "qrel_trained_decoy_control" not in headline
     assert "aggregate-only systems: 4" in headline
+    assert "Unresolved artifact blockers: 2 systems." in headline
+    assert (
+        "Artifact blocker count includes only `local_artifact_missing` and "
+        "`construction_artifact_missing` states."
+    ) in headline
 
 
 def test_write_outputs_is_atomic_on_render_failure(

@@ -69,6 +69,7 @@ The initial controlling sources are:
 - `reports/trec_2026_response_retrieval_results.json`;
 - `reports/trec_2026_response_volume_normalization_results.json`;
 - `reports/trec_2026_source_query_first_results.json`;
+- `reports/trec_2026_llm_profiles.json`;
 - `docs/results/2026-07-13-expert-label-ranking-study.md`;
 - `reports/trec_2026_candidate_semantic_profiles_results.json`;
 - `reports/trec_2026_issue18_pr17head_evaluation.json`;
@@ -270,7 +271,8 @@ The reviewed registry covers:
 5. response BM25/RM3 retrieval;
 6. response-volume normalization;
 7. source-query-first response alignment;
-8. candidate behavior/topic profile construction without final evaluation;
+8. candidate behavior/topic profile construction without final evaluation,
+   controlled by the tracked `reports/trec_2026_llm_profiles.json` profile receipt;
 9. candidate-specific semantic response profiles and fixed fusions;
 10. multiresolution response-profile diagnostics; and
 11. hard query-cluster/domain aggregation.

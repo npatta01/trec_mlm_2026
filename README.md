@@ -17,6 +17,15 @@ The report is self-contained, works without a server, follows system light/dark
 appearance, and retains a semantic no-script reading path and audio-friendly prose for
 phone screen readers.
 
+## Canonical Experiment Ledger
+
+For the current, source-backed inventory of every experiment, comparable score,
+per-query evidence vector, relevant-candidate slice, caveat, and missing-artifact
+status, see
+[`reports/trec_2026_experiment_ledger.md`](reports/trec_2026_experiment_ledger.md).
+The ledger is generated from reviewed receipts; detailed sections below explain
+individual methods but are not the canonical cross-experiment leaderboard.
+
 For the complete 2025 implementation playbooks and beginner diagrams explaining
 profiles and embeddings, open the companion
 [`reports/trec_2025_mllm_interactive_report.html`](reports/trec_2025_mllm_interactive_report.html).

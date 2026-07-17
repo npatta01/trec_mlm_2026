@@ -114,6 +114,35 @@ class ExactNestedScoringTest(unittest.TestCase):
         np.testing.assert_allclose(fallback.scores, fallback.global_prior)
 
 
+def test_exact_nested_loo_inner_scores_clips_nonpositive_grades() -> None:
+    grades = np.asarray(
+        [
+            [2.0, -100.0, 0.0],
+            [0.0, 2.0, -100.0],
+            [-100.0, 0.0, 2.0],
+        ],
+        dtype=np.float64,
+    )
+    similarities = np.asarray(
+        [
+            [1.0, 0.9, 0.8],
+            [0.9, 1.0, 0.7],
+            [0.8, 0.7, 1.0],
+        ],
+        dtype=np.float64,
+    )
+
+    ndcg_scores, _ = exact_nested_loo_inner_scores(
+        similarities=similarities,
+        grades=grades,
+        query_ids=("a", "b", "c"),
+        model_ids=("m1", "m2", "m3"),
+        k=1,
+    )
+
+    assert all(0.0 <= score <= 1.0 for score in ndcg_scores)
+
+
 class NestedExperimentTest(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()

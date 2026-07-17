@@ -40,12 +40,15 @@ def sample_build() -> LedgerBuild:
         blocker: str | None = "Only aggregate evidence is available.",
         caveat_ids: tuple[str, ...] = ("development_only",),
         aggregate_payload_json: str = '{"ndcg_at_10":0.4}',
+        qrel_usage: str = "evaluation_only",
     ) -> SystemRecord:
         return SystemRecord(
             system_id=system_id,
             source_system_id=f"source_{system_id}",
+            aliases=(f"alias_{system_id}",),
             experiment_id=f"experiment_{system_id}",
             experiment_family="sample_family",
+            method_summary=f"Method summary for {system_id}.",
             evaluation_scope=evaluation_scope,
             evidence_status=evidence_status,
             promotion_status=promotion_status,
@@ -62,11 +65,26 @@ def sample_build() -> LedgerBuild:
             ),
             recomputed_zero_ndcg_queries=7 if per_query_available else None,
             aggregate_payload_json=aggregate_payload_json,
+            aggregate_source_json=(
+                '{"kind":"json_pointer","pointer":"/metrics/'
+                + system_id
+                + '","source_id":"sample_receipt"}'
+            ),
+            per_query_source_json=(
+                '{"kind":"issue18_per_query_map","pointer":"/per_query/'
+                + system_id
+                + '","source_id":"sample_per_query"}'
+                if per_query_available
+                else None
+            ),
             per_query_available=per_query_available,
             ranking_coverage=(
                 "per_query_metrics_only" if per_query_available else "none"
             ),
+            native_scores_available=False,
             artifact_state=artifact_state,
+            qrel_usage=qrel_usage,
+            run_classification="internal_automatic",
             source_path=f"reports/{system_id}.json",
             source_sha256=system_id[0] * 64,
             blocker=blocker,
@@ -90,6 +108,11 @@ def sample_build() -> LedgerBuild:
             ndcg_at_10=0.44,
         ),
         system("stable_system", ndcg_at_10=0.41),
+        system(
+            "qrel_trained_decoy_control",
+            ndcg_at_10=0.49,
+            qrel_usage="training_and_evaluation",
+        ),
         system(
             "aggregate_only_system",
             evidence_status="aggregate_only",
@@ -115,6 +138,19 @@ def sample_build() -> LedgerBuild:
             aggregate_payload_json='{"relevant_in_top_3":"5/6"}',
         ),
         system(
+            "restricted_12_system",
+            evaluation_scope="restricted_12x20",
+            evidence_status="restricted_diagnostic",
+            promotion_status="diagnostic_only",
+            ndcg_at_10=0.7,
+            query_count=12,
+            candidate_count=20,
+            per_query_available=False,
+            artifact_state="tracked_report_snapshot",
+            blocker="Only a 12x20 aggregate snapshot was retained.",
+            caveat_ids=("development_only", "restricted_not_comparable"),
+        ),
+        system(
             "invalid_system",
             evaluation_scope="invalid_unscored",
             evidence_status="invalid",
@@ -127,6 +163,20 @@ def sample_build() -> LedgerBuild:
             blocker=None,
             caveat_ids=("development_only",),
             aggregate_payload_json='{"result":"invalid"}',
+        ),
+        system(
+            "constructed_system",
+            evaluation_scope="constructed_not_evaluated",
+            evidence_status="unscored",
+            promotion_status="constructed_not_evaluated",
+            ndcg_at_10=None,
+            query_count=None,
+            candidate_count=None,
+            per_query_available=False,
+            artifact_state="construction_artifact_missing",
+            blocker="Construction tree is not durably restorable.",
+            caveat_ids=("development_only", "missing_raw_artifacts"),
+            aggregate_payload_json='{"result":"constructed_only"}',
         ),
     )
     per_query = (
@@ -321,6 +371,72 @@ def test_systems_tsv_preserves_payload_and_nullable_counts(
     assert rows["invalid_system"]["query_count"] == ""
 
 
+def test_normalized_outputs_preserve_metadata_and_source_references() -> None:
+    build = module.build_ledger(Path("."))
+    rendered = json.loads(render_ledger_json(build))
+    systems = {row["system_id"]: row for row in rendered["systems"]}
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    reviewed = {
+        system["system_id"]: system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+    }
+
+    assert set(systems) == set(reviewed)
+    for system_id, source in reviewed.items():
+        normalized = systems[system_id]
+        assert normalized["aliases"] == source["aliases"]
+        assert normalized["method_summary"] == source["method_summary"]
+        assert (
+            normalized["native_scores_available"] is source["native_scores_available"]
+        )
+        assert normalized["qrel_usage"] == source["qrel_usage"]
+        assert normalized["run_classification"] == source["run_classification"]
+        assert normalized["aggregate_source"] == source["aggregate_source"]
+        assert normalized["per_query_source"] == source["per_query_source"]
+
+    real_systems = {row.system_id: row for row in build.systems}
+    assert real_systems["dense_nested"].aliases == (
+        "dense_reference",
+        "query_knn",
+        "dense_nested_reference",
+    )
+    assert real_systems["profile_only"].qrel_usage == "evaluation_only"
+    assert (
+        json.loads(real_systems["dense_nested"].aggregate_source_json)["pointer"]
+        == "/metrics/dense_nested"
+    )
+    assert (
+        json.loads(real_systems["dense_nested"].per_query_source_json)["ndcg_column"]
+        == "dense_ndcg_at_10"
+    )
+
+    tsv = {row["system_id"]: row for row in _tsv_rows(render_systems_tsv(build))}
+    assert set(tsv) == set(reviewed)
+    for system_id, source in reviewed.items():
+        row = tsv[system_id]
+        assert json.loads(row["aliases"]) == source["aliases"]
+        assert row["method_summary"] == source["method_summary"]
+        assert row["qrel_usage"] == source["qrel_usage"]
+        assert row["run_classification"] == source["run_classification"]
+        assert (
+            row["native_scores_available"]
+            == str(source["native_scores_available"]).lower()
+        )
+        assert json.loads(row["aggregate_source_json"]) == source["aggregate_source"]
+        if source["per_query_source"] is None:
+            assert row["per_query_source_json"] == ""
+        else:
+            assert (
+                json.loads(row["per_query_source_json"]) == source["per_query_source"]
+            )
+    assert (
+        json.loads(tsv["pointwise_qwen_feasibility_6"]["aggregate_source_json"])["row"]
+        == "Six-question LLM pilot"
+    )
+    assert tsv["pointwise_qwen_feasibility_6"]["per_query_source_json"] == ""
+
+
 def test_per_query_tsv_is_sorted_and_uses_compact_relevance_json(
     sample_build: LedgerBuild,
 ) -> None:
@@ -374,6 +490,36 @@ def test_markdown_separates_scopes_and_makes_caveats_visible(
     assert "not official topics" in markdown
 
 
+def test_markdown_uses_a_separate_numerical_table_for_every_non_full_scope(
+    sample_build: LedgerBuild,
+) -> None:
+    markdown = render_ledger_markdown(sample_build)
+    sections = {
+        "restricted_12x20": markdown.split(
+            "### Restricted 12x20 (`restricted_12x20`)", 1
+        )[1].split("###", 1)[0],
+        "restricted_6": markdown.split("### Restricted 6-query (`restricted_6`)", 1)[
+            1
+        ].split("###", 1)[0],
+        "invalid_unscored": markdown.split(
+            "### Invalid/unscored (`invalid_unscored`)", 1
+        )[1].split("###", 1)[0],
+        "constructed_not_evaluated": markdown.split(
+            "### Constructed, not evaluated (`constructed_not_evaluated`)", 1
+        )[1].split("## Per-query evidence coverage", 1)[0],
+    }
+    expected = {
+        "restricted_12x20": "restricted_12_system",
+        "restricted_6": "restricted_system",
+        "invalid_unscored": "invalid_system",
+        "constructed_not_evaluated": "constructed_system",
+    }
+    all_system_ids = set(expected.values())
+    for scope, section in sections.items():
+        assert expected[scope] in section
+        assert not (all_system_ids - {expected[scope]}) & set(section.split("`"))
+
+
 def test_markdown_headlines_distinguish_promoted_diagnostic_and_qrel_free_control(
     sample_build: LedgerBuild,
 ) -> None:
@@ -384,7 +530,8 @@ def test_markdown_headlines_distinguish_promoted_diagnostic_and_qrel_free_contro
     assert "diagnostic_system" in headline
     assert "diagnostic_only" in headline
     assert "stable_system" in headline
-    assert "aggregate-only systems: 3" in headline
+    assert "qrel_trained_decoy_control" not in headline
+    assert "aggregate-only systems: 4" in headline
 
 
 def test_write_outputs_is_atomic_on_render_failure(

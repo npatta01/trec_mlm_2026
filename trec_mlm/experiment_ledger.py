@@ -82,8 +82,10 @@ TOPIC_SLICE_AGGREGATION_WARNING = (
 class SystemRecord:
     system_id: str
     source_system_id: str
+    aliases: tuple[str, ...]
     experiment_id: str
     experiment_family: str
+    method_summary: str
     evaluation_scope: str
     evidence_status: str
     promotion_status: str
@@ -96,9 +98,14 @@ class SystemRecord:
     recomputed_mrr: float | None
     recomputed_zero_ndcg_queries: int | None
     aggregate_payload_json: str
+    aggregate_source_json: str
+    per_query_source_json: str | None
     per_query_available: bool
     ranking_coverage: str
+    native_scores_available: bool
     artifact_state: str
+    qrel_usage: str
+    run_classification: str
     source_path: str
     source_sha256: str
     blocker: str | None
@@ -805,10 +812,32 @@ def build_ledger(
             system = _require_mapping(raw_system, "system")
             system_id = str(system["system_id"])
             source_system_id = str(system["source_system_id"])
+            aliases = system.get("aliases")
+            if not isinstance(aliases, list) or not all(
+                isinstance(alias, str) for alias in aliases
+            ):
+                raise ValueError(f"aliases must be a list of strings for {system_id}")
+            method_summary = system.get("method_summary")
+            if not isinstance(method_summary, str) or not method_summary.strip():
+                raise ValueError(
+                    f"method_summary must be a nonempty string for {system_id}"
+                )
+            native_scores_available = system.get("native_scores_available")
+            if not isinstance(native_scores_available, bool):
+                raise ValueError(
+                    f"native_scores_available must be boolean for {system_id}"
+                )
+            qrel_usage = system.get("qrel_usage")
+            if not isinstance(qrel_usage, str):
+                raise ValueError(f"qrel_usage must be a string for {system_id}")
+            run_classification = system.get("run_classification")
+            if not isinstance(run_classification, str):
+                raise ValueError(f"run_classification must be a string for {system_id}")
             aggregate_source = _require_mapping(
                 system.get("aggregate_source"),
                 f"aggregate source for {system_id}",
             )
+            aggregate_source_json = _canonical_payload_json(aggregate_source)
             aggregate_source_id = aggregate_source.get("source_id")
             if not isinstance(aggregate_source_id, str):
                 raise ValueError(f"aggregate source_id required for {system_id}")
@@ -826,10 +855,12 @@ def build_ledger(
 
             system_rows: list[PerQueryRecord] = []
             per_query_source = system.get("per_query_source")
+            per_query_source_json: str | None = None
             if per_query_source is not None:
                 per_query_source = _require_mapping(
                     per_query_source, f"per-query source for {system_id}"
                 )
+                per_query_source_json = _canonical_payload_json(per_query_source)
                 metrics, provenance, metric_path, metric_sha256 = (
                     _load_per_query_metrics(
                         root,
@@ -941,8 +972,10 @@ def build_ledger(
                 SystemRecord(
                     system_id=system_id,
                     source_system_id=source_system_id,
+                    aliases=tuple(aliases),
                     experiment_id=experiment_id,
                     experiment_family=experiment_family,
+                    method_summary=method_summary,
                     evaluation_scope=str(system["evaluation_scope"]),
                     evidence_status=str(system["evidence_status"]),
                     promotion_status=str(system["promotion_status"]),
@@ -955,9 +988,14 @@ def build_ledger(
                     recomputed_mrr=recomputed_mrr,
                     recomputed_zero_ndcg_queries=recomputed_zero,
                     aggregate_payload_json=aggregate_payload_json,
+                    aggregate_source_json=aggregate_source_json,
+                    per_query_source_json=per_query_source_json,
                     per_query_available=bool(system_rows),
                     ranking_coverage=str(system["ranking_coverage"]),
+                    native_scores_available=native_scores_available,
                     artifact_state=str(system["artifact_state"]),
+                    qrel_usage=qrel_usage,
+                    run_classification=run_classification,
                     source_path=source_path,
                     source_sha256=source_sha256,
                     blocker=blocker,
@@ -1094,8 +1132,10 @@ def _system_json(
     return {
         "system_id": system.system_id,
         "source_system_id": system.source_system_id,
+        "aliases": list(system.aliases),
         "experiment_id": system.experiment_id,
         "experiment_family": system.experiment_family,
+        "method_summary": system.method_summary,
         "evaluation_scope": system.evaluation_scope,
         "evidence_status": system.evidence_status,
         "promotion_status": system.promotion_status,
@@ -1116,6 +1156,12 @@ def _system_json(
             else None
         ),
         "aggregate_payload": json.loads(system.aggregate_payload_json),
+        "aggregate_source": json.loads(system.aggregate_source_json),
+        "per_query_source": (
+            json.loads(system.per_query_source_json)
+            if system.per_query_source_json is not None
+            else None
+        ),
         "receipt_provenance": {
             "source_path": source_path,
             "source_sha256": system.source_sha256,
@@ -1123,7 +1169,10 @@ def _system_json(
         "recomputed_provenance": recomputed_provenance,
         "per_query_available": system.per_query_available,
         "ranking_coverage": system.ranking_coverage,
+        "native_scores_available": system.native_scores_available,
         "artifact_state": system.artifact_state,
+        "qrel_usage": system.qrel_usage,
+        "run_classification": system.run_classification,
         "blocker": system.blocker,
         "caveat_ids": list(system.caveat_ids),
     }
@@ -1252,8 +1301,10 @@ def render_systems_tsv(build: LedgerBuild) -> str:
     fieldnames = (
         "system_id",
         "source_system_id",
+        "aliases",
         "experiment_id",
         "experiment_family",
+        "method_summary",
         "evaluation_scope",
         "evidence_status",
         "promotion_status",
@@ -1263,6 +1314,8 @@ def render_systems_tsv(build: LedgerBuild) -> str:
         "mrr",
         "zero_ndcg_queries",
         "aggregate_payload_json",
+        "aggregate_source_json",
+        "per_query_source_json",
         "recomputed_ndcg_at_10",
         "recomputed_mrr",
         "recomputed_zero_ndcg_queries",
@@ -1272,7 +1325,10 @@ def render_systems_tsv(build: LedgerBuild) -> str:
         "recomputed_metric_source_sha256",
         "per_query_available",
         "ranking_coverage",
+        "native_scores_available",
         "artifact_state",
+        "qrel_usage",
+        "run_classification",
         "source_path",
         "source_sha256",
         "blocker",
@@ -1285,8 +1341,14 @@ def render_systems_tsv(build: LedgerBuild) -> str:
             {
                 "system_id": system.system_id,
                 "source_system_id": system.source_system_id,
+                "aliases": json.dumps(
+                    system.aliases,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
                 "experiment_id": system.experiment_id,
                 "experiment_family": system.experiment_family,
+                "method_summary": system.method_summary,
                 "evaluation_scope": system.evaluation_scope,
                 "evidence_status": system.evidence_status,
                 "promotion_status": system.promotion_status,
@@ -1296,6 +1358,8 @@ def render_systems_tsv(build: LedgerBuild) -> str:
                 "mrr": system.mrr,
                 "zero_ndcg_queries": system.zero_ndcg_queries,
                 "aggregate_payload_json": system.aggregate_payload_json,
+                "aggregate_source_json": system.aggregate_source_json,
+                "per_query_source_json": system.per_query_source_json,
                 "recomputed_ndcg_at_10": system.recomputed_ndcg_at_10,
                 "recomputed_mrr": system.recomputed_mrr,
                 "recomputed_zero_ndcg_queries": (system.recomputed_zero_ndcg_queries),
@@ -1313,7 +1377,10 @@ def render_systems_tsv(build: LedgerBuild) -> str:
                 ),
                 "per_query_available": system.per_query_available,
                 "ranking_coverage": system.ranking_coverage,
+                "native_scores_available": system.native_scores_available,
                 "artifact_state": system.artifact_state,
+                "qrel_usage": system.qrel_usage,
+                "run_classification": system.run_classification,
                 "source_path": _validate_repository_relative_path(system.source_path),
                 "source_sha256": system.source_sha256,
                 "blocker": system.blocker,
@@ -1466,11 +1533,11 @@ def _best_system(
 
 def _markdown_system_table(systems: list[SystemRecord]) -> list[str]:
     lines = [
-        "| System | Family | Promotion | Evidence | nDCG@10 | MRR | Per-query | Artifact |",
-        "|---|---|---|---|---:|---:|---|---|",
+        "| System | Scope | Queries | Candidates | Family | Promotion | Evidence | nDCG@10 | MRR | Per-query | Artifact |",
+        "|---|---|---:|---:|---|---|---|---:|---:|---|---|",
     ]
     if not systems:
-        lines.append("| — | — | — | — | — | — | — | — |")
+        lines.append("| — | — | — | — | — | — | — | — | — | — | — |")
         return lines
     for system in systems:
         lines.append(
@@ -1478,6 +1545,9 @@ def _markdown_system_table(systems: list[SystemRecord]) -> list[str]:
             + " | ".join(
                 (
                     f"`{_markdown_cell(system.system_id)}`",
+                    f"`{_markdown_cell(system.evaluation_scope)}`",
+                    _markdown_cell(system.query_count),
+                    _markdown_cell(system.candidate_count),
                     _markdown_cell(system.experiment_family),
                     f"`{_markdown_cell(system.promotion_status)}`",
                     f"`{_markdown_cell(system.evidence_status)}`",
@@ -1518,7 +1588,7 @@ def render_ledger_markdown(build: LedgerBuild) -> str:
             for system in systems
             if system.evaluation_scope == "dev_322x150"
             and system.promotion_status == "stable_control"
-            and "qrel_transferred_training" not in system.caveat_ids
+            and system.qrel_usage == "evaluation_only"
         ]
     )
     per_query_system_count = len(
@@ -1584,11 +1654,35 @@ def render_ledger_markdown(build: LedgerBuild) -> str:
             "",
         ]
     )
-    non_full_scope = [
-        system for system in systems if system.evaluation_scope != "dev_322x150"
-    ]
-    non_full_scope.sort(key=_system_sort_key)
-    lines.extend(_markdown_system_table(non_full_scope))
+    scope_sections = (
+        (
+            "restricted_12x20",
+            "Restricted 12x20 (`restricted_12x20`)",
+            "Qrel-assisted 12-query, 20-candidate diagnostics only.",
+        ),
+        (
+            "restricted_6",
+            "Restricted 6-query (`restricted_6`)",
+            "Six-query feasibility evidence only; candidate counts may be unknown.",
+        ),
+        (
+            "invalid_unscored",
+            "Invalid/unscored (`invalid_unscored`)",
+            "No valid numerical quality result is available for these systems.",
+        ),
+        (
+            "constructed_not_evaluated",
+            "Constructed, not evaluated (`constructed_not_evaluated`)",
+            "A representation or profile exists without a complete ranking evaluation.",
+        ),
+    )
+    for scope, heading, explanation in scope_sections:
+        scoped_systems = [
+            system for system in systems if system.evaluation_scope == scope
+        ]
+        scoped_systems.sort(key=_system_sort_key)
+        lines.extend(["", f"### {heading}", "", explanation, ""])
+        lines.extend(_markdown_system_table(scoped_systems))
 
     lines.extend(
         [

@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from dataclasses import dataclass
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,11 +16,122 @@ from numpy.typing import ArrayLike, NDArray
 from sklearn.cluster import KMeans
 
 from trec_mlm.artifact_io import sha256_file, write_pretty_json
+from trec_mlm.dense_query_knn import array_sha256, cosine_similarity_matrix
 from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.query_knn import load_development_data
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenInputContract:
+    """Exact frozen identity and layout expected by the real preflight."""
+
+    query_file_sha256: str
+    qrel_file_sha256: str
+    embedding_file_sha256: str
+    query_input_sha256: str
+    embedding_logical_sha256: str
+    similarity_logical_sha256: str
+    embedding_shape: tuple[int, int]
+    embedding_dtype: str
+
+
+FROZEN_INPUT_CONTRACT = FrozenInputContract(
+    query_file_sha256="862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
+    qrel_file_sha256="3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
+    embedding_file_sha256="d96ef7a1e45f40621c303c855673efa1de7c02d7dacd16cf0cee93c562a09559",
+    query_input_sha256="98faa04f979e428933c3d8e67dac43cf4dded112bd2c16969b3482a1d52886d9",
+    embedding_logical_sha256="6d197055eb62ab9809ae321b0f60072e20f17524861e6a989b49cd35c389055b",
+    similarity_logical_sha256="80c69a8dca29cd5e9a4de08dc4e44553fabf813428dd4956f7ecbeb2852968ed",
+    embedding_shape=(322, 768),
+    embedding_dtype="float32",
+)
+
+
+def query_input_sha256(
+    query_ids: Sequence[str], query_texts: Sequence[str]
+) -> str:
+    """Hash canonical MPNet query rows, including their exact order."""
+
+    digest = hashlib.sha256()
+    for query_id, query_text in zip(query_ids, query_texts, strict=True):
+        digest.update(query_id.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(query_text.encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _require_equal(observed: object, expected: object, *, name: str) -> None:
+    if observed != expected:
+        raise ValueError(f"{name} mismatch: expected {expected!r}, observed {observed!r}")
+
+
+def validate_frozen_inputs(
+    *,
+    query_path: Path,
+    qrel_path: Path,
+    embedding_path: Path,
+    metadata_path: Path,
+    query_ids: Sequence[str],
+    query_texts: Sequence[str],
+    embeddings: ArrayLike,
+    contract: FrozenInputContract = FROZEN_INPUT_CONTRACT,
+) -> dict[str, str]:
+    """Fail closed unless source bytes, row order, and arrays match the lock."""
+
+    array = np.asarray(embeddings)
+    similarity = cosine_similarity_matrix(array)
+    observed = {
+        "queries_sha256": sha256_file(query_path),
+        "qrels_sha256": sha256_file(qrel_path),
+        "embedding_file_sha256": sha256_file(embedding_path),
+        "query_input_sha256": query_input_sha256(query_ids, query_texts),
+        "embedding_logical_sha256": array_sha256(array),
+        "similarity_logical_sha256": array_sha256(similarity),
+        "encoder_metadata_sha256": sha256_file(metadata_path),
+    }
+    _require_equal(
+        observed["queries_sha256"], contract.query_file_sha256, name="query file SHA-256"
+    )
+    _require_equal(
+        observed["qrels_sha256"], contract.qrel_file_sha256, name="qrel file SHA-256"
+    )
+    _require_equal(
+        observed["embedding_file_sha256"],
+        contract.embedding_file_sha256,
+        name="embedding file SHA-256",
+    )
+    _require_equal(
+        observed["query_input_sha256"],
+        contract.query_input_sha256,
+        name="query input SHA-256",
+    )
+    _require_equal(
+        observed["embedding_logical_sha256"],
+        contract.embedding_logical_sha256,
+        name="embedding logical SHA-256",
+    )
+    _require_equal(
+        observed["similarity_logical_sha256"],
+        contract.similarity_logical_sha256,
+        name="similarity logical SHA-256",
+    )
+    _require_equal(array.shape, contract.embedding_shape, name="embedding shape")
+    _require_equal(str(array.dtype), contract.embedding_dtype, name="embedding dtype")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))["mpnet_base_v2"]
+    for field, expected in {
+        "embedding_dimension": contract.embedding_shape[1],
+        "embedding_sha256": contract.embedding_logical_sha256,
+        "input_sha256": contract.query_input_sha256,
+        "normalized": True,
+        "query_count": contract.embedding_shape[0],
+        "similarity_sha256": contract.similarity_logical_sha256,
+    }.items():
+        _require_equal(metadata.get(field), expected, name=f"encoder metadata {field}")
+    return observed
 
 
 def _finite_vector(values: ArrayLike, *, name: str) -> NDArray[np.float64]:
@@ -162,8 +275,12 @@ def run_preflight(
         len(candidates),
     ):
         raise ValueError("input arrays do not match query/candidate inventories")
-    if len(set(queries)) != len(queries) or len(set(candidates)) != len(candidates):
-        raise ValueError("query and candidate inventories must be unique")
+    if (
+        len(set(queries)) != len(queries)
+        or len(set(candidates)) != len(candidates)
+        or any(type(value) is not str or not value for value in queries + candidates)
+    ):
+        raise ValueError("query and candidate inventories must be nonempty and unique")
     if any(type(value) is not int or value < 2 or value >= len(queries) for value in counts):
         raise ValueError("cluster counts must be integers in [2, query_count)")
     if len(set(counts)) != len(counts):
@@ -258,7 +375,7 @@ def run_preflight(
             },
         }
 
-    return {
+    result: dict[str, object] = {
         "schema": "trec-mlm-issue13-matched-support-preflight-v1",
         "status": "exploratory_not_promotable",
         "question": "Does a hard query cluster beat equal-support nearest neighbors?",
@@ -284,67 +401,71 @@ def run_preflight(
             ],
             "integrity_checks_passed": True,
             "effectiveness_gates_passed": False,
+            "query_ndcg_win_tie_loss": {"wins": 66, "ties": 168, "losses": 88},
+            "conditional_component_diagnostics": {
+                "frozen_baseline": {
+                    "ndcg_at_10": 0.35985474409504775,
+                    "mrr": 0.40406330811168817,
+                    "zero_ndcg_count": 116,
+                },
+                "selected_local_only": {
+                    "ndcg_at_10": 0.35882195388143606,
+                    "mrr": 0.40225940880779676,
+                    "zero_ndcg_count": 117,
+                },
+                "selected_local_plus_prior": {
+                    "ndcg_at_10": 0.35804282537688814,
+                    "mrr": 0.4024982237307636,
+                    "zero_ndcg_count": 118,
+                },
+                "selected_domain_only": {
+                    "ndcg_at_10": 0.2808510162816271,
+                    "mrr": 0.31801218695694844,
+                    "zero_ndcg_count": 151,
+                },
+                "selected_local_plus_domain_no_prior": {
+                    "ndcg_at_10": 0.3486392536103764,
+                    "mrr": 0.38009715829891116,
+                    "zero_ndcg_count": 123,
+                },
+                "domain_effect_final_minus_local_plus_prior": -0.009361977510243338,
+                "prior_effect_final_minus_no_prior_blend": 0.00004159425626837854,
+            },
+            "selection": {
+                "local_weight_0_75": 322,
+                "local_weight_0_50": 0,
+                "neighbors_50": 287,
+                "neighbors_20": 35,
+                "clusters_20": 196,
+                "clusters_40": 126,
+                "prior_0": 249,
+                "prior_0_1": 73,
+            },
+            "outer_signal_granularity": {
+                "local_median_distinct_scores": 95.0,
+                "domain_median_distinct_scores": 8.0,
+                "domain_mean_zero_scores": 57.00310559006211,
+                "queries_with_domain_top_score_tie": 96,
+            },
+            "provenance": {
+                "decision_sha256": "cac8599227f170aa8123155b2690d7fc9510261042f54d6cc9e56eb77b2ed7a7",
+                "result_manifest_sha256": "4ae0da8f0f34967258a44d2f99d76f5e31ffa6c750fb2caa02f06f7a9d63c805",
+                "fit_semantic_sha256": "a48f7e1d6087a26cc372f479c284c310f7d6265a34fb6c3b233e05a9de85f313",
+            },
+            "reproduced_checks": {
+                "baseline": True,
+                "component_recomposition": True,
+                "final_ranks": True,
+                "result_validation": True,
+            },
         },
         "query_count": len(queries),
         "candidate_count": len(candidates),
         "fit_count": len(queries) * len(counts),
         "cluster_counts": output_by_count,
     }
-
-
-def _logical_array_sha256(array: NDArray[Any]) -> str:
-    contiguous = np.ascontiguousarray(array)
-    digest = hashlib.sha256()
-    digest.update(str(contiguous.shape).encode("ascii"))
-    digest.update(str(contiguous.dtype).encode("ascii"))
-    digest.update(contiguous.tobytes(order="C"))
-    return digest.hexdigest()
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--queries", type=Path, default=ROOT / "data/dev/llm_dev_data.tsv")
-    parser.add_argument("--qrels", type=Path, default=ROOT / "data/dev/llm_dev_qrels.txt")
-    parser.add_argument(
-        "--embeddings",
-        type=Path,
-        default=ROOT / "artifacts/frozen_dense_input/mpnet_base_v2.npy",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=ROOT / "reports/issue_13_matched_support_preflight.json",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = _parse_args()
-    data = load_development_data(args.queries, args.qrels)
-    query_ids = tuple(sorted(data.queries))
-    candidate_ids = tuple(sorted(data.models))
-    embeddings = np.load(args.embeddings, allow_pickle=False)
-    grades = np.asarray(
-        [
-            [data.qrels[query_id][candidate_id] for candidate_id in candidate_ids]
-            for query_id in query_ids
-        ],
-        dtype=np.float64,
-    )
-    result = run_preflight(
-        embeddings=embeddings,
-        grades=grades,
-        query_ids=query_ids,
-        candidate_ids=candidate_ids,
-    )
-    result["sources"] = {
-        "queries_sha256": sha256_file(args.queries),
-        "qrels_sha256": sha256_file(args.qrels),
-        "embedding_file_sha256": sha256_file(args.embeddings),
-        "embedding_logical_sha256": _logical_array_sha256(embeddings),
-    }
     result["method"] = {
-        "cluster_counts": [20, 40],
+        "cluster_counts": list(counts),
         "clusterer": {
             "algorithm": "lloyd",
             "init": "k-means++",
@@ -360,9 +481,63 @@ def main() -> None:
         "rule": "continue clustering only if any hard cluster beats its matched control on mean nDCG@10",
         "continue_clustering": any(
             row["paired_delta_cluster_minus_matched"]["mean_ndcg_at_10_delta"] > 0.0
-            for row in result["cluster_counts"].values()
+            for row in output_by_count.values()
         ),
     }
+    return result
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--queries", type=Path, default=ROOT / "data/dev/llm_dev_data.tsv")
+    parser.add_argument("--qrels", type=Path, default=ROOT / "data/dev/llm_dev_qrels.txt")
+    parser.add_argument(
+        "--embeddings",
+        type=Path,
+        default=ROOT / "artifacts/frozen_dense_input/mpnet_base_v2.npy",
+    )
+    parser.add_argument(
+        "--encoder-metadata",
+        type=Path,
+        default=ROOT / "artifacts/frozen_dense_input/encoder_metadata.json",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "reports/issue_13_matched_support_preflight.json",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
+    data = load_development_data(args.queries, args.qrels)
+    query_ids = tuple(sorted(data.queries))
+    candidate_ids = tuple(sorted(data.models))
+    embeddings = np.load(args.embeddings, allow_pickle=False)
+    sources = validate_frozen_inputs(
+        query_path=args.queries,
+        qrel_path=args.qrels,
+        embedding_path=args.embeddings,
+        metadata_path=args.encoder_metadata,
+        query_ids=query_ids,
+        query_texts=tuple(data.queries[query_id] for query_id in query_ids),
+        embeddings=embeddings,
+    )
+    grades = np.asarray(
+        [
+            [data.qrels[query_id][candidate_id] for candidate_id in candidate_ids]
+            for query_id in query_ids
+        ],
+        dtype=np.float64,
+    )
+    result = run_preflight(
+        embeddings=embeddings,
+        grades=grades,
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+    )
+    result["sources"] = sources
     write_pretty_json(args.output, result)
 
 

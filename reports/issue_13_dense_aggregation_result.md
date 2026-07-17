@@ -8,11 +8,12 @@ nearest-neighbor baseline at **0.3599** and **0.4041**. All integrity checks
 passed, but every effectiveness gate failed. The method is rejected and no
 confirmation run is authorized.
 
-An independent advisor review found no remaining implementation error. The
-conceptual gap is narrower: the experiment called one hard, uniform average
-over a small MPNet query cluster “domain evidence.” That estimate uses the same
-query embeddings and qrels as local retrieval, but discards target-to-support
-similarity and is much coarser.
+The validated scoring path reproduced the frozen baseline, component
+composition, and final ranks. No implementation error was identified that
+explains the loss. The conceptual gap is narrower: the experiment called one
+hard, uniform average over a small MPNet query cluster “domain evidence.” That
+estimate uses the same query embeddings and qrels as local retrieval, but
+discards target-to-support similarity and is much coarser.
 
 We then ran one focused exploratory test to separate semantic membership from
 support size. For every held-out query, a hard cluster mean was compared with
@@ -168,10 +169,12 @@ clusters. Yet only about 41% and 39% of cluster members, respectively, appeared
 in the target's equal-count nearest-neighbor set. Hard partitioning therefore
 chooses a materially different—and substantially worse—support neighborhood.
 
-Matched unweighted neighbors also remain below the frozen similarity-weighted
-MPNet baseline. The evidence supports both parts of the baseline design:
-nearest-neighbor membership is better than hard cluster membership, and
-similarity weighting with the established support is still stronger.
+Matched unweighted neighbors also remain below the frozen MPNet baseline, but
+that comparison changes both weighting and support size: the matched controls
+average 19.2/11.6 neighbors, while the frozen baseline selected 50 neighbors in
+320/322 folds. This preflight therefore establishes only that nearest-neighbor
+membership is better than hard cluster membership at equal support. It does
+not isolate the effect of similarity weighting.
 
 ### Interpretation limit
 
@@ -223,6 +226,8 @@ Review map:
 4. [Design](../docs/superpowers/specs/2026-07-16-issue13-result-and-matched-support-preflight-design.md)
 5. [Implementation plan](../docs/superpowers/plans/2026-07-16-issue13-result-and-matched-support-preflight.md)
 
-The aggregate receipt includes hashes of the frozen queries, qrels, and MPNet
-embedding input. It contains no query text, query IDs, qrel rows, rankings, or
-raw arrays.
+The aggregate receipt includes the authoritative result/component/selection
+facts cited above, provenance digests for the retired result artifacts, and
+validated hashes of the frozen queries, qrels, MPNet embedding rows, derived
+similarity matrix, and encoder metadata. It contains no query text, query IDs,
+qrel rows, rankings, or raw arrays.

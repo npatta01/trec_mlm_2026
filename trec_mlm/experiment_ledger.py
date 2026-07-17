@@ -5,9 +5,11 @@ from collections.abc import Mapping
 import csv
 from dataclasses import dataclass
 import hashlib
+from io import StringIO
 import json
 import math
 from pathlib import Path
+import tempfile
 from typing import Any
 
 from trec_mlm.query_knn import load_development_data
@@ -60,6 +62,19 @@ QREL_USAGE_STATUSES = frozenset(
         "restricted_selection_and_evaluation",
         "not_evaluated",
     }
+)
+
+LEDGER_OUTPUT_FILENAMES = (
+    "trec_2026_experiment_density_slices.tsv",
+    "trec_2026_experiment_ledger.json",
+    "trec_2026_experiment_ledger.md",
+    "trec_2026_experiment_per_query.tsv",
+    "trec_2026_experiment_systems.tsv",
+    "trec_2026_experiment_topic_slices.tsv",
+)
+TOPIC_SLICE_AGGREGATION_WARNING = (
+    "overlapping_relevant_candidate_slices_are_not_official_topics_and_"
+    "means_cannot_be_summed_or_averaged_as_disjoint"
 )
 
 
@@ -1013,3 +1028,751 @@ def build_ledger(
             "dense_alias_max_abs_delta": dense_alias_max_delta,
         },
     )
+
+
+def _system_sort_key(system: SystemRecord) -> tuple[str, str, str]:
+    return (
+        system.evaluation_scope,
+        system.experiment_family,
+        system.system_id,
+    )
+
+
+def _per_query_sort_key(row: PerQueryRecord) -> tuple[str, str]:
+    return row.system_id, row.query_id
+
+
+def _slice_sort_key(row: SliceRecord) -> tuple[str, str, str]:
+    return row.system_id, row.slice_type, row.slice_key
+
+
+def _slice_aggregation_warning(row: SliceRecord) -> str | None:
+    return TOPIC_SLICE_AGGREGATION_WARNING if row.overlapping else None
+
+
+def _validate_repository_relative_path(value: str) -> str:
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"ledger output path must be repository-relative: {value}")
+    return value
+
+
+def _recomputed_provenance_by_system(
+    build: LedgerBuild,
+) -> dict[str, dict[str, str]]:
+    grouped: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
+    for row in build.per_query:
+        grouped[row.system_id].add(
+            (
+                row.metric_provenance,
+                _validate_repository_relative_path(row.source_path),
+                row.source_sha256,
+            )
+        )
+
+    provenance: dict[str, dict[str, str]] = {}
+    for system_id, values in grouped.items():
+        if len(values) != 1:
+            raise ValueError(
+                f"per-query records for {system_id} have mixed metric provenance"
+            )
+        metric_provenance, source_path, source_sha256 = next(iter(values))
+        provenance[system_id] = {
+            "derivation": "macro_from_per_query",
+            "per_query_metric_provenance": metric_provenance,
+            "source_path": source_path,
+            "source_sha256": source_sha256,
+        }
+    return provenance
+
+
+def _system_json(
+    system: SystemRecord,
+    recomputed_provenance: dict[str, str] | None,
+) -> dict[str, object]:
+    source_path = _validate_repository_relative_path(system.source_path)
+    return {
+        "system_id": system.system_id,
+        "source_system_id": system.source_system_id,
+        "experiment_id": system.experiment_id,
+        "experiment_family": system.experiment_family,
+        "evaluation_scope": system.evaluation_scope,
+        "evidence_status": system.evidence_status,
+        "promotion_status": system.promotion_status,
+        "query_count": system.query_count,
+        "candidate_count": system.candidate_count,
+        "receipt_metrics": {
+            "ndcg_at_10": system.ndcg_at_10,
+            "mrr": system.mrr,
+            "zero_ndcg_queries": system.zero_ndcg_queries,
+        },
+        "recomputed_metrics": (
+            {
+                "ndcg_at_10": system.recomputed_ndcg_at_10,
+                "mrr": system.recomputed_mrr,
+                "zero_ndcg_queries": system.recomputed_zero_ndcg_queries,
+            }
+            if recomputed_provenance is not None
+            else None
+        ),
+        "aggregate_payload": json.loads(system.aggregate_payload_json),
+        "receipt_provenance": {
+            "source_path": source_path,
+            "source_sha256": system.source_sha256,
+        },
+        "recomputed_provenance": recomputed_provenance,
+        "per_query_available": system.per_query_available,
+        "ranking_coverage": system.ranking_coverage,
+        "artifact_state": system.artifact_state,
+        "blocker": system.blocker,
+        "caveat_ids": list(system.caveat_ids),
+    }
+
+
+def _per_query_json(row: PerQueryRecord) -> dict[str, object]:
+    return {
+        "system_id": row.system_id,
+        "source_system_id": row.source_system_id,
+        "experiment_family": row.experiment_family,
+        "evaluation_scope": row.evaluation_scope,
+        "query_id": row.query_id,
+        "query_text": row.query_text,
+        "ndcg_at_10": row.ndcg_at_10,
+        "reciprocal_rank": row.reciprocal_rank,
+        "grade_1_count": row.grade_1_count,
+        "grade_2_count": row.grade_2_count,
+        "positive_count": row.positive_count,
+        "relevant_candidates": [list(value) for value in row.relevant_candidates],
+        "density_bucket": row.density_bucket,
+        "zero_ndcg": row.zero_ndcg,
+        "metric_provenance": row.metric_provenance,
+        "source_path": _validate_repository_relative_path(row.source_path),
+        "source_sha256": row.source_sha256,
+    }
+
+
+def _slice_json(row: SliceRecord) -> dict[str, object]:
+    return {
+        "system_id": row.system_id,
+        "slice_type": row.slice_type,
+        "slice_key": row.slice_key,
+        "query_count": row.query_count,
+        "ndcg_at_10": row.ndcg_at_10,
+        "mrr": row.mrr,
+        "zero_ndcg_count": row.zero_ndcg_count,
+        "zero_ndcg_rate": row.zero_ndcg_rate,
+        "grade_1_memberships": row.grade_1_memberships,
+        "grade_2_memberships": row.grade_2_memberships,
+        "overlapping": row.overlapping,
+        "membership_policy": row.membership_policy,
+        "aggregation_warning": _slice_aggregation_warning(row),
+        "metric_source_path": _validate_repository_relative_path(
+            row.metric_source_path
+        ),
+        "metric_source_sha256": row.metric_source_sha256,
+        "query_source_path": _validate_repository_relative_path(row.query_source_path),
+        "query_source_sha256": row.query_source_sha256,
+        "qrel_source_path": _validate_repository_relative_path(row.qrel_source_path),
+        "qrel_source_sha256": row.qrel_source_sha256,
+    }
+
+
+def render_ledger_json(build: LedgerBuild) -> str:
+    """Render the complete deterministic machine-readable ledger."""
+
+    recomputed_provenance = _recomputed_provenance_by_system(build)
+    payload = {
+        "version": 1,
+        "systems": [
+            _system_json(system, recomputed_provenance.get(system.system_id))
+            for system in sorted(build.systems, key=_system_sort_key)
+        ],
+        "per_query": [
+            _per_query_json(row)
+            for row in sorted(build.per_query, key=_per_query_sort_key)
+        ],
+        "topic_slices": [
+            _slice_json(row) for row in sorted(build.topic_slices, key=_slice_sort_key)
+        ],
+        "density_slices": [
+            _slice_json(row)
+            for row in sorted(build.density_slices, key=_slice_sort_key)
+        ],
+        "sources": [
+            {
+                **source,
+                "path": _validate_repository_relative_path(source["path"]),
+            }
+            for source in sorted(build.sources, key=lambda row: row["source_id"])
+        ],
+        "caveats": sorted(build.caveats, key=lambda row: row["caveat_id"]),
+        "validation": build.validation,
+    }
+    return (
+        json.dumps(
+            payload,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    )
+
+
+def _tsv_value(value: object) -> object:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return value
+
+
+def _render_tsv(
+    fieldnames: tuple[str, ...],
+    rows: list[dict[str, object]],
+) -> str:
+    output = StringIO(newline="")
+    writer = csv.DictWriter(
+        output,
+        fieldnames=fieldnames,
+        delimiter="\t",
+        lineterminator="\n",
+        extrasaction="raise",
+    )
+    writer.writeheader()
+    writer.writerows(
+        {field: _tsv_value(row[field]) for field in fieldnames} for row in rows
+    )
+    return output.getvalue()
+
+
+def render_systems_tsv(build: LedgerBuild) -> str:
+    recomputed_provenance = _recomputed_provenance_by_system(build)
+    fieldnames = (
+        "system_id",
+        "source_system_id",
+        "experiment_id",
+        "experiment_family",
+        "evaluation_scope",
+        "evidence_status",
+        "promotion_status",
+        "query_count",
+        "candidate_count",
+        "ndcg_at_10",
+        "mrr",
+        "zero_ndcg_queries",
+        "aggregate_payload_json",
+        "recomputed_ndcg_at_10",
+        "recomputed_mrr",
+        "recomputed_zero_ndcg_queries",
+        "recomputed_metric_derivation",
+        "per_query_metric_provenance",
+        "recomputed_metric_source_path",
+        "recomputed_metric_source_sha256",
+        "per_query_available",
+        "ranking_coverage",
+        "artifact_state",
+        "source_path",
+        "source_sha256",
+        "blocker",
+        "caveat_ids",
+    )
+    rows: list[dict[str, object]] = []
+    for system in sorted(build.systems, key=_system_sort_key):
+        provenance = recomputed_provenance.get(system.system_id)
+        rows.append(
+            {
+                "system_id": system.system_id,
+                "source_system_id": system.source_system_id,
+                "experiment_id": system.experiment_id,
+                "experiment_family": system.experiment_family,
+                "evaluation_scope": system.evaluation_scope,
+                "evidence_status": system.evidence_status,
+                "promotion_status": system.promotion_status,
+                "query_count": system.query_count,
+                "candidate_count": system.candidate_count,
+                "ndcg_at_10": system.ndcg_at_10,
+                "mrr": system.mrr,
+                "zero_ndcg_queries": system.zero_ndcg_queries,
+                "aggregate_payload_json": system.aggregate_payload_json,
+                "recomputed_ndcg_at_10": system.recomputed_ndcg_at_10,
+                "recomputed_mrr": system.recomputed_mrr,
+                "recomputed_zero_ndcg_queries": (system.recomputed_zero_ndcg_queries),
+                "recomputed_metric_derivation": (
+                    provenance["derivation"] if provenance else None
+                ),
+                "per_query_metric_provenance": (
+                    provenance["per_query_metric_provenance"] if provenance else None
+                ),
+                "recomputed_metric_source_path": (
+                    provenance["source_path"] if provenance else None
+                ),
+                "recomputed_metric_source_sha256": (
+                    provenance["source_sha256"] if provenance else None
+                ),
+                "per_query_available": system.per_query_available,
+                "ranking_coverage": system.ranking_coverage,
+                "artifact_state": system.artifact_state,
+                "source_path": _validate_repository_relative_path(system.source_path),
+                "source_sha256": system.source_sha256,
+                "blocker": system.blocker,
+                "caveat_ids": json.dumps(
+                    system.caveat_ids,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+            }
+        )
+    return _render_tsv(fieldnames, rows)
+
+
+def render_per_query_tsv(build: LedgerBuild) -> str:
+    fieldnames = (
+        "system_id",
+        "source_system_id",
+        "experiment_family",
+        "evaluation_scope",
+        "query_id",
+        "query_text",
+        "ndcg_at_10",
+        "reciprocal_rank",
+        "grade_1_count",
+        "grade_2_count",
+        "positive_count",
+        "relevant_candidates",
+        "density_bucket",
+        "zero_ndcg",
+        "metric_provenance",
+        "source_path",
+        "source_sha256",
+    )
+    rows = [
+        {
+            "system_id": row.system_id,
+            "source_system_id": row.source_system_id,
+            "experiment_family": row.experiment_family,
+            "evaluation_scope": row.evaluation_scope,
+            "query_id": row.query_id,
+            "query_text": row.query_text,
+            "ndcg_at_10": row.ndcg_at_10,
+            "reciprocal_rank": row.reciprocal_rank,
+            "grade_1_count": row.grade_1_count,
+            "grade_2_count": row.grade_2_count,
+            "positive_count": row.positive_count,
+            "relevant_candidates": json.dumps(
+                row.relevant_candidates,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            "density_bucket": row.density_bucket,
+            "zero_ndcg": row.zero_ndcg,
+            "metric_provenance": row.metric_provenance,
+            "source_path": _validate_repository_relative_path(row.source_path),
+            "source_sha256": row.source_sha256,
+        }
+        for row in sorted(build.per_query, key=_per_query_sort_key)
+    ]
+    return _render_tsv(fieldnames, rows)
+
+
+def _render_slices_tsv(rows: tuple[SliceRecord, ...]) -> str:
+    fieldnames = (
+        "system_id",
+        "slice_type",
+        "slice_key",
+        "query_count",
+        "ndcg_at_10",
+        "mrr",
+        "zero_ndcg_count",
+        "zero_ndcg_rate",
+        "grade_1_memberships",
+        "grade_2_memberships",
+        "overlapping",
+        "membership_policy",
+        "aggregation_warning",
+        "metric_source_path",
+        "metric_source_sha256",
+        "query_source_path",
+        "query_source_sha256",
+        "qrel_source_path",
+        "qrel_source_sha256",
+    )
+    rendered_rows = [
+        {
+            "system_id": row.system_id,
+            "slice_type": row.slice_type,
+            "slice_key": row.slice_key,
+            "query_count": row.query_count,
+            "ndcg_at_10": row.ndcg_at_10,
+            "mrr": row.mrr,
+            "zero_ndcg_count": row.zero_ndcg_count,
+            "zero_ndcg_rate": row.zero_ndcg_rate,
+            "grade_1_memberships": row.grade_1_memberships,
+            "grade_2_memberships": row.grade_2_memberships,
+            "overlapping": row.overlapping,
+            "membership_policy": row.membership_policy,
+            "aggregation_warning": _slice_aggregation_warning(row),
+            "metric_source_path": _validate_repository_relative_path(
+                row.metric_source_path
+            ),
+            "metric_source_sha256": row.metric_source_sha256,
+            "query_source_path": _validate_repository_relative_path(
+                row.query_source_path
+            ),
+            "query_source_sha256": row.query_source_sha256,
+            "qrel_source_path": _validate_repository_relative_path(
+                row.qrel_source_path
+            ),
+            "qrel_source_sha256": row.qrel_source_sha256,
+        }
+        for row in sorted(rows, key=_slice_sort_key)
+    ]
+    return _render_tsv(fieldnames, rendered_rows)
+
+
+def render_topic_slices_tsv(build: LedgerBuild) -> str:
+    return _render_slices_tsv(build.topic_slices)
+
+
+def render_density_slices_tsv(build: LedgerBuild) -> str:
+    return _render_slices_tsv(build.density_slices)
+
+
+def _markdown_cell(value: object) -> str:
+    if value is None or value == "":
+        return "—"
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
+
+
+def _markdown_metric(value: float | None) -> str:
+    return "—" if value is None else f"{value:.4f}"
+
+
+def _headline_metric(system: SystemRecord | None) -> str:
+    if system is None:
+        return "none recorded"
+    return f"`{system.system_id}` (nDCG@10 {_markdown_metric(system.ndcg_at_10)})"
+
+
+def _best_system(
+    systems: list[SystemRecord],
+) -> SystemRecord | None:
+    scored = [system for system in systems if system.ndcg_at_10 is not None]
+    if not scored:
+        return None
+    return max(scored, key=lambda row: (row.ndcg_at_10 or 0.0, row.system_id))
+
+
+def _markdown_system_table(systems: list[SystemRecord]) -> list[str]:
+    lines = [
+        "| System | Family | Promotion | Evidence | nDCG@10 | MRR | Per-query | Artifact |",
+        "|---|---|---|---|---:|---:|---|---|",
+    ]
+    if not systems:
+        lines.append("| — | — | — | — | — | — | — | — |")
+        return lines
+    for system in systems:
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    f"`{_markdown_cell(system.system_id)}`",
+                    _markdown_cell(system.experiment_family),
+                    f"`{_markdown_cell(system.promotion_status)}`",
+                    f"`{_markdown_cell(system.evidence_status)}`",
+                    _markdown_metric(system.ndcg_at_10),
+                    _markdown_metric(system.mrr),
+                    "yes" if system.per_query_available else "no",
+                    f"`{_markdown_cell(system.artifact_state)}`",
+                )
+            )
+            + " |"
+        )
+    return lines
+
+
+def render_ledger_markdown(build: LedgerBuild) -> str:
+    """Render the concise scope-safe human ledger index."""
+
+    systems = list(build.systems)
+    promoted = _best_system(
+        [
+            system
+            for system in systems
+            if system.evaluation_scope == "dev_322x150"
+            and system.promotion_status == "promoted_development"
+        ]
+    )
+    diagnostic = _best_system(
+        [
+            system
+            for system in systems
+            if system.evaluation_scope == "dev_322x150"
+            and system.promotion_status == "diagnostic_only"
+        ]
+    )
+    qrel_free_control = _best_system(
+        [
+            system
+            for system in systems
+            if system.evaluation_scope == "dev_322x150"
+            and system.promotion_status == "stable_control"
+            and "qrel_transferred_training" not in system.caveat_ids
+        ]
+    )
+    per_query_system_count = len(
+        {system.system_id for system in systems if system.per_query_available}
+    )
+    aggregate_only_count = sum(
+        system.evidence_status == "aggregate_only" for system in systems
+    )
+    blocked = sorted(
+        (
+            system
+            for system in systems
+            if system.blocker is not None
+            or system.artifact_state
+            in {"local_artifact_missing", "construction_artifact_missing"}
+        ),
+        key=_system_sort_key,
+    )
+
+    lines = [
+        "# TREC 2026 experiment ledger",
+        "",
+        f"- Promoted development result: {_headline_metric(promoted)}.",
+        (
+            "- Best full-development diagnostic: "
+            f"{_headline_metric(diagnostic)} — `diagnostic_only`, not promoted."
+        ),
+        (f"- Best stable qrel-free control: {_headline_metric(qrel_free_control)}."),
+        f"- Systems with complete per-query evidence: {per_query_system_count}.",
+        f"- aggregate-only systems: {aggregate_only_count}.",
+        f"- Unresolved artifact blockers: {len(blocked)} systems.",
+        "- All effectiveness scores are development-only evidence; the hidden test is not available.",
+        "",
+        "## Full development results",
+        "",
+        (
+            "Only `dev_322x150` systems appear here. `diagnostic_only` and "
+            "`aggregate_only` remain visible in the table."
+        ),
+        "",
+    ]
+    full_scope = [
+        system for system in systems if system.evaluation_scope == "dev_322x150"
+    ]
+    full_scope.sort(
+        key=lambda row: (
+            row.ndcg_at_10 is None,
+            -(row.ndcg_at_10 or 0.0),
+            row.system_id,
+        )
+    )
+    lines.extend(_markdown_system_table(full_scope))
+
+    lines.extend(
+        [
+            "",
+            "## Restricted pilots and invalid/unscored work",
+            "",
+            (
+                "These rows are not numerically comparable with the complete "
+                "322-query, 150-candidate development evaluation."
+            ),
+            "",
+        ]
+    )
+    non_full_scope = [
+        system for system in systems if system.evaluation_scope != "dev_322x150"
+    ]
+    non_full_scope.sort(key=_system_sort_key)
+    lines.extend(_markdown_system_table(non_full_scope))
+
+    lines.extend(
+        [
+            "",
+            "## Per-query evidence coverage",
+            "",
+            "| System | Evidence | Per-query | Blocker / custody caveat |",
+            "|---|---|---|---|",
+        ]
+    )
+    for system in sorted(systems, key=_system_sort_key):
+        blocker = system.blocker
+        if blocker is None and system.artifact_state in {
+            "local_artifact_missing",
+            "construction_artifact_missing",
+        }:
+            blocker = f"Artifact custody: {system.artifact_state}."
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    f"`{_markdown_cell(system.system_id)}`",
+                    f"`{_markdown_cell(system.evidence_status)}`",
+                    "yes" if system.per_query_available else "no",
+                    _markdown_cell(blocker),
+                )
+            )
+            + " |"
+        )
+
+    density_supports = build.validation.get("density_supports", {})
+    density_text = (
+        ", ".join(f"`{key}`={value}" for key, value in sorted(density_supports.items()))
+        if isinstance(density_supports, Mapping)
+        else "see the density TSV"
+    )
+    lines.extend(
+        [
+            "",
+            "## Topic and density slices",
+            "",
+            (
+                "Relevant-candidate slices use `qrel_grade_gt_zero`. They overlap, "
+                "and candidate labels are analysis handles, not official topics. "
+                "Do not sum or average the slice means as if they were disjoint."
+            ),
+            "",
+            (
+                f"The topic TSV contains {len(build.topic_slices)} system/slice rows; "
+                f"the density TSV contains {len(build.density_slices)} rows."
+            ),
+            "",
+            f"Disjoint density support: {density_text}.",
+            "",
+            "- [Per-query scores](trec_2026_experiment_per_query.tsv)",
+            "- [Relevant-candidate slices](trec_2026_experiment_topic_slices.tsv)",
+            "- [Positive-density slices](trec_2026_experiment_density_slices.tsv)",
+            "",
+            "## Program-wide caveats",
+            "",
+        ]
+    )
+    program_caveats = sorted(
+        (caveat for caveat in build.caveats if caveat.get("scope") == "program"),
+        key=lambda row: row["caveat_id"],
+    )
+    for caveat in program_caveats:
+        lines.append(
+            f"- **`{_markdown_cell(caveat['caveat_id'])}`:** "
+            f"{_markdown_cell(caveat.get('summary'))}"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Source receipts",
+            "",
+            "| Source | Repository path | SHA-256 |",
+            "|---|---|---|",
+        ]
+    )
+    for source in sorted(build.sources, key=lambda row: row["source_id"]):
+        source_path = _validate_repository_relative_path(source["path"])
+        lines.append(
+            f"| `{_markdown_cell(source['source_id'])}` | "
+            f"[{_markdown_cell(source_path)}](../{source_path}) | "
+            f"`{_markdown_cell(source['sha256'])}` |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Rebuild command",
+            "",
+            "```bash",
+            "uv run python scripts/build_experiment_ledger.py",
+            "```",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _render_output_payloads(build: LedgerBuild) -> dict[str, str]:
+    payloads = {
+        "trec_2026_experiment_density_slices.tsv": render_density_slices_tsv(build),
+        "trec_2026_experiment_ledger.json": render_ledger_json(build),
+        "trec_2026_experiment_ledger.md": render_ledger_markdown(build),
+        "trec_2026_experiment_per_query.tsv": render_per_query_tsv(build),
+        "trec_2026_experiment_systems.tsv": render_systems_tsv(build),
+        "trec_2026_experiment_topic_slices.tsv": render_topic_slices_tsv(build),
+    }
+    if tuple(sorted(payloads)) != LEDGER_OUTPUT_FILENAMES:
+        raise AssertionError("ledger output filename contract drifted")
+    return payloads
+
+
+def write_ledger_outputs(
+    build: LedgerBuild,
+    output_dir: Path,
+) -> tuple[Path, ...]:
+    """Write all ledger views only after every renderer and stage write succeeds."""
+
+    payloads = _render_output_payloads(build)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    destinations = tuple(output_dir / name for name in LEDGER_OUTPUT_FILENAMES)
+
+    with tempfile.TemporaryDirectory(
+        prefix=".experiment-ledger-",
+        dir=output_dir.parent,
+    ) as temporary:
+        staging_dir = Path(temporary)
+        staged_paths: dict[str, Path] = {}
+        for name in LEDGER_OUTPUT_FILENAMES:
+            staged = staging_dir / name
+            staged.write_text(payloads[name], encoding="utf-8", newline="")
+            staged_paths[name] = staged
+
+        backup_dir = staging_dir / "previous"
+        backup_dir.mkdir()
+        installed: list[str] = []
+        try:
+            for name in LEDGER_OUTPUT_FILENAMES:
+                destination = output_dir / name
+                backup = backup_dir / name
+                if destination.exists():
+                    destination.replace(backup)
+                try:
+                    staged_paths[name].replace(destination)
+                except Exception:
+                    if backup.exists():
+                        backup.replace(destination)
+                    raise
+                installed.append(name)
+        except Exception:
+            for name in reversed(installed):
+                destination = output_dir / name
+                destination.unlink(missing_ok=True)
+                backup = backup_dir / name
+                if backup.exists():
+                    backup.replace(destination)
+            raise
+    return destinations
+
+
+def assert_outputs_current(build: LedgerBuild, output_dir: Path) -> None:
+    """Raise with every missing or stale output without changing the filesystem."""
+
+    payloads = _render_output_payloads(build)
+    output_dir = Path(output_dir)
+    missing: list[str] = []
+    stale: list[str] = []
+    for name in LEDGER_OUTPUT_FILENAMES:
+        path = output_dir / name
+        if not path.is_file():
+            missing.append(name)
+        elif path.read_text(encoding="utf-8") != payloads[name]:
+            stale.append(name)
+    if missing or stale:
+        details: list[str] = []
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        if stale:
+            details.append(f"stale: {', '.join(stale)}")
+        raise ValueError(
+            "experiment ledger outputs are not current; " + "; ".join(details)
+        )

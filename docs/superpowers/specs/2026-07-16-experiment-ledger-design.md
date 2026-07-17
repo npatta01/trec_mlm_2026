@@ -99,9 +99,11 @@ values so the builder can reject accidental drift.
 Each system record contains at least:
 
 - `system_id`: unique canonical identifier;
-- `source_system_id`: original identifier in the controlling receipt;
-- `aliases`: documented nonempty names used elsewhere; canonical system IDs and
-  aliases share one globally unique namespace;
+- `source_system_id`: nonempty original identifier in the controlling receipt;
+- `aliases`: a duplicate-free list of documented nonempty names used elsewhere;
+  canonical system IDs, source-system IDs, and aliases share one global
+  owner-aware namespace, where a token may repeat only within the same canonical
+  system record;
 - `experiment_id` and `experiment_family`;
 - `method_summary`;
 - `evaluation_scope`;
@@ -322,8 +324,10 @@ missing per-query custody.
 The builder fails without writing partial outputs when any of these conditions
 is violated:
 
-- duplicate experiment ID, canonical system ID, alias, or any canonical/alias
-  namespace collision regardless of declaration order;
+- duplicate experiment ID, canonical system ID, alias within one alias list, or
+  any cross-system ownership collision among canonical IDs, source-system IDs,
+  and aliases regardless of declaration order; a source-system ID may equal its
+  own canonical ID;
 - unknown evaluation, evidence, promotion, artifact, or qrel-usage status;
 - missing controlling source or changed source digest not accepted by the
   reviewed registry;

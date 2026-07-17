@@ -294,9 +294,16 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
 
     experiment_ids: set[str] = set()
     system_ids: set[str] = set()
-    identity_namespace: set[str] = set()
+    identity_owners: dict[str, str] = {}
     referenced_sources: set[str] = set()
     promoted_systems: list[Mapping[str, Any]] = []
+
+    def claim_identity(identity: str, owner: str) -> None:
+        existing_owner = identity_owners.get(identity)
+        if existing_owner is not None and existing_owner != owner:
+            raise ValueError(f"duplicate identity or alias: {identity}")
+        identity_owners[identity] = owner
+
     for raw_experiment in experiments:
         experiment = _require_mapping(raw_experiment, "experiment")
         experiment_id = experiment.get("experiment_id")
@@ -317,10 +324,14 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
                 raise ValueError(f"invalid system_id: {system_id}")
             if system_id in system_ids:
                 raise ValueError(f"duplicate system_id: {system_id}")
-            if system_id in identity_namespace:
-                raise ValueError(f"duplicate identity or alias: {system_id}")
             system_ids.add(system_id)
-            identity_namespace.add(system_id)
+            claim_identity(system_id, system_id)
+            source_system_id = system.get("source_system_id")
+            if not isinstance(source_system_id, str) or not source_system_id:
+                raise ValueError(
+                    f"source_system_id must be a nonempty string for {system_id}"
+                )
+            claim_identity(source_system_id, system_id)
             aliases = system.get("aliases")
             if not isinstance(aliases, list) or not all(
                 isinstance(alias, str) and bool(alias) for alias in aliases
@@ -328,10 +339,12 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
                 raise ValueError(
                     f"aliases must be a list of nonempty strings for {system_id}"
                 )
+            seen_aliases: set[str] = set()
             for alias in aliases:
-                if alias in identity_namespace:
+                if alias in seen_aliases:
                     raise ValueError(f"duplicate identity or alias: {alias}")
-                identity_namespace.add(alias)
+                seen_aliases.add(alias)
+                claim_identity(alias, system_id)
             if system.get("evaluation_scope") not in EVALUATION_SCOPES:
                 raise ValueError(f"unknown evaluation_scope for {system_id}")
             if system.get("evidence_status") not in EVIDENCE_STATUSES:

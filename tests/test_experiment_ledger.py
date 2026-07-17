@@ -376,6 +376,63 @@ def test_validate_registry_rejects_canonical_id_equal_to_earlier_alias(
         validate_registry(registry, tmp_path)
 
 
+def test_validate_registry_allows_source_id_equal_to_own_canonical_id(
+    tmp_path: Path,
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][0]["source_system_id"] = (  # type: ignore[index]
+        "example_system"
+    )
+    write_declared_source(tmp_path, registry)
+
+    validate_registry(registry, tmp_path)
+
+
+def test_validate_registry_rejects_duplicate_source_system_id(
+    tmp_path: Path,
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][1]["source_system_id"] = (  # type: ignore[index]
+        "example_source"
+    )
+    write_declared_source(tmp_path, registry)
+
+    with pytest.raises(ValueError, match="duplicate identity or alias: example_source"):
+        validate_registry(registry, tmp_path)
+
+
+@pytest.mark.parametrize("collision_kind", ["canonical", "alias"])
+def test_validate_registry_rejects_source_id_colliding_other_identity(
+    tmp_path: Path, collision_kind: str
+) -> None:
+    registry = minimal_registry()
+    collision = "example_system"
+    if collision_kind == "alias":
+        collision = "example_alias"
+        registry["experiments"][0]["systems"][0]["aliases"] = [collision]  # type: ignore[index]
+    registry["experiments"][0]["systems"][1]["source_system_id"] = collision  # type: ignore[index]
+    write_declared_source(tmp_path, registry)
+
+    with pytest.raises(ValueError, match=f"duplicate identity or alias: {collision}"):
+        validate_registry(registry, tmp_path)
+
+
+@pytest.mark.parametrize("collision_kind", ["canonical", "alias"])
+def test_validate_registry_rejects_later_identity_colliding_earlier_source_id(
+    tmp_path: Path, collision_kind: str
+) -> None:
+    registry = minimal_registry()
+    collision = "example_primary"
+    if collision_kind == "alias":
+        collision = "example_alias"
+        registry["experiments"][0]["systems"][1]["aliases"] = [collision]  # type: ignore[index]
+    registry["experiments"][0]["systems"][0]["source_system_id"] = collision  # type: ignore[index]
+    write_declared_source(tmp_path, registry)
+
+    with pytest.raises(ValueError, match=f"duplicate identity or alias: {collision}"):
+        validate_registry(registry, tmp_path)
+
+
 @pytest.mark.parametrize(
     ("field", "bad_value", "message"),
     [
@@ -594,6 +651,33 @@ def test_validate_registry_rejects_promoted_alias_namespace_bypass() -> None:
     with pytest.raises(
         ValueError, match="duplicate identity or alias: dense_profile_equal"
     ):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_promoted_source_identity_namespace_bypass() -> None:
+    registry, _primary, decoy = _registry_with_promoted_dense_grid_decoy()
+    a1_system = next(
+        system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+        if system["system_id"] == "a1_top2_k10"
+    )
+    decoy.update(
+        {
+            "source_system_id": "a1_top2_k10",
+            "aggregate_source": deepcopy(a1_system["aggregate_source"]),
+            "per_query_source": deepcopy(a1_system["per_query_source"]),
+            "ranking_coverage": "per_query_metrics_only",
+            "per_query_blocker": None,
+            "caveat_ids": [
+                caveat_id
+                for caveat_id in decoy["caveat_ids"]
+                if caveat_id != "aggregate_per_query_missing"
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="duplicate identity or alias: a1_top2_k10"):
         validate_registry(registry, Path("."))
 
 

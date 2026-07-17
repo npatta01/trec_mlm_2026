@@ -262,6 +262,29 @@ def run_preflight(
         "schema": "trec-mlm-issue13-matched-support-preflight-v1",
         "status": "exploratory_not_promotable",
         "question": "Does a hard query cluster beat equal-support nearest neighbors?",
+        "completed_issue13_result": {
+            "outcome": "reject",
+            "baseline": {
+                "ndcg_at_10": 0.35985474409504775,
+                "mrr": 0.40406330811168817,
+                "zero_ndcg_count": 116,
+            },
+            "candidate": {
+                "ndcg_at_10": 0.34868084786664477,
+                "mrr": 0.380158644416514,
+                "zero_ndcg_count": 123,
+            },
+            "candidate_minus_baseline": {
+                "ndcg_at_10": -0.011173896228364245,
+                "mrr": -0.023904663695149868,
+            },
+            "ndcg_at_10_delta_95pct_ci": [
+                -0.02543034280251127,
+                0.002637356577463938,
+            ],
+            "integrity_checks_passed": True,
+            "effectiveness_gates_passed": False,
+        },
         "query_count": len(queries),
         "candidate_count": len(candidates),
         "fit_count": len(queries) * len(counts),

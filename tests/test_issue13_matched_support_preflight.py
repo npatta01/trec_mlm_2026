@@ -98,6 +98,10 @@ def test_run_preflight_emits_only_aggregate_exploratory_results() -> None:
     assert result["query_count"] == 6
     assert result["candidate_count"] == 3
     assert result["fit_count"] == 6
+    assert result["completed_issue13_result"]["outcome"] == "reject"
+    assert result["completed_issue13_result"]["candidate"]["ndcg_at_10"] == pytest.approx(
+        0.34868084786664477
+    )
     comparison = result["cluster_counts"]["2"]
     assert set(comparison) == {
         "cluster_mean",

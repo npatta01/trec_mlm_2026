@@ -144,6 +144,29 @@
       }
     }
   },
+  "completed_issue13_result": {
+    "baseline": {
+      "mrr": 0.40406330811168817,
+      "ndcg_at_10": 0.35985474409504775,
+      "zero_ndcg_count": 116
+    },
+    "candidate": {
+      "mrr": 0.380158644416514,
+      "ndcg_at_10": 0.34868084786664477,
+      "zero_ndcg_count": 123
+    },
+    "candidate_minus_baseline": {
+      "mrr": -0.023904663695149868,
+      "ndcg_at_10": -0.011173896228364245
+    },
+    "effectiveness_gates_passed": false,
+    "integrity_checks_passed": true,
+    "ndcg_at_10_delta_95pct_ci": [
+      -0.02543034280251127,
+      0.002637356577463938
+    ],
+    "outcome": "reject"
+  },
   "decision": {
     "continue_clustering": false,
     "rule": "continue clustering only if any hard cluster beats its matched control on mean nDCG@10"

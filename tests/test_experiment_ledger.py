@@ -250,7 +250,7 @@ def test_reviewed_registry_has_required_families_and_systems() -> None:
         "x1_multires_top2_dense_equal",
         "local_domain_prior",
     } <= system_ids
-    assert len(system_ids) == 90
+    assert len(system_ids) == 92
 
     assert (
         len(experiments["dense_query_knn"]["grid_contracts"][0]["allowed_keys"]) == 28
@@ -265,6 +265,57 @@ def test_reviewed_registry_has_required_families_and_systems() -> None:
     assert experiments["response_volume_normalization"]["metadata"][
         "tested_aggregation_order"
     ] == ["best_hit", "top3_sum", "top10_sum", "top3_mean", "top10_mean", "mean_all"]
+
+
+def test_reviewed_registry_preserves_six_query_feasibility_history() -> None:
+    registry = load_registry(Path("."), Path("experiments/ledger.json"))
+    experiment = next(
+        row
+        for row in registry["experiments"]
+        if row["experiment_family"] == "label_ranker_pilots"
+    )
+    systems = {row["system_id"]: row for row in experiment["systems"]}
+
+    pointwise = systems["pointwise_qwen_feasibility_6"]
+    generated = systems["generated_listwise_feasibility_6"]
+    assert pointwise["evaluation_scope"] == "restricted_6"
+    assert generated["evaluation_scope"] == "restricted_6"
+    assert pointwise["evidence_status"] == "restricted_diagnostic"
+    assert generated["evidence_status"] == "restricted_diagnostic"
+    assert pointwise["promotion_status"] == "restricted_pilot"
+    assert generated["promotion_status"] == "diagnostic_only"
+    assert pointwise["query_count"] == generated["query_count"] == 6
+    assert pointwise["candidate_count"] is None
+    assert generated["candidate_count"] is None
+    assert pointwise["aggregate_source"]["row"] == "Six-question LLM pilot"
+    assert generated["aggregate_source"]["row"] == "Six-question LLM pilot"
+    assert pointwise["aggregate_source"]["metrics"]["relevant_in_top_3"] == "5/6"
+    assert generated["aggregate_source"]["metrics"]["relevant_in_top_3"] == "3/6"
+    assert pointwise["per_query_blocker"].strip()
+    assert generated["per_query_blocker"].strip()
+    assert "six_query_signal_did_not_scale" in pointwise["caveat_ids"]
+    assert "six_query_signal_did_not_scale" in generated["caveat_ids"]
+
+    later_pointwise = systems["pointwise_qwen"]
+    assert later_pointwise["evaluation_scope"] == "restricted_12x20"
+    assert later_pointwise["aggregate_source"]["metrics"]["relevant_in_top_3"] == "5/12"
+    assert "six_query_signal_did_not_scale" in later_pointwise["caveat_ids"]
+
+
+def test_reviewed_registry_does_not_infer_grouprank_scope_counts() -> None:
+    registry = load_registry(Path("."), Path("experiments/ledger.json"))
+    grouprank = next(
+        system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+        if system["system_id"] == "grouprank_7b"
+    )
+
+    assert grouprank["query_count"] is None
+    assert grouprank["candidate_count"] is None
+    assert grouprank["qrel_usage"] == "not_evaluated"
+    assert "restricted_not_comparable" not in grouprank["caveat_ids"]
+    assert "restricted_qrel_assisted" not in grouprank["caveat_ids"]
 
 
 def test_frozen_vocabularies_match_approved_design() -> None:

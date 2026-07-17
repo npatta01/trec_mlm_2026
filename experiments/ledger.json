@@ -127,6 +127,10 @@
       "scope": "system",
       "summary": "No quality result exists because the tested output failed the required complete machine-valid ranking contract."
     },
+    "six_query_signal_did_not_scale": {
+      "scope": "family",
+      "summary": "The six-query feasibility signals did not justify continuation: pointwise weakened on the later 12x20 diagnostic and generic listwise was later unscorable."
+    },
     "response_inventory_dependence": {
       "scope": "family",
       "summary": "Response-based scores depend on the frozen response inventory and show material association with response volume."
@@ -1515,6 +1519,84 @@
       "experiment_family": "label_ranker_pilots",
       "systems": [
         {
+          "system_id": "pointwise_qwen_feasibility_6",
+          "source_system_id": "Six-question LLM pilot / Pointwise",
+          "aliases": [],
+          "method_summary": "Six-query pointwise Qwen feasibility pilot; its early top-three signal weakened in the later 12-query diagnostic.",
+          "evaluation_scope": "restricted_6",
+          "evidence_status": "restricted_diagnostic",
+          "promotion_status": "restricted_pilot",
+          "query_count": 6,
+          "candidate_count": null,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "What we tried",
+            "table": "Step | Scope | Outcome | What it established",
+            "row": "Six-question LLM pilot",
+            "metrics": {
+              "outcome": "Pointwise 5/6 top-three",
+              "relevant_in_top_3": "5/6"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked study reports only the 5/6 top-three feasibility count; candidate-set size and complete per-query metrics are not preserved.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "restricted_selection_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "six_query_signal_did_not_scale"
+          ]
+        },
+        {
+          "system_id": "generated_listwise_feasibility_6",
+          "source_system_id": "Six-question LLM pilot / generated listwise",
+          "aliases": [],
+          "method_summary": "Six-query generated-listwise feasibility pilot with an unreliable generic output format.",
+          "evaluation_scope": "restricted_6",
+          "evidence_status": "restricted_diagnostic",
+          "promotion_status": "diagnostic_only",
+          "query_count": 6,
+          "candidate_count": null,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "What we tried",
+            "table": "Step | Scope | Outcome | What it established",
+            "row": "Six-question LLM pilot",
+            "metrics": {
+              "outcome": "Generated listwise 3/6 top-three",
+              "relevant_in_top_3": "3/6"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked study reports only the 3/6 top-three feasibility count; candidate-set size and complete per-query metrics are not preserved.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "restricted_selection_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "six_query_signal_did_not_scale"
+          ]
+        },
+        {
           "system_id": "pointwise_qwen",
           "source_system_id": "Pointwise Qwen",
           "aliases": [],
@@ -1550,7 +1632,8 @@
             "restricted_qrel_assisted",
             "missing_raw_artifacts",
             "aggregate_per_query_missing",
-            "external_encoder_taxonomy"
+            "external_encoder_taxonomy",
+            "six_query_signal_did_not_scale"
           ]
         },
         {
@@ -1587,7 +1670,8 @@
             "restricted_qrel_assisted",
             "missing_raw_artifacts",
             "external_encoder_taxonomy",
-            "invalid_output_contract"
+            "invalid_output_contract",
+            "six_query_signal_did_not_scale"
           ]
         },
         {
@@ -1598,8 +1682,8 @@
           "evaluation_scope": "invalid_unscored",
           "evidence_status": "invalid",
           "promotion_status": "stopped_unscored",
-          "query_count": 12,
-          "candidate_count": 20,
+          "query_count": null,
+          "candidate_count": null,
           "aggregate_source": {
             "kind": "literal_snapshot",
             "source_id": "expert_label_ranking_study",
@@ -1620,8 +1704,6 @@
           "caveat_ids": [
             "development_only",
             "adaptive_program_overfit",
-            "restricted_not_comparable",
-            "restricted_qrel_assisted",
             "missing_raw_artifacts",
             "external_encoder_taxonomy",
             "invalid_output_contract"

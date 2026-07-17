@@ -4,7 +4,7 @@
 - Best full-development diagnostic: `dense_profile_profile_heavy` (nDCG@10 0.4376) — `diagnostic_only`, not promoted.
 - Best stable qrel-free control: `profile_only` (nDCG@10 0.4149).
 - Systems with complete per-query evidence: 11.
-- aggregate-only systems: 69.
+- aggregate-only systems: 73.
 - Unresolved artifact blockers: 43 systems.
 - Artifact blocker count includes only `local_artifact_missing` and `construction_artifact_missing` states.
 - All effectiveness scores are development-only evidence; the hidden test is not available.
@@ -32,12 +32,14 @@ Only `dev_322x150` systems appear here. `diagnostic_only` and `aggregate_only` r
 | `mpnet_base_v2@20` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3551 | 0.3915 | no | `tracked_receipt_only` |
 | `local_domain_prior` | `dev_322x150` | 322 | 150 | query_cluster_aggregation | `valid_negative` | `aggregate_only` | 0.3487 | 0.3802 | no | `tracked_report_snapshot` |
 | `qwen4b_contextual` | `dev_322x150` | 322 | 150 | candidate_label_matching | `diagnostic_only` | `aggregate_only` | 0.3420 | 0.3902 | no | `tracked_report_snapshot` |
+| `matched_neighbor_k20_preflight` | `dev_322x150` | 322 | 150 | query_cluster_aggregation | `diagnostic_only` | `aggregate_only` | 0.3395 | 0.3823 | no | `tracked_receipt_only` |
 | `mpnet_base_v2@100` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3368 | 0.3805 | no | `tracked_receipt_only` |
 | `contextual_e5` | `dev_322x150` | 322 | 150 | candidate_label_matching | `stable_control` | `stored_per_query` | 0.3347 | 0.3866 | yes | `tracked_complete` |
 | `minilm_l6@20` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3330 | 0.3734 | no | `tracked_receipt_only` |
 | `minilm_l6@50` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3306 | 0.3685 | no | `tracked_receipt_only` |
 | `mpnet_base_v2@10` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3292 | 0.3718 | no | `tracked_receipt_only` |
 | `minilm_l6@100` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3287 | 0.3764 | no | `tracked_receipt_only` |
+| `matched_neighbor_k40_preflight` | `dev_322x150` | 322 | 150 | query_cluster_aggregation | `diagnostic_only` | `aggregate_only` | 0.3282 | 0.3688 | no | `tracked_receipt_only` |
 | `qwen8b_contextual` | `dev_322x150` | 322 | 150 | candidate_label_matching | `diagnostic_only` | `aggregate_only` | 0.3281 | 0.3796 | no | `tracked_report_snapshot` |
 | `minilm_l6@10` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.3254 | 0.3666 | no | `tracked_receipt_only` |
 | `mpnet_raw_label` | `dev_322x150` | 322 | 150 | candidate_label_matching | `stable_control` | `aggregate_only` | 0.3195 | 0.3674 | no | `tracked_report_snapshot` |
@@ -55,8 +57,10 @@ Only `dev_322x150` systems appear here. `diagnostic_only` and `aggregate_only` r
 | `bm25_rm3__response_only__aggressive__d500` | `dev_322x150` | 322 | 150 | response_retrieval | `diagnostic_only` | `aggregate_only` | 0.2913 | 0.3300 | no | `local_artifact_missing` |
 | `e5_small_v2@20` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.2910 | 0.3401 | no | `tracked_receipt_only` |
 | `bm25_rm3__query_response__aggressive__d500` | `dev_322x150` | 322 | 150 | response_retrieval | `diagnostic_only` | `aggregate_only` | 0.2909 | 0.3316 | no | `local_artifact_missing` |
+| `hard_cluster_k20_preflight` | `dev_322x150` | 322 | 150 | query_cluster_aggregation | `diagnostic_only` | `aggregate_only` | 0.2902 | 0.3243 | no | `tracked_receipt_only` |
 | `response_top10sum_nested` | `dev_322x150` | 322 | 150 | response_volume_normalization | `valid_negative` | `aggregate_only` | 0.2892 | 0.3283 | no | `local_artifact_missing` |
 | `bm25_rm3__query_response__aggressive__d1000` | `dev_322x150` | 322 | 150 | response_retrieval | `diagnostic_only` | `aggregate_only` | 0.2878 | 0.3321 | no | `local_artifact_missing` |
+| `hard_cluster_k40_preflight` | `dev_322x150` | 322 | 150 | query_cluster_aggregation | `diagnostic_only` | `aggregate_only` | 0.2866 | 0.3351 | no | `tracked_receipt_only` |
 | `bm25_rm3__response_only__basic__d1000` | `dev_322x150` | 322 | 150 | response_retrieval | `diagnostic_only` | `aggregate_only` | 0.2865 | 0.3250 | no | `local_artifact_missing` |
 | `bm25_rm3__response_only__aggressive__d1000` | `dev_322x150` | 322 | 150 | response_retrieval | `diagnostic_only` | `aggregate_only` | 0.2841 | 0.3199 | no | `local_artifact_missing` |
 | `bm25_rm3__query_response__basic__d1000` | `dev_322x150` | 322 | 150 | response_retrieval | `diagnostic_only` | `aggregate_only` | 0.2835 | 0.3317 | no | `local_artifact_missing` |
@@ -127,6 +131,8 @@ No valid numerical quality result is available for these systems.
 
 | System | Scope | Queries | Candidates | Family | Promotion | Evidence | nDCG@10 | MRR | Per-query | Artifact |
 |---|---|---:|---:|---|---|---|---:|---:|---|---|
+| `e5_initial_terminal_token_invalid` | `invalid_unscored` | 322 | 150 | candidate_label_matching | `invalid` | `invalid` | — | — | no | `tracked_report_snapshot` |
+| `qwen8b_initial_terminal_token_invalid` | `invalid_unscored` | 322 | 150 | candidate_label_matching | `invalid` | `invalid` | — | — | no | `tracked_report_snapshot` |
 | `generated_listwise` | `invalid_unscored` | 12 | 20 | label_ranker_pilots | `stopped_unscored` | `invalid` | — | — | no | `tracked_report_snapshot` |
 | `grouprank_7b` | `invalid_unscored` | — | — | label_ranker_pilots | `stopped_unscored` | `invalid` | — | — | no | `tracked_report_snapshot` |
 
@@ -192,7 +198,11 @@ A representation or profile exists without a complete ranking evaluation.
 | `r1_multires_max_dense_equal` | `stored_per_query` | yes | Artifact custody: construction_artifact_missing. |
 | `x1_multires_top2` | `stored_per_query` | yes | Artifact custody: construction_artifact_missing. |
 | `x1_multires_top2_dense_equal` | `stored_per_query` | yes | Artifact custody: construction_artifact_missing. |
+| `hard_cluster_k20_preflight` | `aggregate_only` | no | The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector. |
+| `hard_cluster_k40_preflight` | `aggregate_only` | no | The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector. |
 | `local_domain_prior` | `aggregate_only` | no | The tracked report and aggregate receipt omit query IDs, rankings, raw arrays, and per-query metrics; rejected experiment artifacts were intentionally not retained. |
+| `matched_neighbor_k20_preflight` | `aggregate_only` | no | The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector. |
+| `matched_neighbor_k40_preflight` | `aggregate_only` | no | The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector. |
 | `global_prior` | `aggregate_only` | no | The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout. |
 | `tfidf_fixed_k10` | `aggregate_only` | no | The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout. |
 | `bm25__query_response__aggressive__d100` | `aggregate_only` | no | The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent. |
@@ -229,6 +239,8 @@ A representation or profile exists without a complete ranking evaluation.
 | `profile_only` | `stored_per_query` | yes | Artifact custody: local_artifact_missing. |
 | `source_alignment_nested` | `aggregate_only` | no | The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout. |
 | `target_response_same_k` | `aggregate_only` | no | The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout. |
+| `e5_initial_terminal_token_invalid` | `invalid` | no | The reviewed study retains only the shared invalid-attempt history row; the superseded low scores and per-query outputs are intentionally not quality evidence. |
+| `qwen8b_initial_terminal_token_invalid` | `invalid` | no | The reviewed study retains only the shared invalid-attempt history row; the superseded low scores and per-query outputs are intentionally not quality evidence. |
 | `generated_listwise` | `invalid` | no | No valid complete permutation or quality result exists. |
 | `grouprank_7b` | `invalid` | no | Neither tested protocol produced a machine-valid ranking, so no quality vector exists. |
 | `firstmistral_listwise` | `restricted_diagnostic` | no | The tracked report contains restricted aggregates but no complete per-query nDCG and reciprocal-rank vector. |
@@ -273,6 +285,7 @@ Disjoint density support: `6_to_20_positives`=30, `at_most_5_positives`=248, `mo
 | `discovery_behavior_profiles` | [reports/trec_2026_llm_profiles.json](../reports/trec_2026_llm_profiles.json) | `86d592388514caabbbfeac8fe756c9a8a64526e065c75859a99f055ae1bc5224` |
 | `expert_label_ranking_study` | [docs/results/2026-07-13-expert-label-ranking-study.md](../docs/results/2026-07-13-expert-label-ranking-study.md) | `9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d` |
 | `issue13_dense_aggregation_result` | [reports/issue_13_dense_aggregation_result.md](../reports/issue_13_dense_aggregation_result.md) | `45a0cfd6c227f86c8f2479708a68f003d87f37b30c910bb78363410e94b7c15b` |
+| `issue13_matched_support_preflight` | [reports/issue_13_matched_support_preflight.json](../reports/issue_13_matched_support_preflight.json) | `31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f` |
 | `issue18_artifact_custody` | [reports/trec_2026_issue18_pr17head_artifact_custody.json](../reports/trec_2026_issue18_pr17head_artifact_custody.json) | `1157a80231f7ec17718800d47cb56644014cf90550d9c888ad1f6a943d2ec6bd` |
 | `issue18_evaluation` | [reports/trec_2026_issue18_pr17head_evaluation.json](../reports/trec_2026_issue18_pr17head_evaluation.json) | `60a45dc4317bd2b886b9b2fb993e912bbd2edbe69acca75e5bbcb53fd293e4d2` |
 | `issue18_results` | [reports/trec_2026_issue18_pr17head_results.json](../reports/trec_2026_issue18_pr17head_results.json) | `f64d15bbb93d771abef0b9e51e9617ecc4f41439422767faf5839862f553b1a0` |

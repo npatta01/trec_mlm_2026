@@ -75,6 +75,7 @@ The initial controlling sources are:
 - `reports/trec_2026_issue18_pr17head_evaluation.json`;
 - `reports/trec_2026_issue18_pr17head_results.json`;
 - `reports/issue_13_dense_aggregation_result.md`;
+- `reports/issue_13_matched_support_preflight.json`;
 - `reports/trec_2026_issue18_pr17head_artifact_custody.json`;
 - `data/dev/llm_dev_data.tsv`; and
 - `data/dev/llm_dev_qrels.txt`.
@@ -292,14 +293,17 @@ The generated ledger must display these caveats prominently:
    nested evaluation does not eliminate adaptive research overfitting;
 3. restricted pilots are not comparable with 322x150 evaluations;
 4. relevant-candidate slices overlap and are not official semantic topics;
-5. several response, label-sweep, and source-query raw/per-query artifacts are
-   absent from the current checkout;
-6. the ignored issue-18 construction tree is not durably restorable from the
+5. two initial Qwen8B/E5 embedding attempts are invalid and superseded because
+   their checkpoint-specific prompt and asymmetric terminal-token contracts
+   were omitted; no numeric quality claim is retained for them;
+6. several response, label-sweep, query-cluster, and source-query raw/per-query
+   artifacts are absent from the current checkout;
+7. the ignored issue-18 construction tree is not durably restorable from the
    repository;
-7. pretrained encoders may make a run external under the track taxonomy;
-8. response attempt, confidence, and profile similarity do not establish factual
+8. pretrained encoders may make a run external under the track taxonomy;
+9. response attempt, confidence, and profile similarity do not establish factual
    correctness; and
-9. confidence intervals from different experiment families may use different
+10. confidence intervals from different experiment families may use different
    frozen bootstrap implementations and should not be compared digit-for-digit.
 
 Each system also carries method-specific caveats such as response-inventory
@@ -324,7 +328,9 @@ is violated:
 - relevant-candidate support disagreeing with qrels;
 - an aggregate-only system lacking a concrete blocker;
 - a restricted result appearing in the full-development leaderboard;
-- a diagnostic appearing as the promoted primary; or
+- anything other than exactly one promoted development system, or a promoted
+  system without full 322x150 scope, complete per-query evidence, exact scope
+  counts, and no explicit diagnostic/restricted promotion blocker; or
 - a generated output containing an absolute historical worktree path.
 
 Output writes use temporary files and atomic replacement. Stable input ordering

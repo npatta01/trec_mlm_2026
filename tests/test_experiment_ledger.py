@@ -66,7 +66,33 @@ def minimal_registry() -> dict[str, object]:
                         "qrel_usage": "evaluation_only",
                         "run_classification": "internal_automatic",
                         "caveat_ids": ["development_only"],
-                    }
+                    },
+                    {
+                        "system_id": "example_primary",
+                        "source_system_id": "example_primary_source",
+                        "aliases": [],
+                        "method_summary": "Example promoted primary.",
+                        "evaluation_scope": "dev_322x150",
+                        "evidence_status": "stored_per_query",
+                        "promotion_status": "promoted_development",
+                        "query_count": 322,
+                        "candidate_count": 150,
+                        "aggregate_source": {
+                            "source_id": "receipt",
+                            "pointer": "/metrics/example",
+                        },
+                        "per_query_source": {
+                            "source_id": "receipt",
+                            "pointer": "/metrics/example/per_query",
+                        },
+                        "per_query_blocker": None,
+                        "ranking_coverage": "per_query_metrics_only",
+                        "native_scores_available": False,
+                        "artifact_state": "tracked_complete",
+                        "qrel_usage": "evaluation_only",
+                        "run_classification": "internal_automatic",
+                        "caveat_ids": ["development_only"],
+                    },
                 ],
             }
         ],
@@ -202,9 +228,9 @@ def build_fixture_ledger(
                         ),
                         "evidence_status": "stored_per_query",
                         "promotion_status": (
-                            "stable_control" if full_scope else "restricted_pilot"
+                            "promoted_development" if full_scope else "restricted_pilot"
                         ),
-                        "query_count": per_query_count,
+                        "query_count": 322 if full_scope else per_query_count,
                         "candidate_count": 150,
                         "aggregate_source": {
                             "kind": "json_pointer",
@@ -228,6 +254,22 @@ def build_fixture_ledger(
             }
         ],
     }
+    if not full_scope:
+        promoted_fixture = deepcopy(registry["experiments"][0]["systems"][0])
+        promoted_fixture.update(
+            {
+                "system_id": "fixture_promoted_primary",
+                "source_system_id": "fixture_promoted_primary",
+                "method_summary": "Synthetic full-scope primary for registry validation.",
+                "evaluation_scope": "dev_322x150",
+                "evidence_status": "recomputed_from_complete_ranking",
+                "promotion_status": "promoted_development",
+                "query_count": 322,
+                "per_query_source": None,
+                "per_query_blocker": "Synthetic fixture has no materialized vector.",
+            }
+        )
+        registry["experiments"][0]["systems"].append(promoted_fixture)
     registry_path = experiments / "ledger.json"
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
     return build_ledger(tmp_path)
@@ -352,6 +394,46 @@ def test_validate_registry_rejects_unreviewed_grid_key(tmp_path: Path) -> None:
         validate_registry(registry, tmp_path)
 
 
+def test_validate_registry_rejects_duplicate_promoted_development_systems(
+    tmp_path: Path,
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][0]["promotion_status"] = (  # type: ignore[index]
+        "promoted_development"
+    )
+    with pytest.raises(ValueError, match="exactly one promoted_development"):
+        validate_registry(registry, tmp_path)
+
+
+def test_validate_registry_rejects_diagnostic_as_only_promoted_system() -> None:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    systems = {
+        system["system_id"]: system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+    }
+    systems["dense_profile_equal"]["promotion_status"] = "diagnostic_only"
+    systems["dense_profile_profile_heavy"]["promotion_status"] = "promoted_development"
+    with pytest.raises(ValueError, match="promotion-blocking caveats"):
+        validate_registry(registry, Path("."))
+
+
+@pytest.mark.parametrize("system_id", ["pointwise_qwen", "generated_listwise"])
+def test_validate_registry_rejects_restricted_or_invalid_promoted_system(
+    system_id: str,
+) -> None:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    systems = {
+        system["system_id"]: system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+    }
+    systems["dense_profile_equal"]["promotion_status"] = "diagnostic_only"
+    systems[system_id]["promotion_status"] = "promoted_development"
+    with pytest.raises(ValueError, match="promoted_development.*dev_322x150"):
+        validate_registry(registry, Path("."))
+
+
 def test_reviewed_registry_has_required_families_and_systems() -> None:
     registry = load_registry(Path("."), Path("experiments/ledger.json"))
     experiments = {
@@ -399,7 +481,7 @@ def test_reviewed_registry_has_required_families_and_systems() -> None:
         "x1_multires_top2_dense_equal",
         "local_domain_prior",
     } <= system_ids
-    assert len(system_ids) == 92
+    assert len(system_ids) == 98
 
     assert (
         len(experiments["dense_query_knn"]["grid_contracts"][0]["allowed_keys"]) == 28
@@ -449,6 +531,90 @@ def test_reviewed_registry_preserves_six_query_feasibility_history() -> None:
     assert later_pointwise["evaluation_scope"] == "restricted_12x20"
     assert later_pointwise["aggregate_source"]["metrics"]["relevant_in_top_3"] == "5/12"
     assert "six_query_signal_did_not_scale" in later_pointwise["caveat_ids"]
+
+
+def test_reviewed_registry_preserves_superseded_initial_embedding_sweep() -> None:
+    registry = load_registry(Path("."), Path("experiments/ledger.json"))
+    systems = {
+        system["system_id"]: system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+    }
+    initial = [
+        systems["qwen8b_initial_terminal_token_invalid"],
+        systems["e5_initial_terminal_token_invalid"],
+    ]
+
+    assert initial[0]["aggregate_source"] == initial[1]["aggregate_source"]
+    assert initial[0]["aggregate_source"] == {
+        "kind": "literal_snapshot",
+        "source_id": "expert_label_ranking_study",
+        "section": "What we tried",
+        "table": "Step | Scope | Outcome | What it established",
+        "row": "Initial Qwen8B and E5 sweep",
+        "metrics": {
+            "outcome": "Invalid low scores",
+            "scope": "322 × 150",
+            "what_it_established": (
+                "Required model-specific terminal-token behavior was omitted. "
+                "The runtime does not invent each embedding checkpoint's "
+                "asymmetric contract."
+            ),
+        },
+    }
+    for system in initial:
+        assert system["evaluation_scope"] == "invalid_unscored"
+        assert system["evidence_status"] == "invalid"
+        assert system["promotion_status"] == "invalid"
+        assert system["query_count"] == 322
+        assert system["candidate_count"] == 150
+        assert "initial_embedding_prompt_contract_superseded" in system["caveat_ids"]
+        assert (
+            not {
+                "ndcg_at_10",
+                "ndcg_at_k",
+                "mrr",
+                "reciprocal_rank",
+                "zero_ndcg_queries",
+                "zero_ndcg_count",
+            }
+            & system["aggregate_source"]["metrics"].keys()
+        )
+
+
+def test_reviewed_registry_preserves_matched_support_preflight_history() -> None:
+    registry = load_registry(Path("."), Path("experiments/ledger.json"))
+    systems = {
+        system["system_id"]: system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+    }
+    expected = {
+        "hard_cluster_k20_preflight": "/cluster_counts/20/cluster_mean",
+        "matched_neighbor_k20_preflight": ("/cluster_counts/20/matched_neighbor_mean"),
+        "hard_cluster_k40_preflight": "/cluster_counts/40/cluster_mean",
+        "matched_neighbor_k40_preflight": ("/cluster_counts/40/matched_neighbor_mean"),
+    }
+    for system_id, pointer in expected.items():
+        system = systems[system_id]
+        assert system["aggregate_source"] == {
+            "kind": "json_pointer",
+            "source_id": "issue13_matched_support_preflight",
+            "pointer": pointer,
+        }
+        assert system["evaluation_scope"] == "dev_322x150"
+        assert system["evidence_status"] == "aggregate_only"
+        assert system["promotion_status"] == "diagnostic_only"
+        assert system["query_count"] == 322
+        assert system["candidate_count"] == 150
+        assert system["artifact_state"] == "tracked_receipt_only"
+        assert system["qrel_usage"] == "training_and_evaluation"
+        assert {
+            "qrel_transferred_training",
+            "hard_cluster_posthoc_preflight",
+            "hard_cluster_preflight_not_promotable",
+            "aggregate_per_query_missing",
+        } <= set(system["caveat_ids"])
 
 
 def test_reviewed_registry_does_not_infer_grouprank_scope_counts() -> None:
@@ -655,6 +821,22 @@ def test_real_ledger_extracts_complete_recoverable_vectors() -> None:
     assert aggregate_payloads["local_domain_prior"][
         "ndcg_delta_vs_dense"
     ] == pytest.approx(-0.0111738962)
+    assert systems["hard_cluster_k20_preflight"].zero_ndcg_queries == 148
+    assert systems["matched_neighbor_k20_preflight"].zero_ndcg_queries == 124
+    assert systems["hard_cluster_k40_preflight"].zero_ndcg_queries == 154
+    assert systems["matched_neighbor_k40_preflight"].zero_ndcg_queries == 136
+    assert build.validation["system_count"] == 98
+    assert len(build.per_query) == 3542
+    assert len(build.topic_slices) == 1650
+    assert len(build.density_slices) == 33
+    assert (
+        sum(
+            system.artifact_state
+            in {"local_artifact_missing", "construction_artifact_missing"}
+            for system in build.systems
+        )
+        == 43
+    )
 
     dense_topic = next(
         row

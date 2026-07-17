@@ -56,9 +56,19 @@
       "summary": "Its matched-support mechanism check was post-hoc development analysis and cannot establish promotable effectiveness."
     },
     {
+      "caveat_id": "hard_cluster_preflight_not_promotable",
+      "scope": "family",
+      "summary": "The qrel-transferred matched-support preflight was an exploratory mechanism diagnostic whose receipt explicitly marks it not promotable."
+    },
+    {
       "caveat_id": "hard_cluster_valid_negative",
       "scope": "system",
       "summary": "The hard query-cluster aggregation passed integrity checks but failed every effectiveness gate."
+    },
+    {
+      "caveat_id": "initial_embedding_prompt_contract_superseded",
+      "scope": "family",
+      "summary": "The initial Qwen8B and E5 embedding runs omitted each checkpoint's required model-specific prompt and asymmetric terminal-token behavior; their low scores are invalid, superseded by corrected formatted reruns, and retain no numeric quality claim."
     },
     {
       "caveat_id": "invalid_output_contract",
@@ -264342,6 +264352,11 @@
       "source_id": "issue13_dense_aggregation_result"
     },
     {
+      "path": "reports/issue_13_matched_support_preflight.json",
+      "sha256": "31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f",
+      "source_id": "issue13_matched_support_preflight"
+    },
+    {
       "path": "reports/trec_2026_issue18_pr17head_artifact_custody.json",
       "sha256": "1157a80231f7ec17718800d47cb56644014cf90550d9c888ad1f6a943d2ec6bd",
       "source_id": "issue18_artifact_custody"
@@ -275908,6 +275923,110 @@
     },
     {
       "aggregate_payload": {
+        "mrr": 0.324294966110353,
+        "ndcg_at_10": 0.29022364689638863,
+        "zero_ndcg_count": 148
+      },
+      "aggregate_source": {
+        "kind": "json_pointer",
+        "pointer": "/cluster_counts/20/cluster_mean",
+        "source_id": "issue13_matched_support_preflight"
+      },
+      "aliases": [],
+      "artifact_state": "tracked_receipt_only",
+      "blocker": "The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector.",
+      "candidate_count": 150,
+      "caveat_ids": [
+        "development_only",
+        "adaptive_program_overfit",
+        "missing_raw_artifacts",
+        "aggregate_per_query_missing",
+        "qrel_transferred_training",
+        "external_encoder_taxonomy",
+        "hard_cluster_posthoc_preflight",
+        "hard_cluster_preflight_not_promotable"
+      ],
+      "evaluation_scope": "dev_322x150",
+      "evidence_status": "aggregate_only",
+      "experiment_family": "query_cluster_aggregation",
+      "experiment_id": "query_cluster_aggregation",
+      "method_summary": "Post-hoc mean candidate grades from the assigned hard query cluster at k=20.",
+      "native_scores_available": false,
+      "per_query_available": false,
+      "per_query_source": null,
+      "promotion_status": "diagnostic_only",
+      "qrel_usage": "training_and_evaluation",
+      "query_count": 322,
+      "ranking_coverage": "none",
+      "receipt_metrics": {
+        "mrr": 0.324294966110353,
+        "ndcg_at_10": 0.29022364689638863,
+        "zero_ndcg_queries": 148
+      },
+      "receipt_provenance": {
+        "source_path": "reports/issue_13_matched_support_preflight.json",
+        "source_sha256": "31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f"
+      },
+      "recomputed_metrics": null,
+      "recomputed_provenance": null,
+      "run_classification": "external_automatic",
+      "source_system_id": "cluster_counts.20.cluster_mean",
+      "system_id": "hard_cluster_k20_preflight"
+    },
+    {
+      "aggregate_payload": {
+        "mrr": 0.3350532527868061,
+        "ndcg_at_10": 0.2865639551873666,
+        "zero_ndcg_count": 154
+      },
+      "aggregate_source": {
+        "kind": "json_pointer",
+        "pointer": "/cluster_counts/40/cluster_mean",
+        "source_id": "issue13_matched_support_preflight"
+      },
+      "aliases": [],
+      "artifact_state": "tracked_receipt_only",
+      "blocker": "The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector.",
+      "candidate_count": 150,
+      "caveat_ids": [
+        "development_only",
+        "adaptive_program_overfit",
+        "missing_raw_artifacts",
+        "aggregate_per_query_missing",
+        "qrel_transferred_training",
+        "external_encoder_taxonomy",
+        "hard_cluster_posthoc_preflight",
+        "hard_cluster_preflight_not_promotable"
+      ],
+      "evaluation_scope": "dev_322x150",
+      "evidence_status": "aggregate_only",
+      "experiment_family": "query_cluster_aggregation",
+      "experiment_id": "query_cluster_aggregation",
+      "method_summary": "Post-hoc mean candidate grades from the assigned hard query cluster at k=40.",
+      "native_scores_available": false,
+      "per_query_available": false,
+      "per_query_source": null,
+      "promotion_status": "diagnostic_only",
+      "qrel_usage": "training_and_evaluation",
+      "query_count": 322,
+      "ranking_coverage": "none",
+      "receipt_metrics": {
+        "mrr": 0.3350532527868061,
+        "ndcg_at_10": 0.2865639551873666,
+        "zero_ndcg_queries": 154
+      },
+      "receipt_provenance": {
+        "source_path": "reports/issue_13_matched_support_preflight.json",
+        "source_sha256": "31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f"
+      },
+      "recomputed_metrics": null,
+      "recomputed_provenance": null,
+      "run_classification": "external_automatic",
+      "source_system_id": "cluster_counts.40.cluster_mean",
+      "system_id": "hard_cluster_k40_preflight"
+    },
+    {
+      "aggregate_payload": {
         "mrr": 0.3801586444,
         "mrr_delta_vs_dense": -0.0239046637,
         "ndcg_at_10": 0.3486808479,
@@ -275970,6 +276089,110 @@
       "run_classification": "external_automatic",
       "source_system_id": "Dense aggregation",
       "system_id": "local_domain_prior"
+    },
+    {
+      "aggregate_payload": {
+        "mrr": 0.3823357705525833,
+        "ndcg_at_10": 0.33952647169079414,
+        "zero_ndcg_count": 124
+      },
+      "aggregate_source": {
+        "kind": "json_pointer",
+        "pointer": "/cluster_counts/20/matched_neighbor_mean",
+        "source_id": "issue13_matched_support_preflight"
+      },
+      "aliases": [],
+      "artifact_state": "tracked_receipt_only",
+      "blocker": "The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector.",
+      "candidate_count": 150,
+      "caveat_ids": [
+        "development_only",
+        "adaptive_program_overfit",
+        "missing_raw_artifacts",
+        "aggregate_per_query_missing",
+        "qrel_transferred_training",
+        "external_encoder_taxonomy",
+        "hard_cluster_posthoc_preflight",
+        "hard_cluster_preflight_not_promotable"
+      ],
+      "evaluation_scope": "dev_322x150",
+      "evidence_status": "aggregate_only",
+      "experiment_family": "query_cluster_aggregation",
+      "experiment_id": "query_cluster_aggregation",
+      "method_summary": "Post-hoc equal-support positive-cosine neighbor control matched to k=20 hard-cluster support.",
+      "native_scores_available": false,
+      "per_query_available": false,
+      "per_query_source": null,
+      "promotion_status": "diagnostic_only",
+      "qrel_usage": "training_and_evaluation",
+      "query_count": 322,
+      "ranking_coverage": "none",
+      "receipt_metrics": {
+        "mrr": 0.3823357705525833,
+        "ndcg_at_10": 0.33952647169079414,
+        "zero_ndcg_queries": 124
+      },
+      "receipt_provenance": {
+        "source_path": "reports/issue_13_matched_support_preflight.json",
+        "source_sha256": "31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f"
+      },
+      "recomputed_metrics": null,
+      "recomputed_provenance": null,
+      "run_classification": "external_automatic",
+      "source_system_id": "cluster_counts.20.matched_neighbor_mean",
+      "system_id": "matched_neighbor_k20_preflight"
+    },
+    {
+      "aggregate_payload": {
+        "mrr": 0.36880166306622064,
+        "ndcg_at_10": 0.3281974766132701,
+        "zero_ndcg_count": 136
+      },
+      "aggregate_source": {
+        "kind": "json_pointer",
+        "pointer": "/cluster_counts/40/matched_neighbor_mean",
+        "source_id": "issue13_matched_support_preflight"
+      },
+      "aliases": [],
+      "artifact_state": "tracked_receipt_only",
+      "blocker": "The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector.",
+      "candidate_count": 150,
+      "caveat_ids": [
+        "development_only",
+        "adaptive_program_overfit",
+        "missing_raw_artifacts",
+        "aggregate_per_query_missing",
+        "qrel_transferred_training",
+        "external_encoder_taxonomy",
+        "hard_cluster_posthoc_preflight",
+        "hard_cluster_preflight_not_promotable"
+      ],
+      "evaluation_scope": "dev_322x150",
+      "evidence_status": "aggregate_only",
+      "experiment_family": "query_cluster_aggregation",
+      "experiment_id": "query_cluster_aggregation",
+      "method_summary": "Post-hoc equal-support positive-cosine neighbor control matched to k=40 hard-cluster support.",
+      "native_scores_available": false,
+      "per_query_available": false,
+      "per_query_source": null,
+      "promotion_status": "diagnostic_only",
+      "qrel_usage": "training_and_evaluation",
+      "query_count": 322,
+      "ranking_coverage": "none",
+      "receipt_metrics": {
+        "mrr": 0.36880166306622064,
+        "ndcg_at_10": 0.3281974766132701,
+        "zero_ndcg_queries": 136
+      },
+      "receipt_provenance": {
+        "source_path": "reports/issue_13_matched_support_preflight.json",
+        "source_sha256": "31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f"
+      },
+      "recomputed_metrics": null,
+      "recomputed_provenance": null,
+      "run_classification": "external_automatic",
+      "source_system_id": "cluster_counts.40.matched_neighbor_mean",
+      "system_id": "matched_neighbor_k40_preflight"
     },
     {
       "aggregate_payload": {
@@ -277822,6 +278045,116 @@
       "run_classification": "internal_automatic",
       "source_system_id": "target_response_same_k",
       "system_id": "target_response_same_k"
+    },
+    {
+      "aggregate_payload": {
+        "outcome": "Invalid low scores",
+        "scope": "322 × 150",
+        "what_it_established": "Required model-specific terminal-token behavior was omitted. The runtime does not invent each embedding checkpoint's asymmetric contract."
+      },
+      "aggregate_source": {
+        "kind": "literal_snapshot",
+        "metrics": {
+          "outcome": "Invalid low scores",
+          "scope": "322 × 150",
+          "what_it_established": "Required model-specific terminal-token behavior was omitted. The runtime does not invent each embedding checkpoint's asymmetric contract."
+        },
+        "row": "Initial Qwen8B and E5 sweep",
+        "section": "What we tried",
+        "source_id": "expert_label_ranking_study",
+        "table": "Step | Scope | Outcome | What it established"
+      },
+      "aliases": [],
+      "artifact_state": "tracked_report_snapshot",
+      "blocker": "The reviewed study retains only the shared invalid-attempt history row; the superseded low scores and per-query outputs are intentionally not quality evidence.",
+      "candidate_count": 150,
+      "caveat_ids": [
+        "development_only",
+        "adaptive_program_overfit",
+        "external_encoder_taxonomy",
+        "initial_embedding_prompt_contract_superseded"
+      ],
+      "evaluation_scope": "invalid_unscored",
+      "evidence_status": "invalid",
+      "experiment_family": "candidate_label_matching",
+      "experiment_id": "candidate_label_matching",
+      "method_summary": "Superseded initial E5 label-embedding attempt with an omitted model-specific terminal-token contract.",
+      "native_scores_available": false,
+      "per_query_available": false,
+      "per_query_source": null,
+      "promotion_status": "invalid",
+      "qrel_usage": "evaluation_only",
+      "query_count": 322,
+      "ranking_coverage": "none",
+      "receipt_metrics": {
+        "mrr": null,
+        "ndcg_at_10": null,
+        "zero_ndcg_queries": null
+      },
+      "receipt_provenance": {
+        "source_path": "docs/results/2026-07-13-expert-label-ranking-study.md",
+        "source_sha256": "9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d"
+      },
+      "recomputed_metrics": null,
+      "recomputed_provenance": null,
+      "run_classification": "external_automatic",
+      "source_system_id": "Initial E5 sweep",
+      "system_id": "e5_initial_terminal_token_invalid"
+    },
+    {
+      "aggregate_payload": {
+        "outcome": "Invalid low scores",
+        "scope": "322 × 150",
+        "what_it_established": "Required model-specific terminal-token behavior was omitted. The runtime does not invent each embedding checkpoint's asymmetric contract."
+      },
+      "aggregate_source": {
+        "kind": "literal_snapshot",
+        "metrics": {
+          "outcome": "Invalid low scores",
+          "scope": "322 × 150",
+          "what_it_established": "Required model-specific terminal-token behavior was omitted. The runtime does not invent each embedding checkpoint's asymmetric contract."
+        },
+        "row": "Initial Qwen8B and E5 sweep",
+        "section": "What we tried",
+        "source_id": "expert_label_ranking_study",
+        "table": "Step | Scope | Outcome | What it established"
+      },
+      "aliases": [],
+      "artifact_state": "tracked_report_snapshot",
+      "blocker": "The reviewed study retains only the shared invalid-attempt history row; the superseded low scores and per-query outputs are intentionally not quality evidence.",
+      "candidate_count": 150,
+      "caveat_ids": [
+        "development_only",
+        "adaptive_program_overfit",
+        "external_encoder_taxonomy",
+        "initial_embedding_prompt_contract_superseded"
+      ],
+      "evaluation_scope": "invalid_unscored",
+      "evidence_status": "invalid",
+      "experiment_family": "candidate_label_matching",
+      "experiment_id": "candidate_label_matching",
+      "method_summary": "Superseded initial Qwen8B label-embedding attempt with an omitted model-specific terminal-token contract.",
+      "native_scores_available": false,
+      "per_query_available": false,
+      "per_query_source": null,
+      "promotion_status": "invalid",
+      "qrel_usage": "evaluation_only",
+      "query_count": 322,
+      "ranking_coverage": "none",
+      "receipt_metrics": {
+        "mrr": null,
+        "ndcg_at_10": null,
+        "zero_ndcg_queries": null
+      },
+      "receipt_provenance": {
+        "source_path": "docs/results/2026-07-13-expert-label-ranking-study.md",
+        "source_sha256": "9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d"
+      },
+      "recomputed_metrics": null,
+      "recomputed_provenance": null,
+      "run_classification": "external_automatic",
+      "source_system_id": "Initial Qwen8B sweep",
+      "system_id": "qwen8b_initial_terminal_token_invalid"
     },
     {
       "aggregate_payload": {
@@ -312944,7 +313277,7 @@
     "qrel_row_count": 48300,
     "query_count": 322,
     "relevant_candidate_memberships": 4378,
-    "system_count": 92
+    "system_count": 98
   },
   "version": 1
 }

@@ -46,6 +46,23 @@ PROMOTION_STATUSES = frozenset(
         "constructed_not_evaluated",
     }
 )
+PROMOTION_BLOCKING_CAVEAT_IDS = frozenset(
+    {
+        "behavior_not_effectiveness",
+        "hard_cluster_posthoc_preflight",
+        "hard_cluster_preflight_not_promotable",
+        "hard_cluster_valid_negative",
+        "initial_embedding_prompt_contract_superseded",
+        "invalid_output_contract",
+        "issue18_query_sensitivity_stop",
+        "profile_posthoc_diagnostic",
+        "restricted_not_comparable",
+        "restricted_qrel_assisted",
+        "response_normalization_stopped",
+        "six_query_signal_did_not_scale",
+        "source_query_stopped",
+    }
+)
 ARTIFACT_STATES = frozenset(
     {
         "tracked_complete",
@@ -276,6 +293,7 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
     experiment_ids: set[str] = set()
     system_ids: set[str] = set()
     referenced_sources: set[str] = set()
+    promoted_systems: list[Mapping[str, Any]] = []
     for raw_experiment in experiments:
         experiment = _require_mapping(raw_experiment, "experiment")
         experiment_id = experiment.get("experiment_id")
@@ -305,6 +323,8 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
                 raise ValueError(f"unknown evidence_status for {system_id}")
             if system.get("promotion_status") not in PROMOTION_STATUSES:
                 raise ValueError(f"unknown promotion_status for {system_id}")
+            if system.get("promotion_status") == "promoted_development":
+                promoted_systems.append(system)
             if system.get("artifact_state") not in ARTIFACT_STATES:
                 raise ValueError(f"unknown artifact_state for {system_id}")
             if system.get("qrel_usage") not in QREL_USAGE_STATUSES:
@@ -338,6 +358,38 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
                 raise ValueError(
                     f"unknown caveat IDs for {system_id}: {sorted(unknown_caveats)}"
                 )
+
+    if len(promoted_systems) != 1:
+        raise ValueError(
+            "registry must contain exactly one promoted_development system; "
+            f"found {len(promoted_systems)}"
+        )
+    promoted = promoted_systems[0]
+    promoted_id = promoted["system_id"]
+    if promoted.get("evaluation_scope") != "dev_322x150":
+        raise ValueError(
+            f"promoted_development system {promoted_id} must use dev_322x150 scope"
+        )
+    if promoted.get("query_count") != 322 or promoted.get("candidate_count") != 150:
+        raise ValueError(
+            f"promoted_development system {promoted_id} must have 322x150 counts"
+        )
+    if promoted.get("evidence_status") not in {
+        "stored_per_query",
+        "recomputed_from_complete_ranking",
+    }:
+        raise ValueError(
+            f"promoted_development system {promoted_id} requires complete per-query "
+            "evidence"
+        )
+    blocking_caveats = set(promoted.get("caveat_ids", [])) & (
+        PROMOTION_BLOCKING_CAVEAT_IDS
+    )
+    if blocking_caveats:
+        raise ValueError(
+            f"promoted_development system {promoted_id} has promotion-blocking "
+            f"caveats: {sorted(blocking_caveats)}"
+        )
 
     unknown_sources = referenced_sources - set(sources)
     if unknown_sources:
@@ -463,11 +515,19 @@ def _quality_metric(
 
 
 def _zero_ndcg_queries(payload: Mapping[str, Any]) -> int | None:
-    value = payload.get("zero_ndcg_queries")
+    plural_value = payload.get("zero_ndcg_queries")
+    count_value = payload.get("zero_ndcg_count")
+    if (
+        plural_value is not None
+        and count_value is not None
+        and plural_value != count_value
+    ):
+        raise ValueError("zero nDCG count fields disagree")
+    value = plural_value if plural_value is not None else count_value
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise ValueError("zero_ndcg_queries must be a nonnegative integer")
+        raise ValueError("zero nDCG count must be a nonnegative integer")
     return value
 
 

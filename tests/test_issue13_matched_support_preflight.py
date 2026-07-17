@@ -4,6 +4,7 @@ import pytest
 from scripts.run_issue13_matched_support_preflight import (
     mean_grades,
     rank_candidates,
+    run_preflight,
     select_positive_neighbors,
 )
 
@@ -59,3 +60,55 @@ def test_rank_candidates_uses_prior_then_candidate_id_for_exact_ties() -> None:
 def test_primitives_reject_nonfinite_arrays(function, args) -> None:
     with pytest.raises(ValueError, match="finite"):
         function(*args)
+
+
+def test_run_preflight_emits_only_aggregate_exploratory_results() -> None:
+    embeddings = np.asarray(
+        [
+            [1.0, 0.0],
+            [0.98, 0.20],
+            [0.95, -0.31],
+            [-1.0, 0.0],
+            [-0.98, 0.20],
+            [-0.95, -0.31],
+        ],
+        dtype=np.float32,
+    )
+    embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True)
+    grades = np.asarray(
+        [
+            [2.0, 0.0, 0.0],
+            [2.0, 1.0, 0.0],
+            [1.0, 2.0, 0.0],
+            [0.0, 0.0, 2.0],
+            [0.0, 1.0, 2.0],
+            [0.0, 2.0, 1.0],
+        ]
+    )
+
+    result = run_preflight(
+        embeddings=embeddings,
+        grades=grades,
+        query_ids=tuple(f"q{index}" for index in range(6)),
+        candidate_ids=("a", "b", "c"),
+        cluster_counts=(2,),
+    )
+
+    assert result["status"] == "exploratory_not_promotable"
+    assert result["query_count"] == 6
+    assert result["candidate_count"] == 3
+    assert result["fit_count"] == 6
+    comparison = result["cluster_counts"]["2"]
+    assert set(comparison) == {
+        "cluster_mean",
+        "matched_neighbor_mean",
+        "paired_delta_cluster_minus_matched",
+        "support",
+        "score_granularity",
+        "target_assignment",
+    }
+    assert comparison["support"]["count"] == 6
+    serialized = str(result).lower()
+    assert "per_query" not in serialized
+    assert "query_ids" not in serialized
+    assert "rankings" not in serialized

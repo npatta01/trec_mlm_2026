@@ -1,0 +1,178 @@
+{
+  "candidate_count": 150,
+  "cluster_counts": {
+    "20": {
+      "cluster_mean": {
+        "mrr": 0.324294966110353,
+        "ndcg_at_10": 0.29022364689638863,
+        "zero_ndcg_count": 148
+      },
+      "matched_neighbor_mean": {
+        "mrr": 0.3823357705525833,
+        "ndcg_at_10": 0.33952647169079414,
+        "zero_ndcg_count": 124
+      },
+      "paired_delta_cluster_minus_matched": {
+        "losses": 111,
+        "mean_ndcg_at_10_delta": -0.049302824794405564,
+        "ties": 136,
+        "wins": 75
+      },
+      "score_granularity": {
+        "cluster_distinct_scores": {
+          "count": 322,
+          "max": 17.0,
+          "mean": 9.158385093167702,
+          "median": 9.0,
+          "min": 3.0
+        },
+        "cluster_zero_scores": {
+          "count": 322,
+          "max": 147.0,
+          "mean": 46.18944099378882,
+          "median": 17.5,
+          "min": 0.0
+        },
+        "matched_distinct_scores": {
+          "count": 322,
+          "max": 17.0,
+          "mean": 8.661490683229813,
+          "median": 8.0,
+          "min": 3.0
+        },
+        "matched_zero_scores": {
+          "count": 322,
+          "max": 146.0,
+          "mean": 51.90372670807454,
+          "median": 27.0,
+          "min": 0.0
+        }
+      },
+      "support": {
+        "count": 322,
+        "max": 43.0,
+        "mean": 19.195652173913043,
+        "median": 19.0,
+        "min": 5.0
+      },
+      "target_assignment": {
+        "centroid_squared_distance_margin": {
+          "count": 322,
+          "max": 0.44388430662153144,
+          "mean": 0.0973706713286397,
+          "median": 0.0697159767210016,
+          "min": 0.0003010387463193709
+        },
+        "cluster_neighbor_support_overlap_rate": {
+          "count": 322,
+          "max": 1.0,
+          "mean": 0.41423402553501015,
+          "median": 0.3766891891891892,
+          "min": 0.0
+        }
+      }
+    },
+    "40": {
+      "cluster_mean": {
+        "mrr": 0.3350532527868061,
+        "ndcg_at_10": 0.2865639551873666,
+        "zero_ndcg_count": 154
+      },
+      "matched_neighbor_mean": {
+        "mrr": 0.36880166306622064,
+        "ndcg_at_10": 0.3281974766132701,
+        "zero_ndcg_count": 136
+      },
+      "paired_delta_cluster_minus_matched": {
+        "losses": 103,
+        "mean_ndcg_at_10_delta": -0.04163352142590355,
+        "ties": 148,
+        "wins": 71
+      },
+      "score_granularity": {
+        "cluster_distinct_scores": {
+          "count": 322,
+          "max": 18.0,
+          "mean": 6.916149068322981,
+          "median": 6.0,
+          "min": 3.0
+        },
+        "cluster_zero_scores": {
+          "count": 322,
+          "max": 148.0,
+          "mean": 65.22670807453416,
+          "median": 50.5,
+          "min": 0.0
+        },
+        "matched_distinct_scores": {
+          "count": 322,
+          "max": 18.0,
+          "mean": 6.60248447204969,
+          "median": 6.0,
+          "min": 2.0
+        },
+        "matched_zero_scores": {
+          "count": 322,
+          "max": 147.0,
+          "mean": 75.4472049689441,
+          "median": 75.5,
+          "min": 0.0
+        }
+      },
+      "support": {
+        "count": 322,
+        "max": 31.0,
+        "mean": 11.574534161490684,
+        "median": 11.0,
+        "min": 2.0
+      },
+      "target_assignment": {
+        "centroid_squared_distance_margin": {
+          "count": 322,
+          "max": 0.5171447041066204,
+          "mean": 0.09694824139205235,
+          "median": 0.0717475625647449,
+          "min": 0.00029839189352620643
+        },
+        "cluster_neighbor_support_overlap_rate": {
+          "count": 322,
+          "max": 1.0,
+          "mean": 0.3941852393452612,
+          "median": 0.3333333333333333,
+          "min": 0.0
+        }
+      }
+    }
+  },
+  "decision": {
+    "continue_clustering": false,
+    "rule": "continue clustering only if any hard cluster beats its matched control on mean nDCG@10"
+  },
+  "fit_count": 644,
+  "method": {
+    "cluster_counts": [
+      20,
+      40
+    ],
+    "clusterer": {
+      "algorithm": "lloyd",
+      "init": "k-means++",
+      "max_iter": 300,
+      "n_init": 10,
+      "random_state": 2026,
+      "tol": 0.0001
+    },
+    "matched_control": "uniform mean over equal-count positive-cosine neighbors",
+    "tie_break": "fold global prior descending, then candidate ID ascending"
+  },
+  "query_count": 322,
+  "question": "Does a hard query cluster beat equal-support nearest neighbors?",
+  "schema": "trec-mlm-issue13-matched-support-preflight-v1",
+  "sources": {
+    "embedding_file_sha256": "d96ef7a1e45f40621c303c855673efa1de7c02d7dacd16cf0cee93c562a09559",
+    "embedding_logical_sha256": "6d197055eb62ab9809ae321b0f60072e20f17524861e6a989b49cd35c389055b",
+    "qrels_sha256": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
+    "queries_sha256": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c"
+  },
+  "status": "exploratory_not_promotable"
+}

@@ -115,4 +115,3 @@ Before publication:
   raw query/qrel/ranking leakage;
 - the PR diff is reviewed against current `origin/main` and contains no old
   experiment implementation.
-

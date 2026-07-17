@@ -31,6 +31,7 @@ class FrozenInputContract:
     query_file_sha256: str
     qrel_file_sha256: str
     embedding_file_sha256: str
+    encoder_metadata_sha256: str
     query_input_sha256: str
     embedding_logical_sha256: str
     similarity_logical_sha256: str
@@ -42,6 +43,7 @@ FROZEN_INPUT_CONTRACT = FrozenInputContract(
     query_file_sha256="862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
     qrel_file_sha256="3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
     embedding_file_sha256="d96ef7a1e45f40621c303c855673efa1de7c02d7dacd16cf0cee93c562a09559",
+    encoder_metadata_sha256="5bdfe3f5297467f91bd992e47c6555f582b536c15b97d853dd904fdcda871091",
     query_input_sha256="98faa04f979e428933c3d8e67dac43cf4dded112bd2c16969b3482a1d52886d9",
     embedding_logical_sha256="6d197055eb62ab9809ae321b0f60072e20f17524861e6a989b49cd35c389055b",
     similarity_logical_sha256="80c69a8dca29cd5e9a4de08dc4e44553fabf813428dd4956f7ecbeb2852968ed",
@@ -103,6 +105,11 @@ def validate_frozen_inputs(
         observed["embedding_file_sha256"],
         contract.embedding_file_sha256,
         name="embedding file SHA-256",
+    )
+    _require_equal(
+        observed["encoder_metadata_sha256"],
+        contract.encoder_metadata_sha256,
+        name="encoder metadata SHA-256",
     )
     _require_equal(
         observed["query_input_sha256"],

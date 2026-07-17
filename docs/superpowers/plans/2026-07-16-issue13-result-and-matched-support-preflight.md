@@ -82,4 +82,3 @@
 - [ ] Render and validate the standalone report through the existing private tailnet portal; require exact live/local byte equality and no raw-data leakage.
 - [ ] Push `agent/issue13-result-and-preflight`, open a draft PR against `main`, and make the PR body state that the result is negative and the preflight is exploratory.
 - [ ] Close PR #20 as superseded, linking the new draft PR and preserving PR #20 as historical context.
-

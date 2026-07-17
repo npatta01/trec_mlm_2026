@@ -139,6 +139,7 @@ def test_run_preflight_excludes_target_and_uses_frozen_kmeans_settings(
     fit_shapes = []
     settings = []
     neighbor_calls = []
+    fit_rows = []
 
     class SpyKMeans:
         def __init__(self, **kwargs):
@@ -147,6 +148,7 @@ def test_run_preflight_excludes_target_and_uses_frozen_kmeans_settings(
 
         def fit_predict(self, rows):
             fit_shapes.append(rows.shape)
+            fit_rows.append(rows.copy())
             labels = self.delegate.fit_predict(rows)
             self.cluster_centers_ = self.delegate.cluster_centers_
             return labels
@@ -170,6 +172,8 @@ def test_run_preflight_excludes_target_and_uses_frozen_kmeans_settings(
     )
 
     assert fit_shapes == [(5, 2)] * 6
+    for target, rows in enumerate(fit_rows):
+        assert not np.any(np.all(rows == embeddings[target], axis=1))
     assert settings == [
         {
             "n_clusters": 2,
@@ -217,6 +221,7 @@ def test_validate_frozen_inputs_rejects_permuted_embedding_rows(tmp_path) -> Non
         query_file_sha256=sha256_file(query_path),
         qrel_file_sha256=sha256_file(qrel_path),
         embedding_file_sha256=sha256_file(embedding_path),
+        encoder_metadata_sha256=sha256_file(metadata_path),
         query_input_sha256=preflight_module.query_input_sha256(
             ("q1", "q2"), ("first", "second")
         ),

@@ -92,7 +92,9 @@ def build_fixture_ledger(
     tmp_path: Path,
     *,
     per_query_count: int = 2,
-    reported_ndcg: float | None = None,
+    reported_ndcg: object | None = None,
+    declare_missing_issue18_alias: bool = False,
+    declare_issue18_alias_without_dense: bool = False,
 ) -> LedgerBuild:
     query_ids = [f"q{index}" for index in range(1, per_query_count + 1)]
     candidate_ids = ["A", "B", *(f"filler_{index:03d}" for index in range(148))]
@@ -161,13 +163,24 @@ def build_fixture_ledger(
         }
 
     full_scope = per_query_count != 2
+    sources = {
+        "receipt": source(receipt_path),
+        "development_queries": source(query_path),
+        "development_qrels": source(qrels_path),
+    }
+    if declare_missing_issue18_alias or declare_issue18_alias_without_dense:
+        issue18_path = reports / "issue18.json"
+        issue18_payload = (
+            {"controls": {"query_knn": {"per_query": metrics}}}
+            if declare_issue18_alias_without_dense
+            else {}
+        )
+        issue18_path.write_text(json.dumps(issue18_payload), encoding="utf-8")
+        sources["issue18_evaluation"] = source(issue18_path)
+
     registry = {
         "version": 1,
-        "sources": {
-            "receipt": source(receipt_path),
-            "development_queries": source(query_path),
-            "development_qrels": source(qrels_path),
-        },
+        "sources": sources,
         "caveats": {
             "development_only": {
                 "scope": "program",
@@ -518,6 +531,25 @@ def test_build_ledger_rejects_macro_drift(tmp_path: Path) -> None:
         build_fixture_ledger(tmp_path, reported_ndcg=0.9)
 
 
+def test_build_ledger_keeps_numeric_metric_validation_strict(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="quality metric ndcg_at_10 must be numeric"):
+        build_fixture_ledger(tmp_path, reported_ndcg="five sixths")
+
+
+def test_build_ledger_rejects_declared_issue18_source_without_dense_alias(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="query_knn"):
+        build_fixture_ledger(tmp_path, declare_missing_issue18_alias=True)
+
+
+def test_build_ledger_rejects_issue18_alias_without_canonical_dense_vector(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="dense_nested"):
+        build_fixture_ledger(tmp_path, declare_issue18_alias_without_dense=True)
+
+
 def test_density_slices_are_disjoint() -> None:
     assert density_bucket(1) == "at_most_5_positives"
     assert density_bucket(5) == "at_most_5_positives"
@@ -574,3 +606,79 @@ def test_real_ledger_extracts_complete_recoverable_vectors() -> None:
 
     assert systems["grouprank_7b"].query_count is None
     assert systems["grouprank_7b"].candidate_count is None
+
+    dense_receipt = json.loads(
+        Path("reports/trec_2026_dense_query_knn_results.json").read_text(
+            encoding="utf-8"
+        )
+    )["metrics"]["dense_nested"]
+    dense = systems["dense_nested"]
+    assert dense.ndcg_at_10 == dense_receipt["ndcg_at_10"]
+    assert dense.mrr == dense_receipt["mrr"]
+    assert dense.zero_ndcg_queries is None
+    assert dense.recomputed_ndcg_at_10 == pytest.approx(dense.ndcg_at_10, abs=1e-12)
+    assert dense.recomputed_mrr == pytest.approx(dense.mrr, abs=1e-12)
+    assert dense.recomputed_zero_ndcg_queries == 116
+    assert dense.recomputed_ndcg_at_10 != dense.ndcg_at_10
+
+    aggregate_payloads = {
+        system_id: json.loads(systems[system_id].aggregate_payload_json)
+        for system_id in (
+            "pointwise_qwen_feasibility_6",
+            "generated_listwise_feasibility_6",
+            "qwen4b_contextual",
+            "local_domain_prior",
+        )
+    }
+    reviewed_registry = load_registry(Path("."), Path("experiments/ledger.json"))
+    reviewed_systems = {
+        system["system_id"]: system
+        for experiment in reviewed_registry["experiments"]
+        for system in experiment["systems"]
+    }
+    for system_id, payload in aggregate_payloads.items():
+        assert payload == reviewed_systems[system_id]["aggregate_source"]["metrics"]
+        assert systems[system_id].aggregate_payload_json == json.dumps(
+            payload,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    assert (
+        aggregate_payloads["pointwise_qwen_feasibility_6"]["relevant_in_top_3"] == "5/6"
+    )
+    assert (
+        aggregate_payloads["generated_listwise_feasibility_6"]["relevant_in_top_3"]
+        == "3/6"
+    )
+    assert aggregate_payloads["qwen4b_contextual"]["strict_repeat"].startswith("Fail")
+    assert aggregate_payloads["local_domain_prior"][
+        "ndcg_delta_vs_dense"
+    ] == pytest.approx(-0.0111738962)
+
+    dense_topic = next(
+        row
+        for row in build.topic_slices
+        if row.system_id == "dense_nested" and row.slice_key == "Anthropology"
+    )
+    source_registry = reviewed_registry["sources"]
+    assert (
+        dense_topic.metric_source_path
+        == (source_registry["dense_query_per_query"]["path"])
+    )
+    assert (
+        dense_topic.metric_source_sha256
+        == (source_registry["dense_query_per_query"]["sha256"])
+    )
+    assert (
+        dense_topic.query_source_path == source_registry["development_queries"]["path"]
+    )
+    assert (
+        dense_topic.query_source_sha256
+        == source_registry["development_queries"]["sha256"]
+    )
+    assert dense_topic.qrel_source_path == source_registry["development_qrels"]["path"]
+    assert (
+        dense_topic.qrel_source_sha256 == source_registry["development_qrels"]["sha256"]
+    )
+    assert build.validation["dense_alias_max_abs_delta"] is not None

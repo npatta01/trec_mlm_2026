@@ -77,6 +77,10 @@ class SystemRecord:
     ndcg_at_10: float | None
     mrr: float | None
     zero_ndcg_queries: int | None
+    recomputed_ndcg_at_10: float | None
+    recomputed_mrr: float | None
+    recomputed_zero_ndcg_queries: int | None
+    aggregate_payload_json: str
     per_query_available: bool
     ranking_coverage: str
     artifact_state: str
@@ -121,6 +125,12 @@ class SliceRecord:
     grade_2_memberships: int
     overlapping: bool
     membership_policy: str
+    metric_source_path: str
+    metric_source_sha256: str
+    query_source_path: str
+    query_source_sha256: str
+    qrel_source_path: str
+    qrel_source_sha256: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,6 +405,19 @@ def _resolve_source_reference(
     return payload
 
 
+def _canonical_payload_json(payload: Mapping[str, Any]) -> str:
+    try:
+        return json.dumps(
+            payload,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError("aggregate payload must be finite JSON data") from error
+
+
 def _quality_metric(
     payload: Mapping[str, Any],
     *field_names: str,
@@ -545,10 +568,18 @@ def _make_slice(
     grade_2_memberships: int,
     overlapping: bool,
     membership_policy: str,
+    query_source_path: str,
+    query_source_sha256: str,
+    qrel_source_path: str,
+    qrel_source_sha256: str,
 ) -> SliceRecord:
     query_count = len(rows)
     if query_count == 0:
         raise ValueError(f"slice {slice_type}/{slice_key} has no queries")
+    metric_sources = {(row.source_path, row.source_sha256) for row in rows}
+    if len(metric_sources) != 1:
+        raise ValueError(f"slice {slice_type}/{slice_key} mixes metric sources")
+    metric_source_path, metric_source_sha256 = next(iter(metric_sources))
     zero_ndcg_count = sum(row.zero_ndcg for row in rows)
     return SliceRecord(
         system_id=system_id,
@@ -563,12 +594,23 @@ def _make_slice(
         grade_2_memberships=grade_2_memberships,
         overlapping=overlapping,
         membership_policy=membership_policy,
+        metric_source_path=metric_source_path,
+        metric_source_sha256=metric_source_sha256,
+        query_source_path=query_source_path,
+        query_source_sha256=query_source_sha256,
+        qrel_source_path=qrel_source_path,
+        qrel_source_sha256=qrel_source_sha256,
     )
 
 
 def _build_slices(
     system_id: str,
     rows: list[PerQueryRecord],
+    *,
+    query_source_path: str,
+    query_source_sha256: str,
+    qrel_source_path: str,
+    qrel_source_sha256: str,
 ) -> tuple[list[SliceRecord], list[SliceRecord]]:
     topic_members: dict[str, list[tuple[PerQueryRecord, int]]] = defaultdict(list)
     density_members: dict[str, list[PerQueryRecord]] = defaultdict(list)
@@ -590,6 +632,10 @@ def _build_slices(
                 grade_2_memberships=sum(grade == 2 for _row, grade in members),
                 overlapping=True,
                 membership_policy="qrel_grade_gt_zero",
+                query_source_path=query_source_path,
+                query_source_sha256=query_source_sha256,
+                qrel_source_path=qrel_source_path,
+                qrel_source_sha256=qrel_source_sha256,
             )
         )
 
@@ -612,6 +658,10 @@ def _build_slices(
                 grade_2_memberships=sum(row.grade_2_count for row in members),
                 overlapping=False,
                 membership_policy="positive_candidate_count",
+                query_source_path=query_source_path,
+                query_source_sha256=query_source_sha256,
+                qrel_source_path=qrel_source_path,
+                qrel_source_sha256=qrel_source_sha256,
             )
         )
     return topic_slices, density_slices
@@ -621,16 +671,23 @@ def _verify_dense_alias_vector(
     root: Path,
     sources: Mapping[str, Any],
     cache: dict[str, Any],
-    dense_rows: Mapping[str, tuple[float, float]],
+    dense_rows: Mapping[str, tuple[float, float]] | None,
 ) -> float | None:
     if "issue18_evaluation" not in sources:
         return None
     issue18 = _load_json_source(root, sources, "issue18_evaluation", cache)
     try:
         alias = resolve_json_pointer(issue18, "/controls/query_knn/per_query")
-    except (KeyError, IndexError, TypeError):
-        return None
+    except (KeyError, IndexError, TypeError) as error:
+        raise ValueError(
+            "declared issue18_evaluation source lacks /controls/query_knn/per_query"
+        ) from error
     alias = _require_mapping(alias, "issue-18 dense alias per-query map")
+    if dense_rows is None:
+        raise ValueError(
+            "declared issue18_evaluation alias requires a canonical "
+            "dense_nested per-query vector"
+        )
     if set(alias) != set(dense_rows):
         raise ValueError("dense alias vectors have different query IDs")
     maximum_delta = 0.0
@@ -669,8 +726,10 @@ def build_ledger(
     if not isinstance(experiments, list):
         raise ValueError("registry experiments must be a list")
 
-    query_source_path, _query_sha256 = _source_details(sources, "development_queries")
-    qrel_source_path, _qrel_sha256 = _source_details(sources, "development_qrels")
+    query_source_path, query_source_sha256 = _source_details(
+        sources, "development_queries"
+    )
+    qrel_source_path, qrel_source_sha256 = _source_details(sources, "development_qrels")
     development = load_development_data(
         root / query_source_path,
         root / qrel_source_path,
@@ -742,9 +801,13 @@ def build_ledger(
             aggregate = _resolve_source_reference(
                 root, sources, aggregate_source, json_cache
             )
+            aggregate_payload_json = _canonical_payload_json(aggregate)
             reported_ndcg = _quality_metric(aggregate, "ndcg_at_10", "ndcg_at_k")
             reported_mrr = _quality_metric(aggregate, "mrr", "reciprocal_rank")
             reported_zero = _zero_ndcg_queries(aggregate)
+            recomputed_ndcg: float | None = None
+            recomputed_mrr: float | None = None
+            recomputed_zero: int | None = None
 
             system_rows: list[PerQueryRecord] = []
             per_query_source = system.get("per_query_source")
@@ -784,19 +847,19 @@ def build_ledger(
                         f"{system_id}: missing={missing!r}, extra={extra!r}"
                     )
 
-                macro_ndcg = sum(row[0] for row in metrics.values()) / len(metrics)
-                macro_mrr = sum(row[1] for row in metrics.values()) / len(metrics)
-                zero_ndcg_queries = sum(row[0] == 0.0 for row in metrics.values())
+                recomputed_ndcg = sum(row[0] for row in metrics.values()) / len(metrics)
+                recomputed_mrr = sum(row[1] for row in metrics.values()) / len(metrics)
+                recomputed_zero = sum(row[0] == 0.0 for row in metrics.values())
                 for metric_name, recomputed, reported in (
-                    ("ndcg_at_10", macro_ndcg, reported_ndcg),
-                    ("mrr", macro_mrr, reported_mrr),
+                    ("ndcg_at_10", recomputed_ndcg, reported_ndcg),
+                    ("mrr", recomputed_mrr, reported_mrr),
                 ):
                     if reported is None or abs(recomputed - reported) > 1e-12:
                         raise ValueError(
                             f"recomputed macro metric {metric_name} differs from "
                             f"receipt for {system_id}"
                         )
-                if reported_zero is not None and zero_ndcg_queries != reported_zero:
+                if reported_zero is not None and recomputed_zero != reported_zero:
                     raise ValueError(
                         f"recomputed zero-nDCG count differs from receipt for {system_id}"
                     )
@@ -831,14 +894,16 @@ def build_ledger(
                             source_sha256=metric_sha256,
                         )
                     )
-                reported_ndcg = macro_ndcg
-                reported_mrr = macro_mrr
-                reported_zero = zero_ndcg_queries
                 if system_id == "dense_nested":
                     dense_rows = metrics
 
                 system_topic_slices, system_density_slices = _build_slices(
-                    system_id, system_rows
+                    system_id,
+                    system_rows,
+                    query_source_path=query_source_path,
+                    query_source_sha256=query_source_sha256,
+                    qrel_source_path=qrel_source_path,
+                    qrel_source_sha256=qrel_source_sha256,
                 )
                 topic_slices.extend(system_topic_slices)
                 density_slices.extend(system_density_slices)
@@ -871,6 +936,10 @@ def build_ledger(
                     ndcg_at_10=reported_ndcg,
                     mrr=reported_mrr,
                     zero_ndcg_queries=reported_zero,
+                    recomputed_ndcg_at_10=recomputed_ndcg,
+                    recomputed_mrr=recomputed_mrr,
+                    recomputed_zero_ndcg_queries=recomputed_zero,
+                    aggregate_payload_json=aggregate_payload_json,
                     per_query_available=bool(system_rows),
                     ranking_coverage=str(system["ranking_coverage"]),
                     artifact_state=str(system["artifact_state"]),
@@ -881,11 +950,9 @@ def build_ledger(
                 )
             )
 
-    dense_alias_max_delta = None
-    if dense_rows is not None:
-        dense_alias_max_delta = _verify_dense_alias_vector(
-            root, sources, json_cache, dense_rows
-        )
+    dense_alias_max_delta = _verify_dense_alias_vector(
+        root, sources, json_cache, dense_rows
+    )
 
     density_supports: dict[str, int] = defaultdict(int)
     for _query_id, summary in query_summaries.items():

@@ -468,11 +468,16 @@ def exact_nested_loo_inner_scores(
         )
         target_grades = grade_matrix[inner_index]
         top_count = min(cutoff, candidate_count)
-        gains = target_grades[model_orders[:, :top_count]]
+        observed_gains = np.maximum(
+            target_grades[model_orders[:, :top_count]],
+            0.0,
+        )
         ideal_gains = np.sort(np.maximum(target_grades, 0.0))[::-1][:top_count]
         ideal_dcg = float(np.sum(ideal_gains * discounts[:top_count]))
         if ideal_dcg > 0.0:
-            ndcg_values = np.sum(gains * discounts[:top_count], axis=1) / ideal_dcg
+            ndcg_values = (
+                np.sum(observed_gains * discounts[:top_count], axis=1) / ideal_dcg
+            )
         else:
             ndcg_values = np.zeros(query_count, dtype=np.float64)
 

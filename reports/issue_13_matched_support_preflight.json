@@ -1,0 +1,265 @@
+{
+  "candidate_count": 150,
+  "cluster_counts": {
+    "20": {
+      "cluster_mean": {
+        "mrr": 0.324294966110353,
+        "ndcg_at_10": 0.29022364689638863,
+        "zero_ndcg_count": 148
+      },
+      "matched_neighbor_mean": {
+        "mrr": 0.3823357705525833,
+        "ndcg_at_10": 0.33952647169079414,
+        "zero_ndcg_count": 124
+      },
+      "paired_delta_cluster_minus_matched": {
+        "losses": 111,
+        "mean_ndcg_at_10_delta": -0.049302824794405564,
+        "ties": 136,
+        "wins": 75
+      },
+      "score_granularity": {
+        "cluster_distinct_scores": {
+          "count": 322,
+          "max": 17.0,
+          "mean": 9.158385093167702,
+          "median": 9.0,
+          "min": 3.0
+        },
+        "cluster_zero_scores": {
+          "count": 322,
+          "max": 147.0,
+          "mean": 46.18944099378882,
+          "median": 17.5,
+          "min": 0.0
+        },
+        "matched_distinct_scores": {
+          "count": 322,
+          "max": 17.0,
+          "mean": 8.661490683229813,
+          "median": 8.0,
+          "min": 3.0
+        },
+        "matched_zero_scores": {
+          "count": 322,
+          "max": 146.0,
+          "mean": 51.90372670807454,
+          "median": 27.0,
+          "min": 0.0
+        }
+      },
+      "support": {
+        "count": 322,
+        "max": 43.0,
+        "mean": 19.195652173913043,
+        "median": 19.0,
+        "min": 5.0
+      },
+      "target_assignment": {
+        "centroid_squared_distance_margin": {
+          "count": 322,
+          "max": 0.44388430662153144,
+          "mean": 0.0973706713286397,
+          "median": 0.0697159767210016,
+          "min": 0.0003010387463193709
+        },
+        "cluster_neighbor_support_overlap_rate": {
+          "count": 322,
+          "max": 1.0,
+          "mean": 0.41423402553501015,
+          "median": 0.3766891891891892,
+          "min": 0.0
+        }
+      }
+    },
+    "40": {
+      "cluster_mean": {
+        "mrr": 0.3350532527868061,
+        "ndcg_at_10": 0.2865639551873666,
+        "zero_ndcg_count": 154
+      },
+      "matched_neighbor_mean": {
+        "mrr": 0.36880166306622064,
+        "ndcg_at_10": 0.3281974766132701,
+        "zero_ndcg_count": 136
+      },
+      "paired_delta_cluster_minus_matched": {
+        "losses": 103,
+        "mean_ndcg_at_10_delta": -0.04163352142590355,
+        "ties": 148,
+        "wins": 71
+      },
+      "score_granularity": {
+        "cluster_distinct_scores": {
+          "count": 322,
+          "max": 18.0,
+          "mean": 6.916149068322981,
+          "median": 6.0,
+          "min": 3.0
+        },
+        "cluster_zero_scores": {
+          "count": 322,
+          "max": 148.0,
+          "mean": 65.22670807453416,
+          "median": 50.5,
+          "min": 0.0
+        },
+        "matched_distinct_scores": {
+          "count": 322,
+          "max": 18.0,
+          "mean": 6.60248447204969,
+          "median": 6.0,
+          "min": 2.0
+        },
+        "matched_zero_scores": {
+          "count": 322,
+          "max": 147.0,
+          "mean": 75.4472049689441,
+          "median": 75.5,
+          "min": 0.0
+        }
+      },
+      "support": {
+        "count": 322,
+        "max": 31.0,
+        "mean": 11.574534161490684,
+        "median": 11.0,
+        "min": 2.0
+      },
+      "target_assignment": {
+        "centroid_squared_distance_margin": {
+          "count": 322,
+          "max": 0.5171447041066204,
+          "mean": 0.09694824139205235,
+          "median": 0.0717475625647449,
+          "min": 0.00029839189352620643
+        },
+        "cluster_neighbor_support_overlap_rate": {
+          "count": 322,
+          "max": 1.0,
+          "mean": 0.3941852393452612,
+          "median": 0.3333333333333333,
+          "min": 0.0
+        }
+      }
+    }
+  },
+  "completed_issue13_result": {
+    "baseline": {
+      "mrr": 0.40406330811168817,
+      "ndcg_at_10": 0.35985474409504775,
+      "zero_ndcg_count": 116
+    },
+    "candidate": {
+      "mrr": 0.380158644416514,
+      "ndcg_at_10": 0.34868084786664477,
+      "zero_ndcg_count": 123
+    },
+    "candidate_minus_baseline": {
+      "mrr": -0.023904663695149868,
+      "ndcg_at_10": -0.011173896228364245
+    },
+    "conditional_component_diagnostics": {
+      "domain_effect_final_minus_local_plus_prior": -0.009361977510243338,
+      "frozen_baseline": {
+        "mrr": 0.40406330811168817,
+        "ndcg_at_10": 0.35985474409504775,
+        "zero_ndcg_count": 116
+      },
+      "prior_effect_final_minus_no_prior_blend": 4.159425626837854e-05,
+      "selected_domain_only": {
+        "mrr": 0.31801218695694844,
+        "ndcg_at_10": 0.2808510162816271,
+        "zero_ndcg_count": 151
+      },
+      "selected_local_only": {
+        "mrr": 0.40225940880779676,
+        "ndcg_at_10": 0.35882195388143606,
+        "zero_ndcg_count": 117
+      },
+      "selected_local_plus_domain_no_prior": {
+        "mrr": 0.38009715829891116,
+        "ndcg_at_10": 0.3486392536103764,
+        "zero_ndcg_count": 123
+      },
+      "selected_local_plus_prior": {
+        "mrr": 0.4024982237307636,
+        "ndcg_at_10": 0.35804282537688814,
+        "zero_ndcg_count": 118
+      }
+    },
+    "effectiveness_gates_passed": false,
+    "integrity_checks_passed": true,
+    "ndcg_at_10_delta_95pct_ci": [
+      -0.02543034280251127,
+      0.002637356577463938
+    ],
+    "outcome": "reject",
+    "outer_signal_granularity": {
+      "domain_mean_zero_scores": 57.00310559006211,
+      "domain_median_distinct_scores": 8.0,
+      "local_median_distinct_scores": 95.0,
+      "queries_with_domain_top_score_tie": 96
+    },
+    "provenance": {
+      "decision_sha256": "cac8599227f170aa8123155b2690d7fc9510261042f54d6cc9e56eb77b2ed7a7",
+      "fit_semantic_sha256": "a48f7e1d6087a26cc372f479c284c310f7d6265a34fb6c3b233e05a9de85f313",
+      "result_manifest_sha256": "4ae0da8f0f34967258a44d2f99d76f5e31ffa6c750fb2caa02f06f7a9d63c805"
+    },
+    "query_ndcg_win_tie_loss": {
+      "losses": 88,
+      "ties": 168,
+      "wins": 66
+    },
+    "reproduced_checks": {
+      "baseline": true,
+      "component_recomposition": true,
+      "final_ranks": true,
+      "result_validation": true
+    },
+    "selection": {
+      "clusters_20": 196,
+      "clusters_40": 126,
+      "local_weight_0_50": 0,
+      "local_weight_0_75": 322,
+      "neighbors_20": 35,
+      "neighbors_50": 287,
+      "prior_0": 249,
+      "prior_0_1": 73
+    }
+  },
+  "decision": {
+    "continue_clustering": false,
+    "rule": "continue clustering only if any hard cluster beats its matched control on mean nDCG@10"
+  },
+  "fit_count": 644,
+  "method": {
+    "cluster_counts": [
+      20,
+      40
+    ],
+    "clusterer": {
+      "algorithm": "lloyd",
+      "init": "k-means++",
+      "max_iter": 300,
+      "n_init": 10,
+      "random_state": 2026,
+      "tol": 0.0001
+    },
+    "matched_control": "uniform mean over equal-count positive-cosine neighbors",
+    "tie_break": "fold global prior descending, then candidate ID ascending"
+  },
+  "query_count": 322,
+  "question": "Does a hard query cluster beat equal-support nearest neighbors?",
+  "schema": "trec-mlm-issue13-matched-support-preflight-v1",
+  "sources": {
+    "embedding_file_sha256": "d96ef7a1e45f40621c303c855673efa1de7c02d7dacd16cf0cee93c562a09559",
+    "embedding_logical_sha256": "6d197055eb62ab9809ae321b0f60072e20f17524861e6a989b49cd35c389055b",
+    "encoder_metadata_sha256": "5bdfe3f5297467f91bd992e47c6555f582b536c15b97d853dd904fdcda871091",
+    "qrels_sha256": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35",
+    "queries_sha256": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c",
+    "query_input_sha256": "98faa04f979e428933c3d8e67dac43cf4dded112bd2c16969b3482a1d52886d9",
+    "similarity_logical_sha256": "80c69a8dca29cd5e9a4de08dc4e44553fabf813428dd4956f7ecbeb2852968ed"
+  },
+  "status": "exploratory_not_promotable"
+}

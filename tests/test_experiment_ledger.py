@@ -27,6 +27,7 @@ from trec_mlm.experiment_ledger import (
 def minimal_registry() -> dict[str, object]:
     return {
         "version": 1,
+        "promoted_development_system_id": "example_primary",
         "sources": {
             "receipt": {
                 "path": "reports/result.json",
@@ -55,6 +56,7 @@ def minimal_registry() -> dict[str, object]:
                         "query_count": 322,
                         "candidate_count": 150,
                         "aggregate_source": {
+                            "kind": "json_pointer",
                             "source_id": "receipt",
                             "pointer": "/metrics/example",
                         },
@@ -78,12 +80,14 @@ def minimal_registry() -> dict[str, object]:
                         "query_count": 322,
                         "candidate_count": 150,
                         "aggregate_source": {
+                            "kind": "json_pointer",
                             "source_id": "receipt",
-                            "pointer": "/metrics/example",
+                            "pointer": "/metrics/example_primary",
                         },
                         "per_query_source": {
+                            "kind": "issue18_per_query_map",
                             "source_id": "receipt",
-                            "pointer": "/metrics/example/per_query",
+                            "pointer": "/metrics/example_primary/per_query",
                         },
                         "per_query_blocker": None,
                         "ranking_coverage": "per_query_metrics_only",
@@ -117,7 +121,7 @@ def write_declared_source(
 def build_fixture_ledger(
     tmp_path: Path,
     *,
-    per_query_count: int = 2,
+    per_query_count: int = 322,
     reported_ndcg: object | None = None,
     declare_missing_issue18_alias: bool = False,
     declare_issue18_alias_without_dense: bool = False,
@@ -169,16 +173,29 @@ def build_fixture_ledger(
     qrels_path = data / "qrels.txt"
     qrel_lines: list[str] = []
     for index, query_id in enumerate(query_ids, start=1):
+        if per_query_count == 322:
+            if index <= 248:
+                positive_target = 5
+            elif index <= 278:
+                positive_target = 20
+            elif index == 279:
+                positive_target = 44
+            else:
+                positive_target = 58
+            positive_candidates = list(candidate_ids[:positive_target])
+            if index == 2:
+                positive_candidates.remove("A")
+                positive_candidates.append(candidate_ids[positive_target])
+        else:
+            positive_candidates = ["A"] if index >= 3 else []
+            if query_id == "q1":
+                positive_candidates.extend(("A", "B"))
+            elif query_id == "q2":
+                positive_candidates.append("B")
         for candidate_id in candidate_ids:
-            grade = 0
-            if query_id == "q1" and candidate_id == "A":
-                grade = 1
-            elif query_id == "q1" and candidate_id == "B":
+            grade = int(candidate_id in positive_candidates)
+            if query_id == "q1" and candidate_id == "B":
                 grade = 2
-            elif query_id == "q2" and candidate_id == "B":
-                grade = 1
-            elif index >= 3 and candidate_id == "A":
-                grade = 1
             qrel_lines.append(f"{query_id} 0 {candidate_id} {grade}\n")
     qrels_path.write_text("".join(qrel_lines), encoding="utf-8")
 
@@ -206,6 +223,7 @@ def build_fixture_ledger(
 
     registry = {
         "version": 1,
+        "promoted_development_system_id": "example_system",
         "sources": sources,
         "caveats": {
             "development_only": {
@@ -221,7 +239,7 @@ def build_fixture_ledger(
                     {
                         "system_id": "example_system",
                         "source_system_id": "example_source",
-                        "aliases": [],
+                        "aliases": ["example"],
                         "method_summary": "Example.",
                         "evaluation_scope": (
                             "dev_322x150" if full_scope else "restricted_6"
@@ -254,22 +272,6 @@ def build_fixture_ledger(
             }
         ],
     }
-    if not full_scope:
-        promoted_fixture = deepcopy(registry["experiments"][0]["systems"][0])
-        promoted_fixture.update(
-            {
-                "system_id": "fixture_promoted_primary",
-                "source_system_id": "fixture_promoted_primary",
-                "method_summary": "Synthetic full-scope primary for registry validation.",
-                "evaluation_scope": "dev_322x150",
-                "evidence_status": "recomputed_from_complete_ranking",
-                "promotion_status": "promoted_development",
-                "query_count": 322,
-                "per_query_source": None,
-                "per_query_blocker": "Synthetic fixture has no materialized vector.",
-            }
-        )
-        registry["experiments"][0]["systems"].append(promoted_fixture)
     registry_path = experiments / "ledger.json"
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
     return build_ledger(tmp_path)
@@ -414,7 +416,150 @@ def test_validate_registry_rejects_diagnostic_as_only_promoted_system() -> None:
     }
     systems["dense_profile_equal"]["promotion_status"] = "diagnostic_only"
     systems["dense_profile_profile_heavy"]["promotion_status"] = "promoted_development"
+    registry["promoted_development_system_id"] = "dense_profile_profile_heavy"
     with pytest.raises(ValueError, match="promotion-blocking caveats"):
+        validate_registry(registry, Path("."))
+
+
+def _registry_with_promoted_dense_grid_decoy() -> tuple[
+    dict[str, Any], dict[str, Any], dict[str, Any]
+]:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    systems = {
+        system["system_id"]: system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+    }
+    primary = systems["dense_profile_equal"]
+    decoy = systems["mpnet_base_v2@50"]
+    primary["promotion_status"] = "diagnostic_only"
+    decoy["promotion_status"] = "promoted_development"
+    decoy["evidence_status"] = "stored_per_query"
+    registry["promoted_development_system_id"] = decoy["system_id"]
+    return registry, primary, decoy
+
+
+def test_validate_registry_rejects_promoted_evidence_relabeling_probe() -> None:
+    registry, _primary, _decoy = _registry_with_promoted_dense_grid_decoy()
+
+    with pytest.raises(ValueError, match="promoted_development.*per_query_source"):
+        validate_registry(registry, Path("."))
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value", "message"),
+    [
+        ("per_query_source", None, "per_query_source"),
+        (
+            "per_query_source",
+            {"kind": "aggregate_json", "source_id": "dense_query_results"},
+            "per_query_source",
+        ),
+        ("ranking_coverage", "none", "ranking_coverage"),
+        ("per_query_blocker", "Aggregate-only evidence remains.", "per_query_blocker"),
+    ],
+)
+def test_validate_registry_requires_promoted_evidence_custody_fields(
+    field: str,
+    bad_value: object,
+    message: str,
+) -> None:
+    registry, primary, decoy = _registry_with_promoted_dense_grid_decoy()
+    identity_bound_source = deepcopy(primary["per_query_source"])
+    identity_bound_source["pointer"] = "/systems/mpnet_base_v2@50/per_query"
+    decoy.update(
+        {
+            "per_query_source": identity_bound_source,
+            "ranking_coverage": "per_query_metrics_only",
+            "per_query_blocker": None,
+            "caveat_ids": [
+                caveat_id
+                for caveat_id in decoy["caveat_ids"]
+                if caveat_id != "aggregate_per_query_missing"
+            ],
+        }
+    )
+    decoy[field] = bad_value
+
+    with pytest.raises(ValueError, match=f"promoted_development.*{message}"):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_promoted_missing_per_query_caveat() -> None:
+    registry, primary, decoy = _registry_with_promoted_dense_grid_decoy()
+    identity_bound_source = deepcopy(primary["per_query_source"])
+    identity_bound_source["pointer"] = "/systems/mpnet_base_v2@50/per_query"
+    decoy.update(
+        {
+            "per_query_source": identity_bound_source,
+            "ranking_coverage": "per_query_metrics_only",
+            "per_query_blocker": None,
+        }
+    )
+
+    with pytest.raises(ValueError, match="promotion-blocking caveats"):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_stolen_promoted_per_query_source() -> None:
+    registry, primary, decoy = _registry_with_promoted_dense_grid_decoy()
+    decoy.update(
+        {
+            "per_query_source": deepcopy(primary["per_query_source"]),
+            "ranking_coverage": "per_query_metrics_only",
+            "per_query_blocker": None,
+            "caveat_ids": [
+                caveat_id
+                for caveat_id in decoy["caveat_ids"]
+                if caveat_id != "aggregate_per_query_missing"
+            ],
+        }
+    )
+
+    with pytest.raises(
+        ValueError, match="promoted_development.*per_query_source identity"
+    ):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_mismatched_reviewed_primary_id() -> None:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    registry["promoted_development_system_id"] = "dense_nested"
+
+    with pytest.raises(ValueError, match="reviewed promoted development system ID"):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_stolen_promoted_aggregate_source() -> None:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    primary = next(
+        system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+        if system["system_id"] == "dense_profile_equal"
+    )
+    primary["aggregate_source"]["pointer"] = "/systems/profile_only"
+
+    with pytest.raises(ValueError, match="aggregate_source identity"):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_accepts_current_promoted_evidence_custody() -> None:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_unsupported_complete_ranking_promotion() -> None:
+    registry = json.loads(Path("experiments/ledger.json").read_text(encoding="utf-8"))
+    primary = next(
+        system
+        for experiment in registry["experiments"]
+        for system in experiment["systems"]
+        if system["system_id"] == "dense_profile_equal"
+    )
+    primary["evidence_status"] = "recomputed_from_complete_ranking"
+
+    with pytest.raises(ValueError, match="complete-ranking promotion.*no supported"):
         validate_registry(registry, Path("."))
 
 
@@ -430,6 +575,7 @@ def test_validate_registry_rejects_restricted_or_invalid_promoted_system(
     }
     systems["dense_profile_equal"]["promotion_status"] = "diagnostic_only"
     systems[system_id]["promotion_status"] = "promoted_development"
+    registry["promoted_development_system_id"] = system_id
     with pytest.raises(ValueError, match="promoted_development.*dev_322x150"):
         validate_registry(registry, Path("."))
 
@@ -679,11 +825,11 @@ def test_build_ledger_recomputes_macro_and_overlapping_slices(
 ) -> None:
     build = build_fixture_ledger(tmp_path)
     system = next(row for row in build.systems if row.system_id == "example_system")
-    assert system.ndcg_at_10 == pytest.approx(0.25)
-    assert system.mrr == pytest.approx(0.625)
+    assert system.ndcg_at_10 == pytest.approx(0.5 / 322)
+    assert system.mrr == pytest.approx(1.25 / 322)
     slices = {(row.slice_key, row.query_count): row for row in build.topic_slices}
-    assert slices[("A", 1)].ndcg_at_10 == pytest.approx(0.5)
-    assert slices[("B", 2)].ndcg_at_10 == pytest.approx(0.25)
+    assert slices[("A", 321)].ndcg_at_10 == pytest.approx(0.5 / 321)
+    assert slices[("B", 322)].ndcg_at_10 == pytest.approx(0.5 / 322)
     assert all(row.overlapping for row in build.topic_slices)
 
 

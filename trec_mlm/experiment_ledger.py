@@ -48,6 +48,7 @@ PROMOTION_STATUSES = frozenset(
 )
 PROMOTION_BLOCKING_CAVEAT_IDS = frozenset(
     {
+        "aggregate_per_query_missing",
         "behavior_not_effectiveness",
         "hard_cluster_posthoc_preflight",
         "hard_cluster_preflight_not_promotable",
@@ -63,6 +64,7 @@ PROMOTION_BLOCKING_CAVEAT_IDS = frozenset(
         "source_query_stopped",
     }
 )
+PROMOTABLE_PER_QUERY_SOURCE_KINDS = frozenset({"issue18_per_query_map"})
 ARTIFACT_STATES = frozenset(
     {
         "tracked_complete",
@@ -366,6 +368,11 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
         )
     promoted = promoted_systems[0]
     promoted_id = promoted["system_id"]
+    if registry.get("promoted_development_system_id") != promoted_id:
+        raise ValueError(
+            "reviewed promoted development system ID must name the exactly-one "
+            f"promoted_development row: {promoted_id}"
+        )
     if promoted.get("evaluation_scope") != "dev_322x150":
         raise ValueError(
             f"promoted_development system {promoted_id} must use dev_322x150 scope"
@@ -374,13 +381,69 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
         raise ValueError(
             f"promoted_development system {promoted_id} must have 322x150 counts"
         )
-    if promoted.get("evidence_status") not in {
-        "stored_per_query",
-        "recomputed_from_complete_ranking",
-    }:
+    if promoted.get("evidence_status") != "stored_per_query":
         raise ValueError(
-            f"promoted_development system {promoted_id} requires complete per-query "
-            "evidence"
+            f"promoted_development system {promoted_id} requires stored_per_query "
+            "evidence; complete-ranking promotion has no supported custody contract"
+        )
+    promoted_per_query_source = promoted.get("per_query_source")
+    if not isinstance(promoted_per_query_source, Mapping):
+        raise ValueError(
+            f"promoted_development system {promoted_id} requires a non-null valid "
+            "per_query_source"
+        )
+    promoted_source_kind = promoted_per_query_source.get("kind")
+    if promoted_source_kind not in PROMOTABLE_PER_QUERY_SOURCE_KINDS:
+        raise ValueError(
+            f"promoted_development system {promoted_id} has unsupported "
+            f"per_query_source kind: {promoted_source_kind}"
+        )
+    promoted_pointer = promoted_per_query_source.get("pointer")
+    if not isinstance(promoted_pointer, str) or not promoted_pointer.startswith("/"):
+        raise ValueError(
+            f"promoted_development system {promoted_id} requires a per_query_source "
+            "JSON pointer"
+        )
+    promoted_aliases = promoted.get("aliases", [])
+    if not isinstance(promoted_aliases, list):
+        promoted_aliases = []
+    promoted_identifiers = {
+        value
+        for value in (
+            promoted.get("system_id"),
+            promoted.get("source_system_id"),
+            *promoted_aliases,
+        )
+        if isinstance(value, str) and value
+    }
+    aggregate_source = promoted.get("aggregate_source")
+    if not isinstance(aggregate_source, Mapping):
+        raise ValueError(
+            f"promoted_development system {promoted_id} requires aggregate_source "
+            "identity custody"
+        )
+    aggregate_pointer = aggregate_source.get("pointer")
+    if aggregate_source.get("kind") != "json_pointer" or not _pointer_identifies(
+        aggregate_pointer, promoted_identifiers
+    ):
+        raise ValueError(
+            f"promoted_development system {promoted_id} aggregate_source pointer "
+            "does not establish aggregate_source identity custody"
+        )
+    if not _pointer_identifies(promoted_pointer, promoted_identifiers):
+        raise ValueError(
+            f"promoted_development system {promoted_id} per_query_source pointer "
+            "does not establish per_query_source identity custody"
+        )
+    if promoted.get("ranking_coverage") != "per_query_metrics_only":
+        raise ValueError(
+            f"promoted_development system {promoted_id} requires compatible non-none "
+            "ranking_coverage=per_query_metrics_only"
+        )
+    if promoted.get("per_query_blocker") is not None:
+        raise ValueError(
+            f"promoted_development system {promoted_id} must not have a "
+            "per_query_blocker"
         )
     blocking_caveats = set(promoted.get("caveat_ids", [])) & (
         PROMOTION_BLOCKING_CAVEAT_IDS
@@ -422,6 +485,16 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
     for raw_experiment in experiments:
         experiment = _require_mapping(raw_experiment, "experiment")
         _validate_grid_contracts(experiment, sources, source_values)
+
+
+def _pointer_identifies(pointer: Any, identifiers: set[str]) -> bool:
+    if not isinstance(pointer, str) or not pointer.startswith("/"):
+        return False
+    tokens = {
+        raw_token.replace("~1", "/").replace("~0", "~")
+        for raw_token in pointer[1:].split("/")
+    }
+    return bool(tokens & identifiers)
 
 
 def density_bucket(positive_count: int) -> str:

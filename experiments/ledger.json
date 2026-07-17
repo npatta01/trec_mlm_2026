@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "promoted_development_system_id": "dense_profile_equal",
   "sources": {
     "dense_query_results": {
       "path": "reports/trec_2026_dense_query_knn_results.json",

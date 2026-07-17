@@ -115,6 +115,12 @@ Each system record contains at least:
 - `run_classification` when known; and
 - `caveat_ids`.
 
+The registry also declares one reviewed `promoted_development_system_id`. It
+must equal the canonical ID of the exactly-one promoted row. That row's
+aggregate and per-query JSON pointers must each contain an exact canonical,
+source, or reviewed alias token for the same system; borrowing another system's
+valid per-query pointer is rejected.
+
 ### Builder and validation library
 
 Create `trec_mlm/experiment_ledger.py` for pure loading, validation, metric,
@@ -329,9 +335,16 @@ is violated:
 - an aggregate-only system lacking a concrete blocker;
 - a restricted result appearing in the full-development leaderboard;
 - anything other than exactly one promoted development system, or a promoted
-  system without full 322x150 scope, complete per-query evidence, exact scope
-  counts, and no explicit diagnostic/restricted promotion blocker; or
+  system without full 322x150 scope, exact scope counts, `stored_per_query`
+  evidence backed by an identity-bound recognized non-null per-query source,
+  `per_query_metrics_only` coverage, a null per-query blocker, and no explicit
+  diagnostic/restricted/missing-per-query promotion caveat; or
 - a generated output containing an absolute historical worktree path.
+
+`recomputed_from_complete_ranking` is not currently promotable because the
+ledger has no implemented complete-ranking source-custody and recomputation
+contract. It may become promotable only after that path is represented and
+validated end to end.
 
 Output writes use temporary files and atomic replacement. Stable input ordering
 produces byte-identical outputs; generated artifacts do not contain wall-clock

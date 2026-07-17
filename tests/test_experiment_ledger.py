@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 import hashlib
 import json
@@ -14,6 +15,9 @@ from trec_mlm.experiment_ledger import (
     EVIDENCE_STATUSES,
     PROMOTION_STATUSES,
     QREL_USAGE_STATUSES,
+    LedgerBuild,
+    build_ledger,
+    density_bucket,
     load_registry,
     resolve_json_pointer,
     validate_registry,
@@ -82,6 +86,138 @@ def write_declared_source(
     digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
     registry["sources"]["receipt"]["sha256"] = digest  # type: ignore[index]
     return source_path
+
+
+def build_fixture_ledger(
+    tmp_path: Path,
+    *,
+    per_query_count: int = 2,
+    reported_ndcg: float | None = None,
+) -> LedgerBuild:
+    query_ids = [f"q{index}" for index in range(1, per_query_count + 1)]
+    candidate_ids = ["A", "B", *(f"filler_{index:03d}" for index in range(148))]
+    metrics = {
+        query_id: {
+            "ndcg_at_k": 0.5 if index == 1 else 0.0,
+            "reciprocal_rank": 1.0 if index == 1 else (0.25 if index == 2 else 0.0),
+        }
+        for index, query_id in enumerate(query_ids, start=1)
+    }
+    macro_ndcg = sum(row["ndcg_at_k"] for row in metrics.values()) / len(metrics)
+    macro_mrr = sum(row["reciprocal_rank"] for row in metrics.values()) / len(metrics)
+
+    reports = tmp_path / "reports"
+    data = tmp_path / "data" / "dev"
+    experiments = tmp_path / "experiments"
+    reports.mkdir(parents=True)
+    data.mkdir(parents=True)
+    experiments.mkdir(parents=True)
+
+    receipt_path = reports / "result.json"
+    receipt_path.write_text(
+        json.dumps(
+            {
+                "metrics": {
+                    "example": {
+                        "ndcg_at_k": (
+                            macro_ndcg if reported_ndcg is None else reported_ndcg
+                        ),
+                        "reciprocal_rank": macro_mrr,
+                        "zero_ndcg_queries": sum(
+                            row["ndcg_at_k"] == 0.0 for row in metrics.values()
+                        ),
+                        "per_query": metrics,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    query_path = data / "queries.tsv"
+    query_path.write_text(
+        "".join(f"{query_id}\tQuestion {query_id}?\n" for query_id in query_ids),
+        encoding="utf-8",
+    )
+    qrels_path = data / "qrels.txt"
+    qrel_lines: list[str] = []
+    for index, query_id in enumerate(query_ids, start=1):
+        for candidate_id in candidate_ids:
+            grade = 0
+            if query_id == "q1" and candidate_id == "A":
+                grade = 1
+            elif query_id == "q1" and candidate_id == "B":
+                grade = 2
+            elif query_id == "q2" and candidate_id == "B":
+                grade = 1
+            elif index >= 3 and candidate_id == "A":
+                grade = 1
+            qrel_lines.append(f"{query_id} 0 {candidate_id} {grade}\n")
+    qrels_path.write_text("".join(qrel_lines), encoding="utf-8")
+
+    def source(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    full_scope = per_query_count != 2
+    registry = {
+        "version": 1,
+        "sources": {
+            "receipt": source(receipt_path),
+            "development_queries": source(query_path),
+            "development_qrels": source(qrels_path),
+        },
+        "caveats": {
+            "development_only": {
+                "scope": "program",
+                "summary": "Development evidence only.",
+            }
+        },
+        "experiments": [
+            {
+                "experiment_id": "example",
+                "experiment_family": "control",
+                "systems": [
+                    {
+                        "system_id": "example_system",
+                        "source_system_id": "example_source",
+                        "aliases": [],
+                        "method_summary": "Example.",
+                        "evaluation_scope": (
+                            "dev_322x150" if full_scope else "restricted_6"
+                        ),
+                        "evidence_status": "stored_per_query",
+                        "promotion_status": (
+                            "stable_control" if full_scope else "restricted_pilot"
+                        ),
+                        "query_count": per_query_count,
+                        "candidate_count": 150,
+                        "aggregate_source": {
+                            "kind": "json_pointer",
+                            "source_id": "receipt",
+                            "pointer": "/metrics/example",
+                        },
+                        "per_query_source": {
+                            "kind": "issue18_per_query_map",
+                            "source_id": "receipt",
+                            "pointer": "/metrics/example/per_query",
+                        },
+                        "per_query_blocker": None,
+                        "ranking_coverage": "per_query_metrics_only",
+                        "native_scores_available": False,
+                        "artifact_state": "tracked_complete",
+                        "qrel_usage": "evaluation_only",
+                        "run_classification": "internal_automatic",
+                        "caveat_ids": ["development_only"],
+                    }
+                ],
+            }
+        ],
+    }
+    registry_path = experiments / "ledger.json"
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    return build_ledger(tmp_path)
 
 
 def test_resolve_json_pointer_handles_escaped_tokens() -> None:
@@ -357,3 +493,84 @@ def test_frozen_vocabularies_match_approved_design() -> None:
         "restricted_selection_and_evaluation",
         "not_evaluated",
     }
+
+
+def test_build_ledger_recomputes_macro_and_overlapping_slices(
+    tmp_path: Path,
+) -> None:
+    build = build_fixture_ledger(tmp_path)
+    system = next(row for row in build.systems if row.system_id == "example_system")
+    assert system.ndcg_at_10 == pytest.approx(0.25)
+    assert system.mrr == pytest.approx(0.625)
+    slices = {(row.slice_key, row.query_count): row for row in build.topic_slices}
+    assert slices[("A", 1)].ndcg_at_10 == pytest.approx(0.5)
+    assert slices[("B", 2)].ndcg_at_10 == pytest.approx(0.25)
+    assert all(row.overlapping for row in build.topic_slices)
+
+
+def test_build_ledger_requires_322_rows_for_full_scope(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="exactly 322"):
+        build_fixture_ledger(tmp_path, per_query_count=321)
+
+
+def test_build_ledger_rejects_macro_drift(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="macro metric"):
+        build_fixture_ledger(tmp_path, reported_ndcg=0.9)
+
+
+def test_density_slices_are_disjoint() -> None:
+    assert density_bucket(1) == "at_most_5_positives"
+    assert density_bucket(5) == "at_most_5_positives"
+    assert density_bucket(6) == "6_to_20_positives"
+    assert density_bucket(20) == "6_to_20_positives"
+    assert density_bucket(21) == "more_than_20_positives"
+
+
+def test_real_ledger_extracts_complete_recoverable_vectors() -> None:
+    build = build_ledger(Path("."))
+    counts = Counter(row.system_id for row in build.per_query)
+    recoverable_systems = {
+        "dense_nested",
+        "contextual_e5",
+        "profile_only",
+        "dense_profile_equal",
+        "dense_profile_profile_heavy",
+        "a1_top2_k10",
+        "a1_top2_k10_dense_equal",
+        "r1_multires_max",
+        "r1_multires_max_dense_equal",
+        "x1_multires_top2",
+        "x1_multires_top2_dense_equal",
+    }
+    assert set(counts) == recoverable_systems
+    assert set(counts.values()) == {322}
+    assert (
+        sum(
+            row.query_count
+            for row in build.density_slices
+            if row.system_id == "dense_nested"
+        )
+        == 322
+    )
+    dense_supports = {
+        row.slice_key: row.query_count
+        for row in build.density_slices
+        if row.system_id == "dense_nested"
+    }
+    assert dense_supports == {
+        "at_most_5_positives": 248,
+        "6_to_20_positives": 30,
+        "more_than_20_positives": 44,
+    }
+
+    systems = {row.system_id: row for row in build.systems}
+    for system_id in (
+        "response_sumscore_nested",
+        "source_alignment_nested",
+        "mpnet_raw_label",
+    ):
+        assert not systems[system_id].per_query_available
+        assert systems[system_id].blocker
+
+    assert systems["grouprank_7b"].query_count is None
+    assert systems["grouprank_7b"].candidate_count is None

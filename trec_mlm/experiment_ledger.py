@@ -294,6 +294,7 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
 
     experiment_ids: set[str] = set()
     system_ids: set[str] = set()
+    identity_namespace: set[str] = set()
     referenced_sources: set[str] = set()
     promoted_systems: list[Mapping[str, Any]] = []
     for raw_experiment in experiments:
@@ -312,13 +313,25 @@ def validate_registry(registry: Mapping[str, Any], root: Path) -> None:
         for raw_system in systems:
             system = _require_mapping(raw_system, "system")
             system_id = system.get("system_id")
-            if (
-                not isinstance(system_id, str)
-                or not system_id
-                or system_id in system_ids
-            ):
+            if not isinstance(system_id, str) or not system_id:
+                raise ValueError(f"invalid system_id: {system_id}")
+            if system_id in system_ids:
                 raise ValueError(f"duplicate system_id: {system_id}")
+            if system_id in identity_namespace:
+                raise ValueError(f"duplicate identity or alias: {system_id}")
             system_ids.add(system_id)
+            identity_namespace.add(system_id)
+            aliases = system.get("aliases")
+            if not isinstance(aliases, list) or not all(
+                isinstance(alias, str) and bool(alias) for alias in aliases
+            ):
+                raise ValueError(
+                    f"aliases must be a list of nonempty strings for {system_id}"
+                )
+            for alias in aliases:
+                if alias in identity_namespace:
+                    raise ValueError(f"duplicate identity or alias: {alias}")
+                identity_namespace.add(alias)
             if system.get("evaluation_scope") not in EVALUATION_SCOPES:
                 raise ValueError(f"unknown evaluation_scope for {system_id}")
             if system.get("evidence_status") not in EVIDENCE_STATUSES:

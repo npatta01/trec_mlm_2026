@@ -100,7 +100,8 @@ Each system record contains at least:
 
 - `system_id`: unique canonical identifier;
 - `source_system_id`: original identifier in the controlling receipt;
-- `aliases`: documented names used elsewhere;
+- `aliases`: documented nonempty names used elsewhere; canonical system IDs and
+  aliases share one globally unique namespace;
 - `experiment_id` and `experiment_family`;
 - `method_summary`;
 - `evaluation_scope`;
@@ -321,7 +322,8 @@ missing per-query custody.
 The builder fails without writing partial outputs when any of these conditions
 is violated:
 
-- duplicate experiment or canonical system ID;
+- duplicate experiment ID, canonical system ID, alias, or any canonical/alias
+  namespace collision regardless of declaration order;
 - unknown evaluation, evidence, promotion, artifact, or qrel-usage status;
 - missing controlling source or changed source digest not accepted by the
   reviewed registry;

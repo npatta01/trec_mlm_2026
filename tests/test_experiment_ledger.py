@@ -324,6 +324,58 @@ def test_validate_registry_rejects_duplicate_canonical_system_id(
         validate_registry(registry, tmp_path)
 
 
+@pytest.mark.parametrize("aliases", ["alias", [""], [7]])
+def test_validate_registry_requires_nonempty_string_alias_list(
+    tmp_path: Path, aliases: object
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][0]["aliases"] = aliases  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="aliases must be a list of nonempty strings"):
+        validate_registry(registry, tmp_path)
+
+
+def test_validate_registry_rejects_duplicate_alias_within_system(
+    tmp_path: Path,
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][0]["aliases"] = ["shared", "shared"]  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="duplicate identity or alias: shared"):
+        validate_registry(registry, tmp_path)
+
+
+def test_validate_registry_rejects_same_alias_across_systems(tmp_path: Path) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][0]["aliases"] = ["shared"]  # type: ignore[index]
+    registry["experiments"][0]["systems"][1]["aliases"] = ["shared"]  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="duplicate identity or alias: shared"):
+        validate_registry(registry, tmp_path)
+
+
+def test_validate_registry_rejects_alias_equal_to_earlier_canonical_id(
+    tmp_path: Path,
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][1]["aliases"] = ["example_system"]  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="duplicate identity or alias: example_system"):
+        validate_registry(registry, tmp_path)
+
+
+def test_validate_registry_rejects_canonical_id_equal_to_earlier_alias(
+    tmp_path: Path,
+) -> None:
+    registry = minimal_registry()
+    registry["experiments"][0]["systems"][0]["aliases"] = ["example_primary"]  # type: ignore[index]
+
+    with pytest.raises(
+        ValueError, match="duplicate identity or alias: example_primary"
+    ):
+        validate_registry(registry, tmp_path)
+
+
 @pytest.mark.parametrize(
     ("field", "bad_value", "message"),
     [
@@ -518,6 +570,29 @@ def test_validate_registry_rejects_stolen_promoted_per_query_source() -> None:
 
     with pytest.raises(
         ValueError, match="promoted_development.*per_query_source identity"
+    ):
+        validate_registry(registry, Path("."))
+
+
+def test_validate_registry_rejects_promoted_alias_namespace_bypass() -> None:
+    registry, primary, decoy = _registry_with_promoted_dense_grid_decoy()
+    decoy.update(
+        {
+            "aliases": ["dense_profile_equal", "c0_max_k10_dense_equal"],
+            "aggregate_source": deepcopy(primary["aggregate_source"]),
+            "per_query_source": deepcopy(primary["per_query_source"]),
+            "ranking_coverage": "per_query_metrics_only",
+            "per_query_blocker": None,
+            "caveat_ids": [
+                caveat_id
+                for caveat_id in decoy["caveat_ids"]
+                if caveat_id != "aggregate_per_query_missing"
+            ],
+        }
+    )
+
+    with pytest.raises(
+        ValueError, match="duplicate identity or alias: dense_profile_equal"
     ):
         validate_registry(registry, Path("."))
 

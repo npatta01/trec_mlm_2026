@@ -1,0 +1,3386 @@
+{
+  "version": 1,
+  "sources": {
+    "dense_query_results": {
+      "path": "reports/trec_2026_dense_query_knn_results.json",
+      "sha256": "3ca4252cb37f12e9272561422fd2a45d0dcbf741770d0f544efda8acf4ddf902"
+    },
+    "dense_query_per_query": {
+      "path": "reports/trec_2026_dense_query_knn_per_query.tsv",
+      "sha256": "ae4a0cf8bc7eb0642e1c0d315cafa3a56cf60b3d6bfb6ab63e80fb2d0de56437"
+    },
+    "response_retrieval_results": {
+      "path": "reports/trec_2026_response_retrieval_results.json",
+      "sha256": "0d922c3b78137f0478cd2a70cda2bd89ec1621821a1f536aca665e359aea04bd"
+    },
+    "response_volume_results": {
+      "path": "reports/trec_2026_response_volume_normalization_results.json",
+      "sha256": "052a3972f877a119785640adfc06d21a3afc04d99eac5cae48063e3d83bf4f46"
+    },
+    "source_query_first_results": {
+      "path": "reports/trec_2026_source_query_first_results.json",
+      "sha256": "4f13f59c24bbc2fa3cdbdf7199a0a8fb72ab6ef0bebdd6150a1c03a1c9299c00"
+    },
+    "expert_label_ranking_study": {
+      "path": "docs/results/2026-07-13-expert-label-ranking-study.md",
+      "sha256": "9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d"
+    },
+    "semantic_profile_results": {
+      "path": "reports/trec_2026_candidate_semantic_profiles_results.json",
+      "sha256": "21cfe833c2d48658c6c8ecceffa5a2d9e5a27646e11bfc2a58769f80074ff31a"
+    },
+    "issue18_evaluation": {
+      "path": "reports/trec_2026_issue18_pr17head_evaluation.json",
+      "sha256": "60a45dc4317bd2b886b9b2fb993e912bbd2edbe69acca75e5bbcb53fd293e4d2"
+    },
+    "issue18_results": {
+      "path": "reports/trec_2026_issue18_pr17head_results.json",
+      "sha256": "f64d15bbb93d771abef0b9e51e9617ecc4f41439422767faf5839862f553b1a0"
+    },
+    "issue13_dense_aggregation_result": {
+      "path": "reports/issue_13_dense_aggregation_result.md",
+      "sha256": "45a0cfd6c227f86c8f2479708a68f003d87f37b30c910bb78363410e94b7c15b"
+    },
+    "issue18_artifact_custody": {
+      "path": "reports/trec_2026_issue18_pr17head_artifact_custody.json",
+      "sha256": "1157a80231f7ec17718800d47cb56644014cf90550d9c888ad1f6a943d2ec6bd"
+    },
+    "discovery_behavior_profiles": {
+      "path": "reports/trec_2026_llm_profiles.json",
+      "sha256": "86d592388514caabbbfeac8fe756c9a8a64526e065c75859a99f055ae1bc5224"
+    },
+    "development_queries": {
+      "path": "data/dev/llm_dev_data.tsv",
+      "sha256": "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c"
+    },
+    "development_qrels": {
+      "path": "data/dev/llm_dev_qrels.txt",
+      "sha256": "3a1579034f0670604923fd37559ad217b341942c765412b38d3aedc722b89f35"
+    }
+  },
+  "caveats": {
+    "development_only": {
+      "scope": "program",
+      "summary": "All effectiveness results are development evidence; the 2026 hidden test is not yet available."
+    },
+    "adaptive_program_overfit": {
+      "scope": "program",
+      "summary": "Repeated program decisions reused the same 322 development queries; nested evaluation does not eliminate adaptive research overfitting."
+    },
+    "restricted_not_comparable": {
+      "scope": "program",
+      "summary": "Restricted pilots are not numerically comparable with complete 322-query, 150-candidate evaluations."
+    },
+    "topic_slices_overlap": {
+      "scope": "program",
+      "summary": "Relevant-candidate slices overlap and are relevance-target analysis handles, not official semantic topics."
+    },
+    "missing_raw_artifacts": {
+      "scope": "program",
+      "summary": "Several response, label-sweep, source-query, and rejected query-cluster raw or per-query artifacts are absent from this checkout."
+    },
+    "issue18_not_restorable": {
+      "scope": "program",
+      "summary": "The ignored issue-18 construction tree has no durable remote URI and is not restorable from a fresh repository clone."
+    },
+    "external_encoder_taxonomy": {
+      "scope": "program",
+      "summary": "Systems using pretrained encoders may be external runs under the track taxonomy."
+    },
+    "confidence_not_correctness": {
+      "scope": "program",
+      "summary": "Response attempt, confidence, profile similarity, and retrieval score do not establish factual correctness."
+    },
+    "bootstrap_protocols_differ": {
+      "scope": "program",
+      "summary": "Experiment families used different frozen bootstrap implementations; confidence intervals should not be compared digit-for-digit."
+    },
+    "aggregate_per_query_missing": {
+      "scope": "system",
+      "summary": "The controlling source preserves aggregates but not a complete tracked per-query metric vector or ranking."
+    },
+    "qrel_transferred_training": {
+      "scope": "system",
+      "summary": "The method uses development qrels from allowed support queries to construct or select the ranking."
+    },
+    "dense_helper_contract_repaired": {
+      "scope": "family",
+      "summary": "The dense helper now clips nonpositive finite gains consistently; official historical results were unchanged because their grades were already restricted to 0, 1, and 2."
+    },
+    "contextual_e5_selection_limit": {
+      "scope": "system",
+      "summary": "Contextual E5 was selected for stability; its paired improvement interval against MPNet included zero."
+    },
+    "qwen4b_repeatability_failure": {
+      "scope": "system",
+      "summary": "Qwen4B had the strongest label-sweep point estimate but failed strict all-150 repeatability on two adjacent tail orders."
+    },
+    "restricted_qrel_assisted": {
+      "scope": "family",
+      "summary": "The restricted pilot questions and candidate sets were selected with development qrels."
+    },
+    "firstmistral_runtime_repeatability": {
+      "scope": "system",
+      "summary": "FirstMistral repeated under pinned Transformers but not under vLLM, and remained below restricted contextual E5."
+    },
+    "invalid_output_contract": {
+      "scope": "system",
+      "summary": "No quality result exists because the tested output failed the required complete machine-valid ranking contract."
+    },
+    "response_inventory_dependence": {
+      "scope": "family",
+      "summary": "Response-based scores depend on the frozen response inventory and show material association with response volume."
+    },
+    "response_normalization_stopped": {
+      "scope": "system",
+      "summary": "The normalization branch failed its inventory-bias gates and was stopped despite a higher effectiveness point estimate."
+    },
+    "source_query_stopped": {
+      "scope": "family",
+      "summary": "The source-query-first branch failed all four declared gates and was stopped."
+    },
+    "behavior_not_effectiveness": {
+      "scope": "system",
+      "summary": "The behavior/topic profile is a constructed descriptive artifact, not an evaluated router or correctness score."
+    },
+    "profile_qrel_seal_deviation": {
+      "scope": "family",
+      "summary": "Semantic profile construction was qrel-free, but the tracked receipt records a digest-only procedural seal deviation."
+    },
+    "profile_posthoc_diagnostic": {
+      "scope": "system",
+      "summary": "The profile-heavy reproduction is explicitly diagnostic-only and cannot be promoted from the tracked reproduction."
+    },
+    "issue18_query_sensitivity_stop": {
+      "scope": "family",
+      "summary": "Issue 18 reused previously seen development queries, failed query-sensitivity checks, and permits no promotion or independent-validation claim."
+    },
+    "hard_cluster_valid_negative": {
+      "scope": "system",
+      "summary": "The hard query-cluster aggregation passed integrity checks but failed every effectiveness gate."
+    },
+    "hard_cluster_posthoc_preflight": {
+      "scope": "system",
+      "summary": "Its matched-support mechanism check was post-hoc development analysis and cannot establish promotable effectiveness."
+    }
+  },
+  "experiments": [
+    {
+      "experiment_id": "query_controls",
+      "experiment_family": "query_controls",
+      "systems": [
+        {
+          "system_id": "global_prior",
+          "source_system_id": "global_prior",
+          "aliases": [],
+          "method_summary": "Leave-one-query-out global candidate-grade prior.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "stable_control",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/metrics/global_prior"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "tfidf_fixed_k10",
+          "source_system_id": "tfidf_fixed_k10",
+          "aliases": [],
+          "method_summary": "Fixed k=10 TF-IDF query-neighbor grade transfer control.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "stable_control",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/metrics/tfidf_fixed_k10"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "dense_query_knn",
+      "experiment_family": "dense_query_knn",
+      "metadata": {
+        "grid_dimensions": {
+          "encoders": [
+            "bge_small_en_v1_5",
+            "e5_small_v2",
+            "minilm_l6",
+            "mpnet_base_v2"
+          ],
+          "k": [
+            1,
+            3,
+            5,
+            10,
+            20,
+            50,
+            100
+          ]
+        }
+      },
+      "grid_contracts": [
+        {
+          "source_id": "dense_query_results",
+          "pointer": "/fixed_config_development_metrics",
+          "allowed_keys": [
+            "bge_small_en_v1_5@1",
+            "bge_small_en_v1_5@3",
+            "bge_small_en_v1_5@5",
+            "bge_small_en_v1_5@10",
+            "bge_small_en_v1_5@20",
+            "bge_small_en_v1_5@50",
+            "bge_small_en_v1_5@100",
+            "e5_small_v2@1",
+            "e5_small_v2@3",
+            "e5_small_v2@5",
+            "e5_small_v2@10",
+            "e5_small_v2@20",
+            "e5_small_v2@50",
+            "e5_small_v2@100",
+            "minilm_l6@1",
+            "minilm_l6@3",
+            "minilm_l6@5",
+            "minilm_l6@10",
+            "minilm_l6@20",
+            "minilm_l6@50",
+            "minilm_l6@100",
+            "mpnet_base_v2@1",
+            "mpnet_base_v2@3",
+            "mpnet_base_v2@5",
+            "mpnet_base_v2@10",
+            "mpnet_base_v2@20",
+            "mpnet_base_v2@50",
+            "mpnet_base_v2@100"
+          ],
+          "inherited_metadata": {
+            "promotion_status": "diagnostic_only"
+          }
+        }
+      ],
+      "systems": [
+        {
+          "system_id": "dense_nested",
+          "source_system_id": "dense_nested",
+          "aliases": [
+            "dense_reference",
+            "query_knn",
+            "dense_nested_reference"
+          ],
+          "method_summary": "Nested leave-one-query-out dense query-neighbor grade transfer with MPNet/k selection.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "stable_control",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/metrics/dense_nested"
+          },
+          "per_query_source": {
+            "kind": "dense_per_query_tsv",
+            "source_id": "dense_query_per_query",
+            "query_id_column": "query_id",
+            "ndcg_column": "dense_ndcg_at_10",
+            "reciprocal_rank_column": "dense_reciprocal_rank"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "tracked_complete",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "qrel_transferred_training",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@1",
+          "source_system_id": "bge_small_en_v1_5@1",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=1.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@1"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@3",
+          "source_system_id": "bge_small_en_v1_5@3",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=3.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@3"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@5",
+          "source_system_id": "bge_small_en_v1_5@5",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=5.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@5"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@10",
+          "source_system_id": "bge_small_en_v1_5@10",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=10.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@10"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@20",
+          "source_system_id": "bge_small_en_v1_5@20",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=20.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@20"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@50",
+          "source_system_id": "bge_small_en_v1_5@50",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=50.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@50"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bge_small_en_v1_5@100",
+          "source_system_id": "bge_small_en_v1_5@100",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/bge_small_en_v1_5@100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@1",
+          "source_system_id": "e5_small_v2@1",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=1.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@1"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@3",
+          "source_system_id": "e5_small_v2@3",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=3.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@3"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@5",
+          "source_system_id": "e5_small_v2@5",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=5.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@5"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@10",
+          "source_system_id": "e5_small_v2@10",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=10.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@10"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@20",
+          "source_system_id": "e5_small_v2@20",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=20.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@20"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@50",
+          "source_system_id": "e5_small_v2@50",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=50.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@50"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "e5_small_v2@100",
+          "source_system_id": "e5_small_v2@100",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/e5_small_v2@100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@1",
+          "source_system_id": "minilm_l6@1",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=1.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@1"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@3",
+          "source_system_id": "minilm_l6@3",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=3.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@3"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@5",
+          "source_system_id": "minilm_l6@5",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=5.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@5"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@10",
+          "source_system_id": "minilm_l6@10",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=10.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@10"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@20",
+          "source_system_id": "minilm_l6@20",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=20.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@20"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@50",
+          "source_system_id": "minilm_l6@50",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=50.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@50"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "minilm_l6@100",
+          "source_system_id": "minilm_l6@100",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/minilm_l6@100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@1",
+          "source_system_id": "mpnet_base_v2@1",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=1.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@1"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@3",
+          "source_system_id": "mpnet_base_v2@3",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=3.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@3"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@5",
+          "source_system_id": "mpnet_base_v2@5",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=5.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@5"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@10",
+          "source_system_id": "mpnet_base_v2@10",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=10.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@10"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@20",
+          "source_system_id": "mpnet_base_v2@20",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=20.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@20"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@50",
+          "source_system_id": "mpnet_base_v2@50",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=50.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@50"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "mpnet_base_v2@100",
+          "source_system_id": "mpnet_base_v2@100",
+          "aliases": [],
+          "method_summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "dense_query_results",
+            "pointer": "/fixed_config_development_metrics/mpnet_base_v2@100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed-grid receipt stores only full-development aggregates for this configuration.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_receipt_only",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "dense_helper_contract_repaired",
+            "qrel_transferred_training"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "candidate_label_matching",
+      "experiment_family": "candidate_label_matching",
+      "systems": [
+        {
+          "system_id": "mpnet_raw_label",
+          "source_system_id": "MPNet raw-label control",
+          "aliases": [],
+          "method_summary": "Zero-shot cosine matching between questions and raw candidate labels.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "stable_control",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "MPNet raw-label control",
+            "metrics": {
+              "ndcg_at_10": 0.3195,
+              "mrr": 0.3674,
+              "zero_ndcg_queries": 131,
+              "strict_repeat": "Pass"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "contextual_e5",
+          "source_system_id": "contextual_e5",
+          "aliases": [
+            "contextual_e5_control",
+            "E5-Mistral 7B contextual"
+          ],
+          "method_summary": "Frozen contextual E5 question-to-capability-label matching control.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "stable_control",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/controls/contextual_e5"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/controls/contextual_e5/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "tracked_complete",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "contextual_e5_selection_limit"
+          ]
+        },
+        {
+          "system_id": "qwen8b_contextual",
+          "source_system_id": "Qwen3-Embedding 8B contextual",
+          "aliases": [],
+          "method_summary": "Reviewed contextual label-embedding sweep result: Qwen3-Embedding 8B contextual.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "Qwen3-Embedding 8B contextual",
+            "metrics": {
+              "ndcg_at_10": 0.3281,
+              "mrr": 0.3796,
+              "zero_ndcg_queries": 131,
+              "strict_repeat": "Pass"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "qwen4b_contextual",
+          "source_system_id": "Qwen3-Embedding 4B contextual",
+          "aliases": [],
+          "method_summary": "Reviewed contextual label-embedding sweep result: Qwen3-Embedding 4B contextual.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "Qwen3-Embedding 4B contextual",
+            "metrics": {
+              "ndcg_at_10": 0.342,
+              "mrr": 0.3902,
+              "zero_ndcg_queries": 115,
+              "strict_repeat": "Fail: two adjacent tail swaps"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "qwen4b_repeatability_failure"
+          ]
+        },
+        {
+          "system_id": "qwen06b_contextual",
+          "source_system_id": "Qwen3-Embedding 0.6B contextual",
+          "aliases": [],
+          "method_summary": "Reviewed contextual label-embedding sweep result: Qwen3-Embedding 0.6B contextual.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "Qwen3-Embedding 0.6B contextual",
+            "metrics": {
+              "ndcg_at_10": 0.3,
+              "mrr": 0.3412,
+              "zero_ndcg_queries": 131,
+              "strict_repeat": "Pass"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "jina_v5_contextual",
+          "source_system_id": "Jina v5 small contextual",
+          "aliases": [],
+          "method_summary": "Reviewed contextual label-embedding sweep result: Jina v5 small contextual.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "Jina v5 small contextual",
+            "metrics": {
+              "ndcg_at_10": 0.3122,
+              "mrr": 0.3711,
+              "zero_ndcg_queries": 132,
+              "strict_repeat": "Pass"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "bge_m3_contextual",
+          "source_system_id": "BGE-M3 contextual",
+          "aliases": [],
+          "method_summary": "Reviewed contextual label-embedding sweep result: BGE-M3 contextual.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "BGE-M3 contextual",
+            "metrics": {
+              "ndcg_at_10": 0.2576,
+              "mrr": 0.3197,
+              "zero_ndcg_queries": 150,
+              "strict_repeat": "Pass"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "nomic_v15_contextual",
+          "source_system_id": "Nomic Embed v1.5 contextual",
+          "aliases": [],
+          "method_summary": "Reviewed contextual label-embedding sweep result: Nomic Embed v1.5 contextual.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "Full embedding sweep",
+            "table": "Encoder | nDCG@10 | MRR | Zero nDCG | Strict repeat",
+            "row": "Nomic Embed v1.5 contextual",
+            "metrics": {
+              "ndcg_at_10": 0.2591,
+              "mrr": 0.3259,
+              "zero_ndcg_queries": 154,
+              "strict_repeat": "Pass"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "label_ranker_pilots",
+      "experiment_family": "label_ranker_pilots",
+      "systems": [
+        {
+          "system_id": "pointwise_qwen",
+          "source_system_id": "Pointwise Qwen",
+          "aliases": [],
+          "method_summary": "Qwen pointwise restricted reranking pilot.",
+          "evaluation_scope": "restricted_12x20",
+          "evidence_status": "restricted_diagnostic",
+          "promotion_status": "restricted_pilot",
+          "query_count": 12,
+          "candidate_count": 20,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "LLM ranker findings",
+            "table": "Method | nDCG@10 | MRR | Relevant in top 3 | Decision",
+            "row": "Pointwise Qwen",
+            "metrics": {
+              "ndcg_at_10": 0.482,
+              "mrr": 0.3209,
+              "relevant_in_top_3": "5/12"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked report contains restricted aggregates but no complete per-query nDCG and reciprocal-rank vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "restricted_selection_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "generated_listwise",
+          "source_system_id": "Generic generated-list pilot",
+          "aliases": [],
+          "method_summary": "Generic generated-list ranking pilot that failed complete-permutation validation.",
+          "evaluation_scope": "invalid_unscored",
+          "evidence_status": "invalid",
+          "promotion_status": "stopped_unscored",
+          "query_count": 12,
+          "candidate_count": 20,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "What we tried",
+            "table": "Step | Scope | Outcome | What it established",
+            "row": "Generic generated-list pilot",
+            "metrics": {
+              "outcome": "Unscorable"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "No valid complete permutation or quality result exists.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "not_evaluated",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "external_encoder_taxonomy",
+            "invalid_output_contract"
+          ]
+        },
+        {
+          "system_id": "grouprank_7b",
+          "source_system_id": "GroupRank 7B smoke",
+          "aliases": [],
+          "method_summary": "GroupRank smoke test whose two exact-output protocols failed.",
+          "evaluation_scope": "invalid_unscored",
+          "evidence_status": "invalid",
+          "promotion_status": "stopped_unscored",
+          "query_count": 12,
+          "candidate_count": 20,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "What we tried",
+            "table": "Step | Scope | Outcome | What it established",
+            "row": "GroupRank 7B smoke",
+            "metrics": {
+              "outcome": "No quality result"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "Neither tested protocol produced a machine-valid ranking, so no quality vector exists.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "not_evaluated",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "external_encoder_taxonomy",
+            "invalid_output_contract"
+          ]
+        },
+        {
+          "system_id": "firstmistral_listwise",
+          "source_system_id": "FirstMistral listwise",
+          "aliases": [],
+          "method_summary": "Purpose-trained FirstMistral first-token-logit listwise pilot.",
+          "evaluation_scope": "restricted_12x20",
+          "evidence_status": "restricted_diagnostic",
+          "promotion_status": "restricted_pilot",
+          "query_count": 12,
+          "candidate_count": 20,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "LLM ranker findings",
+            "table": "Method | nDCG@10 | MRR | Relevant in top 3 | Decision",
+            "row": "FirstMistral listwise",
+            "metrics": {
+              "ndcg_at_10": 0.6843,
+              "mrr": 0.5847,
+              "relevant_in_top_3": "8/12"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked report contains restricted aggregates but no complete per-query nDCG and reciprocal-rank vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "restricted_selection_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy",
+            "firstmistral_runtime_repeatability"
+          ]
+        },
+        {
+          "system_id": "restricted_contextual_e5",
+          "source_system_id": "Contextual E5",
+          "aliases": [],
+          "method_summary": "Restricted contextual E5 control.",
+          "evaluation_scope": "restricted_12x20",
+          "evidence_status": "restricted_diagnostic",
+          "promotion_status": "diagnostic_only",
+          "query_count": 12,
+          "candidate_count": 20,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "LLM ranker findings",
+            "table": "Method | nDCG@10 | MRR | Relevant in top 3 | Decision",
+            "row": "Contextual E5",
+            "metrics": {
+              "ndcg_at_10": 0.7232,
+              "mrr": 0.6361,
+              "relevant_in_top_3": "8/12"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked report contains restricted aggregates but no complete per-query nDCG and reciprocal-rank vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "restricted_selection_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        },
+        {
+          "system_id": "restricted_qwen4b_contextual",
+          "source_system_id": "Contextual Qwen4B",
+          "aliases": [],
+          "method_summary": "Restricted contextual Qwen4B control.",
+          "evaluation_scope": "restricted_12x20",
+          "evidence_status": "restricted_diagnostic",
+          "promotion_status": "diagnostic_only",
+          "query_count": 12,
+          "candidate_count": 20,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "expert_label_ranking_study",
+            "section": "LLM ranker findings",
+            "table": "Method | nDCG@10 | MRR | Relevant in top 3 | Decision",
+            "row": "Contextual Qwen4B",
+            "metrics": {
+              "ndcg_at_10": 0.6648,
+              "mrr": 0.5585,
+              "relevant_in_top_3": "8/12"
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked report contains restricted aggregates but no complete per-query nDCG and reciprocal-rank vector.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "restricted_selection_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "restricted_not_comparable",
+            "restricted_qrel_assisted",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "external_encoder_taxonomy"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "response_retrieval",
+      "experiment_family": "response_retrieval",
+      "metadata": {
+        "grid_dimensions": {
+          "methods": [
+            "bm25",
+            "bm25_rm3"
+          ],
+          "fields": [
+            "query_response",
+            "response_only"
+          ],
+          "filters": [
+            "aggressive",
+            "basic"
+          ],
+          "depths": [
+            100,
+            500,
+            1000
+          ]
+        }
+      },
+      "grid_contracts": [
+        {
+          "source_id": "response_retrieval_results",
+          "pointer": "/fixed_candidate_development_metrics",
+          "allowed_keys": [
+            "bm25__query_response__aggressive__d100",
+            "bm25__query_response__aggressive__d500",
+            "bm25__query_response__aggressive__d1000",
+            "bm25__query_response__basic__d100",
+            "bm25__query_response__basic__d500",
+            "bm25__query_response__basic__d1000",
+            "bm25__response_only__aggressive__d100",
+            "bm25__response_only__aggressive__d500",
+            "bm25__response_only__aggressive__d1000",
+            "bm25__response_only__basic__d100",
+            "bm25__response_only__basic__d500",
+            "bm25__response_only__basic__d1000",
+            "bm25_rm3__query_response__aggressive__d100",
+            "bm25_rm3__query_response__aggressive__d500",
+            "bm25_rm3__query_response__aggressive__d1000",
+            "bm25_rm3__query_response__basic__d100",
+            "bm25_rm3__query_response__basic__d500",
+            "bm25_rm3__query_response__basic__d1000",
+            "bm25_rm3__response_only__aggressive__d100",
+            "bm25_rm3__response_only__aggressive__d500",
+            "bm25_rm3__response_only__aggressive__d1000",
+            "bm25_rm3__response_only__basic__d100",
+            "bm25_rm3__response_only__basic__d500",
+            "bm25_rm3__response_only__basic__d1000"
+          ],
+          "inherited_metadata": {
+            "promotion_status": "diagnostic_only"
+          }
+        }
+      ],
+      "systems": [
+        {
+          "system_id": "response_sumscore_nested",
+          "source_system_id": "response_nested",
+          "aliases": [
+            "response_nested"
+          ],
+          "method_summary": "Nested response-level BM25/RM3 retrieval with sum aggregation and configuration selection.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/metrics/response_nested"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training",
+            "response_inventory_dependence",
+            "confidence_not_correctness"
+          ]
+        },
+        {
+          "system_id": "bm25__query_response__aggressive__d100",
+          "source_system_id": "bm25__query_response__aggressive__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__query_response__aggressive__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__query_response__aggressive__d500",
+          "source_system_id": "bm25__query_response__aggressive__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__query_response__aggressive__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__query_response__aggressive__d1000",
+          "source_system_id": "bm25__query_response__aggressive__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__query_response__aggressive__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__query_response__basic__d100",
+          "source_system_id": "bm25__query_response__basic__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__query_response__basic__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__query_response__basic__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__query_response__basic__d500",
+          "source_system_id": "bm25__query_response__basic__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__query_response__basic__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__query_response__basic__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__query_response__basic__d1000",
+          "source_system_id": "bm25__query_response__basic__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__query_response__basic__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__query_response__basic__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__response_only__aggressive__d100",
+          "source_system_id": "bm25__response_only__aggressive__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__response_only__aggressive__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__response_only__aggressive__d500",
+          "source_system_id": "bm25__response_only__aggressive__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__response_only__aggressive__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__response_only__aggressive__d1000",
+          "source_system_id": "bm25__response_only__aggressive__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__response_only__aggressive__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__response_only__basic__d100",
+          "source_system_id": "bm25__response_only__basic__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__response_only__basic__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__response_only__basic__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__response_only__basic__d500",
+          "source_system_id": "bm25__response_only__basic__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__response_only__basic__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__response_only__basic__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25__response_only__basic__d1000",
+          "source_system_id": "bm25__response_only__basic__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25__response_only__basic__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25__response_only__basic__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__query_response__aggressive__d100",
+          "source_system_id": "bm25_rm3__query_response__aggressive__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__query_response__aggressive__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__query_response__aggressive__d500",
+          "source_system_id": "bm25_rm3__query_response__aggressive__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__query_response__aggressive__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__query_response__aggressive__d1000",
+          "source_system_id": "bm25_rm3__query_response__aggressive__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__query_response__aggressive__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__query_response__basic__d100",
+          "source_system_id": "bm25_rm3__query_response__basic__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__query_response__basic__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__query_response__basic__d500",
+          "source_system_id": "bm25_rm3__query_response__basic__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__query_response__basic__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__query_response__basic__d1000",
+          "source_system_id": "bm25_rm3__query_response__basic__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__query_response__basic__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__response_only__aggressive__d100",
+          "source_system_id": "bm25_rm3__response_only__aggressive__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__response_only__aggressive__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__response_only__aggressive__d500",
+          "source_system_id": "bm25_rm3__response_only__aggressive__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__response_only__aggressive__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__response_only__aggressive__d1000",
+          "source_system_id": "bm25_rm3__response_only__aggressive__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__response_only__aggressive__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__response_only__basic__d100",
+          "source_system_id": "bm25_rm3__response_only__basic__d100",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d100.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__response_only__basic__d100"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__response_only__basic__d500",
+          "source_system_id": "bm25_rm3__response_only__basic__d500",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d500.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__response_only__basic__d500"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "bm25_rm3__response_only__basic__d1000",
+          "source_system_id": "bm25_rm3__response_only__basic__d1000",
+          "aliases": [],
+          "method_summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d1000.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_retrieval_results",
+            "pointer": "/fixed_candidate_development_metrics/bm25_rm3__response_only__basic__d1000"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The fixed response-grid receipt stores aggregates only; raw rankings and per-query artifacts are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "response_volume_normalization",
+      "experiment_family": "response_volume_normalization",
+      "metadata": {
+        "tested_aggregation_order": [
+          "best_hit",
+          "top3_sum",
+          "top10_sum",
+          "top3_mean",
+          "top10_mean",
+          "mean_all"
+        ]
+      },
+      "systems": [
+        {
+          "system_id": "response_top10sum_nested",
+          "source_system_id": "response_normalized_nested",
+          "aliases": [
+            "response_normalized_nested"
+          ],
+          "method_summary": "Nested response-volume-normalized retrieval; every fold selected top10_sum.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "response_volume_results",
+            "pointer": "/metrics/response_normalized_nested"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training",
+            "response_inventory_dependence",
+            "response_normalization_stopped",
+            "confidence_not_correctness"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "source_query_first",
+      "experiment_family": "source_query_first",
+      "metadata": {
+        "grid_k": [
+          10,
+          20,
+          40
+        ]
+      },
+      "grid_contracts": [
+        {
+          "source_id": "source_query_first_results",
+          "pointer": "/candidate_grid",
+          "allowed_keys": [
+            "source_alignment__k10",
+            "source_alignment__k20",
+            "source_alignment__k40"
+          ],
+          "inherited_metadata": {
+            "promotion_status": "diagnostic_only"
+          }
+        }
+      ],
+      "systems": [
+        {
+          "system_id": "source_alignment_nested",
+          "source_system_id": "source_alignment_nested",
+          "aliases": [],
+          "method_summary": "Nested source-query-first lexical response alignment.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "source_query_first_results",
+            "pointer": "/metrics/source_alignment_nested"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training",
+            "source_query_stopped",
+            "response_inventory_dependence",
+            "confidence_not_correctness"
+          ]
+        },
+        {
+          "system_id": "target_response_same_k",
+          "source_system_id": "target_response_same_k",
+          "aliases": [],
+          "method_summary": "Nonselecting target-to-response diagnostic at the source-alignment selected k.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "source_query_first_results",
+            "pointer": "/metrics/target_response_same_k"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "source_query_stopped",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "source_alignment__k10",
+          "source_system_id": "source_alignment__k10",
+          "aliases": [],
+          "method_summary": "Source-query alignment grid candidate with k=10; no standalone aggregate was reported.",
+          "evaluation_scope": "constructed_not_evaluated",
+          "evidence_status": "unscored",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "grid_member",
+            "source_id": "source_query_first_results",
+            "pointer": "/candidate_grid/0",
+            "key": "source_alignment__k10"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The receipt names this selector candidate but reports no standalone aggregate or per-query ranking for it.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "source_query_stopped",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "source_alignment__k20",
+          "source_system_id": "source_alignment__k20",
+          "aliases": [],
+          "method_summary": "Source-query alignment grid candidate with k=20; no standalone aggregate was reported.",
+          "evaluation_scope": "constructed_not_evaluated",
+          "evidence_status": "unscored",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "grid_member",
+            "source_id": "source_query_first_results",
+            "pointer": "/candidate_grid/1",
+            "key": "source_alignment__k20"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The receipt names this selector candidate but reports no standalone aggregate or per-query ranking for it.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "source_query_stopped",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "source_alignment__k40",
+          "source_system_id": "source_alignment__k40",
+          "aliases": [],
+          "method_summary": "Source-query alignment grid candidate with k=40; no standalone aggregate was reported.",
+          "evaluation_scope": "constructed_not_evaluated",
+          "evidence_status": "unscored",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "grid_member",
+            "source_id": "source_query_first_results",
+            "pointer": "/candidate_grid/2",
+            "key": "source_alignment__k40"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The receipt names this selector candidate but reports no standalone aggregate or per-query ranking for it.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "source_query_stopped",
+            "response_inventory_dependence",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "behavior_profile",
+      "experiment_family": "behavior_profile",
+      "systems": [
+        {
+          "system_id": "discovery_behavior_topic_v1",
+          "source_system_id": "discovery-behavior-topic-v1",
+          "aliases": [],
+          "method_summary": "One descriptive behavior/topic profile per candidate built from official discovery history.",
+          "evaluation_scope": "constructed_not_evaluated",
+          "evidence_status": "unscored",
+          "promotion_status": "constructed_not_evaluated",
+          "query_count": 7759,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "discovery_behavior_profiles",
+            "pointer": "/scope"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "This artifact is a candidate profile construction, not a query-ranking effectiveness evaluation.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_complete",
+          "qrel_usage": "not_evaluated",
+          "run_classification": "internal_automatic",
+          "caveat_ids": [
+            "behavior_not_effectiveness",
+            "confidence_not_correctness"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "semantic_profiles",
+      "experiment_family": "semantic_profiles",
+      "systems": [
+        {
+          "system_id": "profile_only",
+          "source_system_id": "profile_only",
+          "aliases": [
+            "c0_max_k10"
+          ],
+          "method_summary": "Frozen candidate semantic-response profile ranking.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "stable_control",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "semantic_profile_results",
+            "pointer": "/systems/profile_only"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/c0_max_k10/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "profile_qrel_seal_deviation",
+            "confidence_not_correctness"
+          ]
+        },
+        {
+          "system_id": "dense_profile_equal",
+          "source_system_id": "dense_profile_equal",
+          "aliases": [
+            "c0_max_k10_dense_equal"
+          ],
+          "method_summary": "Equal-weight reciprocal-rank fusion of dense query neighbors and semantic profiles.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "promoted_development",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "semantic_profile_results",
+            "pointer": "/systems/dense_profile_equal"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/c0_max_k10_dense_equal/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "profile_qrel_seal_deviation",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "dense_profile_dense_heavy",
+          "source_system_id": "dense_profile_dense_heavy",
+          "aliases": [],
+          "method_summary": "Dense-heavy fixed fusion with semantic profiles.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "semantic_profile_results",
+            "pointer": "/systems/dense_profile_dense_heavy"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The semantic receipt references an ignored evaluation per-query artifact by digest, but that file and any corresponding issue-18 map are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "profile_qrel_seal_deviation",
+            "confidence_not_correctness",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "dense_profile_profile_heavy",
+          "source_system_id": "dense_profile_profile_heavy",
+          "aliases": [
+            "track_a"
+          ],
+          "method_summary": "Profile-heavy fixed fusion reproduced as issue-18 Track A.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "semantic_profile_results",
+            "pointer": "/systems/dense_profile_profile_heavy"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/track_a/metrics/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "profile_qrel_seal_deviation",
+            "confidence_not_correctness",
+            "qrel_transferred_training",
+            "profile_posthoc_diagnostic"
+          ]
+        },
+        {
+          "system_id": "dense_e5_equal",
+          "source_system_id": "dense_e5_equal",
+          "aliases": [],
+          "method_summary": "Equal-weight fusion of dense query neighbors and contextual E5 labels.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "semantic_profile_results",
+            "pointer": "/systems/dense_e5_equal"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The semantic receipt references an ignored evaluation per-query artifact by digest, but that file and any corresponding issue-18 map are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "profile_qrel_seal_deviation",
+            "confidence_not_correctness",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "dense_profile_e5_equal",
+          "source_system_id": "dense_profile_e5_equal",
+          "aliases": [],
+          "method_summary": "Three-way equal-weight dense/profile/contextual-E5 fusion.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "semantic_profile_results",
+            "pointer": "/systems/dense_profile_e5_equal"
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The semantic receipt references an ignored evaluation per-query artifact by digest, but that file and any corresponding issue-18 map are absent.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "local_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "profile_qrel_seal_deviation",
+            "confidence_not_correctness",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "multiresolution_profiles",
+      "experiment_family": "multiresolution_profiles",
+      "metadata": {
+        "decision_source": {
+          "source_id": "issue18_results",
+          "pointer": "/decision"
+        },
+        "custody_source": {
+          "source_id": "issue18_artifact_custody",
+          "pointer": "/scientific_artifact"
+        }
+      },
+      "systems": [
+        {
+          "system_id": "a1_top2_k10",
+          "source_system_id": "a1_top2_k10",
+          "aliases": [],
+          "method_summary": "Issue-18 multiresolution profile diagnostic a1_top2_k10.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/a1_top2_k10"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/a1_top2_k10/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "construction_artifact_missing",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "issue18_not_restorable",
+            "issue18_query_sensitivity_stop",
+            "external_encoder_taxonomy",
+            "confidence_not_correctness"
+          ]
+        },
+        {
+          "system_id": "a1_top2_k10_dense_equal",
+          "source_system_id": "a1_top2_k10_dense_equal",
+          "aliases": [],
+          "method_summary": "Issue-18 multiresolution profile diagnostic a1_top2_k10_dense_equal.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/a1_top2_k10_dense_equal"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/a1_top2_k10_dense_equal/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "construction_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "issue18_not_restorable",
+            "issue18_query_sensitivity_stop",
+            "external_encoder_taxonomy",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "r1_multires_max",
+          "source_system_id": "r1_multires_max",
+          "aliases": [],
+          "method_summary": "Issue-18 multiresolution profile diagnostic r1_multires_max.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/r1_multires_max"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/r1_multires_max/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "construction_artifact_missing",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "issue18_not_restorable",
+            "issue18_query_sensitivity_stop",
+            "external_encoder_taxonomy",
+            "confidence_not_correctness"
+          ]
+        },
+        {
+          "system_id": "r1_multires_max_dense_equal",
+          "source_system_id": "r1_multires_max_dense_equal",
+          "aliases": [],
+          "method_summary": "Issue-18 multiresolution profile diagnostic r1_multires_max_dense_equal.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/r1_multires_max_dense_equal"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/r1_multires_max_dense_equal/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "construction_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "issue18_not_restorable",
+            "issue18_query_sensitivity_stop",
+            "external_encoder_taxonomy",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        },
+        {
+          "system_id": "x1_multires_top2",
+          "source_system_id": "x1_multires_top2",
+          "aliases": [],
+          "method_summary": "Issue-18 multiresolution profile diagnostic x1_multires_top2.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/x1_multires_top2"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/x1_multires_top2/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "construction_artifact_missing",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "issue18_not_restorable",
+            "issue18_query_sensitivity_stop",
+            "external_encoder_taxonomy",
+            "confidence_not_correctness"
+          ]
+        },
+        {
+          "system_id": "x1_multires_top2_dense_equal",
+          "source_system_id": "x1_multires_top2_dense_equal",
+          "aliases": [],
+          "method_summary": "Issue-18 multiresolution profile diagnostic x1_multires_top2_dense_equal.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "diagnostic_only",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/x1_multires_top2_dense_equal"
+          },
+          "per_query_source": {
+            "kind": "issue18_per_query_map",
+            "source_id": "issue18_evaluation",
+            "pointer": "/systems/x1_multires_top2_dense_equal/per_query"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "construction_artifact_missing",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "issue18_not_restorable",
+            "issue18_query_sensitivity_stop",
+            "external_encoder_taxonomy",
+            "confidence_not_correctness",
+            "qrel_transferred_training"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "query_cluster_aggregation",
+      "experiment_family": "query_cluster_aggregation",
+      "systems": [
+        {
+          "system_id": "local_domain_prior",
+          "source_system_id": "Dense aggregation",
+          "aliases": [
+            "dense_aggregation"
+          ],
+          "method_summary": "Nested local-neighbor, hard query-cluster domain, and global-prior blend.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "aggregate_only",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "literal_snapshot",
+            "source_id": "issue13_dense_aggregation_result",
+            "section": "Authoritative result",
+            "table": "Metric | Frozen MPNet | Dense aggregation | Candidate minus baseline",
+            "row": "Dense aggregation",
+            "metrics": {
+              "ndcg_at_10": 0.3486808479,
+              "mrr": 0.3801586444,
+              "zero_ndcg_queries": 123,
+              "ndcg_delta_vs_dense": -0.0111738962,
+              "mrr_delta_vs_dense": -0.0239046637
+            }
+          },
+          "per_query_source": null,
+          "per_query_blocker": "The tracked report and aggregate receipt omit query IDs, rankings, raw arrays, and per-query metrics; rejected experiment artifacts were intentionally not retained.",
+          "ranking_coverage": "none",
+          "native_scores_available": false,
+          "artifact_state": "tracked_report_snapshot",
+          "qrel_usage": "training_and_evaluation",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "missing_raw_artifacts",
+            "aggregate_per_query_missing",
+            "qrel_transferred_training",
+            "external_encoder_taxonomy",
+            "hard_cluster_valid_negative",
+            "hard_cluster_posthoc_preflight"
+          ]
+        }
+      ]
+    }
+  ]
+}

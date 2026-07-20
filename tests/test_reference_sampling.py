@@ -13,6 +13,7 @@ from trec_mlm.reference_sampling import (
     historical_difficulty_features,
     question_strata,
 )
+from scripts.build_reference_validation_sample import _validate_cluster_labels
 
 
 def _record(i: int, *, unresolved: bool = False) -> QuestionRecord:
@@ -111,6 +112,11 @@ def test_sample_rejects_invalid_arrays_and_missing_requirements() -> None:
             seed=2026,
             required_ids={"missing"},
         )
+
+
+def test_cli_rejects_collapsed_kmeans_labels() -> None:
+    with pytest.raises(ValueError, match=r"missing=\[1\].*extra=\[\]"):
+        _validate_cluster_labels(np.asarray([0, 0, 2]), cluster_count=3)
 
 
 def test_sampling_cli_writes_private_aggregate_manifest_without_raw_responses(
@@ -223,6 +229,9 @@ def test_sampling_cli_writes_private_aggregate_manifest_without_raw_responses(
     manifest = json.loads(manifest_text)
     assert len(manifest["questions"]) == 4
     assert {row["cluster_id"] for row in manifest["questions"]} == {0, 1}
+    assert manifest["record_count"] == 6
+    assert manifest["sample_size"] == 4
+    assert manifest["cluster_count"] == 2
     assert manifest["seed"] == 2026
     assert manifest["encoder"] == {"id": "fake/encoder", "revision": "abc123"}
     assert manifest["historical_difficulty_thresholds"] == {
@@ -234,8 +243,16 @@ def test_sampling_cli_writes_private_aggregate_manifest_without_raw_responses(
     assert manifest["sources"]["discovery_responses"]["sha256"] == sha256_file(
         discovery
     )
+    assert manifest["sources"]["analogue_cases"]["sha256"] == sha256_file(analogues)
+    assert manifest["analogue_diagnostics"]["matched"] == [
+        {
+            "nearest_discovery_query_text": "What happened to Place 4?",
+            "question_id": "q4",
+        }
+    ]
     assert manifest["analogue_diagnostics"]["unmatched"] == ["This does not match"]
     assert all(row["selection_reasons"] for row in manifest["questions"])
+    assert "q5" in {row["question_id"] for row in manifest["questions"]}
     assert "RAW CANDIDATE SECRET" not in manifest_text
     assignments = (output / "cluster_assignments.tsv").read_text().splitlines()
     assert len(assignments) == 7

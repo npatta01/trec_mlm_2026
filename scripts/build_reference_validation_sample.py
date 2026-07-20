@@ -121,6 +121,17 @@ def _write_assignments(
     temporary.replace(path)
 
 
+def _validate_cluster_labels(labels: np.ndarray, *, cluster_count: int) -> None:
+    expected = set(range(cluster_count))
+    observed = {int(label) for label in np.asarray(labels).tolist()}
+    if observed != expected:
+        raise ValueError(
+            "KMeans produced unexpected cluster labels: "
+            f"missing={sorted(expected - observed)!r} "
+            f"extra={sorted(observed - expected)!r}"
+        )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--perplexity-cache", type=Path, required=True)
@@ -181,6 +192,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         random_state=args.seed,
         n_init=10,
     ).fit_predict(embeddings)
+    _validate_cluster_labels(labels, cluster_count=args.clusters)
 
     required_ids = {
         record.question_id for record in records if record.perplexity_unresolved

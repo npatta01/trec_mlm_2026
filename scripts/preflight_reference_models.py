@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from typing import Mapping, Sequence
 
 
@@ -59,46 +60,89 @@ def _json_object(text: str) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
-def _download_bytes(text: str) -> int | None:
+def _size_bytes(value: object) -> tuple[int | None, str | None]:
+    if value == "-":
+        return 0, None
+    multipliers = {
+        "": 1,
+        "K": 1_000,
+        "M": 1_000_000,
+        "G": 1_000_000_000,
+        "T": 1_000_000_000_000,
+    }
+    if isinstance(value, bool):
+        return None, "size must be numeric or a recognized size string"
+    if isinstance(value, int):
+        size = Decimal(value)
+    elif isinstance(value, float):
+        if not math.isfinite(value):
+            return None, "size must be finite"
+        size = Decimal(str(value))
+    elif isinstance(value, str):
+        suffix = value[-1] if value[-1:].isalpha() else ""
+        if suffix not in multipliers:
+            return None, f"unrecognized size suffix {suffix!r}"
+        try:
+            size = Decimal(value.removesuffix(suffix)) * multipliers[suffix]
+        except InvalidOperation:
+            return None, "size must contain a numeric value"
+    else:
+        return None, "size must be numeric or a recognized size string"
+    if not size.is_finite():
+        return None, "size must be finite"
+    if size < 0:
+        return None, "size must be nonnegative"
+    if size > sys.maxsize:
+        return None, "size overflow exceeds the supported byte count"
+    integral = size.to_integral_value()
+    if size != integral:
+        return None, "size must resolve to a whole number of bytes"
+    return int(integral), None
+
+
+def _download_observation(text: str) -> tuple[int | None, list[str]]:
     try:
         value = json.loads(text)
     except json.JSONDecodeError:
-        return None
+        return None, ["dry-run output must be valid JSON"]
     rows = value if isinstance(value, list) else [value]
+    if not rows:
+        return None, ["dry-run output contains no file rows"]
     sizes: list[int] = []
-    for row in rows:
+    errors: list[str] = []
+    for index, row in enumerate(rows):
         if not isinstance(row, dict):
+            errors.append(f"row {index} must be an object")
             continue
-        size = row.get("file_size", row.get("size"))
-        if isinstance(size, int):
+        if not isinstance(row.get("file"), str) or not row["file"]:
+            errors.append(f"row {index} requires a nonempty file field")
+            continue
+        if "file_size" in row:
+            raw_size = row["file_size"]
+        elif "size" in row:
+            raw_size = row["size"]
+        else:
+            errors.append(f"row {index} requires a size field")
+            continue
+        size, error = _size_bytes(raw_size)
+        if error is not None:
+            errors.append(f"row {index} ({row['file']}): {error}")
+        elif size is not None:
             sizes.append(size)
-        elif isinstance(size, str):
-            suffix = size[-1] if size[-1:].isalpha() else ""
-            multipliers = {
-                "": 1,
-                "K": 1_000,
-                "M": 1_000_000,
-                "G": 1_000_000_000,
-                "T": 1_000_000_000_000,
-            }
-            if suffix not in multipliers:
-                continue
-            try:
-                sizes.append(
-                    int(Decimal(size.removesuffix(suffix)) * multipliers[suffix])
-                )
-            except InvalidOperation:
-                continue
-    return sum(sizes) if sizes else None
+    if errors:
+        return None, errors
+    total = sum(sizes)
+    if total <= 0:
+        return None, ["dry-run total bytes must be finite and positive"]
+    return total, []
 
 
 def _positive_finite_number(value: object) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-        and value > 0
-    )
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value > 0
+    return isinstance(value, float) and math.isfinite(value) and value > 0
 
 
 def _podman_image_references(text: str) -> set[str]:
@@ -133,7 +177,7 @@ def _model_receipt(
     )
     observed_sha = metadata.get("sha")
     exact_repository_bytes = metadata.get("used_storage")
-    dry_run_download_bytes = _download_bytes(
+    dry_run_download_bytes, dry_run_observation_errors = _download_observation(
         command_results.get(f"{model_key}_{representation}_dry_run", "")
     )
     evidence_reasons: list[str] = []
@@ -145,7 +189,12 @@ def _model_receipt(
         evidence_reasons.append("parameter count must be finite and positive")
     if not _positive_finite_number(exact_repository_bytes):
         evidence_reasons.append("repository bytes must be finite and positive")
-    if not _positive_finite_number(dry_run_download_bytes):
+    if dry_run_observation_errors:
+        evidence_reasons.extend(
+            f"dry-run bytes observation error: {error}"
+            for error in dry_run_observation_errors
+        )
+    elif not _positive_finite_number(dry_run_download_bytes):
         evidence_reasons.append("dry-run bytes must be finite and positive")
     return {
         "repository": repository,
@@ -156,6 +205,7 @@ def _model_receipt(
         "parameter_count": parameter_count,
         "exact_repository_bytes": exact_repository_bytes,
         "dry_run_download_bytes": dry_run_download_bytes,
+        "dry_run_observation_errors": dry_run_observation_errors,
         "evidence_complete": not evidence_reasons,
         "evidence_reasons": evidence_reasons,
     }
@@ -282,11 +332,13 @@ def build_preflight(
             "model_pins_verified": pins_verified,
         },
         "execution_gates": {
-            "gemini_pilot_ready": gemini_configured,
+            "gemini_credential_configured": gemini_configured,
+            "task5_authorization_required": True,
+            "gemini_pilot_ready": False,
             "gemini_pilot_reason": (
-                "credential configured; paid calls still require explicit Task 5 authorization"
+                "credential configured, but explicit Task 5 authorization is required"
                 if gemini_configured
-                else "GEMINI_API_KEY is not configured; it is required only after explicit Task 5 authorization"
+                else "GEMINI_API_KEY is not configured and explicit Task 5 authorization is required"
             ),
         },
     }
@@ -326,7 +378,8 @@ def _parser() -> argparse.ArgumentParser:
         description=__doc__,
         epilog=(
             "Exit 0 means the receipt and required local metadata gates are "
-            "complete. Gemini credential absence is informational until Task 5."
+            "complete. Credential presence never authorizes Gemini calls; explicit "
+            "Task 5 authorization remains required."
         ),
     )
     parser.add_argument(

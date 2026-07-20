@@ -65,6 +65,60 @@ def test_preflight_complete_receipt_is_ready_without_gemini_key() -> None:
     assert preflight_exit_code(receipt) == 0
 
 
+def test_preflight_key_presence_does_not_authorize_gemini_pilot() -> None:
+    receipt = build_preflight(
+        environ={"GEMINI_API_KEY": "secret-is-presence-only"},
+        command_results=_commands(),
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    execution = receipt["execution_gates"]
+    assert execution["gemini_credential_configured"] is True
+    assert execution["task5_authorization_required"] is True
+    assert execution["gemini_pilot_ready"] is False
+    assert "authorization" in execution["gemini_pilot_reason"]
+    assert "secret-is-presence-only" not in json.dumps(receipt)
+
+
+@pytest.mark.parametrize(
+    ("output", "expected_error"),
+    [
+        ("not JSON", "valid JSON"),
+        ('[{"file": "weights", "size": NaN}]', "finite"),
+        ('[{"file": "weights", "size": Infinity}]', "finite"),
+        ('[{"file": "weights", "size": "twelveG"}]', "numeric"),
+        ('[{"file": "weights", "size": "1e999"}]', "overflow"),
+        ('[{"file": "weights", "size": "-1.0G"}]', "nonnegative"),
+        ('[{"file": "weights"}]', "size field"),
+        ('["not-a-file-row"]', "object"),
+        (
+            '[{"file": "valid", "size": "1.0K"}, {"bogus": true}]',
+            "file field",
+        ),
+    ],
+)
+def test_preflight_dry_run_observation_errors_fail_closed(
+    output: str, expected_error: str
+) -> None:
+    commands = _commands()
+    commands["qwen35_base_dry_run"] = output
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    model = receipt["models"]["qwen35"]["base"]
+    assert model["dry_run_download_bytes"] is None
+    assert any(expected_error in error for error in model["dry_run_observation_errors"])
+    assert model["evidence_complete"] is False
+    assert receipt["gates"]["receipt_complete"] is False
+    assert preflight_exit_code(receipt) == 1
+    json.dumps(receipt, allow_nan=False)
+
+
 @pytest.mark.parametrize(
     ("field", "expected_reason"),
     [

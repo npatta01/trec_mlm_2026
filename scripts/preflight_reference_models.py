@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from decimal import Decimal, InvalidOperation
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -91,6 +92,23 @@ def _download_bytes(text: str) -> int | None:
     return sum(sizes) if sizes else None
 
 
+def _positive_finite_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
+
+
+def _podman_image_references(text: str) -> set[str]:
+    return {
+        fields[0].removeprefix("docker.io/")
+        for line in text.splitlines()
+        if (fields := line.split())
+    }
+
+
 def _model_receipt(
     model_key: str, representation: str, command_results: Mapping[str, str]
 ) -> dict[str, object]:
@@ -114,6 +132,21 @@ def _model_receipt(
         safetensors.get("total") if isinstance(safetensors, dict) else None
     )
     observed_sha = metadata.get("sha")
+    exact_repository_bytes = metadata.get("used_storage")
+    dry_run_download_bytes = _download_bytes(
+        command_results.get(f"{model_key}_{representation}_dry_run", "")
+    )
+    evidence_reasons: list[str] = []
+    if observed_sha != revision:
+        evidence_reasons.append("SHA does not match the pinned revision")
+    if not isinstance(license_tag, str) or not license_tag.strip():
+        evidence_reasons.append("license tag is missing")
+    if not _positive_finite_number(parameter_count):
+        evidence_reasons.append("parameter count must be finite and positive")
+    if not _positive_finite_number(exact_repository_bytes):
+        evidence_reasons.append("repository bytes must be finite and positive")
+    if not _positive_finite_number(dry_run_download_bytes):
+        evidence_reasons.append("dry-run bytes must be finite and positive")
     return {
         "repository": repository,
         "revision": revision,
@@ -121,10 +154,10 @@ def _model_receipt(
         "revision_matches": observed_sha == revision,
         "license": license_tag,
         "parameter_count": parameter_count,
-        "exact_repository_bytes": metadata.get("used_storage"),
-        "dry_run_download_bytes": _download_bytes(
-            command_results.get(f"{model_key}_{representation}_dry_run", "")
-        ),
+        "exact_repository_bytes": exact_repository_bytes,
+        "dry_run_download_bytes": dry_run_download_bytes,
+        "evidence_complete": not evidence_reasons,
+        "evidence_reasons": evidence_reasons,
     }
 
 
@@ -142,23 +175,23 @@ def build_preflight(
     podman_images = command_results.get("podman_images", "")
     podman_rootless = command_results.get("podman_rootless", "")
     gfx1151 = "gfx1151" in rocminfo
-    image_present = VLLM_IMAGE in podman_images
+    image_present = VLLM_IMAGE in _podman_image_references(podman_images)
     available_ram = memory["available_ram_bytes"]
     enough_ram = isinstance(available_ram, int) and available_ram >= max(
         EXPECTED_PEAK_MEMORY_BYTES.values()
     )
 
-    reasons: list[str] = []
+    local_reasons: list[str] = []
     if not gfx1151:
-        reasons.append("rocminfo must report a gfx1151 device")
+        local_reasons.append("rocminfo must report a gfx1151 device")
     if not podman_version:
-        reasons.append("rootless Podman must be installed")
+        local_reasons.append("rootless Podman must be installed")
     if podman_rootless.strip().lower() != "true":
-        reasons.append("Podman must provide explicit rootless runtime evidence")
+        local_reasons.append("Podman must provide explicit rootless runtime evidence")
     if not image_present:
-        reasons.append(f"container image {VLLM_IMAGE} must be present")
+        local_reasons.append(f"container image {VLLM_IMAGE} must be present")
     if not enough_ram:
-        reasons.append("available RAM must cover the 56 GiB peak-memory estimate")
+        local_reasons.append("available RAM must cover the 56 GiB peak-memory estimate")
 
     models = {
         key: {
@@ -176,6 +209,13 @@ def build_preflight(
     pins_verified = len(observed_metadata) == 4 and all(
         record["revision_matches"] for record in observed_metadata
     )
+    receipt_reasons = [
+        f"{model_key}.{representation}: {reason}"
+        for model_key, variants in models.items()
+        for representation, record in variants.items()
+        for reason in record["evidence_reasons"]
+    ]
+    receipt_complete = not receipt_reasons
     selected_download_sizes = []
     for variants in models.values():
         selected = variants["fp8"]
@@ -187,9 +227,16 @@ def build_preflight(
     if all(isinstance(size, int) for size in selected_download_sizes):
         selected_download_bytes = sum(selected_download_sizes)
         if disk_free_bytes < selected_download_bytes:
-            reasons.append("free disk must cover both selected FP8 model downloads")
+            local_reasons.append(
+                "free disk must cover both selected FP8 model downloads"
+            )
     else:
         selected_download_bytes = None
+        local_reasons.append("selected FP8 model sizes must be complete")
+
+    local_download_reasons = [*receipt_reasons, *local_reasons]
+    local_download_ready = not local_download_reasons
+    gemini_configured = bool(environ.get("GEMINI_API_KEY"))
 
     return {
         "schema_version": "reference-model-preflight-v1",
@@ -224,12 +271,38 @@ def build_preflight(
             "paid_calls_performed": False,
         },
         "gates": {
-            "local_model_smoke_ready": not reasons,
-            "local_model_reason": "ready" if not reasons else "; ".join(reasons),
+            "receipt_complete": receipt_complete,
+            "receipt_reasons": receipt_reasons,
+            "local_download_ready": local_download_ready,
+            "local_download_reasons": local_download_reasons,
+            "local_model_smoke_ready": local_download_ready,
+            "local_model_reason": (
+                "ready" if local_download_ready else "; ".join(local_download_reasons)
+            ),
             "model_pins_verified": pins_verified,
-            "gemini_pilot_ready": bool(environ.get("GEMINI_API_KEY")),
+        },
+        "execution_gates": {
+            "gemini_pilot_ready": gemini_configured,
+            "gemini_pilot_reason": (
+                "credential configured; paid calls still require explicit Task 5 authorization"
+                if gemini_configured
+                else "GEMINI_API_KEY is not configured; it is required only after explicit Task 5 authorization"
+            ),
         },
     }
+
+
+def preflight_exit_code(receipt: Mapping[str, object]) -> int:
+    """Return zero only for a complete, locally download-ready receipt."""
+    gates = receipt.get("gates")
+    if not isinstance(gates, Mapping):
+        return 1
+    return (
+        0
+        if gates.get("receipt_complete") is True
+        and gates.get("local_download_ready") is True
+        else 1
+    )
 
 
 def _run(argv: list[str]) -> str:
@@ -249,20 +322,31 @@ def _collect(command_results: dict[str, str], key: str, argv: list[str]) -> None
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=(
+            "Exit 0 means the receipt and required local metadata gates are "
+            "complete. Gemini credential absence is informational until Task 5."
+        ),
+    )
     parser.add_argument(
         "--output",
         type=Path,
         default=Path("artifacts/reference_answer_validation/preflight.json"),
     )
-    parser.add_argument("--gemini-cost-cap-usd", type=float, required=True)
+    parser.add_argument(
+        "--gemini-cost-cap-usd",
+        type=float,
+        required=True,
+        help="finite, nonnegative projected pilot cap; does not authorize paid calls",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.gemini_cost_cap_usd < 0:
-        raise SystemExit("--gemini-cost-cap-usd must be nonnegative")
+    if not math.isfinite(args.gemini_cost_cap_usd) or args.gemini_cost_cap_usd < 0:
+        raise SystemExit("--gemini-cost-cap-usd must be finite and nonnegative")
 
     commands: dict[str, str] = {}
     _collect(commands, "meminfo", ["cat", "/proc/meminfo"])
@@ -339,14 +423,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(
         json.dumps(
-            {"output": str(args.output), "gates": receipt["gates"]}, sort_keys=True
+            {
+                "output": str(args.output),
+                "gates": receipt["gates"],
+                "execution_gates": receipt["execution_gates"],
+            },
+            sort_keys=True,
         )
     )
-    required = (
-        receipt["gates"]["local_model_smoke_ready"]
-        and receipt["gates"]["model_pins_verified"]
-    )
-    return 0 if required else 1
+    return preflight_exit_code(receipt)
 
 
 if __name__ == "__main__":

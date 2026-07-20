@@ -6,7 +6,12 @@ import urllib.error
 
 import pytest
 
-from scripts.preflight_reference_models import MODELS, build_preflight
+from scripts.preflight_reference_models import (
+    MODELS,
+    build_preflight,
+    main as preflight_main,
+    preflight_exit_code,
+)
 from trec_mlm.reference_generation import (
     GEMINI_ENDPOINT_TEMPLATE,
     SYSTEM_PROMPT,
@@ -22,12 +27,115 @@ from scripts.generate_reference_challengers import main
 
 
 def _commands(*, rocminfo: str = "GPU agent gfx1151") -> dict[str, str]:
-    return {
+    commands = {
         "rocminfo": rocminfo,
         "podman_version": "podman version 5.4.0",
         "podman_images": "vllm/vllm-openai-rocm:latest sha256:image",
+        "podman_rootless": "true\n",
         "meminfo": "MemAvailable: 120000000 kB\nSwapFree: 8000000 kB\n",
     }
+    for model_key, variants in MODELS.items():
+        for representation in ("base", "fp8"):
+            commands[f"{model_key}_{representation}_info"] = json.dumps(
+                {
+                    "sha": variants[f"{representation}_revision"],
+                    "tags": ["license:apache-2.0"],
+                    "safetensors": {"total": 1_000_000},
+                    "used_storage": 2_000_000_000,
+                }
+            )
+            commands[f"{model_key}_{representation}_dry_run"] = (
+                '[{"file": "weights", "size": "1.9G"}]'
+            )
+    return commands
+
+
+def test_preflight_complete_receipt_is_ready_without_gemini_key() -> None:
+    receipt = build_preflight(
+        environ={},
+        command_results=_commands(),
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["gates"]["receipt_complete"] is True
+    assert receipt["gates"]["local_download_ready"] is True
+    assert receipt["execution_gates"]["gemini_pilot_ready"] is False
+    assert "Task 5" in receipt["execution_gates"]["gemini_pilot_reason"]
+    assert preflight_exit_code(receipt) == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "expected_reason"),
+    [
+        ("license", "license"),
+        ("parameter_count", "parameter count"),
+        ("dry_run_download_bytes", "dry-run bytes"),
+        ("exact_repository_bytes", "repository bytes"),
+    ],
+)
+def test_preflight_required_model_evidence_fails_closed(
+    field: str, expected_reason: str
+) -> None:
+    commands = _commands()
+    metadata = json.loads(commands["qwen35_base_info"])
+    if field == "license":
+        metadata["tags"] = []
+    elif field == "parameter_count":
+        metadata["safetensors"] = {"total": 0}
+    elif field == "exact_repository_bytes":
+        metadata.pop("used_storage")
+    else:
+        commands["qwen35_base_dry_run"] = "[]"
+    commands["qwen35_base_info"] = json.dumps(metadata)
+
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    model = receipt["models"]["qwen35"]["base"]
+    assert model["evidence_complete"] is False
+    assert any(expected_reason in reason for reason in model["evidence_reasons"])
+    assert receipt["gates"]["receipt_complete"] is False
+    assert receipt["gates"]["local_download_ready"] is False
+    assert preflight_exit_code(receipt) == 1
+
+
+def test_preflight_rejects_image_reference_with_malicious_suffix() -> None:
+    commands = _commands()
+    commands["podman_images"] = "vllm/vllm-openai-rocm:latest-malicious sha256:image"
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["gates"]["local_download_ready"] is False
+    assert receipt["runtime"]["vllm_image_present"] is False
+
+
+def test_preflight_accepts_podman_canonical_docker_io_image_reference() -> None:
+    commands = _commands()
+    commands["podman_images"] = "docker.io/vllm/vllm-openai-rocm:latest sha256:image"
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["runtime"]["vllm_image_present"] is True
+    assert receipt["gates"]["local_download_ready"] is True
+
+
+@pytest.mark.parametrize("cap", ["-1", "nan", "inf"])
+def test_preflight_cli_rejects_nonfinite_or_negative_cost_cap(cap: str) -> None:
+    with pytest.raises(SystemExit, match="finite and nonnegative"):
+        preflight_main(["--gemini-cost-cap-usd", cap])
 
 
 def test_preflight_records_presence_not_secret_value() -> None:
@@ -105,7 +213,7 @@ def test_preflight_requires_metadata_for_every_model_pin() -> None:
         commit="abc123",
         dirty=False,
     )
-    assert receipt["gates"]["model_pins_verified"] is False
+    assert receipt["gates"]["receipt_complete"] is False
 
 
 def test_preflight_records_exact_hub_repository_bytes() -> None:
@@ -144,9 +252,11 @@ def test_preflight_rejects_insufficient_disk_for_selected_models() -> None:
 
 
 def test_preflight_requires_explicit_rootless_podman_evidence() -> None:
+    commands = _commands()
+    commands.pop("podman_rootless")
     receipt = build_preflight(
         environ={},
-        command_results=_commands(),
+        command_results=commands,
         disk_free_bytes=500_000_000_000,
         commit="abc123",
         dirty=False,

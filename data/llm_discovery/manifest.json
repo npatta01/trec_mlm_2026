@@ -1,0 +1,49 @@
+{
+  "artifact": "perplexity_full_cache.json",
+  "release_asset": "trec_2026_llm_discovery_sonar_cache_2026-07-20.zip",
+  "release_tag": "trec-2026-llm-discovery-sonar-2026-07-20",
+  "generated_at": "2026-07-20T17:58:11Z",
+  "source_questions": "llm_discovery/llm_discovery_data.json",
+  "records": 7759,
+  "provider": "perplexity",
+  "model": "sonar",
+  "generation": {
+    "initial_search_context_size": "low",
+    "retry_search_context_size": "medium",
+    "retried_records": 121,
+    "accepted_retries": 71,
+    "unresolved_retries": 50,
+    "initial_source_denylist": [
+      "reddit.com",
+      "youtube.com",
+      "facebook.com",
+      "quora.com",
+      "pinterest.com",
+      "medium.com"
+    ],
+    "retry_source_denylist": []
+  },
+  "quality_audit": {
+    "before_retry": {
+      "records_without_citations": 6,
+      "records_with_out_of_range_markers": 117
+    },
+    "after_retry": {
+      "records_without_citations": 3,
+      "records_with_out_of_range_markers": 48
+    },
+    "citation_markers_preserved": true,
+    "unresolved_records_are_not_promoted": true
+  },
+  "cost_usd": {
+    "initial_generation": 43.75838,
+    "retry_generation": 0.66566,
+    "total": 44.42404
+  },
+  "files": {
+    "raw_bytes": 114311010,
+    "archive_bytes": 25103404,
+    "raw_sha256": "cde4ca41c555e29533961bc41496361b00f73b70264899597573362e355a4ee0",
+    "archive_sha256": "1f05dd2371b69c530425a0214616c060d2f43c6c9225122b5f4cfcc343d0cd47"
+  }
+}

@@ -76,9 +76,11 @@ Allowed outcomes are:
 
 Automatic comparison is a triage signal, not ground truth. Record per-dimension reasons and uncertainty rather than only the winning label.
 
-## Manual review
+## Codex qualitative review
 
-Manually review approximately 30–50 informative disagreements. Prioritize:
+Codex will review all approximately 400 sampled comparisons, considering the question and anonymized responses rather than delegating the review to the user. For every question, Codex will confirm or revise the automatic outcome and record a concise rationale and uncertainty.
+
+Within that full review, approximately 30–50 informative disagreements will receive deeper adjudication and targeted evidence checking. Prioritize:
 
 - conflicting factual claims;
 - surprising or highly specific claims;
@@ -87,7 +89,7 @@ Manually review approximately 30–50 informative disagreements. Prioritize:
 - proposed combinations; and
 - unresolved Perplexity records.
 
-Detailed citation-entailment annotation is out of scope. Consult Perplexity citations or targeted external evidence only when needed to resolve a material disagreement. A small sanity spot-check of unanimous agreements is useful if time permits, but it is not a formal validation sample.
+Detailed citation-entailment annotation remains out of scope. Consult Perplexity citations or targeted external evidence when needed to resolve a material disagreement, surprising claim, numeric claim, or time-sensitive answer. The full 400-question review includes agreement cases, but routine agreements do not require external source checking unless something appears questionable.
 
 ## Reference selection
 
@@ -108,7 +110,7 @@ The pilot should answer a practical question: which challenger offers the best q
 Report:
 
 - automatic outcome counts and patterns by question stratum;
-- manual-review findings;
+- Codex qualitative-review findings;
 - characteristic major and minor failures;
 - ambiguity and abstention behavior;
 - end-to-end throughput, peak memory, setup burden, and API cost; and
@@ -137,7 +139,8 @@ Organizer qrels may later evaluate whether this response-derived signal improves
 - Reproducible 400-question sample manifest.
 - Raw challenger responses with provenance and usage metadata.
 - Blind automatic comparison records.
-- Manual-review decisions for approximately 30–50 cases.
+- Codex qualitative-review decisions for all approximately 400 cases.
+- Deep adjudication records for approximately 30–50 informative disagreements.
 - Selected or synthesized reference records with uncertainty.
 - Quality, failure-pattern, throughput, memory, and cost summary.
 - A deployment recommendation for Perplexity, Gemini, Qwen35, and Qwen27 roles.
@@ -149,7 +152,7 @@ Organizer qrels may later evaluate whether this response-derived signal improves
 - No claim that the purposive 400-question sample estimates corpus-wide correctness.
 - No claim that organizer qrels validate discovery reference answers.
 - Every sampled question has complete provenance or an explicit generation failure.
-- Manual-review scope stays near 30–50 informative disagreements unless a systematic failure requires expansion.
+- Codex reviews all approximately 400 sampled comparisons; deeper evidence-backed adjudication stays near 30–50 informative disagreements unless a systematic failure requires expansion.
 - Paid calls have a predeclared cap, and no unusually large model is downloaded without authorization.
 - The final recommendation clearly separates verified observations, practical inferences, and unresolved unknowns.
 

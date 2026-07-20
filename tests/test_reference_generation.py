@@ -6,6 +6,7 @@ import urllib.error
 
 import pytest
 
+from scripts.preflight_reference_models import MODELS, build_preflight
 from trec_mlm.reference_generation import (
     GEMINI_ENDPOINT_TEMPLATE,
     SYSTEM_PROMPT,
@@ -18,6 +19,140 @@ from trec_mlm.reference_generation import (
     validate_openai_compatible_url,
 )
 from scripts.generate_reference_challengers import main
+
+
+def _commands(*, rocminfo: str = "GPU agent gfx1151") -> dict[str, str]:
+    return {
+        "rocminfo": rocminfo,
+        "podman_version": "podman version 5.4.0",
+        "podman_images": "vllm/vllm-openai-rocm:latest sha256:image",
+        "meminfo": "MemAvailable: 120000000 kB\nSwapFree: 8000000 kB\n",
+    }
+
+
+def test_preflight_records_presence_not_secret_value() -> None:
+    receipt = build_preflight(
+        environ={"GEMINI_API_KEY": "super-secret-value"},
+        command_results=_commands(),
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["credentials"]["gemini_api_key"] == "configured"
+    assert "super-secret-value" not in json.dumps(receipt)
+
+
+def test_preflight_rejects_missing_rocm_device_for_local_models() -> None:
+    receipt = build_preflight(
+        environ={},
+        command_results=_commands(rocminfo=""),
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["gates"]["local_model_smoke_ready"] is False
+    assert "gfx1151" in receipt["gates"]["local_model_reason"]
+
+
+def test_preflight_pins_verified_qwen_revisions() -> None:
+    assert MODELS["qwen35"]["base_revision"] == (
+        "995ad96eacd98c81ed38be0c5b274b04031597b0"
+    )
+    assert MODELS["qwen35"]["fp8_revision"] == (
+        "95a723d08a9490559dae23d0cff1d9466213d989"
+    )
+    assert MODELS["qwen27"]["base_revision"] == (
+        "6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
+    )
+    assert MODELS["qwen27"]["fp8_revision"] == (
+        "e89b16ebf1988b3d6befa7de50abc2d76f26eb09"
+    )
+
+
+def test_preflight_sums_hf_dry_run_json_sizes_in_bytes() -> None:
+    commands = _commands()
+    commands["qwen35_fp8_dry_run"] = json.dumps(
+        [
+            {"file": "weights.safetensors", "size": "1.5G"},
+            {"file": "config.json", "size": "2.0K"},
+            {"file": "empty", "size": "58.0"},
+        ]
+    )
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["models"]["qwen35"]["fp8"]["dry_run_download_bytes"] == (
+        1_500_002_058
+    )
+
+
+def test_preflight_requires_metadata_for_every_model_pin() -> None:
+    commands = _commands()
+    commands["qwen35_base_info"] = json.dumps(
+        {
+            "sha": MODELS["qwen35"]["base_revision"],
+            "tags": ["license:apache-2.0"],
+        }
+    )
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["gates"]["model_pins_verified"] is False
+
+
+def test_preflight_records_exact_hub_repository_bytes() -> None:
+    commands = _commands()
+    commands["qwen35_base_info"] = json.dumps(
+        {
+            "sha": MODELS["qwen35"]["base_revision"],
+            "used_storage": 71_900_000_123,
+        }
+    )
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["models"]["qwen35"]["base"]["exact_repository_bytes"] == (
+        71_900_000_123
+    )
+
+
+def test_preflight_rejects_insufficient_disk_for_selected_models() -> None:
+    commands = _commands()
+    commands["qwen35_fp8_dry_run"] = '[{"size": "2.0G"}]'
+    commands["qwen27_fp8_dry_run"] = '[{"size": "1.0G"}]'
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=2_999_999_999,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["gates"]["local_model_smoke_ready"] is False
+    assert "disk" in receipt["gates"]["local_model_reason"]
+
+
+def test_preflight_requires_explicit_rootless_podman_evidence() -> None:
+    receipt = build_preflight(
+        environ={},
+        command_results=_commands(),
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    assert receipt["gates"]["local_model_smoke_ready"] is False
+    assert "rootless" in receipt["gates"]["local_model_reason"]
 
 
 def test_prompt_forbids_guessing_and_requests_direct_answer() -> None:
@@ -70,6 +205,7 @@ def test_generate_missing_resumes_and_never_serializes_secrets(tmp_path: Path) -
             "STOP",
             {"endpoint": "https://example.invalid", "x-goog-api-key": secret},
         )
+
     first = generate_missing(
         [("q1", "first"), ("q2", "second")],
         cache_path=cache_path,
@@ -239,9 +375,7 @@ def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) 
             {},
             "STOP",
             {
-                "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(
-                    model="gemini-3.5-flash"
-                ),
+                "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.5-flash"),
                 "attempts": 1,
                 "diagnostic_note": f"innocuous-looking field containing {secret}",
             },
@@ -413,9 +547,10 @@ def test_gemini_request_id_is_hashed_before_adapter_metadata() -> None:
         sleep_fn=lambda _: None,
     )
 
-    assert result[3]["request_id_sha256"] == hashlib.sha256(
-        secret.encode("utf-8")
-    ).hexdigest()
+    assert (
+        result[3]["request_id_sha256"]
+        == hashlib.sha256(secret.encode("utf-8")).hexdigest()
+    )
     assert secret not in json.dumps(result)
 
 

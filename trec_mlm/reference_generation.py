@@ -38,9 +38,44 @@ GenerationCall = Callable[
 ]
 SAFE_REQUEST_METADATA_FIELDS = {
     "attempts": int,
-    "endpoint": str,
     "max_output_tokens": int,
     "temperature": (int, float),
+}
+GEMINI_USAGE_SCHEMA: Mapping[str, Any] = {
+    "cachedContentTokenCount": "number",
+    "candidatesTokenCount": "number",
+    "promptTokenCount": "number",
+    "thoughtsTokenCount": "number",
+    "toolUsePromptTokenCount": "number",
+    "totalTokenCount": "number",
+}
+OPENAI_USAGE_SCHEMA: Mapping[str, Any] = {
+    "completion_tokens": "number",
+    "completion_tokens_details": {
+        "accepted_prediction_tokens": "number",
+        "audio_tokens": "number",
+        "reasoning_tokens": "number",
+        "rejected_prediction_tokens": "number",
+    },
+    "prompt_tokens": "number",
+    "prompt_tokens_details": {
+        "audio_tokens": "number",
+        "cached_tokens": "number",
+    },
+    "total_tokens": "number",
+}
+FINISH_REASON_MAP = {
+    "STOP": "stop",
+    "stop": "stop",
+    "MAX_TOKENS": "length",
+    "length": "length",
+    "SAFETY": "safety",
+    "RECITATION": "recitation",
+    "LANGUAGE": "language",
+    "OTHER": "other",
+    "content_filter": "content_filter",
+    "tool_calls": "tool_calls",
+    "function_call": "function_call",
 }
 
 
@@ -200,7 +235,9 @@ def call_gemini(
 
     if not api_key:
         raise ValueError("GEMINI_API_KEY is required")
-    endpoint = GEMINI_ENDPOINT_TEMPLATE.format(model=model)
+    if model != GEMINI_MODEL:
+        raise ValueError(f"Gemini model is frozen to {GEMINI_MODEL}")
+    endpoint = GEMINI_ENDPOINT_TEMPLATE.format(model=GEMINI_MODEL)
     body = build_gemini_request(question, max_output_tokens=max_output_tokens)
     response, attempts = _request_with_retries(
         endpoint,
@@ -210,12 +247,18 @@ def call_gemini(
         sleep_fn=sleep_fn,
     )
     answer, usage, finish_reason = parse_gemini_response(response)
-    return answer, usage, finish_reason, {
+    metadata: dict[str, Any] = {
         "endpoint": endpoint,
         "temperature": 0.0,
         "max_output_tokens": max_output_tokens,
         "attempts": attempts,
     }
+    request_id = response.get("responseId")
+    if isinstance(request_id, str):
+        metadata["request_id_sha256"] = hashlib.sha256(
+            request_id.encode("utf-8")
+        ).hexdigest()
+    return answer, usage, finish_reason, metadata
 
 
 def validate_openai_compatible_url(base_url: str) -> str:
@@ -262,15 +305,23 @@ def call_openai_compatible(
         endpoint, body, {}, request_fn=request_fn, sleep_fn=sleep_fn
     )
     answer, usage, finish_reason = parse_openai_response(response)
-    return answer, usage, finish_reason, {
+    metadata: dict[str, Any] = {
         "endpoint": endpoint,
         "temperature": 0.0,
         "max_output_tokens": max_output_tokens,
         "attempts": attempts,
     }
+    request_id = response.get("id")
+    if isinstance(request_id, str):
+        metadata["request_id_sha256"] = hashlib.sha256(
+            request_id.encode("utf-8")
+        ).hexdigest()
+    return answer, usage, finish_reason, metadata
 
 
-def _safe_request_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+def _safe_request_metadata(
+    metadata: Mapping[str, Any], *, provider: str
+) -> dict[str, Any]:
     """Keep only adapter-authored scalar audit fields; discard everything else."""
 
     safe: dict[str, Any] = {}
@@ -278,7 +329,61 @@ def _safe_request_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
         value = metadata.get(field)
         if isinstance(value, expected_type) and not isinstance(value, bool):
             safe[field] = value
+    endpoint = metadata.get("endpoint")
+    if isinstance(endpoint, str):
+        if provider == "gemini" and endpoint == GEMINI_ENDPOINT_TEMPLATE.format(
+            model=GEMINI_MODEL
+        ):
+            safe["endpoint"] = endpoint
+        elif provider == "openai-compatible":
+            try:
+                safe["endpoint"] = validate_openai_compatible_url(endpoint)
+            except ValueError:
+                pass
+    request_id_sha256 = metadata.get("request_id_sha256")
+    if (
+        isinstance(request_id_sha256, str)
+        and len(request_id_sha256) == 64
+        and all(character in "0123456789abcdef" for character in request_id_sha256)
+    ):
+        safe["request_id_sha256"] = request_id_sha256
     return safe
+
+
+def _safe_usage(usage: Mapping[str, Any], *, provider: str) -> dict[str, Any]:
+    schema = (
+        GEMINI_USAGE_SCHEMA
+        if provider == "gemini"
+        else OPENAI_USAGE_SCHEMA
+        if provider == "openai-compatible"
+        else {}
+    )
+
+    def filter_mapping(
+        value: Mapping[str, Any], allowed: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for field, rule in allowed.items():
+            item = value.get(field)
+            if rule == "number":
+                if isinstance(item, (int, float)) and not isinstance(item, bool):
+                    result[field] = item
+            elif rule == "bool":
+                if isinstance(item, bool):
+                    result[field] = item
+            elif isinstance(rule, Mapping) and isinstance(item, Mapping):
+                nested = filter_mapping(item, rule)
+                if nested:
+                    result[field] = nested
+        return result
+
+    return filter_mapping(usage, schema)
+
+
+def _safe_finish_reason(finish_reason: str | None) -> str:
+    if finish_reason is None:
+        return "unknown"
+    return FINISH_REASON_MAP.get(finish_reason, "unknown")
 
 
 def _failure_payload(
@@ -425,13 +530,15 @@ class GenerationRunner:
                     model=self.model,
                     answer=answer,
                     elapsed_seconds=elapsed,
-                    usage=dict(usage),
-                    finish_reason=finish_reason,
+                    usage=_safe_usage(usage, provider=self.provider),
+                    finish_reason=_safe_finish_reason(finish_reason),
                 )
                 records[question_id] = {
                     **asdict(base_record),
                     "prompt_sha256": self.prompt_sha256,
-                    "request_metadata": _safe_request_metadata(metadata),
+                    "request_metadata": _safe_request_metadata(
+                        metadata, provider=self.provider
+                    ),
                 }
                 failures.pop(question_id, None)
             except Exception as exc:

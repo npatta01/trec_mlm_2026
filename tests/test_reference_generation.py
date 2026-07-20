@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import threading
@@ -238,7 +239,9 @@ def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) 
             {},
             "STOP",
             {
-                "endpoint": "https://example.invalid/generate",
+                "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(
+                    model="gemini-3.5-flash"
+                ),
                 "attempts": 1,
                 "diagnostic_note": f"innocuous-looking field containing {secret}",
             },
@@ -256,7 +259,7 @@ def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) 
 
     assert cache["records"]["q1"]["request_metadata"] == {
         "attempts": 1,
-        "endpoint": "https://example.invalid/generate",
+        "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.5-flash"),
     }
     assert cache["failures"]["q2"] == {
         "category": "provider",
@@ -370,3 +373,120 @@ def test_keyboard_interrupt_checkpoints_completed_ids_and_resume_skips_them(
     )
     assert calls == ["first", "second", "second", "third"]
     assert set(resumed["records"]) == {"q1", "q2", "q3"}
+
+
+def test_gemini_adapter_rejects_model_override_before_transport() -> None:
+    transport_called = False
+
+    def request(url: str, body: dict, headers: dict[str, str]):
+        nonlocal transport_called
+        transport_called = True
+        raise AssertionError("transport must not run")
+
+    with pytest.raises(ValueError, match="frozen"):
+        call_gemini(
+            "question",
+            api_key="unused-test-key",
+            model="gemini-other",
+            request_fn=request,
+            sleep_fn=lambda _: None,
+        )
+    assert transport_called is False
+
+
+def test_gemini_request_id_is_hashed_before_adapter_metadata() -> None:
+    secret = "AIza-fake-provider-request-id"
+
+    def request(url: str, body: dict, headers: dict[str, str]):
+        return {
+            "responseId": secret,
+            "candidates": [
+                {"content": {"parts": [{"text": "answer"}]}, "finishReason": "STOP"}
+            ],
+            "usageMetadata": {"totalTokenCount": 3},
+        }
+
+    result = call_gemini(
+        "question",
+        api_key="unused-test-key",
+        request_fn=request,
+        sleep_fn=lambda _: None,
+    )
+
+    assert result[3]["request_id_sha256"] == hashlib.sha256(
+        secret.encode("utf-8")
+    ).hexdigest()
+    assert secret not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "usage", "expected_usage"),
+    [
+        (
+            "gemini",
+            "gemini-3.5-flash",
+            {
+                "totalTokenCount": 7,
+                "promptTokenCount": 3,
+                "providerNote": "AIza-fake-cache-channel",
+                "unknownNumeric": 999,
+            },
+            {"promptTokenCount": 3, "totalTokenCount": 7},
+        ),
+        (
+            "openai-compatible",
+            "Qwen/test",
+            {
+                "total_tokens": 7,
+                "prompt_tokens": 3,
+                "provider_note": "AIza-fake-cache-channel",
+                "unknown_numeric": 999,
+                "prompt_tokens_details": {
+                    "cached_tokens": 1,
+                    "provider_note": "AIza-fake-cache-channel",
+                },
+            },
+            {
+                "prompt_tokens": 3,
+                "prompt_tokens_details": {"cached_tokens": 1},
+                "total_tokens": 7,
+            },
+        ),
+    ],
+)
+def test_cache_allowlists_usage_and_finish_reason_and_metadata_strings(
+    tmp_path: Path,
+    provider: str,
+    model: str,
+    usage: dict,
+    expected_usage: dict,
+) -> None:
+    cache_path = tmp_path / "cache.json"
+    secret = "AIza-fake-cache-channel"
+
+    cache = generate_missing(
+        [("q1", "question")],
+        cache_path=cache_path,
+        provider=provider,
+        model=model,
+        call=lambda _: (
+            "safe answer",
+            usage,
+            secret,
+            {
+                "endpoint": f"http://127.0.0.1:8000/{secret}",
+                "request_id_sha256": hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+                "attempts": 1,
+            },
+        ),
+        workers=1,
+    )
+
+    record = cache["records"]["q1"]
+    assert record["usage"] == expected_usage
+    assert record["finish_reason"] == "unknown"
+    assert record["request_metadata"] == {
+        "attempts": 1,
+        "request_id_sha256": hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+    }
+    assert secret not in cache_path.read_text(encoding="utf-8")

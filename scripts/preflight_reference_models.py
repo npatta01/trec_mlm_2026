@@ -105,6 +105,8 @@ def _download_observation(text: str) -> tuple[int | None, list[str]]:
         value = json.loads(text)
     except json.JSONDecodeError:
         return None, ["dry-run output must be valid JSON"]
+    except ValueError:
+        return None, ["dry-run output contains an oversized numeric token"]
     rows = value if isinstance(value, list) else [value]
     if not rows:
         return None, ["dry-run output contains no file rows"]
@@ -172,11 +174,17 @@ def _model_receipt(
         None,
     )
     safetensors = metadata.get("safetensors", {})
-    parameter_count = (
+    raw_parameter_count = (
         safetensors.get("total") if isinstance(safetensors, dict) else None
     )
+    parameter_count = (
+        raw_parameter_count if _positive_finite_number(raw_parameter_count) else None
+    )
     observed_sha = metadata.get("sha")
-    exact_repository_bytes = metadata.get("used_storage")
+    raw_repository_bytes = metadata.get("used_storage")
+    exact_repository_bytes = (
+        raw_repository_bytes if _positive_finite_number(raw_repository_bytes) else None
+    )
     dry_run_download_bytes, dry_run_observation_errors = _download_observation(
         command_results.get(f"{model_key}_{representation}_dry_run", "")
     )
@@ -185,9 +193,9 @@ def _model_receipt(
         evidence_reasons.append("SHA does not match the pinned revision")
     if not isinstance(license_tag, str) or not license_tag.strip():
         evidence_reasons.append("license tag is missing")
-    if not _positive_finite_number(parameter_count):
+    if parameter_count is None:
         evidence_reasons.append("parameter count must be finite and positive")
-    if not _positive_finite_number(exact_repository_bytes):
+    if exact_repository_bytes is None:
         evidence_reasons.append("repository bytes must be finite and positive")
     if dry_run_observation_errors:
         evidence_reasons.extend(
@@ -472,7 +480,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     }
     receipt["gemini"] = {"projected_pilot_cost_cap_usd": args.gemini_cost_cap_usd}
     args.output.write_text(
-        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(receipt, allow_nan=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     print(
         json.dumps(

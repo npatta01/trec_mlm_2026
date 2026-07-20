@@ -119,6 +119,63 @@ def test_preflight_dry_run_observation_errors_fail_closed(
     json.dumps(receipt, allow_nan=False)
 
 
+def test_preflight_oversized_json_integer_becomes_observation_error() -> None:
+    commands = _commands()
+    oversized_integer = "9" * 5_000
+    commands["qwen35_base_dry_run"] = (
+        f'[{{"file": "weights", "size": {oversized_integer}}}]'
+    )
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    model = receipt["models"]["qwen35"]["base"]
+    assert model["dry_run_download_bytes"] is None
+    assert any(
+        "oversized numeric token" in error
+        for error in model["dry_run_observation_errors"]
+    )
+    assert receipt["gates"]["receipt_complete"] is False
+    assert preflight_exit_code(receipt) == 1
+    json.dumps(receipt, allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_reason"),
+    [
+        ("parameter_count", float("nan"), "parameter count"),
+        ("exact_repository_bytes", float("inf"), "repository bytes"),
+    ],
+)
+def test_preflight_normalizes_nonfinite_hub_metadata(
+    field: str, value: float, expected_reason: str
+) -> None:
+    commands = _commands()
+    metadata = json.loads(commands["qwen35_base_info"])
+    if field == "parameter_count":
+        metadata["safetensors"]["total"] = value
+    else:
+        metadata["used_storage"] = value
+    commands["qwen35_base_info"] = json.dumps(metadata)
+
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    model = receipt["models"]["qwen35"]["base"]
+    assert model[field] is None
+    assert any(expected_reason in reason for reason in model["evidence_reasons"])
+    assert receipt["gates"]["receipt_complete"] is False
+    assert preflight_exit_code(receipt) == 1
+    json.dumps(receipt, allow_nan=False)
+
+
 @pytest.mark.parametrize(
     ("field", "expected_reason"),
     [

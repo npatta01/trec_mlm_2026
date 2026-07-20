@@ -176,6 +176,58 @@ def test_preflight_normalizes_nonfinite_hub_metadata(
     json.dumps(receipt, allow_nan=False)
 
 
+def test_preflight_oversized_hub_integer_becomes_observation_error() -> None:
+    commands = _commands()
+    oversized_integer = "9" * 5_000
+    commands["qwen35_base_info"] = (
+        f'{{"sha": "{MODELS["qwen35"]["base_revision"]}", '
+        f'"used_storage": {oversized_integer}}}'
+    )
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    model = receipt["models"]["qwen35"]["base"]
+    assert any(
+        "oversized numeric token" in error for error in model["hub_observation_errors"]
+    )
+    assert model["evidence_complete"] is False
+    assert receipt["gates"]["receipt_complete"] is False
+    assert preflight_exit_code(receipt) == 1
+    json.dumps(receipt, allow_nan=False)
+
+
+def test_preflight_normalizes_nonstring_sha_to_null() -> None:
+    commands = _commands()
+    metadata = json.loads(commands["qwen35_base_info"])
+    metadata["sha"] = float("nan")
+    metadata["tags"].append({"unsafe": float("inf")})
+    commands["qwen35_base_info"] = json.dumps(metadata)
+    receipt = build_preflight(
+        environ={},
+        command_results=commands,
+        disk_free_bytes=500_000_000_000,
+        commit="abc123",
+        dirty=False,
+    )
+    model = receipt["models"]["qwen35"]["base"]
+    assert model["observed_sha"] is None
+    assert model["license"] == "apache-2.0"
+    assert any(
+        "SHA must be a string" in error for error in model["hub_observation_errors"]
+    )
+    assert any(
+        "tag 1 must be a string" in error for error in model["hub_observation_errors"]
+    )
+    assert model["evidence_complete"] is False
+    assert receipt["gates"]["receipt_complete"] is False
+    assert preflight_exit_code(receipt) == 1
+    json.dumps(receipt, allow_nan=False)
+
+
 @pytest.mark.parametrize(
     ("field", "expected_reason"),
     [

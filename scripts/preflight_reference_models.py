@@ -52,14 +52,6 @@ def _parse_meminfo(text: str) -> dict[str, int | None]:
     }
 
 
-def _json_object(text: str) -> dict[str, object]:
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError:
-        return {}
-    return value if isinstance(value, dict) else {}
-
-
 def _size_bytes(value: object) -> tuple[int | None, str | None]:
     if value == "-":
         return 0, None
@@ -147,6 +139,71 @@ def _positive_finite_number(value: object) -> bool:
     return isinstance(value, float) and math.isfinite(value) and value > 0
 
 
+def _hub_observation(text: str) -> tuple[dict[str, object], list[str]]:
+    errors: list[str] = []
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return {}, ["Hub model info must be valid JSON"]
+    except ValueError:
+        return {}, ["Hub model info contains an oversized numeric token"]
+    if not isinstance(value, dict):
+        return {}, ["Hub model info must be a JSON object"]
+
+    raw_sha = value.get("sha")
+    observed_sha = raw_sha if isinstance(raw_sha, str) else None
+    if raw_sha is not None and observed_sha is None:
+        errors.append("SHA must be a string or null")
+
+    safe_tags: list[str] = []
+    raw_tags = value.get("tags")
+    if isinstance(raw_tags, list):
+        for index, tag in enumerate(raw_tags):
+            if isinstance(tag, str):
+                safe_tags.append(tag)
+            else:
+                errors.append(f"tag {index} must be a string")
+    elif raw_tags is not None:
+        errors.append("tags must be a list of strings or null")
+    raw_license = next(
+        (
+            tag.removeprefix("license:")
+            for tag in safe_tags
+            if tag.startswith("license:")
+        ),
+        None,
+    )
+    license_tag = (
+        raw_license if isinstance(raw_license, str) and raw_license.strip() else None
+    )
+
+    raw_safetensors = value.get("safetensors")
+    raw_parameter_count = None
+    if isinstance(raw_safetensors, dict):
+        raw_parameter_count = raw_safetensors.get("total")
+    elif raw_safetensors is not None:
+        errors.append("safetensors must be an object or null")
+    parameter_count = (
+        raw_parameter_count if _positive_finite_number(raw_parameter_count) else None
+    )
+    if raw_parameter_count is not None and parameter_count is None:
+        errors.append("safetensors total must be finite and positive")
+
+    raw_repository_bytes = value.get("used_storage")
+    exact_repository_bytes = (
+        raw_repository_bytes if _positive_finite_number(raw_repository_bytes) else None
+    )
+    if raw_repository_bytes is not None and exact_repository_bytes is None:
+        errors.append("used storage must be finite and positive")
+
+    return {
+        "sha": observed_sha,
+        "license": license_tag,
+        "parameter_count": parameter_count,
+        "exact_repository_bytes": exact_repository_bytes,
+    }, errors
+
+
 def _podman_image_references(text: str) -> set[str]:
     return {
         fields[0].removeprefix("docker.io/")
@@ -160,35 +217,19 @@ def _model_receipt(
 ) -> dict[str, object]:
     repository = MODELS[model_key][representation]
     revision = MODELS[model_key][f"{representation}_revision"]
-    metadata = _json_object(
+    metadata, hub_observation_errors = _hub_observation(
         command_results.get(f"{model_key}_{representation}_info", "")
     )
-    tags = metadata.get("tags", [])
-    tags = tags if isinstance(tags, list) else []
-    license_tag = next(
-        (
-            tag.removeprefix("license:")
-            for tag in tags
-            if isinstance(tag, str) and tag.startswith("license:")
-        ),
-        None,
-    )
-    safetensors = metadata.get("safetensors", {})
-    raw_parameter_count = (
-        safetensors.get("total") if isinstance(safetensors, dict) else None
-    )
-    parameter_count = (
-        raw_parameter_count if _positive_finite_number(raw_parameter_count) else None
-    )
     observed_sha = metadata.get("sha")
-    raw_repository_bytes = metadata.get("used_storage")
-    exact_repository_bytes = (
-        raw_repository_bytes if _positive_finite_number(raw_repository_bytes) else None
-    )
+    license_tag = metadata.get("license")
+    parameter_count = metadata.get("parameter_count")
+    exact_repository_bytes = metadata.get("exact_repository_bytes")
     dry_run_download_bytes, dry_run_observation_errors = _download_observation(
         command_results.get(f"{model_key}_{representation}_dry_run", "")
     )
-    evidence_reasons: list[str] = []
+    evidence_reasons = [
+        f"Hub info observation error: {error}" for error in hub_observation_errors
+    ]
     if observed_sha != revision:
         evidence_reasons.append("SHA does not match the pinned revision")
     if not isinstance(license_tag, str) or not license_tag.strip():
@@ -214,6 +255,7 @@ def _model_receipt(
         "exact_repository_bytes": exact_repository_bytes,
         "dry_run_download_bytes": dry_run_download_bytes,
         "dry_run_observation_errors": dry_run_observation_errors,
+        "hub_observation_errors": hub_observation_errors,
         "evidence_complete": not evidence_reasons,
         "evidence_reasons": evidence_reasons,
     }

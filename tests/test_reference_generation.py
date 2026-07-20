@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import threading
 import urllib.error
 
 import pytest
@@ -223,3 +224,149 @@ def test_cli_missing_gemini_key_fails_before_network(
                 str(tmp_path / "cache.json"),
             ]
         )
+
+
+def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) -> None:
+    cache_path = tmp_path / "cache.json"
+    secret = "AIza-fake-review-secret"
+
+    def call(question: str):
+        if question == "failure":
+            raise RuntimeError(f"request exploded with {secret}")
+        return (
+            "safe answer",
+            {},
+            "STOP",
+            {
+                "endpoint": "https://example.invalid/generate",
+                "attempts": 1,
+                "diagnostic_note": f"innocuous-looking field containing {secret}",
+            },
+        )
+
+    cache = generate_missing(
+        [("q1", "success"), ("q2", "failure")],
+        cache_path=cache_path,
+        provider="gemini",
+        model="gemini-3.5-flash",
+        call=call,
+        workers=1,
+        checkpoint_every=1,
+    )
+
+    assert cache["records"]["q1"]["request_metadata"] == {
+        "attempts": 1,
+        "endpoint": "https://example.invalid/generate",
+    }
+    assert cache["failures"]["q2"] == {
+        "category": "provider",
+        "error_type": "RuntimeError",
+        "http_status": None,
+        "model": "gemini-3.5-flash",
+        "prompt_sha256": cache["prompt_sha256"],
+        "provider": "gemini",
+        "retryable": False,
+    }
+    assert secret not in cache_path.read_text(encoding="utf-8")
+
+
+def test_gemini_cli_rejects_non_frozen_model_before_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = tmp_path / "sample_manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "reference-validation-sample-v1",
+                "sample_size": 1,
+                "questions": [{"question_id": "q1", "question": "Question?"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GEMINI_API_KEY", "unused-test-key")
+
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "gemini",
+                "--sample",
+                str(manifest),
+                "--cache",
+                str(tmp_path / "cache.json"),
+                "--model",
+                "gemini-other",
+            ]
+        )
+    assert not (tmp_path / "cache.json").exists()
+
+
+def test_failed_replacement_removes_incompatible_cached_success(tmp_path: Path) -> None:
+    cache_path = tmp_path / "cache.json"
+    generate_missing(
+        [("q1", "question")],
+        cache_path=cache_path,
+        provider="gemini",
+        model="old-model",
+        call=lambda _: ("stale answer", {}, "STOP", {}),
+        workers=1,
+    )
+
+    def fail(_: str):
+        raise RuntimeError("replacement unavailable")
+
+    cache = generate_missing(
+        [("q1", "question")],
+        cache_path=cache_path,
+        provider="gemini",
+        model="new-model",
+        call=fail,
+        workers=1,
+    )
+
+    assert "q1" not in cache["records"]
+    assert cache["failures"]["q1"]["model"] == "new-model"
+    persisted = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert "q1" not in persisted["records"]
+
+
+def test_keyboard_interrupt_checkpoints_completed_ids_and_resume_skips_them(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "cache.json"
+    calls: list[str] = []
+    interrupt_once = threading.Event()
+
+    def interrupted_call(question: str):
+        calls.append(question)
+        if question == "second" and not interrupt_once.is_set():
+            interrupt_once.set()
+            raise KeyboardInterrupt
+        return f"answer {question}", {}, "STOP", {"attempts": 1}
+
+    with pytest.raises(KeyboardInterrupt):
+        generate_missing(
+            [("q1", "first"), ("q2", "second"), ("q3", "third")],
+            cache_path=cache_path,
+            provider="gemini",
+            model="gemini-3.5-flash",
+            call=interrupted_call,
+            workers=1,
+            checkpoint_every=10,
+        )
+
+    interrupted_cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert set(interrupted_cache["records"]) == {"q1"}
+    assert calls == ["first", "second"]
+
+    resumed = generate_missing(
+        [("q1", "first"), ("q2", "second"), ("q3", "third")],
+        cache_path=cache_path,
+        provider="gemini",
+        model="gemini-3.5-flash",
+        call=interrupted_call,
+        workers=1,
+        checkpoint_every=10,
+    )
+    assert calls == ["first", "second", "second", "third"]
+    assert set(resumed["records"]) == {"q1", "q2", "q3"}

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Sequence
 
 from trec_mlm.reference_generation import (
+    GEMINI_MODEL,
     RateLimiter,
     call_gemini,
     call_openai_compatible,
@@ -24,7 +25,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="provider", required=True)
 
     gemini = subparsers.add_parser("gemini")
-    _common_arguments(gemini, default_model="gemini-3.5-flash", default_workers=8)
+    _common_arguments(gemini, default_model=GEMINI_MODEL, default_workers=8)
     gemini.add_argument("--requests-per-minute", type=int, default=120)
 
     openai = subparsers.add_parser("openai-compatible")
@@ -71,6 +72,8 @@ def _load_sample(path: Path) -> list[tuple[str, str]]:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.provider == "gemini":
+        if args.model != GEMINI_MODEL:
+            raise SystemExit(f"Gemini model is frozen to {GEMINI_MODEL}")
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise SystemExit("GEMINI_API_KEY is required")

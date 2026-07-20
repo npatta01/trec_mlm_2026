@@ -29,12 +29,35 @@ SYSTEM_PROMPT = (
 GEMINI_ENDPOINT_TEMPLATE = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
+GEMINI_MODEL = "gemini-3.5-flash"
 RETRIABLE_STATUS_CODES = {408, 429, *range(500, 600)}
 RequestFunction = Callable[[str, dict[str, Any], dict[str, str]], Mapping[str, Any]]
 SleepFunction = Callable[[float], None]
 GenerationCall = Callable[
     [str], tuple[str, Mapping[str, Any], str | None, Mapping[str, Any]]
 ]
+SAFE_REQUEST_METADATA_FIELDS = {
+    "attempts": int,
+    "endpoint": str,
+    "max_output_tokens": int,
+    "temperature": (int, float),
+}
+
+
+class ProviderRequestError(RuntimeError):
+    """A provider failure carrying only non-secret structured diagnostics."""
+
+    def __init__(
+        self,
+        *,
+        category: str,
+        http_status: int | None,
+        retryable: bool,
+    ) -> None:
+        super().__init__("provider request failed")
+        self.category = category
+        self.http_status = http_status
+        self.retryable = retryable
 
 
 def build_gemini_request(
@@ -148,10 +171,18 @@ def _request_with_retries(
             return request_fn(url, body, headers), attempt
         except urllib.error.HTTPError as exc:
             if exc.code not in RETRIABLE_STATUS_CODES or attempt == 4:
-                raise RuntimeError(f"provider request failed with HTTP {exc.code}") from exc
+                raise ProviderRequestError(
+                    category="http",
+                    http_status=exc.code,
+                    retryable=exc.code in RETRIABLE_STATUS_CODES,
+                ) from exc
         except (TimeoutError, urllib.error.URLError) as exc:
             if attempt == 4:
-                raise RuntimeError("provider request failed after four attempts") from exc
+                raise ProviderRequestError(
+                    category="transport",
+                    http_status=None,
+                    retryable=True,
+                ) from exc
         sleep_fn(float(2 ** (attempt - 1)))
     raise AssertionError("unreachable")
 
@@ -160,7 +191,7 @@ def call_gemini(
     question: str,
     *,
     api_key: str,
-    model: str = "gemini-3.5-flash",
+    model: str = GEMINI_MODEL,
     max_output_tokens: int = 768,
     request_fn: RequestFunction = _post_json,
     sleep_fn: SleepFunction = time.sleep,
@@ -239,26 +270,49 @@ def call_openai_compatible(
     }
 
 
-def _is_sensitive_key(key: object) -> bool:
-    normalized = str(key).casefold().replace("-", "_")
-    return any(
-        marker in normalized
-        for marker in ("authorization", "api_key", "apikey", "access_token", "secret")
-    )
+def _safe_request_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep only adapter-authored scalar audit fields; discard everything else."""
+
+    safe: dict[str, Any] = {}
+    for field, expected_type in SAFE_REQUEST_METADATA_FIELDS.items():
+        value = metadata.get(field)
+        if isinstance(value, expected_type) and not isinstance(value, bool):
+            safe[field] = value
+    return safe
 
 
-def _sanitize_metadata(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {
-            str(key): _sanitize_metadata(item)
-            for key, item in value.items()
-            if not _is_sensitive_key(key)
-        }
-    if isinstance(value, (list, tuple)):
-        return [_sanitize_metadata(item) for item in value]
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    return repr(value)
+def _failure_payload(
+    exc: Exception,
+    *,
+    provider: str,
+    model: str,
+    prompt_sha256: str,
+) -> dict[str, Any]:
+    """Describe a failure without retaining its potentially secret message."""
+
+    status: int | None = None
+    category = "provider"
+    retryable = False
+    if isinstance(exc, ProviderRequestError):
+        status = exc.http_status
+        category = exc.category
+        retryable = exc.retryable
+    elif isinstance(exc, urllib.error.HTTPError):
+        status = exc.code
+        category = "http"
+        retryable = status in RETRIABLE_STATUS_CODES
+    elif isinstance(exc, (TimeoutError, urllib.error.URLError)):
+        category = "transport"
+        retryable = True
+    return {
+        "provider": provider,
+        "model": model,
+        "prompt_sha256": prompt_sha256,
+        "error_type": type(exc).__name__,
+        "category": category,
+        "http_status": status,
+        "retryable": retryable,
+    }
 
 
 def _load_cache(path: Path) -> dict[str, Any]:
@@ -331,6 +385,21 @@ class GenerationRunner:
         )
         records = cache["records"]
         failures = cache["failures"]
+        cache_changed = False
+        for question_id, _ in questions:
+            if question_id in records and not self._is_complete(records[question_id]):
+                del records[question_id]
+                cache_changed = True
+            failure = failures.get(question_id)
+            if isinstance(failure, Mapping) and (
+                failure.get("provider") != self.provider
+                or failure.get("model") != self.model
+                or failure.get("prompt_sha256") != self.prompt_sha256
+            ):
+                del failures[question_id]
+                cache_changed = True
+        if cache_changed:
+            _write_cache(self.cache_path, cache)
         pending = [
             (question_id, question)
             for question_id, question in questions
@@ -345,43 +414,72 @@ class GenerationRunner:
             return result, time.monotonic() - started
 
         completed_since_checkpoint = 0
-        try:
-            with ThreadPoolExecutor(max_workers=self.workers) as executor:
-                futures = {
-                    executor.submit(invoke, question): question_id
-                    for question_id, question in pending
+
+        def store_future(question_id: str, future: Any) -> None:
+            nonlocal completed_since_checkpoint
+            try:
+                (answer, usage, finish_reason, metadata), elapsed = future.result()
+                base_record = GenerationRecord(
+                    question_id=question_id,
+                    provider=self.provider,
+                    model=self.model,
+                    answer=answer,
+                    elapsed_seconds=elapsed,
+                    usage=dict(usage),
+                    finish_reason=finish_reason,
+                )
+                records[question_id] = {
+                    **asdict(base_record),
+                    "prompt_sha256": self.prompt_sha256,
+                    "request_metadata": _safe_request_metadata(metadata),
                 }
-                for future in as_completed(futures):
-                    question_id = futures[future]
+                failures.pop(question_id, None)
+            except Exception as exc:
+                failures[question_id] = _failure_payload(
+                    exc,
+                    provider=self.provider,
+                    model=self.model,
+                    prompt_sha256=self.prompt_sha256,
+                )
+            completed_since_checkpoint += 1
+            if completed_since_checkpoint >= self.checkpoint_every:
+                _write_cache(self.cache_path, cache)
+                completed_since_checkpoint = 0
+
+        executor = ThreadPoolExecutor(max_workers=self.workers)
+        pending_iterator = iter(pending)
+        futures: dict[Any, str] = {}
+
+        def submit_next() -> bool:
+            try:
+                question_id, question = next(pending_iterator)
+            except StopIteration:
+                return False
+            futures[executor.submit(invoke, question)] = question_id
+            return True
+
+        for _ in range(min(self.workers, len(pending))):
+            submit_next()
+        try:
+            while futures:
+                future = next(as_completed(tuple(futures)))
+                question_id = futures.pop(future)
+                store_future(question_id, future)
+                submit_next()
+        except BaseException:
+            for future in futures:
+                future.cancel()
+            executor.shutdown(wait=True, cancel_futures=True)
+            for future, question_id in list(futures.items()):
+                if future.done() and not future.cancelled():
                     try:
-                        (answer, usage, finish_reason, metadata), elapsed = future.result()
-                        base_record = GenerationRecord(
-                            question_id=question_id,
-                            provider=self.provider,
-                            model=self.model,
-                            answer=answer,
-                            elapsed_seconds=elapsed,
-                            usage=dict(usage),
-                            finish_reason=finish_reason,
-                        )
-                        records[question_id] = {
-                            **asdict(base_record),
-                            "prompt_sha256": self.prompt_sha256,
-                            "request_metadata": _sanitize_metadata(metadata),
-                        }
-                        failures.pop(question_id, None)
-                    except Exception as exc:
-                        failures[question_id] = {
-                            "provider": self.provider,
-                            "model": self.model,
-                            "prompt_sha256": self.prompt_sha256,
-                            "error_type": type(exc).__name__,
-                            "message": str(exc),
-                        }
-                    completed_since_checkpoint += 1
-                    if completed_since_checkpoint >= self.checkpoint_every:
-                        _write_cache(self.cache_path, cache)
-                        completed_since_checkpoint = 0
+                        store_future(question_id, future)
+                    except BaseException:
+                        pass
+            _write_cache(self.cache_path, cache)
+            raise
+        else:
+            executor.shutdown(wait=True)
         finally:
             _write_cache(self.cache_path, cache)
         return cache

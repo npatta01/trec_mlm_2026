@@ -41,7 +41,7 @@ INDIVIDUAL_REQUIRED_KEYS = frozenset(
         "rankings_or_qrels_used", "device_architecture", "container_image",
         "model_id", "model_revision", "batch_size", "dtype", "persisted_dtype",
         "smoke_inventory", "selected_record_ids", "embedding_shape",
-        "embedding_sha256", "runtime_metadata",
+        "input_derivations", "embedding_sha256", "runtime_metadata",
     }
 )
 IDENTITY_KEYS = (
@@ -106,6 +106,8 @@ RUNTIME_NONDETERMINISTIC_KEYS = frozenset(
         "peak_memory_reserved_bytes",
     }
 )
+OVERLENGTH_RESPONSE_REPETITIONS = 3
+OVERLENGTH_RESPONSE_SEPARATOR = "\n\n"
 
 
 def _rename_noreplace(source: Path, destination: Path) -> None:
@@ -158,6 +160,43 @@ def _select_smoke_records(records: Iterable[Any]) -> tuple[tuple[str, Any], ...]
     return (("short", short), ("median", middle), ("over_512", over))
 
 
+def _input_derivations(selected: tuple[tuple[str, Any], ...]) -> list[dict[str, Any]]:
+    return [
+        {
+            "label": label,
+            "source_record_id": record.record_id,
+            "transform": "repeat_response" if label == "over_512" else "identity",
+            "response_repetitions": (
+                OVERLENGTH_RESPONSE_REPETITIONS if label == "over_512" else 1
+            ),
+            "response_separator": (
+                OVERLENGTH_RESPONSE_SEPARATOR if label == "over_512" else ""
+            ),
+        }
+        for label, record in selected
+    ]
+
+
+def _formatted_smoke_documents(
+    selected: tuple[tuple[str, Any], ...],
+) -> tuple[tuple[str, ...], list[dict[str, Any]]]:
+    derivations = _input_derivations(selected)
+    documents = tuple(
+        format_profile_document(
+            record.question,
+            (
+                OVERLENGTH_RESPONSE_SEPARATOR.join(
+                    [record.response] * OVERLENGTH_RESPONSE_REPETITIONS
+                )
+                if label == "over_512"
+                else record.response
+            ),
+        )
+        for label, record in selected
+    )
+    return documents, derivations
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -174,6 +213,19 @@ def _write_json(path: Path, payload: object) -> None:
         os.fsync(handle.fileno())
 
 
+def _validate_truncation_audit(runtime: dict[str, Any]) -> None:
+    if (
+        runtime.get("document_response_truncation")
+        != ["none", "none", "partial"]
+        or runtime.get("maximum_observed_tokens") != 512
+        or isinstance(runtime.get("maximum_untruncated_tokens"), bool)
+        or not isinstance(runtime.get("maximum_untruncated_tokens"), int)
+        or runtime["maximum_untruncated_tokens"] <= 512
+        or runtime.get("truncated_input_count") != 1
+    ):
+        raise ValueError("profile smoke runtime did not prove exact truncation")
+
+
 def _run_smoke(discovery: str, candidates: str, output: str) -> dict[str, Any]:
     destination = Path(output)
     if destination.exists():
@@ -187,10 +239,7 @@ def _run_smoke(discovery: str, candidates: str, output: str) -> dict[str, Any]:
         for record in filtered.records_by_candidate[candidate_id]
     )
     selected = _select_smoke_records(records)
-    documents = tuple(
-        format_profile_document(record.question, record.response)
-        for _, record in selected
-    )
+    documents, derivations = _formatted_smoke_documents(selected)
     query = format_profile_query(selected[-1][1].question)
     query_embeddings, document_embeddings, runtime = encode_profile_inputs(
         formatted_queries=(query,),
@@ -198,9 +247,7 @@ def _run_smoke(discovery: str, candidates: str, output: str) -> dict[str, Any]:
         batch_size=PROFILE_BATCH_SIZE,
         seed=PROFILE_SEED,
     )
-    truncation = runtime.get("document_response_truncation")
-    if not isinstance(truncation, list) or len(truncation) != 3 or truncation[-1] == "none":
-        raise ValueError("deterministic over-512 smoke record was not truncated")
+    _validate_truncation_audit(runtime)
     embeddings = np.asarray(
         np.concatenate((query_embeddings, document_embeddings), axis=0),
         dtype=np.float32,
@@ -234,6 +281,7 @@ def _run_smoke(discovery: str, candidates: str, output: str) -> dict[str, Any]:
             "persisted_dtype": "float32",
             "smoke_inventory": [label for label, _ in selected],
             "selected_record_ids": [record.record_id for _, record in selected],
+            "input_derivations": derivations,
             "embedding_shape": list(embeddings.shape),
             "embedding_sha256": _sha256(embedding_path),
             "runtime_metadata": runtime,
@@ -264,8 +312,8 @@ def _load_individual(root: str | Path) -> tuple[dict[str, Any], np.ndarray, str]
     ):
         raise ValueError("individual smoke receipt binding changed")
     selected = receipt["selected_record_ids"]
+    derivations = receipt["input_derivations"]
     runtime = receipt["runtime_metadata"]
-    truncation = runtime.get("document_response_truncation")
     if (
         not isinstance(selected, list)
         or len(selected) != 3
@@ -276,11 +324,27 @@ def _load_individual(root: str | Path) -> tuple[dict[str, Any], np.ndarray, str]
         or PROFILE_DEVICE_ARCHITECTURE not in runtime["device_properties"]
         or not isinstance(runtime.get("input_sha256"), str)
         or len(runtime["input_sha256"]) != 64
-        or not isinstance(truncation, list)
-        or len(truncation) != 3
-        or truncation[-1] == "none"
     ):
         raise ValueError("individual smoke input or pinned runtime changed")
+    _validate_truncation_audit(runtime)
+    expected_derivations = [
+        {
+            "label": label,
+            "source_record_id": record_id,
+            "transform": "repeat_response" if label == "over_512" else "identity",
+            "response_repetitions": (
+                OVERLENGTH_RESPONSE_REPETITIONS if label == "over_512" else 1
+            ),
+            "response_separator": (
+                OVERLENGTH_RESPONSE_SEPARATOR if label == "over_512" else ""
+            ),
+        }
+        for label, record_id in zip(
+            PINNED_IDENTITY["smoke_inventory"], selected, strict=True
+        )
+    ]
+    if derivations != expected_derivations:
+        raise ValueError("individual smoke input derivation changed")
     try:
         uuid.UUID(receipt["execution_id"])
     except (AttributeError, TypeError, ValueError) as error:
@@ -310,6 +374,8 @@ def _compare(first: str, second: str, destination: str) -> dict[str, Any]:
         raise ValueError("smoke repeat runtime identities differ")
     if first_receipt["selected_record_ids"] != second_receipt["selected_record_ids"]:
         raise ValueError("smoke repeat selected record identities differ")
+    if first_receipt["input_derivations"] != second_receipt["input_derivations"]:
+        raise ValueError("smoke repeat input derivations differ")
     first_runtime = first_receipt["runtime_metadata"]
     second_runtime = second_receipt["runtime_metadata"]
     stable_runtime_keys = RUNTIME_KEYS - RUNTIME_NONDETERMINISTIC_KEYS

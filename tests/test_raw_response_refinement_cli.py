@@ -79,6 +79,29 @@ def _individual_smoke(root: Path, execution_id: str, offset: float = 0.0) -> Non
             "persisted_dtype": "float32",
             "smoke_inventory": ["short", "median", "over_512"],
             "selected_record_ids": ["short-id", "median-id", "long-id"],
+            "input_derivations": [
+                {
+                    "label": "short",
+                    "source_record_id": "short-id",
+                    "transform": "identity",
+                    "response_repetitions": 1,
+                    "response_separator": "",
+                },
+                {
+                    "label": "median",
+                    "source_record_id": "median-id",
+                    "transform": "identity",
+                    "response_repetitions": 1,
+                    "response_separator": "",
+                },
+                {
+                    "label": "over_512",
+                    "source_record_id": "long-id",
+                    "transform": "repeat_response",
+                    "response_repetitions": 3,
+                    "response_separator": "\n\n",
+                },
+            ],
             "embedding_shape": [4, 4096],
             "embedding_sha256": hashlib.sha256(
                 (root / "embeddings.npy").read_bytes()
@@ -206,6 +229,60 @@ def test_smoke_parser_is_frozen_and_selection_is_deterministic() -> None:
     assert [item[1].record_id for item in first] == [item[1].record_id for item in second]
 
 
+def test_smoke_derives_overlength_input_when_no_raw_record_exceeds_512(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_script("run_profile_inference_smoke.py")
+    records = (
+        SimpleNamespace(record_id="short", question="q", response="one two"),
+        SimpleNamespace(
+            record_id="median", question="q", response=" ".join(["word"] * 20)
+        ),
+        SimpleNamespace(
+            record_id="longest", question="q", response=" ".join(["word"] * 200)
+        ),
+    )
+    captured: dict[str, tuple[str, ...]] = {}
+
+    def encode(**kwargs):
+        captured["documents"] = tuple(kwargs["formatted_documents"])
+        query = np.zeros((1, 4096), dtype=np.float32)
+        query[:, 0] = 1.0
+        documents = np.zeros((3, 4096), dtype=np.float32)
+        documents[:, 0] = 1.0
+        return query, documents, {
+            "document_response_truncation": ["none", "none", "partial"],
+            "maximum_observed_tokens": 512,
+            "maximum_untruncated_tokens": 600,
+            "truncated_input_count": 1,
+        }
+
+    monkeypatch.setattr(module, "load_candidate_manifest", lambda _path: ("A",))
+    monkeypatch.setattr(module, "load_discovery_records", lambda *_args: ())
+    monkeypatch.setattr(
+        module,
+        "filter_and_deduplicate_records",
+        lambda *_args: SimpleNamespace(records_by_candidate={"A": records}),
+    )
+    monkeypatch.setattr(module, "encode_profile_inputs", encode)
+    output = tmp_path / "smoke"
+    receipt = module._run_smoke("discovery.json", "candidates.json", str(output))
+    expected_response = "\n\n".join([records[-1].response] * 3)
+    assert captured["documents"][-1] == module.format_profile_document(
+        records[-1].question, expected_response
+    )
+    assert len(captured["documents"][-1].split()) > 512
+    assert receipt["selected_record_ids"][-1] == "longest"
+    assert receipt["input_derivations"][-1] == {
+        "label": "over_512",
+        "source_record_id": "longest",
+        "transform": "repeat_response",
+        "response_repetitions": 3,
+        "response_separator": "\n\n",
+    }
+    assert json.loads((output / "receipt.json").read_text(encoding="utf-8")) == receipt
+
+
 def test_smoke_compare_emits_exact_valid_receipt_atomically(tmp_path: Path) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -273,6 +350,47 @@ def test_smoke_compare_binds_selected_inputs_and_pinned_runtime(tmp_path: Path) 
         "--second", str(second), "--receipt", str(tmp_path / "repeat.json")
     )
     assert completed.returncode != 0
+    assert not (tmp_path / "repeat.json").exists()
+
+
+def test_smoke_compare_rejects_input_derivation_tampering(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    _individual_smoke(first, "11111111-1111-4111-8111-111111111111")
+    _individual_smoke(second, "22222222-2222-4222-8222-222222222222")
+    payload = json.loads((second / "receipt.json").read_text(encoding="utf-8"))
+    payload["input_derivations"][-1]["response_repetitions"] = 4
+    _write_json(second / "receipt.json", payload)
+    completed = _run(
+        "run_profile_inference_smoke.py", "compare", "--first", str(first),
+        "--second", str(second), "--receipt", str(tmp_path / "repeat.json")
+    )
+    assert completed.returncode != 0
+    assert "derivation" in completed.stderr
+    assert not (tmp_path / "repeat.json").exists()
+
+
+def test_smoke_compare_requires_exact_runtime_truncation_evidence(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    _individual_smoke(first, "11111111-1111-4111-8111-111111111111")
+    _individual_smoke(second, "22222222-2222-4222-8222-222222222222")
+    for root in (first, second):
+        payload = json.loads((root / "receipt.json").read_text(encoding="utf-8"))
+        runtime = payload["runtime_metadata"]
+        runtime["document_response_truncation"] = ["none", "none", "invented"]
+        runtime["maximum_observed_tokens"] = 100
+        runtime["maximum_untruncated_tokens"] = 100
+        runtime["truncated_input_count"] = 0
+        _write_json(root / "receipt.json", payload)
+    completed = _run(
+        "run_profile_inference_smoke.py", "compare", "--first", str(first),
+        "--second", str(second), "--receipt", str(tmp_path / "repeat.json")
+    )
+    assert completed.returncode != 0
+    assert "truncation" in completed.stderr
     assert not (tmp_path / "repeat.json").exists()
 
 

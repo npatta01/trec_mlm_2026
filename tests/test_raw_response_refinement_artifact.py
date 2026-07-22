@@ -4,6 +4,7 @@ from dataclasses import fields, replace
 import inspect
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
 import numpy as np
@@ -67,6 +68,7 @@ def _dependencies(tmp_path: Path):
         records=records,
         query_embeddings=query_embeddings,
         record_embeddings=record_embeddings,
+        metadata={"qrel_free": True, "fixture": True},
     )
     construction = SimpleNamespace(
         root=construction_root,
@@ -94,11 +96,11 @@ def _dependencies(tmp_path: Path):
 
 def _write_fixture(tmp_path: Path, name: str = "artifact"):
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
     root = tmp_path / name
-    write_raw_response_refinement_artifact(result, root)
+    raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, root)
     return root, dependencies, result
 
 
@@ -124,14 +126,76 @@ def test_qrel_free_config_and_construction_boundary() -> None:
         compare_raw_response_refinement_repeats,
     ):
         assert "qrel" not in str(inspect.signature(function)).lower()
+    assert "fixture" not in str(inspect.signature(construct_raw_response_refinement))
+    assert "fixture" not in str(inspect.signature(write_raw_response_refinement_artifact))
+
+
+def test_dense_dependency_identity_is_exactly_pinned(tmp_path: Path) -> None:
+    assert raw_response_refinement.DENSE_CLOSED_TREE_SHA256 == (
+        "63c2a536bf77f967bba2b5aaf25e03926a633aa04e6522441a3a7c85c95a261c"
+    )
+    root = tmp_path / "plausible-dense"
+    (root / "embeddings").mkdir(parents=True)
+    for name in (
+        "config.json", "encoder_metadata.json", "inner_scores.tsv",
+        "selections.tsv", "neighbors.tsv", "predictions.tsv", "run.trec",
+        "tfidf_control.trec", "global_prior_control.trec", "per_query.tsv",
+        "summary.json", "validation.json", "embeddings/minilm_l6.npy",
+        "embeddings/e5_small_v2.npy", "embeddings/bge_small_en_v1_5.npy",
+        "embeddings/mpnet_base_v2.npy",
+    ):
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("internally consistent\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="closed-tree aggregate"):
+        raw_response_refinement._closed_dense_dependency(str(root))
+
+    write_pretty_json(root / "manifest.json", {"files": {}})
+    with pytest.raises(ValueError, match="manifestless frozen"):
+        raw_response_refinement._closed_dense_dependency(str(root))
+
+
+def test_dense_dependency_rejects_nested_manifest_even_if_digest_is_pinned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "nested-manifest"
+    (root / "embeddings").mkdir(parents=True)
+    for name in (
+        "config.json", "encoder_metadata.json", "inner_scores.tsv",
+        "selections.tsv", "neighbors.tsv", "predictions.tsv", "run.trec",
+        "tfidf_control.trec", "global_prior_control.trec", "per_query.tsv",
+        "summary.json", "validation.json", "embeddings/minilm_l6.npy",
+        "embeddings/e5_small_v2.npy", "embeddings/bge_small_en_v1_5.npy",
+        "embeddings/mpnet_base_v2.npy",
+        "embeddings/manifest.json",
+    ):
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("payload\n", encoding="utf-8")
+    monkeypatch.setattr(
+        raw_response_refinement,
+        "manifest_aggregate_sha256",
+        lambda entries: raw_response_refinement.DENSE_CLOSED_TREE_SHA256,
+    )
+    monkeypatch.setattr(raw_response_refinement, "rankings_from_run", lambda path: DENSE)
+
+    with pytest.raises(ValueError, match="manifestless frozen"):
+        raw_response_refinement._closed_dense_dependency(str(root))
+
+
+def test_qrel_isolation_detects_scalar_metadata_paths() -> None:
+    assert raw_response_refinement._contains_qrel_reference(
+        {"source_path": "/sealed/dev_qrels.txt"}
+    )
 
 
 def test_constructs_complete_fixed_width_evidence_and_equal_dense_rrf(
     tmp_path: Path,
 ) -> None:
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
 
     assert result.top_record_indices.shape == (2, 2, 10)
@@ -153,6 +217,10 @@ def test_constructs_complete_fixed_width_evidence_and_equal_dense_rrf(
         "construction": "b" * 64,
         "dense": dependencies.dense_aggregate_sha256,
     }
+    assert result.execution_receipt["qrel_free"] is True
+    assert result.execution_receipt["dependency_aggregate_sha256"] == result.metadata[
+        "dependency_aggregate_sha256"
+    ]
 
 
 def test_equal_rrf_skips_raw_signal_for_unavailable_candidate(tmp_path: Path) -> None:
@@ -167,8 +235,8 @@ def test_equal_rrf_skips_raw_signal_for_unavailable_candidate(tmp_path: Path) ->
     dependencies.construction.records = dependencies.construction.records[:2]
     dependencies.construction.profile_scores[:, 1] = np.float32(-2.0)
 
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
 
     assert result.diagnostics["unavailable_candidate_ids"] == ["B"]
@@ -203,13 +271,14 @@ def test_round_trip_has_exact_manifest_closure_and_semantic_reconstruction(
         "top_record_indices.npy",
         "top_record_similarities.npy",
         "validation.json",
+        "execution.json",
     }
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert set(manifest["files"]) == expected_files
     assert set(manifest_entries(root)) == expected_files
 
-    loaded = load_raw_response_refinement_artifact(
-        root, _fixture_dependencies=dependencies
+    loaded = raw_response_refinement._load_raw_response_refinement_artifact_fixture(
+        root, dependencies
     )
     np.testing.assert_array_equal(loaded.raw_scores, result.raw_scores)
     np.testing.assert_array_equal(
@@ -239,9 +308,9 @@ def test_construction_rejects_noncanonical_embeddings_before_scoring(
         dependencies.inference.query_embeddings
     )
     with pytest.raises(ValueError, match=message):
-        construct_raw_response_refinement(
-            config, _fixture_dependencies=dependencies
-        )
+        raw_response_refinement._construct_raw_response_refinement_fixture(
+            config, dependencies
+    )
 
 
 def test_construction_requires_construction_to_bind_supplied_inference(
@@ -251,9 +320,9 @@ def test_construction_requires_construction_to_bind_supplied_inference(
     dependencies.construction.metadata["inference_aggregate_sha256"] = "f" * 64
 
     with pytest.raises(ValueError, match="construction inference aggregate"):
-        construct_raw_response_refinement(
-            config, _fixture_dependencies=dependencies
-        )
+        raw_response_refinement._construct_raw_response_refinement_fixture(
+            config, dependencies
+    )
 
 
 def test_production_dependency_branch_uses_official_loaders_and_revalidates_files(
@@ -285,32 +354,44 @@ def test_production_dependency_branch_uses_official_loaders_and_revalidates_file
 
     monkeypatch.setattr(raw_response_refinement, "load_profile_inference_artifacts", load_inference)
     monkeypatch.setattr(raw_response_refinement, "load_profile_artifacts", load_construction)
+    monkeypatch.setattr(
+        raw_response_refinement,
+        "_closed_dense_dependency",
+        lambda path: (DENSE, raw_response_refinement.DENSE_CLOSED_TREE_SHA256),
+    )
 
-    result = construct_raw_response_refinement(config)
+    with pytest.raises(ValueError, match="complete official qrel-free"):
+        construct_raw_response_refinement(config)
 
     assert calls == [
         f"inference:{config.inference_path}",
         f"construction:{config.construction_path}",
     ]
-    assert result.metadata["dependency_aggregate_sha256"] == {
-        "inference": "a" * 64,
-        "construction": "b" * 64,
-        "dense": dependencies.dense_aggregate_sha256,
-    }
+
+
+def test_public_writer_rejects_fixture_sized_result(tmp_path: Path) -> None:
+    config, dependencies = _dependencies(tmp_path)
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
+    )
+
+    with pytest.raises(ValueError, match="complete official inventory"):
+        write_raw_response_refinement_artifact(result, tmp_path / "public")
+    assert not (tmp_path / "public").exists()
 
 
 def test_writer_rejects_same_length_forged_selected_record_ids(
     tmp_path: Path,
 ) -> None:
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
     selected = [[list(candidate) for candidate in query] for query in result.selected_record_ids]
     selected[0][0][0] = "forged-record"
 
     with pytest.raises(ValueError, match="selected record identity arithmetic"):
-        write_raw_response_refinement_artifact(
+        raw_response_refinement._write_raw_response_refinement_artifact_fixture(
             replace(
                 result,
                 selected_record_ids=tuple(
@@ -324,13 +405,13 @@ def test_writer_rejects_same_length_forged_selected_record_ids(
 
 def test_writer_rejects_forged_frozen_metadata_values(tmp_path: Path) -> None:
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
     metadata = {**result.metadata, "raw_top_k": 9}
 
     with pytest.raises(ValueError, match="semantic reconstruction"):
-        write_raw_response_refinement_artifact(
+        raw_response_refinement._write_raw_response_refinement_artifact_fixture(
             replace(result, metadata=metadata), tmp_path / "forged-metadata"
         )
     assert not (tmp_path / "forged-metadata").exists()
@@ -340,10 +421,12 @@ def test_writer_refuses_overwrite_and_cleans_failed_staging(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
     destination = tmp_path / "failed"
+    cleanup_observations: list[bool] = []
+    original_rmtree = shutil.rmtree
 
     def fail_on_validation(path: Path, payload: object) -> None:
         if path.name == "validation.json":
@@ -353,23 +436,43 @@ def test_writer_refuses_overwrite_and_cleans_failed_staging(
     monkeypatch.setattr(
         "trec_mlm.raw_response_refinement._write_json", fail_on_validation
     )
+    def observe_cleanup(path, *args, **kwargs):
+        if Path(path).name.startswith(".failed.") and "failure-log" not in Path(path).name:
+            cleanup_observations.append(
+                bool(list(tmp_path.glob(".failed.failure-*.json")))
+            )
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(raw_response_refinement.shutil, "rmtree", observe_cleanup)
     with pytest.raises(RuntimeError, match="injected failure"):
-        write_raw_response_refinement_artifact(result, destination)
+        raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, destination)
     assert not destination.exists()
-    assert not list(tmp_path.glob(".failed.*"))
+    failure_logs = list(tmp_path.glob(".failed.failure-*.json"))
+    assert len(failure_logs) == 1
+    failure = json.loads(failure_logs[0].read_text(encoding="utf-8"))
+    assert failure == {
+        "artifact_type": "raw_response_refinement_failure",
+        "version": 1,
+        "status": "failed",
+        "execution_id": result.execution_receipt["execution_id"],
+        "error_type": "RuntimeError",
+        "staging_cleaned_after_log": True,
+    }
+    assert not [path for path in tmp_path.glob(".failed.*") if path.is_dir()]
+    assert cleanup_observations == [True]
 
     monkeypatch.undo()
-    write_raw_response_refinement_artifact(result, destination)
+    raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, destination)
     with pytest.raises(FileExistsError):
-        write_raw_response_refinement_artifact(result, destination)
+        raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, destination)
 
 
 def test_atomic_promotion_does_not_replace_concurrently_created_destination(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
     destination = tmp_path / "raced"
     original = raw_response_refinement._write_json
@@ -381,9 +484,10 @@ def test_atomic_promotion_does_not_replace_concurrently_created_destination(
 
     monkeypatch.setattr(raw_response_refinement, "_write_json", create_destination_before_manifest)
     with pytest.raises(FileExistsError):
-        write_raw_response_refinement_artifact(result, destination)
+        raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, destination)
     assert destination.is_dir()
-    assert not list(tmp_path.glob(".raced.*"))
+    assert len(list(tmp_path.glob(".raced.failure-*.json"))) == 1
+    assert not [path for path in tmp_path.glob(".raced.*") if path.is_dir() and path != destination]
 
 
 def test_loader_rejects_hash_tamper_and_rehashed_semantic_tamper(
@@ -393,9 +497,9 @@ def test_loader_rejects_hash_tamper_and_rehashed_semantic_tamper(
     ranking_path = root / "rankings" / "raw_hierarchical.json"
     ranking_path.write_text("{}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="hash mismatch"):
-        load_raw_response_refinement_artifact(
-            root, _fixture_dependencies=dependencies
-        )
+        raw_response_refinement._load_raw_response_refinement_artifact_fixture(
+            root, dependencies
+    )
 
     root2, dependencies2, _ = _write_fixture(tmp_path / "second")
     scores = np.load(root2 / "hierarchical_scores.npy", allow_pickle=False)
@@ -403,9 +507,9 @@ def test_loader_rejects_hash_tamper_and_rehashed_semantic_tamper(
     np.save(root2 / "hierarchical_scores.npy", scores, allow_pickle=False)
     _refresh_manifest(root2, "hierarchical_scores.npy")
     with pytest.raises(ValueError, match="hierarchical score arithmetic"):
-        load_raw_response_refinement_artifact(
-            root2, _fixture_dependencies=dependencies2
-        )
+        raw_response_refinement._load_raw_response_refinement_artifact_fixture(
+            root2, dependencies2
+    )
 
 
 def test_loader_rejects_rehashed_metadata_schema_tamper(tmp_path: Path) -> None:
@@ -418,28 +522,117 @@ def test_loader_rejects_rehashed_metadata_schema_tamper(tmp_path: Path) -> None:
     _refresh_manifest(root, "metadata.json")
 
     with pytest.raises(ValueError, match="dependency or frozen configuration"):
-        load_raw_response_refinement_artifact(
-            root, _fixture_dependencies=dependencies
-        )
+        raw_response_refinement._load_raw_response_refinement_artifact_fixture(
+            root, dependencies
+    )
 
 
 def test_repeat_comparison_requires_identical_selections_and_rankings(
     tmp_path: Path,
 ) -> None:
     config, dependencies = _dependencies(tmp_path)
-    result = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    first_result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
+    )
+    second_result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
     )
     first = tmp_path / "first"
     second = tmp_path / "second"
-    write_raw_response_refinement_artifact(result, first)
-    write_raw_response_refinement_artifact(replace(result), second)
+    raw_response_refinement._write_raw_response_refinement_artifact_fixture(first_result, first)
+    raw_response_refinement._write_raw_response_refinement_artifact_fixture(second_result, second)
 
-    receipt = compare_raw_response_refinement_repeats(
-        first, second, _fixture_dependencies=dependencies
+    receipt = raw_response_refinement._compare_raw_response_refinement_repeats_fixture(
+        first, second, dependencies
     )
     assert receipt["status"] == "passed"
     assert receipt["selected_record_ids_identical"] is True
     assert receipt["rankings_identical"] is True
     assert receipt["maximum_absolute_score_difference"] <= 1e-12
     assert receipt["tolerance"] == 1e-12
+    assert receipt["first_execution_id"] != receipt["second_execution_id"]
+
+
+def test_repeat_rejects_one_execution_written_twice(tmp_path: Path) -> None:
+    config, dependencies = _dependencies(tmp_path)
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
+    )
+    first = tmp_path / "same-first"
+    second = tmp_path / "same-second"
+    raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, first)
+    raw_response_refinement._write_raw_response_refinement_artifact_fixture(result, second)
+
+    with pytest.raises(ValueError, match="distinct construction executions"):
+        raw_response_refinement._compare_raw_response_refinement_repeats_fixture(
+            first, second, dependencies
+        )
+
+
+def test_official_scale_scoring_is_candidate_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    query_ids = tuple(f"q{index:03d}" for index in range(322))
+    candidate_ids = tuple(f"c{index:03d}" for index in range(150))
+    base, remainder = divmod(182_764, len(candidate_ids))
+    counts = [base + (index < remainder) for index in range(len(candidate_ids))]
+    records = [
+        {"record_id": f"{candidate_id}-{offset:04d}", "candidate_id": candidate_id}
+        for candidate_id, count in zip(candidate_ids, counts, strict=True)
+        for offset in range(count)
+    ]
+    queries = np.ones((len(query_ids), 1), dtype=np.float32)
+    record_embeddings = np.ones((len(records), 1), dtype=np.float32)
+    dense = {query_id: list(candidate_ids) for query_id in query_ids}
+    inference = SimpleNamespace(
+        root=tmp_path / "inference",
+        manifest={"aggregate_sha256": "a" * 64},
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+        records=records,
+        query_embeddings=queries,
+        record_embeddings=record_embeddings,
+        metadata={"qrel_free": True, "fixture": True},
+    )
+    construction = SimpleNamespace(
+        root=tmp_path / "construction",
+        manifest={"aggregate_sha256": "b" * 64},
+        query_ids=query_ids,
+        candidate_ids=candidate_ids,
+        records=records,
+        query_embeddings=queries,
+        record_embeddings=record_embeddings,
+        profile_scores=np.zeros((len(query_ids), len(candidate_ids)), dtype=np.float32),
+        source_rankings={"dense_reference": dense},
+        metadata={"qrel_free": True, "fixture": True, "inference_aggregate_sha256": "a" * 64},
+    )
+    dependencies = SimpleNamespace(
+        inference=inference,
+        construction=construction,
+        dense_rankings=dense,
+        dense_aggregate_sha256="c" * 64,
+    )
+    observed_blocks: list[int] = []
+
+    def fake_score(query_matrix, record_matrix, record_ids, *, top_k):
+        observed_blocks.append(record_matrix.shape[0])
+        selected = np.tile(np.arange(top_k, dtype=np.int32), (len(query_matrix), 1))
+        identities = tuple(tuple(record_ids[:top_k]) for _ in query_matrix)
+        return raw_response_refinement.CandidateRawScores(
+            np.zeros(len(query_matrix), dtype=np.float64),
+            selected,
+            identities,
+            np.zeros((len(query_matrix), top_k), dtype=np.float64),
+        )
+
+    monkeypatch.setattr(raw_response_refinement, "score_candidate_records", fake_score)
+    config = RawRefinementConfig("inference", "construction", "dense")
+    result = raw_response_refinement._construct_raw_response_refinement_fixture(
+        config, dependencies
+    )
+
+    assert result.raw_scores.shape == (322, 150)
+    assert len(observed_blocks) == 150
+    assert sum(observed_blocks) == 182_764
+    assert max(observed_blocks) == max(counts)
+    assert max(observed_blocks) < 182_764

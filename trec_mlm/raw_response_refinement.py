@@ -14,6 +14,7 @@ import shutil
 import tempfile
 from types import SimpleNamespace
 from typing import Any
+import uuid
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,7 +22,6 @@ from numpy.typing import NDArray
 from trec_mlm.artifact_io import (
     manifest_aggregate_sha256,
     manifest_entries,
-    sha256_file,
     source_tree_sha256,
     write_pretty_json,
 )
@@ -35,6 +35,10 @@ from trec_mlm.runio import rankings_from_run, validate_trec_run, write_trec_run
 
 
 ARTIFACT_VERSION = 1
+OFFICIAL_QUERY_COUNT = 322
+OFFICIAL_CANDIDATE_COUNT = 150
+OFFICIAL_RECORD_COUNT = 182_764
+DENSE_CLOSED_TREE_SHA256 = "63c2a536bf77f967bba2b5aaf25e03926a633aa04e6522441a3a7c85c95a261c"
 RAW_TOP_K = 10
 RRF_K = 60
 RANKING_KEYS = ("raw_hierarchical", "raw_hierarchical_dense_equal")
@@ -68,6 +72,7 @@ ARTIFACT_FILES = frozenset(
         "top_record_indices.npy",
         "top_record_similarities.npy",
         "validation.json",
+        "execution.json",
     }
 )
 
@@ -99,6 +104,7 @@ class RawRefinementResult:
     dense_rankings: dict[str, list[str]]
     diagnostics: dict[str, Any]
     metadata: dict[str, Any]
+    execution_receipt: dict[str, Any]
     _dependencies: Any = field(repr=False, compare=False)
     validation: dict[str, Any] | None = None
     manifest: dict[str, Any] | None = None
@@ -123,6 +129,20 @@ def _is_sha256(value: Any) -> bool:
     )
 
 
+def _contains_qrel_reference(value: Any) -> bool:
+    if isinstance(value, dict):
+        return any(
+            ("qrel" in str(key).lower() and key != "qrel_free")
+            or _contains_qrel_reference(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_qrel_reference(item) for item in value)
+    if isinstance(value, (str, os.PathLike)):
+        return "qrel" in os.fspath(value).lower()
+    return False
+
+
 def _validate_embedding_matrix(
     matrix: NDArray[np.floating], *, rows: int, label: str
 ) -> None:
@@ -145,35 +165,38 @@ def _closed_dense_dependency(
     artifact_path: str,
 ) -> tuple[dict[str, list[str]], str]:
     supplied = Path(artifact_path)
-    root = supplied if supplied.is_dir() else supplied.parent
-    run_path = root / "run.trec" if supplied.is_dir() else supplied
-    if not run_path.is_file():
-        raise ValueError("dense artifact does not contain run.trec")
-    manifest_path = root / "manifest.json"
-    if manifest_path.is_file():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        entries = manifest.get("files")
-        actual = manifest_entries(root)
-        if (
-            not isinstance(entries, dict)
-            or entries != actual
-            or manifest.get("aggregate_sha256")
-            != manifest_aggregate_sha256(entries)
-        ):
-            raise ValueError("dense artifact manifest closure changed")
-        aggregate = manifest["aggregate_sha256"]
-    else:
-        entries = manifest_entries(root) if supplied.is_dir() else {
-            run_path.name: {
-                "byte_size": run_path.stat().st_size,
-                "sha256": sha256_file(run_path),
-            }
-        }
-        aggregate = manifest_aggregate_sha256(entries)
+    if not supplied.is_dir() or any(
+        path.name == "manifest.json" for path in supplied.rglob("manifest.json")
+    ):
+        raise ValueError("dense dependency must be the manifestless frozen artifact tree")
+    root = supplied
+    run_path = root / "run.trec"
+    expected = {
+        "config.json", "encoder_metadata.json", "inner_scores.tsv",
+        "selections.tsv", "neighbors.tsv", "predictions.tsv", "run.trec",
+        "tfidf_control.trec", "global_prior_control.trec", "per_query.tsv",
+        "summary.json", "validation.json",
+        "embeddings/minilm_l6.npy", "embeddings/e5_small_v2.npy",
+        "embeddings/bge_small_en_v1_5.npy", "embeddings/mpnet_base_v2.npy",
+    }
+    actual_names = {
+        path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()
+    }
+    if actual_names != expected:
+        raise ValueError("dense artifact frozen layout changed")
+    aggregate = manifest_aggregate_sha256(manifest_entries(root))
+    if aggregate != DENSE_CLOSED_TREE_SHA256:
+        raise ValueError("dense artifact closed-tree aggregate changed")
     return rankings_from_run(run_path), aggregate
 
 
-def _load_dependencies(config: RawRefinementConfig, fixture: Any | None) -> Any:
+def _load_dependencies(
+    config: RawRefinementConfig, fixture: Any | None, *, require_official: bool
+) -> Any:
+    if require_official and fixture is not None and not getattr(
+        fixture, "_official_loaded", False
+    ):
+        raise ValueError("public construction cannot accept injected dependencies")
     if fixture is not None:
         dependencies = fixture
     else:
@@ -199,6 +222,7 @@ def _load_dependencies(config: RawRefinementConfig, fixture: Any | None) -> Any:
             construction_records=json.loads(
                 (construction.root / "records.json").read_text(encoding="utf-8")
             ),
+            _official_loaded=True,
         )
 
     inference = dependencies.inference
@@ -225,6 +249,19 @@ def _load_dependencies(config: RawRefinementConfig, fixture: Any | None) -> Any:
         raise ValueError("construction inference aggregate differs from supplied inference")
     if construction_records != inference.records:
         raise ValueError("construction record identities differ from supplied inference")
+    if require_official and (
+        len(inference.query_ids) != OFFICIAL_QUERY_COUNT
+        or len(inference.candidate_ids) != OFFICIAL_CANDIDATE_COUNT
+        or len(inference.records) != OFFICIAL_RECORD_COUNT
+        or inference.metadata.get("qrel_free") is not True
+        or inference.metadata.get("fixture") is not None
+        or _contains_qrel_reference(inference.metadata)
+        or construction_metadata.get("qrel_free") is not True
+        or construction_metadata.get("fixture") is not None
+        or _contains_qrel_reference(construction_metadata)
+        or dependencies.dense_aggregate_sha256 != DENSE_CLOSED_TREE_SHA256
+    ):
+        raise ValueError("public construction requires complete official qrel-free dependencies")
     _validate_embedding_matrix(
         inference.query_embeddings, rows=len(inference.query_ids), label="query"
     )
@@ -316,12 +353,34 @@ def _diagnostics(
 
 
 def construct_raw_response_refinement(
-    config: RawRefinementConfig, *, _fixture_dependencies: Any | None = None
+    config: RawRefinementConfig,
 ) -> RawRefinementResult:
     """Construct both frozen raw-response systems without loading judgments."""
 
+    return _construct_raw_response_refinement(config, None, require_official=True)
+
+
+def _construct_raw_response_refinement_fixture(
+    config: RawRefinementConfig, dependencies: Any
+) -> RawRefinementResult:
+    """Construct a tiny artifact only for isolated unit tests."""
+
+    return _construct_raw_response_refinement(
+        config, dependencies, require_official=False
+    )
+
+
+def _construct_raw_response_refinement(
+    config: RawRefinementConfig,
+    dependencies_fixture: Any | None,
+    *,
+    require_official: bool,
+) -> RawRefinementResult:
+
     _validate_config(config)
-    dependencies = _load_dependencies(config, _fixture_dependencies)
+    dependencies = _load_dependencies(
+        config, dependencies_fixture, require_official=require_official
+    )
     inference = dependencies.inference
     construction = dependencies.construction
     query_ids = tuple(inference.query_ids)
@@ -368,6 +427,18 @@ def construct_raw_response_refinement(
         k=RRF_K,
     )
     selected_ids = tuple(tuple(row) for row in selected)
+    dependency_bindings = {
+        "inference": inference.manifest["aggregate_sha256"],
+        "construction": construction.manifest["aggregate_sha256"],
+        "dense": dependencies.dense_aggregate_sha256,
+    }
+    execution_receipt = {
+        "artifact_type": "raw_response_refinement_execution",
+        "version": 1,
+        "qrel_free": True,
+        "execution_id": str(uuid.uuid4()),
+        "dependency_aggregate_sha256": dependency_bindings,
+    }
     return RawRefinementResult(
         config=config,
         query_ids=query_ids,
@@ -388,15 +459,12 @@ def construct_raw_response_refinement(
         metadata={
             "qrel_free": True,
             "source_tree_sha256": source_tree_sha256(Path(__file__).resolve().parent),
-            "dependency_aggregate_sha256": {
-                "inference": inference.manifest["aggregate_sha256"],
-                "construction": construction.manifest["aggregate_sha256"],
-                "dense": dependencies.dense_aggregate_sha256,
-            },
+            "dependency_aggregate_sha256": dependency_bindings,
             "raw_top_k": RAW_TOP_K,
             "hierarchical_weights": {"broad": 0.8, "raw": 0.2},
             "rrf": {"k": RRF_K, "dense_weight": 1.0, "raw_weight": 1.0},
         },
+        execution_receipt=execution_receipt,
         _dependencies=dependencies,
     )
 
@@ -420,7 +488,9 @@ def _validation_payload(result: RawRefinementResult) -> dict[str, Any]:
     }
 
 
-def _validate_result_for_write(result: RawRefinementResult) -> None:
+def _validate_result_for_write(
+    result: RawRefinementResult, *, require_official: bool
+) -> None:
     _validate_config(result.config)
     shape = (len(result.query_ids), len(result.candidate_ids))
     if (
@@ -524,8 +594,16 @@ def _validate_result_for_write(result: RawRefinementResult) -> None:
         raise ValueError("raw refinement provenance changed before write")
     if result._dependencies is None:
         raise ValueError("raw refinement dependencies are unavailable before write")
-    reconstructed = construct_raw_response_refinement(
-        result.config, _fixture_dependencies=result._dependencies
+    if require_official and (
+        shape != (OFFICIAL_QUERY_COUNT, OFFICIAL_CANDIDATE_COUNT)
+        or sum(result.diagnostics["record_counts_by_candidate"].values())
+        != OFFICIAL_RECORD_COUNT
+    ):
+        raise ValueError("public writer requires complete official inventory")
+    reconstructed = _construct_raw_response_refinement(
+        result.config,
+        None if require_official else result._dependencies,
+        require_official=require_official,
     )
     if result.selected_record_ids != reconstructed.selected_record_ids:
         raise ValueError("selected record identity arithmetic changed before write")
@@ -549,6 +627,23 @@ def _validate_result_for_write(result: RawRefinementResult) -> None:
         or result.metadata != reconstructed.metadata
     ):
         raise ValueError("raw refinement semantic reconstruction changed before write")
+    receipt = result.execution_receipt
+    if (
+        set(receipt) != {
+            "artifact_type", "version", "qrel_free", "execution_id",
+            "dependency_aggregate_sha256",
+        }
+        or receipt["artifact_type"] != "raw_response_refinement_execution"
+        or receipt["version"] != 1
+        or receipt["qrel_free"] is not True
+        or receipt["dependency_aggregate_sha256"]
+        != result.metadata["dependency_aggregate_sha256"]
+    ):
+        raise ValueError("construction execution receipt changed before write")
+    try:
+        uuid.UUID(receipt["execution_id"])
+    except (TypeError, ValueError, AttributeError) as error:
+        raise ValueError("construction execution ID is invalid") from error
 
 
 def _rename_noreplace(source: Path, destination: Path) -> None:
@@ -583,15 +678,65 @@ def _rename_noreplace(source: Path, destination: Path) -> None:
     raise OSError(error_number, os.strerror(error_number), str(destination))
 
 
+def _write_failure_log(
+    destination: Path, execution_id: str, error: BaseException
+) -> Path:
+    failure_path = destination.parent / (
+        f".{destination.name}.failure-{execution_id}.json"
+    )
+    temporary = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.failure-log.", dir=destination.parent)
+    )
+    try:
+        payload_path = temporary / "failure.json"
+        _write_json(
+            payload_path,
+            {
+                "artifact_type": "raw_response_refinement_failure",
+                "version": 1,
+                "status": "failed",
+                "execution_id": execution_id,
+                "error_type": type(error).__name__,
+                "staging_cleaned_after_log": True,
+            },
+        )
+        _rename_noreplace(payload_path, failure_path)
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+    return failure_path
+
+
 def write_raw_response_refinement_artifact(
     result: RawRefinementResult, output_dir: str | Path
 ) -> dict[str, str]:
     """Atomically persist a complete refinement artifact without overwrite."""
 
+    return _write_raw_response_refinement_artifact(
+        result, output_dir, require_official=True
+    )
+
+
+def _write_raw_response_refinement_artifact_fixture(
+    result: RawRefinementResult, output_dir: str | Path
+) -> dict[str, str]:
+    """Persist a tiny artifact only for isolated unit tests."""
+
+    return _write_raw_response_refinement_artifact(
+        result, output_dir, require_official=False
+    )
+
+
+def _write_raw_response_refinement_artifact(
+    result: RawRefinementResult,
+    output_dir: str | Path,
+    *,
+    require_official: bool,
+) -> dict[str, str]:
+
     destination = Path(output_dir)
     if destination.exists():
         raise FileExistsError(f"output directory already exists: {destination}")
-    _validate_result_for_write(result)
+    _validate_result_for_write(result, require_official=require_official)
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
     try:
@@ -609,6 +754,7 @@ def write_raw_response_refinement_artifact(
             {"query_ids": result.query_ids, "candidate_ids": result.candidate_ids},
         )
         _write_json(staging / "metadata.json", result.metadata)
+        _write_json(staging / "execution.json", result.execution_receipt)
         _write_json(staging / "diagnostics.json", result.diagnostics)
         _write_json(staging / "selected_record_ids.json", result.selected_record_ids)
         arrays = {
@@ -648,7 +794,10 @@ def write_raw_response_refinement_artifact(
             },
         )
         _rename_noreplace(staging, destination)
-    except BaseException:
+    except BaseException as error:
+        _write_failure_log(
+            destination, result.execution_receipt["execution_id"], error
+        )
         shutil.rmtree(staging, ignore_errors=True)
         raise
     return {
@@ -672,9 +821,29 @@ def _load_array(
 
 
 def load_raw_response_refinement_artifact(
-    artifact_dir: str | Path, *, _fixture_dependencies: Any | None = None
+    artifact_dir: str | Path,
 ) -> RawRefinementResult:
     """Strictly validate hashes, dependencies, and semantic reconstruction."""
+
+    return _load_raw_response_refinement_artifact(
+        artifact_dir, None, require_official=True
+    )
+
+
+def _load_raw_response_refinement_artifact_fixture(
+    artifact_dir: str | Path, dependencies: Any
+) -> RawRefinementResult:
+    return _load_raw_response_refinement_artifact(
+        artifact_dir, dependencies, require_official=False
+    )
+
+
+def _load_raw_response_refinement_artifact(
+    artifact_dir: str | Path,
+    dependencies_fixture: Any | None,
+    *,
+    require_official: bool,
+) -> RawRefinementResult:
 
     root = Path(artifact_dir)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -720,8 +889,11 @@ def load_raw_response_refinement_artifact(
         **{field.name: config_payload[field.name] for field in fields(RawRefinementConfig)}
     )
     _validate_config(config)
-    dependencies = _load_dependencies(config, _fixture_dependencies)
+    dependencies = _load_dependencies(
+        config, dependencies_fixture, require_official=require_official
+    )
     metadata = json.loads((root / "metadata.json").read_text(encoding="utf-8"))
+    execution = json.loads((root / "execution.json").read_text(encoding="utf-8"))
     expected_bindings = {
         "inference": dependencies.inference.manifest["aggregate_sha256"],
         "construction": dependencies.construction.manifest["aggregate_sha256"],
@@ -772,8 +944,8 @@ def load_raw_response_refinement_artifact(
         raise ValueError("stored dense ranking differs from dependency")
     diagnostics = json.loads((root / "diagnostics.json").read_text(encoding="utf-8"))
     validation = json.loads((root / "validation.json").read_text(encoding="utf-8"))
-    reconstructed = construct_raw_response_refinement(
-        config, _fixture_dependencies=dependencies
+    reconstructed = _construct_raw_response_refinement(
+        config, dependencies, require_official=require_official
     )
     if not np.array_equal(broad, reconstructed.broad_scores):
         raise ValueError("broad score arithmetic changed")
@@ -797,6 +969,21 @@ def load_raw_response_refinement_artifact(
         raise ValueError("inventory diagnostics changed")
     if validation != _validation_payload(reconstructed):
         raise ValueError("raw refinement validation receipt changed")
+    if (
+        set(execution) != {
+            "artifact_type", "version", "qrel_free", "execution_id",
+            "dependency_aggregate_sha256",
+        }
+        or execution["artifact_type"] != "raw_response_refinement_execution"
+        or execution["version"] != 1
+        or execution["qrel_free"] is not True
+        or execution["dependency_aggregate_sha256"] != expected_bindings
+    ):
+        raise ValueError("raw refinement execution receipt changed")
+    try:
+        uuid.UUID(execution["execution_id"])
+    except (TypeError, ValueError, AttributeError) as error:
+        raise ValueError("raw refinement execution ID changed") from error
     return RawRefinementResult(
         config=config,
         query_ids=query_ids,
@@ -812,6 +999,7 @@ def load_raw_response_refinement_artifact(
         dense_rankings=dense_rankings,
         diagnostics=diagnostics,
         metadata=metadata,
+        execution_receipt=execution,
         _dependencies=dependencies,
         validation=validation,
         manifest=manifest,
@@ -822,16 +1010,35 @@ def load_raw_response_refinement_artifact(
 def compare_raw_response_refinement_repeats(
     first_dir: str | Path,
     second_dir: str | Path,
-    *,
-    _fixture_dependencies: Any | None = None,
 ) -> dict[str, Any]:
     """Require exact selections/rankings and score agreement within 1e-12."""
 
-    first = load_raw_response_refinement_artifact(
-        first_dir, _fixture_dependencies=_fixture_dependencies
+    return _compare_raw_response_refinement_repeats(
+        first_dir, second_dir, None, require_official=True
     )
-    second = load_raw_response_refinement_artifact(
-        second_dir, _fixture_dependencies=_fixture_dependencies
+
+
+def _compare_raw_response_refinement_repeats_fixture(
+    first_dir: str | Path, second_dir: str | Path, dependencies: Any
+) -> dict[str, Any]:
+    return _compare_raw_response_refinement_repeats(
+        first_dir, second_dir, dependencies, require_official=False
+    )
+
+
+def _compare_raw_response_refinement_repeats(
+    first_dir: str | Path,
+    second_dir: str | Path,
+    dependencies_fixture: Any | None,
+    *,
+    require_official: bool,
+) -> dict[str, Any]:
+
+    first = _load_raw_response_refinement_artifact(
+        first_dir, dependencies_fixture, require_official=require_official
+    )
+    second = _load_raw_response_refinement_artifact(
+        second_dir, dependencies_fixture, require_official=require_official
     )
     if first.root.resolve() == second.root.resolve():
         raise ValueError("refinement repeats must use distinct artifact roots")
@@ -842,6 +1049,10 @@ def compare_raw_response_refinement_repeats(
         != second.metadata.get("dependency_aggregate_sha256")
     ):
         raise ValueError("refinement repeats do not bind the same dependencies")
+    first_execution = first.execution_receipt["execution_id"]
+    second_execution = second.execution_receipt["execution_id"]
+    if first_execution == second_execution:
+        raise ValueError("refinement repeats require distinct construction executions")
     selected_identical = first.selected_record_ids == second.selected_record_ids
     rankings_identical = (
         first.rankings == second.rankings
@@ -877,6 +1088,8 @@ def compare_raw_response_refinement_repeats(
         "tolerance": 1e-12,
         "first_aggregate_sha256": first.manifest["aggregate_sha256"],
         "second_aggregate_sha256": second.manifest["aggregate_sha256"],
+        "first_execution_id": first_execution,
+        "second_execution_id": second_execution,
     }
 
 

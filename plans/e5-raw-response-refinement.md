@@ -45,7 +45,7 @@ PyTorch/Transformers in the pinned rootless ROCm Podman image, pytest, Ruff.
   np.ndarray`.
 - Produces `rank_score_matrix(query_ids, candidate_ids, scores) -> rankings`.
 
-- [ ] **Step 1: Write failing tests for exact top-k and ties**
+- [x] **Step 1: Write failing tests for exact top-k and ties**
 
 ```python
 def test_raw_scores_average_top_k_and_break_ties_by_record_id() -> None:
@@ -61,7 +61,7 @@ def test_raw_scores_average_top_k_and_break_ties_by_record_id() -> None:
 Add separate failing tests for support below 10, non-finite inputs, row-count
 mismatch, fixed float64 `0.8/0.2` arithmetic, and candidate-ID score ties.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement.py -q
@@ -70,7 +70,7 @@ mismatch, fixed float64 `0.8/0.2` arithmetic, and candidate-ID score ties.
 Expected: collection fails because `trec_mlm.raw_response_refinement` does not
 exist.
 
-- [ ] **Step 3: Implement the minimal pure scorer**
+- [x] **Step 3: Implement the minimal pure scorer**
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -109,7 +109,7 @@ def score_candidate_records(
 Use `math.fsum` for each selected mean and `np.lexsort` with candidate ID as the
 final ranking tie-break.
 
-- [ ] **Step 4: Run GREEN and focused lint**
+- [x] **Step 4: Run GREEN and focused lint**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement.py -q
@@ -118,7 +118,7 @@ final ranking tie-break.
 
 Expected: all focused tests pass and Ruff exits 0.
 
-- [ ] **Step 5: Commit Task 1 files only**
+- [x] **Step 5: Commit Task 1 files only**
 
 ```bash
 git add trec_mlm/raw_response_refinement.py tests/test_raw_response_refinement.py
@@ -139,14 +139,14 @@ git commit -m "feat: add exact raw response refinement scorer"
   `load_raw_response_refinement_artifact`, and
   `compare_raw_response_refinement_repeats`.
 
-- [ ] **Step 1: Write failing artifact tests**
+- [x] **Step 1: Write failing artifact tests**
 
 Create tiny inference/construction fixtures with two queries and two candidates.
 Assert exact files and manifest closure, `(Q,C,10)` record-index and similarity
 arrays, dependency aggregate hashes, complete rankings, atomic failure cleanup,
 tamper rejection, and absence of any `qrel` field in `RawRefinementConfig`.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement_artifact.py -q
@@ -154,7 +154,7 @@ tamper rejection, and absence of any `qrel` field in `RawRefinementConfig`.
 
 Expected: imports fail for the missing artifact API.
 
-- [ ] **Step 3: Implement candidate-block construction**
+- [x] **Step 3: Implement candidate-block construction**
 
 ```python
 for candidate_index, candidate_id in enumerate(candidate_ids):
@@ -177,7 +177,7 @@ scores/rankings with `load_profile_artifacts`, and fuse with
 record IDs, configuration/provenance, validation, and a lexicographically
 hashed manifest through existing `artifact_io` helpers. Refuse overwrite.
 
-- [ ] **Step 4: Run GREEN, then block-size invariance**
+- [x] **Step 4: Run GREEN, then block-size invariance**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement.py tests/test_raw_response_refinement_artifact.py -q
@@ -186,7 +186,7 @@ hashed manifest through existing `artifact_io` helpers. Refuse overwrite.
 Expected: all tests pass; repeated fixture construction has identical selected
 IDs and rankings and maximum score difference at most `1e-12`.
 
-- [ ] **Step 5: Commit Task 2 files only**
+- [x] **Step 5: Commit Task 2 files only**
 
 ```bash
 git add trec_mlm/raw_response_refinement.py tests/test_raw_response_refinement_artifact.py
@@ -204,7 +204,7 @@ git commit -m "feat: persist raw response refinement artifacts"
 - Produces metrics, paired comparisons, zero transitions, per-query rows, and
   the frozen `advance|diagnostic|stop|invalid` decision.
 
-- [ ] **Step 1: Write failing evaluator tests**
+- [x] **Step 1: Write failing evaluator tests**
 
 ```python
 def test_advance_requires_all_primary_gates() -> None:
@@ -222,27 +222,27 @@ Add independent failing cases for zero count 99, interval lower bound 0,
 MRR delta below -0.005, invalid integrity, diagnostic rescue, qrel inventory
 mismatch, and construction hash mutation.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement_evaluation.py -q
 ```
 
-- [ ] **Step 3: Implement by composing existing evaluation primitives**
+- [x] **Step 3: Implement by composing existing evaluation primitives**
 
 Use `load_complete_qrels`, `evaluate_rankings`, `paired_interval`,
 `win_tie_loss`, and `zero_transitions`. Hard-code the matched parent identities
 and require the parent metrics in the rebuilt construction to reproduce the
 tracked values within `1e-12` before comparing the new systems.
 
-- [ ] **Step 4: Run GREEN and focused lint**
+- [x] **Step 4: Run GREEN and focused lint**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement_evaluation.py -q
 .venv/bin/ruff check trec_mlm/raw_response_refinement_evaluation.py tests/test_raw_response_refinement_evaluation.py
 ```
 
-- [ ] **Step 5: Commit Task 3 files only**
+- [x] **Step 5: Commit Task 3 files only**
 
 ```bash
 git add trec_mlm/raw_response_refinement_evaluation.py tests/test_raw_response_refinement_evaluation.py
@@ -268,20 +268,20 @@ git commit -m "feat: evaluate raw response refinement"
   preserving and binding its canonical source ID. It emits the exact receipt
   schema consumed by `validate_profile_smoke_receipt`.
 
-- [ ] **Step 1: Write failing CLI boundary tests**
+- [x] **Step 1: Write failing CLI boundary tests**
 
 Inspect parser actions and assert no construction option contains `qrel`,
 `top-k`, `weight`, `encoder`, or a fixture bypass. Exercise subprocess help and
 invalid-input boundaries; the successful production CLI canary uses official
 artifacts after the sealed smoke and inference stages.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement_cli.py -q
 ```
 
-- [ ] **Step 3: Implement thin wrappers and deterministic report builder**
+- [x] **Step 3: Implement thin wrappers and deterministic report builder**
 
 Wrappers call only the public module APIs. The smoke wrapper calls the existing
 frozen profile formatter/encoder and writes normalized vectors plus runtime
@@ -291,14 +291,14 @@ receipts and checks maximum absolute embedding difference. The report builder wr
 development effectiveness is post-hoc confirmation, not independent hidden-test
 evidence.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/test_raw_response_refinement_cli.py -q
 .venv/bin/ruff check scripts/run_raw_response_refinement.py scripts/evaluate_raw_response_refinement.py scripts/build_raw_response_refinement_report.py scripts/run_profile_inference_smoke.py
 ```
 
-- [ ] **Step 5: Commit Task 4 files only**
+- [x] **Step 5: Commit Task 4 files only**
 
 ```bash
 git add scripts/run_raw_response_refinement.py scripts/evaluate_raw_response_refinement.py scripts/build_raw_response_refinement_report.py scripts/run_profile_inference_smoke.py tests/test_raw_response_refinement_cli.py
@@ -311,7 +311,7 @@ git commit -m "feat: expose raw response refinement workflow"
 - Update this plan with exact receipts and commands after each check.
 - Create durable artifacts under the shared-data root; do not commit arrays.
 
-- [ ] **Step 1: Run the complete preflight**
+- [x] **Step 1: Run the complete preflight**
 
 ```bash
 git diff --check
@@ -325,7 +325,7 @@ df -h /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data
 Require zero test/lint failures, the pinned image, `gfx1151`, and at least
 20 GiB free disk.
 
-- [ ] **Step 2: Run two fresh smoke processes without qrels or network**
+- [x] **Step 2: Run two fresh smoke processes without qrels or network**
 
 Use two raw short/median records plus the audited smoke-only derivation from the
 longest real record, the pinned container, read-only code/model mounts,
@@ -357,7 +357,7 @@ Repeat with `--output /outputs/receipts/smoke2`, then run:
   --receipt /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/smoke_repeat_receipt.json
 ```
 
-- [ ] **Step 3: Re-run the sealed workflow canaries**
+- [x] **Step 3: Re-run the sealed workflow canaries**
 
 Run the focused in-process fixture tests for construction, artifact reload,
 repeat comparison, and evaluation, plus CLI help and invalid-input subprocess
@@ -372,12 +372,12 @@ official qrels during construction canaries.
 - Durable construction: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction`
 - Durable execution logs/receipts: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/`
 
-- [ ] **Step 1: Record exact input hashes and isolation receipt**
+- [x] **Step 1: Record exact input hashes and isolation receipt**
 
 Record the query, discovery, candidate, contextual-E5 validation, source-tree,
 container, model-revision, mount, environment, and initial-open-file identities.
 
-- [ ] **Step 2: Run full existing `profile-infer` in the pinned container**
+- [x] **Step 2: Run full existing `profile-infer` in the pinned container**
 
 Mount no qrels and disable networking. Point `--output-dir` directly at the
 durable root. Preserve the console log separately. Expected official counts:
@@ -403,7 +403,7 @@ podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --securi
   2>&1 | tee /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/inference.log
 ```
 
-- [ ] **Step 3: Reload and hash-verify the inference artifact**
+- [x] **Step 3: Reload and hash-verify the inference artifact**
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
@@ -413,7 +413,7 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 
 Expected shapes: `(322, 4096)` and `(182764, 4096)`.
 
-- [ ] **Step 4: Run existing `profile-construct` and validate parent metrics**
+- [x] **Step 4: Run existing `profile-construct` and validate parent metrics**
 
 Use one-thread numerical environment and the frozen dense artifact. Require the
 rebuilt `profile_only` and `dense_profile_equal` rankings and metrics to match
@@ -442,7 +442,7 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
   `reports/trec_2026_e5_raw_response_refinement_results.md`
   and `.json`
 
-- [ ] **Step 1: Construct run 1 and run 2 without qrels**
+- [x] **Step 1: Construct run 1 and run 2 without qrels**
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
@@ -455,7 +455,7 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 
 Repeat the exact command with `refinement_run2` as the output directory.
 
-- [ ] **Step 2: Require repeat agreement and freeze ranking hashes**
+- [x] **Step 2: Require repeat agreement and freeze ranking hashes**
 
 Require identical selected record IDs, complete rankings, byte-identical TREC
 runs, and maximum component-score difference `<=1e-12`.
@@ -467,13 +467,13 @@ runs, and maximum component-score difference `<=1e-12`.
   --receipt /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/repeat_receipt.json
 ```
 
-- [ ] **Step 3: Apply the pre-qrel no-op gate**
+- [x] **Step 3: Apply the pre-qrel no-op gate**
 
 If both new systems have unchanged top-10 candidate lists versus their matched
 parents, record `stop-no-op` without opening official qrels. Otherwise continue
 exactly once.
 
-- [ ] **Step 4: Evaluate with official qrels in the separate evaluator**
+- [x] **Step 4: Evaluate with official qrels in the separate evaluator**
 
 Confirm qrel SHA/inventory, construction immutability before/after, and emit the
 sole primary comparison plus secondary diagnostics.
@@ -486,7 +486,7 @@ sole primary comparison plus secondary diagnostics.
   --output-dir /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation
 ```
 
-- [ ] **Step 5: Build and verify the tracked report**
+- [x] **Step 5: Build and verify the tracked report**
 
 ```bash
 .venv/bin/python scripts/build_raw_response_refinement_report.py \
@@ -501,7 +501,35 @@ git diff --check
 Read the fresh outputs, verify zero failures, audit the report against the
 frozen decision rule, and record hashes/commands in this canonical plan.
 
-- [ ] **Step 6: Commit only experiment code and compact reports**
+### Execution outcome — 2026-07-22
+
+- Decision: **advance**.
+- Full inference: 322 queries, 182,764 records, 7,759 label questions, and 150
+  candidates at 4,096 dimensions; aggregate
+  `d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054`.
+- Centroid construction aggregate:
+  `67c66f5bdca6c113ddc936051f8b10db8ae77fa770a9588290bf248ef8568780`.
+- Refinement aggregates: run 1
+  `113fa6391df361bd161c2c9ad6a1d3ccb7f6e6f59a917b66135c6a87b0a33f83`;
+  run 2 `6767170a374dffc0689f5b6af475759b8cee71c3a87106a375609f0770de94b1`.
+- Repeat gate: identical selected record IDs and rankings; maximum absolute
+  score difference `0.0` against tolerance `1e-12`.
+- Primary system nDCG@10: `0.435625273018` versus `0.420213992194`;
+  delta `+0.015411280824`, paired 95% CI
+  `[+0.006964609515, +0.024355856294]`.
+- Primary MRR: `0.465457752325` versus `0.453017393783`; delta
+  `+0.012440358542`.
+- Zero-nDCG queries: `92` versus `99`; eight prior zeros rescued and one new
+  zero introduced.
+- Secondary raw-hierarchical nDCG@10: `0.449022366769` versus profile-only
+  `0.414924459979`; delta `+0.034097906791`.
+- Sealed evaluation SHA-256:
+  `9ac887a04faea18f00789d486f350ccca9253e3bceb2de2ee4bb77eb4f06685c`.
+- Final verification before commit: `674 passed, 3 skipped`; full Ruff and
+  `git diff --check` passed; independent audit found no Critical or Important
+  issue and reproduced the decision statistics.
+
+- [x] **Step 6: Commit only experiment code and compact reports**
 
 ```bash
 git add plans/e5-raw-response-refinement.md \

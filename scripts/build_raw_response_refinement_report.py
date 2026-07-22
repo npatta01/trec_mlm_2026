@@ -332,7 +332,7 @@ def _markdown(payload: dict[str, Any]) -> str:
         "",
         f"- Evaluation status: `{status}`",
         f"- Frozen decision: **{decision}**",
-        f"- Construction SHA-256: `{payload.get('construction_aggregate_sha256', 'n/a')}`",
+        f"- Refinement artifact SHA-256: `{payload.get('construction_aggregate_sha256', 'n/a')}`",
     ]
     if payload.get("qrels_sha256"):
         lines.append(f"- Sealed qrels SHA-256: `{payload['qrels_sha256']}`")

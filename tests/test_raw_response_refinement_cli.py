@@ -565,6 +565,8 @@ def test_report_is_deterministic_and_labels_dev_evaluation_post_hoc(
     report = markdown.read_text(encoding="utf-8")
     assert "post-hoc confirmation" in report
     assert "not independent hidden-test evidence" in report
+    assert "Refinement artifact SHA-256" in report
+    assert "Construction SHA-256" not in report
     json_report = json.loads(output_json.read_text(encoding="utf-8"))
     assert json_report["evaluation"] == payload
     assert "post-hoc confirmation" in json_report["evidence_scope"]

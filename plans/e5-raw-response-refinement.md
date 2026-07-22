@@ -262,15 +262,18 @@ git commit -m "feat: evaluate raw response refinement"
 - Construction wrapper has only `construct`, `validate`, and `compare`
   operations and exposes no tunable `k` or weight.
 - Evaluation wrapper is the only interface accepting `--qrels`.
-- Smoke wrapper has `run` and `compare` operations, deterministically selects
-  short/median/over-512 records, and emits the exact receipt schema consumed by
-  `validate_profile_smoke_receipt`.
+- Smoke wrapper has `run` and `compare` operations. It selects short, median,
+  and longest real records, then derives the `over_512` smoke-only input by
+  repeating the longest response exactly three times separated by `\n\n` while
+  preserving and binding its canonical source ID. It emits the exact receipt
+  schema consumed by `validate_profile_smoke_receipt`.
 
 - [ ] **Step 1: Write failing CLI boundary tests**
 
 Inspect parser actions and assert no construction option contains `qrel`,
-`top-k`, `weight`, or `encoder`; run tiny fixture construction and evaluation
-through subprocesses.
+`top-k`, `weight`, `encoder`, or a fixture bypass. Exercise subprocess help and
+invalid-input boundaries; the successful production CLI canary uses official
+artifacts after the sealed smoke and inference stages.
 
 - [ ] **Step 2: Run RED**
 
@@ -324,13 +327,14 @@ Require zero test/lint failures, the pinned image, `gfx1151`, and at least
 
 - [ ] **Step 2: Run two fresh smoke processes without qrels or network**
 
-Use three deterministically selected short/median/over-512 records, the pinned
-container, read-only code/model mounts, `--network none`, and separate outputs.
+Use two raw short/median records plus the audited smoke-only derivation from the
+longest real record, the pinned container, read-only code/model mounts,
+`--network none`, and separate outputs.
 Require finite normalized `(4,4096)` matrices and maximum repeat difference
 `<=1e-5`; write the combined smoke receipt under the durable root.
 
 ```bash
-podman run --rm --device /dev/kfd --device /dev/dri --security-opt label=disable \
+podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --security-opt label=disable \
   --network none -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONPATH=/code \
   -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/trec_mlm:/code/trec_mlm:ro \
   -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/scripts:/code/scripts:ro \
@@ -353,10 +357,13 @@ Repeat with `--output /outputs/receipts/smoke2`, then run:
   --receipt /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/smoke_repeat_receipt.json
 ```
 
-- [ ] **Step 3: Run a tiny end-to-end refinement canary**
+- [ ] **Step 3: Re-run the sealed workflow canaries**
 
-Run construction, artifact reload, repeat comparison, and evaluation against
-fixture arrays. Do not open official qrels during the construction canary.
+Run the focused in-process fixture tests for construction, artifact reload,
+repeat comparison, and evaluation, plus CLI help and invalid-input subprocess
+checks. Production CLIs deliberately expose no fixture bypass; their first
+successful end-to-end invocation uses the official artifacts below. Do not open
+official qrels during construction canaries.
 
 ### Task 6: Full E5 inference and deterministic centroid reconstruction
 
@@ -377,7 +384,7 @@ durable root. Preserve the console log separately. Expected official counts:
 322 queries, 150 candidates, 182,764 records, and 7,759 label questions.
 
 ```bash
-podman run --rm --device /dev/kfd --device /dev/dri --security-opt label=disable \
+podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --security-opt label=disable \
   --network none -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONPATH=/code \
   -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/trec_mlm:/code/trec_mlm:ro \
   -v /home/npatta01/.cache/huggingface:/root/.cache/huggingface:ro \

@@ -84,9 +84,11 @@ If a candidate has fewer than 10 usable records, average all available records;
 if it has none, preserve the existing unavailable-candidate behavior. The
 official inventory is expected to have usable records for every candidate, but
 the behavior remains explicit and tested. Select equal-similarity records by
-ascending canonical record ID. Compute the top-10 mean and weighted combination
-in float64 from the persisted normalized float32 vectors without component
-renormalization.
+ascending canonical record ID. Compute cosine dot products with the persisted
+normalized float32 matrices, promote the selected similarities before the
+top-10 mean, and compute both that mean and the weighted combination in float64
+without component renormalization. This matches the operation order frozen in
+the execution plan.
 
 Freeze two systems before any qrels are loaded:
 

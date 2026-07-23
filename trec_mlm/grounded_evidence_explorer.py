@@ -380,15 +380,16 @@ def _validate_evidence_query(
                 f"evidence bundle candidate schema differs for {query_id}"
             )
 
+    canonical_metrics: dict[str, dict[str, float]] = {}
     for system in SYSTEMS:
-        expected_metric = _derive_component_metric(
+        canonical_metrics[system] = _derive_component_metric(
             candidates,
             system=system,
         )
         if any(
             not math.isclose(
                 validated_metrics[system][name],
-                expected_metric[name],
+                canonical_metrics[system][name],
                 rel_tol=0.0,
                 abs_tol=METRIC_TOLERANCE,
             )
@@ -401,7 +402,7 @@ def _validate_evidence_query(
 
     expected_cohorts = derive_cohorts(
         {
-            system: validated_metrics[system]["ndcg_at_10"]
+            system: canonical_metrics[system]["ndcg_at_10"]
             for system in SYSTEMS
         }
     )

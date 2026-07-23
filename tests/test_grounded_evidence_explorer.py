@@ -292,7 +292,13 @@ def write_e5_fixture(
     for query_id in QUERY_IDS:
         for system in SYSTEMS:
             metrics = _fixture_metric_pair(query_id, system)
-            if query_id == "q1":
+            if (
+                mutation == "metric_zero_epsilon_cohort"
+                and query_id == "q2"
+                and system == "dense_reference"
+            ):
+                metrics["ndcg_at_10"] = 5e-13
+            elif query_id == "q1":
                 if (
                     mutation == "metric_out_of_range"
                     and system == "dense_reference"
@@ -474,5 +480,31 @@ def test_false_cohorts_cannot_survive_stale_internally_consistent_metrics(
     with pytest.raises(
         EvidenceBundleError,
         match="evidence component metrics differ for q1",
+    ):
+        build_evidence_bundle(**paths)
+
+
+def test_canonical_zero_metrics_produce_canonical_cohorts(
+    tmp_path: Path,
+) -> None:
+    bundle = build_evidence_bundle(**write_e5_fixture(tmp_path))
+
+    assert bundle["queries"]["q2"]["cohorts"] == [
+        "zero fused nDCG@10",
+        "persistent all-system zero",
+    ]
+
+
+def test_epsilon_positive_submitted_metric_cannot_remove_zero_cohort(
+    tmp_path: Path,
+) -> None:
+    paths = write_e5_fixture(
+        tmp_path,
+        mutation="metric_zero_epsilon_cohort",
+    )
+
+    with pytest.raises(
+        EvidenceBundleError,
+        match="evidence cohorts differ for q2",
     ):
         build_evidence_bundle(**paths)

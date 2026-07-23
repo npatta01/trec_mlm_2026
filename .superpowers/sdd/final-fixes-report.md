@@ -14,9 +14,11 @@ that scoped commit is recorded in the handoff.
 - For every query and all five systems, the validator independently recomputes
   nDCG@10 and reciprocal rank from the complete rank permutation and qrel
   grades, then compares them with the bundle metrics at `1e-12` tolerance.
-- Bundle-intrinsic cohorts, context risk, response behavior, record-ID
-  uniqueness, best-record scalar/rank consistency, retrieval outcome, and
-  mechanism are rederived and checked.
+- Cohorts are derived exclusively from the canonical recomputed nDCG map, so a
+  submitted epsilon within metric-comparison tolerance cannot alter exact-zero
+  cohort semantics. Context risk, response behavior, record-ID uniqueness,
+  best-record scalar/rank consistency, retrieval outcome, and mechanism are
+  also rederived and checked.
 - The generic consumer independently binds the final component metric to its
   run/qrels evaluation.
 - All rank fields must be full candidate permutations. The documented trust
@@ -73,6 +75,17 @@ stale metrics paired with false cohorts, ordinary rollback, rollback failure
 with a recoverable old bundle, and backup-cleanup failure after both new
 outputs are already valid and live.
 
+Canonical-cohort epsilon follow-up:
+
+```text
+RED: 1 failed, 1 passed
+Focused GREEN: 118 passed in 6.31s
+```
+
+The failing case submitted `5e-13` for a canonically zero nDCG value and
+adjusted the submitted cohort list accordingly; the validator now rejects that
+false cohort while accepting the canonical zero cohort list.
+
 ## Final Verification
 
 Command:
@@ -89,7 +102,7 @@ uv run pytest \
 Result:
 
 ```text
-153 passed in 6.44s
+155 passed in 6.49s
 ```
 
 This run included the JavaScript/executed headless-Chrome DOM coverage; no

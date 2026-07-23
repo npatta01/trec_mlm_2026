@@ -10,6 +10,9 @@ from trec_mlm.grounded_evidence_explorer import (
     EvidenceBundleError,
     build_evidence_bundle,
     classify_behavior,
+    derive_cohorts,
+    derive_mechanism,
+    has_context_risk,
 )
 
 
@@ -22,6 +25,104 @@ SYSTEMS = (
     "raw_hierarchical",
     "raw_hierarchical_dense_equal",
 )
+
+
+@pytest.mark.parametrize(
+    ("metrics", "expected"),
+    [
+        (
+            {
+                "dense_reference": 0,
+                "profile_only": 0,
+                "dense_profile_equal": 0,
+                "raw_hierarchical": 0,
+                "raw_hierarchical_dense_equal": 0,
+            },
+            ["zero fused nDCG@10", "persistent all-system zero"],
+        ),
+        (
+            {
+                "dense_reference": 0.2,
+                "profile_only": 0,
+                "dense_profile_equal": 0.3,
+                "raw_hierarchical": 0.4,
+                "raw_hierarchical_dense_equal": 0,
+            },
+            [
+                "zero fused nDCG@10",
+                "raw-success/fusion-suppressed",
+                "new zero regression",
+            ],
+        ),
+        (
+            {
+                "dense_reference": 0,
+                "profile_only": 0.1,
+                "dense_profile_equal": 0,
+                "raw_hierarchical": 0.1,
+                "raw_hierarchical_dense_equal": 0.2,
+            },
+            ["rescued prior zero"],
+        ),
+    ],
+)
+def test_derive_cohorts(metrics: dict[str, float], expected: list[str]) -> None:
+    assert derive_cohorts(metrics) == expected
+
+
+@pytest.mark.parametrize(
+    ("positions", "expected"),
+    [
+        (
+            {
+                "raw_hierarchical": {"p": 4},
+                "raw_hierarchical_dense_equal": {"p": 20},
+                "best_record_cosine": {"p": 3},
+            },
+            "fusion suppression",
+        ),
+        (
+            {
+                "raw_hierarchical": {"p": 14},
+                "raw_hierarchical_dense_equal": {"p": 20},
+                "best_record_cosine": {"p": 3},
+            },
+            "aggregation suppression",
+        ),
+        (
+            {
+                "raw_hierarchical": {"p": 14},
+                "raw_hierarchical_dense_equal": {"p": 20},
+                "best_record_cosine": {"p": 13},
+            },
+            "evidence/routing gap",
+        ),
+        (
+            {
+                "raw_hierarchical": {"p": 14},
+                "raw_hierarchical_dense_equal": {"p": 7},
+                "best_record_cosine": {"p": 13},
+            },
+            "relevant candidate retrieved",
+        ),
+    ],
+)
+def test_derive_mechanism(
+    positions: dict[str, dict[str, int]], expected: str
+) -> None:
+    assert derive_mechanism({"p"}, positions) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("What happened next?", True),
+        ("Which law did they invoke?", True),
+        ("When was USB Type-C Specification 1.0 finalized?", False),
+    ],
+)
+def test_context_risk_is_only_a_surface_flag(text: str, expected: bool) -> None:
+    assert has_context_risk(text) is expected
 
 
 def _write_json(path: Path, payload: object) -> None:

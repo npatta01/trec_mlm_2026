@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 import json
 from pathlib import Path
 import re
@@ -26,6 +26,55 @@ SYSTEMS = (
     "raw_hierarchical",
     "raw_hierarchical_dense_equal",
 )
+CONTEXT_RISK_RE = re.compile(
+    r"\b(this|that|these|those|it|they|them|he|she|there|the former|the latter|what happened next)\b",
+    re.IGNORECASE,
+)
+
+
+def derive_cohorts(metrics: Mapping[str, float]) -> list[str]:
+    """Return ordered descriptive tags for frozen per-system metrics."""
+
+    tags: list[str] = []
+    new = metrics["raw_hierarchical_dense_equal"]
+    prior = metrics["dense_profile_equal"]
+    raw = metrics["raw_hierarchical"]
+    if new == 0.0:
+        tags.append("zero fused nDCG@10")
+    if all(metrics[name] == 0.0 for name in SYSTEMS):
+        tags.append("persistent all-system zero")
+    if new == 0.0 and raw > 0.0:
+        tags.append("raw-success/fusion-suppressed")
+    if new == 0.0 and prior > 0.0:
+        tags.append("new zero regression")
+    if new > 0.0 and prior == 0.0:
+        tags.append("rescued prior zero")
+    return tags
+
+
+def derive_mechanism(
+    positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]
+) -> str:
+    """Describe the relevant-positive rank pattern without asserting a cause."""
+
+    def best(system: str) -> int:
+        return min(positions[system][candidate_id] for candidate_id in positive_ids)
+
+    if best("raw_hierarchical") <= 10 and best("raw_hierarchical_dense_equal") > 10:
+        return "fusion suppression"
+    if best("raw_hierarchical_dense_equal") <= 10:
+        return "relevant candidate retrieved"
+    if best("best_record_cosine") <= 10 and best("raw_hierarchical") > 10:
+        return "aggregation suppression"
+    if best("best_record_cosine") > 10:
+        return "evidence/routing gap"
+    return "relevant candidate retrieved"
+
+
+def has_context_risk(text: str) -> bool:
+    """Flag surface context dependence without diagnosing a failure cause."""
+
+    return bool(CONTEXT_RISK_RE.search(text))
 
 
 def classify_behavior(response: str) -> str:

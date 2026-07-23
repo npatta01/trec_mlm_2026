@@ -1501,7 +1501,7 @@ HTML_TEMPLATE = r'''<!doctype html>
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.5;
     }
-    button, input { font: inherit; }
+    button, input, select { font: inherit; }
     button { color: inherit; }
     .shell { max-width: 1440px; margin: 0 auto; padding: 24px; }
     .page-head { margin-bottom: 20px; }
@@ -1520,7 +1520,7 @@ HTML_TEMPLATE = r'''<!doctype html>
     .search { width: 100%; margin-top: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); color: var(--ink); padding: 10px 11px; }
     .evaluation-control { display: grid; gap: 5px; margin-top: 11px; }
     .evaluation-select { width: 100%; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); color: var(--ink); padding: 8px 10px; }
-    .search:focus, button:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 38%, transparent); outline-offset: 2px; }
+    .search:focus, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 38%, transparent); outline-offset: 2px; }
     .query-list { overflow-y: auto; padding: 8px; }
     .query-button { width: 100%; border: 1px solid transparent; border-radius: 9px; background: transparent; padding: 10px; text-align: left; cursor: pointer; }
     .query-button:hover { background: var(--panel-soft); }
@@ -1547,10 +1547,12 @@ HTML_TEMPLATE = r'''<!doctype html>
     }
     .mono { color: var(--muted); font: .78rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
     .results-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 18px; align-items: start; }
+    .results-grid.grounded { grid-template-columns: minmax(0, 1fr); }
     .section { padding: 18px; }
     .section-note { margin: 5px 0 14px; color: var(--muted); font-size: .86rem; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; }
+    .results-grid.grounded table { min-width: 1060px; }
     th { color: var(--muted); font-size: .72rem; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
     th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; vertical-align: middle; }
     th:first-child, td:first-child { width: 54px; text-align: right; }
@@ -1567,6 +1569,17 @@ HTML_TEMPLATE = r'''<!doctype html>
     }
     tr.selected { background: var(--accent-soft); }
     .score { white-space: nowrap; font: 700 .84rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .mechanism-summary { display: grid; gap: 7px; margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); padding: 12px; }
+    .mechanism-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+    .mechanism-tag, .context-risk { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: .78rem; font-weight: 720; }
+    .context-risk { border-color: #b45309; color: #92400e; }
+    .mechanism-summary p { margin: 0; color: var(--muted); font-size: .84rem; }
+    .cohort-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cohort-tag { border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; color: var(--muted); font-size: .74rem; }
+    .evidence-row td { padding: 0 8px 12px; text-align: left; }
+    .evidence-drawer { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); padding: 9px 11px; }
+    .evidence-drawer summary { color: var(--accent); cursor: pointer; font-weight: 750; }
+    .evidence-drawer[open] summary { margin-bottom: 8px; }
     .candidate-title { margin: 7px 0 0; font-size: 1.32rem; overflow-wrap: anywhere; }
     .candidate-summary { margin: 9px 0 0; color: var(--muted); }
     .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
@@ -1632,7 +1645,7 @@ HTML_TEMPLATE = r'''<!doctype html>
             <input class="search" id="querySearch" type="search" autocomplete="off">
           </label>
           <label class="evaluation-control" id="evaluationControl">
-            <span class="mono">Ground-truth query ordering</span>
+            <span class="mono" id="evaluationLabel">Ground-truth query ordering</span>
             <select class="evaluation-select" id="evaluationFilter">
               <option value="weakest">Weakest nDCG@10 first</option>
               <option value="failures">Zero nDCG@10 only</option>
@@ -1648,20 +1661,21 @@ HTML_TEMPLATE = r'''<!doctype html>
           <span class="mono" id="activeQueryId"></span>
           <h2 id="queryHeading"></h2>
           <div class="query-evaluation" id="queryEvaluation"></div>
+          <div id="groundedSummary"></div>
         </section>
-        <div class="results-grid">
+        <div class="results-grid" id="resultsGrid">
           <section class="panel section" aria-labelledby="resultsHeading">
             <h2 id="resultsHeading">Top candidates</h2>
             <p class="section-note"><span id="resultLimit"></span> Select a candidate to inspect its history.<span id="labelLegend"> G0/G1/G2 badges are development ground-truth grades.</span> Scores belong to this run only and should not be compared with scores from another approach.</p>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Rank</th><th>Candidate</th><th>System score</th></tr></thead>
+                <thead><tr id="resultsHead"><th>Rank</th><th>Candidate</th><th>System score</th></tr></thead>
                 <tbody id="resultsBody"></tbody>
               </table>
             </div>
             <div class="oracle-reference" id="oracleReference"></div>
           </section>
-          <section class="panel section" aria-labelledby="candidateHeading">
+          <section class="panel section" id="candidateSection" aria-labelledby="candidateHeading">
             <span class="mono" id="candidateRank"></span>
             <h2 class="candidate-title" id="candidateHeading"></h2>
             <p class="candidate-summary" id="candidateSummary"></p>
@@ -1670,7 +1684,7 @@ HTML_TEMPLATE = r'''<!doctype html>
               <h3>Observed attempted-query terms</h3>
               <div class="terms" id="candidateTerms"></div>
             </div>
-            <div class="subsection">
+            <div class="subsection" id="responseSection">
               <h3>Related past responses</h3>
               <p class="section-note">Selected by simple lexical overlap for context. These responses are not verified correctness and are not claimed as the ranking explanation.</p>
               <div id="responseList"></div>
@@ -1690,6 +1704,14 @@ HTML_TEMPLATE = r'''<!doctype html>
   <script>
     "use strict";
     const data = JSON.parse(document.getElementById("explorerData").textContent);
+    const groundedMode = data.queries.some((query) => Boolean(query.grounded));
+    const rankColumns = [
+      ["dense_reference", "Dense rank"],
+      ["profile_only", "Profile rank"],
+      ["dense_profile_equal", "Prior fusion rank"],
+      ["raw_hierarchical", "Raw hierarchical rank"],
+      ["raw_hierarchical_dense_equal", "New fusion rank"],
+    ];
     const weakestQuery = data.meta.labels_included
       ? [...data.queries].filter((query) => query.evaluation).sort((left, right) => left.evaluation.ndcg_at_10 - right.evaluation.ndcg_at_10)[0]
       : null;
@@ -1745,13 +1767,55 @@ HTML_TEMPLATE = r'''<!doctype html>
       byId("footer").textContent = "Source: " + data.meta.input + " · Score field: " + data.meta.score_field + "." + note;
     }
 
+    function configureEvaluationFilters() {
+      if (!groundedMode) return;
+      byId("evaluationLabel").textContent = "Grounded diagnostic filter";
+      const groundedFilters = [
+        ["top_1_success", "Top-1 success"],
+        ["top_10_miss", "Top-10 but not top-1"],
+        ["top_10_absent", "No relevant candidate in top 10"],
+        ["zero_fused", "Zero fused nDCG@10"],
+        ["persistent_zero", "Persistent all-system zero"],
+        ["fusion_suppressed", "Raw success / fusion suppressed"],
+        ["new_zero_regression", "New zero regression"],
+        ["rescued", "Rescued prior zero"],
+        ["context_risk", "Context-risk flag"],
+      ];
+      groundedFilters.forEach(([value, label]) => {
+        const option = el("option", "", label);
+        option.value = value;
+        byId("evaluationFilter").appendChild(option);
+      });
+    }
+
+    function legacyEvaluationMatch(query) {
+      if (state.evaluationFilter === "failures") {
+        return query.evaluation && query.evaluation.ndcg_at_10 === 0;
+      }
+      return true;
+    }
+
+    function matchesEvaluationFilter(query) {
+      if (!query.grounded) return legacyEvaluationMatch(query);
+      const tags = new Set(query.grounded.cohorts || []);
+      if (state.evaluationFilter === "zero_fused") return tags.has("zero fused nDCG@10");
+      if (state.evaluationFilter === "persistent_zero") return tags.has("persistent all-system zero");
+      if (state.evaluationFilter === "fusion_suppressed") return tags.has("raw-success/fusion-suppressed");
+      if (state.evaluationFilter === "new_zero_regression") return tags.has("new zero regression");
+      if (state.evaluationFilter === "rescued") return tags.has("rescued prior zero");
+      if (state.evaluationFilter === "context_risk") return query.grounded.context_risk === true;
+      if (state.evaluationFilter === "top_1_success") return query.grounded.retrieval_outcome === "top-1 success";
+      if (state.evaluationFilter === "top_10_miss") return query.grounded.retrieval_outcome === "top-10 but not top-1";
+      if (state.evaluationFilter === "top_10_absent") return query.grounded.retrieval_outcome === "no relevant candidate in top 10";
+      return legacyEvaluationMatch(query);
+    }
+
     function visibleQueries() {
       const needle = state.search.trim().toLowerCase();
       let queries = data.queries.filter((query) => !needle || (query.id + " " + query.text).toLowerCase().includes(needle));
       if (!data.meta.labels_included) return queries;
-      if (state.evaluationFilter === "failures") {
-        queries = queries.filter((query) => query.evaluation && query.evaluation.ndcg_at_10 === 0);
-      } else if (state.evaluationFilter === "weakest") {
+      queries = queries.filter(matchesEvaluationFilter);
+      if (state.evaluationFilter === "weakest") {
         queries = [...queries].sort((left, right) => (left.evaluation?.ndcg_at_10 ?? Infinity) - (right.evaluation?.ndcg_at_10 ?? Infinity));
       } else if (state.evaluationFilter === "strongest") {
         queries = [...queries].sort((left, right) => (right.evaluation?.ndcg_at_10 ?? -Infinity) - (left.evaluation?.ndcg_at_10 ?? -Infinity));
@@ -1780,10 +1844,80 @@ HTML_TEMPLATE = r'''<!doctype html>
       if (!list.childElementCount) list.appendChild(el("div", "empty", "No queries match this search."));
     }
 
+    function renderBestPositiveSummary(query) {
+      const candidates = Object.values(query.grounded.candidates);
+      const best = candidates
+        .filter((candidate) => candidate.is_positive)
+        .sort((left, right) => left.ranks.raw_hierarchical_dense_equal - right.ranks.raw_hierarchical_dense_equal)[0] || null;
+      const summary = el("div", "mechanism-summary");
+      const tags = el("div", "mechanism-tags");
+      tags.appendChild(el("strong", "mechanism-tag", "Retrieval outcome · " + query.grounded.retrieval_outcome));
+      tags.appendChild(el("strong", "mechanism-tag", "Mechanism (noncausal) · " + query.grounded.mechanism));
+      if (query.grounded.context_risk) {
+        tags.appendChild(el("span", "context-risk", "Context-risk flag · surface wording only"));
+      }
+      summary.appendChild(tags);
+      if (best) {
+        summary.appendChild(el("p", "", "Best development-positive candidate: " + best.candidate_id));
+        summary.appendChild(el("p", "", rankColumns.map(([key, label]) =>
+          label + " " + best.ranks[key]).join(" · ")));
+        summary.appendChild(el("p", "", "Best E5 cosine " + formatMetric(best.best_record_cosine) +
+          " · Mean top-10 E5 cosine " + formatMetric(best.mean_top_10_cosine)));
+      } else {
+        summary.appendChild(el("p", "", "Best development-positive candidate: none in complete development qrels"));
+      }
+      const cohorts = el("div", "cohort-list");
+      (query.grounded.cohorts || []).forEach((cohort) =>
+        cohorts.appendChild(el("span", "cohort-tag", cohort)));
+      summary.appendChild(cohorts);
+      return summary;
+    }
+
+    function renderGroundedEvidence(candidate) {
+      const details = el("details", "evidence-drawer");
+      details.appendChild(el("summary", "", "Nearest historical behavior"));
+      details.appendChild(el("p", "section-note",
+        "Similarity and substantive output do not establish correctness."));
+      candidate.evidence.forEach((item) => {
+        const card = el("article", "history-card");
+        card.appendChild(el("div", "history-meta",
+          "E5 cosine similarity " + formatMetric(item.similarity) +
+          " · Historical query " + item.source_query_id + " · " + item.behavior));
+        card.appendChild(el("p", "history-question", item.question));
+        card.appendChild(el("p", "history-response", item.response));
+        details.appendChild(card);
+      });
+      return details;
+    }
+
+    function renderResultHeaders(query) {
+      const header = byId("resultsHead");
+      header.replaceChildren();
+      header.appendChild(el("th", "", query.grounded ? "Final rank" : "Rank"));
+      header.appendChild(el("th", "", "Candidate"));
+      if (query.grounded) {
+        rankColumns.forEach(([_key, label]) =>
+          header.appendChild(el("th", "", label)));
+        header.appendChild(el("th", "", "Best E5 cosine"));
+        header.appendChild(el("th", "", "Mean top-10 E5 cosine"));
+      }
+      header.appendChild(el("th", "", "System score"));
+    }
+
+    function appendGroundedCells(row, groundedCandidate) {
+      rankColumns.forEach(([key]) =>
+        row.appendChild(el("td", "score", groundedCandidate.ranks[key])));
+      row.appendChild(el("td", "score", formatMetric(groundedCandidate.best_record_cosine)));
+      row.appendChild(el("td", "score", formatMetric(groundedCandidate.mean_top_10_cosine)));
+    }
+
     function renderResults() {
       const query = activeQuery();
       if (!query) return;
-      byId("resultLimit").textContent = "Showing up to " + number(data.meta.candidate_limit) + " candidates for this query.";
+      byId("resultsGrid").classList.toggle("grounded", Boolean(query.grounded));
+      byId("resultLimit").textContent = query.grounded
+        ? "Showing final top " + number(data.meta.candidate_limit) + " plus development-positive candidates in frozen order."
+        : "Showing up to " + number(data.meta.candidate_limit) + " candidates for this query.";
       byId("activeQueryId").textContent = query.id;
       byId("queryHeading").textContent = query.text;
       const evaluationBox = byId("queryEvaluation");
@@ -1795,10 +1929,16 @@ HTML_TEMPLATE = r'''<!doctype html>
         evaluationBox.appendChild(el("span", "evaluation-pill", "First relevant rank " + (query.evaluation.first_relevant_rank ?? "none")));
         evaluationBox.appendChild(el("span", "evaluation-pill", query.evaluation.relevant_in_top_10 + " of " + query.evaluation.relevant_total + " relevant candidates in top 10"));
       }
+      const groundedSummary = byId("groundedSummary");
+      groundedSummary.replaceChildren();
+      groundedSummary.hidden = !query.grounded;
+      if (query.grounded) groundedSummary.appendChild(renderBestPositiveSummary(query));
       if (!state.candidateId && query.results[0]) state.candidateId = query.results[0].candidate_id;
+      renderResultHeaders(query);
       const body = byId("resultsBody");
       body.replaceChildren();
       query.results.forEach((result) => {
+        const groundedCandidate = query.grounded?.candidates[result.candidate_id] || null;
         const row = el("tr", result.candidate_id === state.candidateId ? "selected" : "");
         row.appendChild(el("td", "score", result.rank));
         const candidateCell = el("td");
@@ -1821,11 +1961,20 @@ HTML_TEMPLATE = r'''<!doctype html>
         });
         candidateCell.appendChild(button);
         row.appendChild(candidateCell);
+        if (groundedCandidate) appendGroundedCells(row, groundedCandidate);
         const scoreCell = el("td", "score", formatScore(result.score_text));
         scoreCell.title = "Exact system score: " + result.score_text;
         scoreCell.setAttribute("aria-label", "Exact system score " + result.score_text);
         row.appendChild(scoreCell);
         body.appendChild(row);
+        if (groundedCandidate && groundedCandidate.evidence.length) {
+          const evidenceRow = el("tr", "evidence-row");
+          const evidenceCell = el("td");
+          evidenceCell.colSpan = row.childElementCount;
+          evidenceCell.appendChild(renderGroundedEvidence(groundedCandidate));
+          evidenceRow.appendChild(evidenceCell);
+          body.appendChild(evidenceRow);
+        }
       });
       const oracle = byId("oracleReference");
       oracle.replaceChildren();
@@ -1886,6 +2035,7 @@ HTML_TEMPLATE = r'''<!doctype html>
 
       const responseList = byId("responseList");
       responseList.replaceChildren();
+      byId("responseSection").hidden = Boolean(query.grounded);
       const responses = (((data.responses || {})[query.id] || {})[result.candidate_id] || []);
       responses.forEach((item) => {
         const card = el("article", "history-card");
@@ -1926,6 +2076,7 @@ HTML_TEMPLATE = r'''<!doctype html>
     });
     mobileQueryLayout.addEventListener("change", () => setQueryPanelCollapsed(mobileQueryLayout.matches));
     byId("evaluationControl").hidden = !data.meta.labels_included;
+    configureEvaluationFilters();
     byId("evaluationFilter").value = state.evaluationFilter;
     const initialQuery = activeQuery();
     if (initialQuery && initialQuery.results[0]) state.candidateId = initialQuery.results[0].candidate_id;

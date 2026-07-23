@@ -550,6 +550,96 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return path
 
+    def write_fixture_with_grounded_bundle(
+        self,
+        *,
+        response: str | None = None,
+    ) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=12, positive_candidate="model-l"
+        )
+        display_ids = [
+            f"model-{chr(ord('a') + index)}" for index in range(10)
+        ] + ["model-l"]
+        self.grounded_bundle = self.write_evidence_bundle(
+            display_ids=display_ids
+        )
+        if response is not None:
+            payload = json.loads(
+                self.grounded_bundle.read_text(encoding="utf-8")
+            )
+            payload["queries"]["q1"]["candidates"]["model-a"]["evidence"][0][
+                "response"
+            ] = response
+            self.grounded_bundle.write_text(
+                json.dumps(payload, indent=2), encoding="utf-8"
+            )
+
+    def build_and_read_grounded_html(
+        self,
+        *,
+        response: str | None = None,
+    ) -> str:
+        if response is not None or not hasattr(self, "grounded_bundle"):
+            self.write_fixture_with_grounded_bundle(response=response)
+        completed = self.run_builder(
+            "--top-candidates",
+            "10",
+            "--evidence-bundle",
+            str(self.grounded_bundle),
+            "--no-responses",
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        return (self.run_dir / "query_explorer.html").read_text(
+            encoding="utf-8"
+        )
+
+    def test_grounded_ui_has_filters_ranks_and_neutral_evidence_copy(
+        self,
+    ) -> None:
+        self.write_fixture_with_grounded_bundle()
+        html = self.build_and_read_grounded_html()
+        for expected in (
+            "Top-1 success",
+            "Top-10 but not top-1",
+            "No relevant candidate in top 10",
+            "Persistent all-system zero",
+            "Raw success / fusion suppressed",
+            "New zero regression",
+            "Rescued prior zero",
+            "Context-risk flag",
+            "Dense rank",
+            "Profile rank",
+            "Prior fusion rank",
+            "Raw hierarchical rank",
+            "New fusion rank",
+            "Best E5 cosine",
+            "Mean top-10 E5 cosine",
+            "System score",
+            "E5 cosine similarity",
+            "Nearest historical behavior",
+            "Best development-positive candidate",
+            "Mechanism (noncausal)",
+            "Retrieval outcome",
+            "Similarity and substantive output do not establish correctness",
+        ):
+            self.assertIn(expected, html)
+        self.assertIn('el("details", "evidence-drawer")', html)
+        self.assertIn("candidate.evidence.forEach", html)
+        self.assertNotIn('src="http', html)
+        self.assertNotIn('href="http', html)
+
+    def test_grounded_response_is_json_escaped_and_dom_rendered_with_text_content(
+        self,
+    ) -> None:
+        html = self.build_and_read_grounded_html(
+            response="</script><img src=x onerror=alert(1)>"
+        )
+        self.assertIn("\\u003c/script\\u003e", html)
+        self.assertNotIn("</script><img", html)
+        self.assertIn("item.response", html)
+        self.assertIn("textContent", html)
+
     def test_no_bundle_preserves_existing_payload_shape(self) -> None:
         self.write_fixture()
         completed = self.run_builder(

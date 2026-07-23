@@ -1399,13 +1399,77 @@ report.summaryPills = [...document.querySelectorAll("#summary .pill")]
             expected_error="must be finite and in [0, 1]",
         )
 
+    def test_bundle_rejects_within_range_nonfinal_ndcg_mismatch(
+        self,
+    ) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            query["component_metrics"]["dense_reference"][
+                "ndcg_at_10"
+            ] = 0.25
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error=(
+                "evidence component metrics differ for q1 "
+                "dense_reference"
+            ),
+        )
+
+    def test_bundle_rejects_within_range_nonfinal_mrr_mismatch(
+        self,
+    ) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            query["component_metrics"]["profile_only"][
+                "reciprocal_rank"
+            ] = 0.25
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error=(
+                "evidence component metrics differ for q1 "
+                "profile_only"
+            ),
+        )
+
+    def test_bundle_rejects_false_cohorts_backed_by_stale_metrics(
+        self,
+    ) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            for metrics in query["component_metrics"].values():
+                metrics["ndcg_at_10"] = 0.0
+                metrics["reciprocal_rank"] = 0.0
+            query["cohorts"] = [
+                "zero fused nDCG@10",
+                "persistent all-system zero",
+            ]
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error=(
+                "evidence component metrics differ for q1 "
+                "dense_reference"
+            ),
+        )
+
     def test_bundle_rejects_final_metric_mismatching_generic_evaluation(
         self,
     ) -> None:
         def mutate(query: dict[str, Any]) -> None:
+            candidates = query["candidates"]
+            candidates["model-a"]["ranks"][
+                "raw_hierarchical_dense_equal"
+            ] = 2
+            candidates["model-b"]["ranks"][
+                "raw_hierarchical_dense_equal"
+            ] = 1
             query["component_metrics"][
                 "raw_hierarchical_dense_equal"
-            ]["reciprocal_rank"] = 0.25
+            ] = {
+                "ndcg_at_10": 1.0,
+                "reciprocal_rank": 1.0,
+            }
+            query["retrieval_outcome"] = "top-1 success"
+            query["mechanism"] = "relevant candidate ranked first"
 
         self.assert_bundle_mutation_rejected(
             mutate,

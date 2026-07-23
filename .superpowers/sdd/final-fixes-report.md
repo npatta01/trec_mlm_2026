@@ -4,11 +4,16 @@ Date: 2026-07-23
 
 ## Outcome
 
-Final-review fixes are implemented in commit `2eec8a2`
-(`fix: harden grounded evidence explorer contracts`).
+The initial final-review implementation is commit `2eec8a2`
+(`fix: harden grounded evidence explorer contracts`) with its report in
+`53361db`. This report also incorporates the subsequent re-review hardening;
+that scoped commit is recorded in the handoff.
 
 - Producer and generic consumer now call one authoritative semantic validator.
 - nDCG@10 and reciprocal-rank values must be finite and within `[0, 1]`.
+- For every query and all five systems, the validator independently recomputes
+  nDCG@10 and reciprocal rank from the complete rank permutation and qrel
+  grades, then compares them with the bundle metrics at `1e-12` tolerance.
 - Bundle-intrinsic cohorts, context risk, response behavior, record-ID
   uniqueness, best-record scalar/rank consistency, retrieval outcome, and
   mechanism are rederived and checked.
@@ -19,8 +24,12 @@ Final-review fixes are implemented in commit `2eec8a2`
   non-final ranks against absent source artifacts; the task-specific builder
   owns that source binding.
 - Bundle and HTML are staged separately and promoted as a pair only after both
-  succeed. Validation or rendering failure preserves both prior destinations
-  and removes staging files.
+  succeed. Validation or rendering failure before promotion preserves both
+  prior destinations and removes staging files. A partial-promotion failure
+  normally restores both destinations; if restoration itself fails, its
+  unrestored backup is retained and reported as recovery-required rather than
+  deleted. A backup-cleanup failure after successful promotion leaves the
+  valid live pair in place and reports the retained backup as a warning.
 - Grounded-mode summary and cosine labels now state their scope unambiguously;
   the no-bundle UI remains unchanged.
 
@@ -52,6 +61,18 @@ Focused GREEN verification after implementation:
 All checks passed!
 ```
 
+Final re-review TDD wave:
+
+```text
+RED: 9 failed, 107 passed
+GREEN: 116 passed in 6.26s
+```
+
+The new regressions cover within-range nDCG and reciprocal-rank mismatches,
+stale metrics paired with false cohorts, ordinary rollback, rollback failure
+with a recoverable old bundle, and backup-cleanup failure after both new
+outputs are already valid and live.
+
 ## Final Verification
 
 Command:
@@ -68,7 +89,7 @@ uv run pytest \
 Result:
 
 ```text
-143 passed in 6.23s
+153 passed in 6.44s
 ```
 
 This run included the JavaScript/executed headless-Chrome DOM coverage; no
@@ -96,8 +117,9 @@ All checks passed!
 
 ## Scope and Safety
 
-Only the grounded-explorer source, tests, design, and implementation plan were
-included in the implementation commit. Pre-existing unrelated worktree changes
-were preserved. No official/private bundle, rendered explorer, portal entry,
-sharing setting, or live artifact was created, replaced, or published during
-this final-fixes task.
+Only the grounded-explorer source, tests, design, implementation plan, and this
+sanitized report were included in the final-fixes commits; the re-review wave
+touches only validator code, publication code, their tests, and this report.
+Pre-existing unrelated worktree changes were preserved. No official/private
+bundle, rendered explorer, portal entry, sharing setting, or live artifact was
+created, replaced, or published during this final-fixes task.

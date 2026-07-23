@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from collections.abc import Iterator, Mapping
 import json
 import os
@@ -9,6 +10,8 @@ import sys
 
 import numpy as np
 import pytest
+
+from scripts import build_e5_grounded_evidence_explorer as e5_builder
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -276,6 +279,243 @@ def run_cli(
         capture_output=True,
         text=True,
     )
+
+
+def configure_in_process_build(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> dict[str, Path]:
+    live = tmp_path / "live"
+    live.mkdir()
+    bundle = live / "evidence.json"
+    html = live / "explorer.html"
+    bundle.write_bytes(b"old-bundle")
+    html.write_bytes(b"old-html")
+    staged_bundle = live / ".evidence.json.building.test.json"
+    staged_html = live / ".explorer.html.building.test.html"
+    arguments = argparse.Namespace(
+        refinement=tmp_path / "refinement",
+        construction=tmp_path / "construction",
+        evaluation=tmp_path / "evaluation.json",
+        queries=tmp_path / "queries.tsv",
+        qrels=tmp_path / "qrels.txt",
+        profiles=tmp_path / "profiles.json",
+        bundle_output=bundle,
+        html_output=html,
+    )
+    monkeypatch.setattr(e5_builder, "parse_args", lambda: arguments)
+    monkeypatch.setattr(
+        e5_builder,
+        "build_evidence_bundle",
+        lambda **_kwargs: {
+            "meta": {
+                "query_count": 2,
+                "evidence_per_candidate": 3,
+            }
+        },
+    )
+
+    def render_staged_html(**kwargs: object) -> None:
+        output = kwargs["output"]
+        assert isinstance(output, Path)
+        output.write_bytes(b"new-html")
+
+    monkeypatch.setattr(
+        e5_builder,
+        "run_generic_builder",
+        render_staged_html,
+    )
+    stages = {
+        ".json": staged_bundle,
+        ".html": staged_html,
+    }
+    monkeypatch.setattr(
+        e5_builder,
+        "_temporary_output_path",
+        lambda _output, *, suffix: stages[suffix],
+    )
+    return {
+        "bundle": bundle,
+        "html": html,
+        "staged_bundle": staged_bundle,
+        "staged_html": staged_html,
+    }
+
+
+def capture_output_backups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[Path, Path | None]:
+    captured: dict[Path, Path | None] = {}
+    original = e5_builder._backup_existing_output
+
+    def capture(path: Path) -> Path | None:
+        backup = original(path)
+        captured[path] = backup
+        return backup
+
+    monkeypatch.setattr(
+        e5_builder,
+        "_backup_existing_output",
+        capture,
+    )
+    return captured
+
+
+def test_second_promotion_failure_rolls_back_and_removes_backups(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    paths = configure_in_process_build(monkeypatch, tmp_path)
+    backups = capture_output_backups(monkeypatch)
+    original_replace = Path.replace
+
+    def fail_second_promotion(
+        source: Path,
+        target: str | os.PathLike[str],
+    ) -> Path:
+        destination = Path(target)
+        if (
+            source == paths["staged_html"]
+            and destination == paths["html"]
+        ):
+            raise OSError("injected second-promotion failure")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(Path, "replace", fail_second_promotion)
+
+    with pytest.raises(
+        e5_builder.E5ExplorerBuildError,
+        match="output publication failed",
+    ):
+        e5_builder.main()
+
+    assert paths["bundle"].read_bytes() == b"old-bundle"
+    assert paths["html"].read_bytes() == b"old-html"
+    assert not paths["staged_bundle"].exists()
+    assert not paths["staged_html"].exists()
+    assert backups
+    assert not list(tmp_path.rglob(".*.rollback.*"))
+
+
+def test_rollback_failure_preserves_and_reports_recovery_backup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    paths = configure_in_process_build(monkeypatch, tmp_path)
+    backups = capture_output_backups(monkeypatch)
+    original_replace = Path.replace
+
+    def fail_promotion_and_rollback(
+        source: Path,
+        target: str | os.PathLike[str],
+    ) -> Path:
+        destination = Path(target)
+        if (
+            source == paths["staged_html"]
+            and destination == paths["html"]
+        ):
+            raise OSError("injected second-promotion failure")
+        bundle_backup = backups.get(paths["bundle"])
+        if (
+            bundle_backup is not None
+            and source == bundle_backup
+            and destination == paths["bundle"]
+        ):
+            raise OSError("injected rollback failure")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(Path, "replace", fail_promotion_and_rollback)
+
+    with pytest.raises(
+        e5_builder.E5ExplorerBuildError,
+        match="recovery required",
+    ) as captured_error:
+        e5_builder.main()
+
+    bundle_backup = backups[paths["bundle"]]
+    html_backup = backups[paths["html"]]
+    assert bundle_backup is not None
+    assert html_backup is not None
+    assert str(bundle_backup) in str(captured_error.value)
+    assert bundle_backup.read_bytes() == b"old-bundle"
+    assert not html_backup.exists()
+    assert json.loads(
+        paths["bundle"].read_text(encoding="utf-8")
+    )["meta"]["query_count"] == 2
+    assert paths["html"].read_bytes() == b"old-html"
+    assert not paths["staged_bundle"].exists()
+    assert not paths["staged_html"].exists()
+    assert list(tmp_path.rglob(".*.rollback.*")) == [
+        bundle_backup
+    ]
+    assert SECRET_QUESTION not in str(captured_error.value)
+    assert SECRET_ANSWER not in str(captured_error.value)
+
+
+def test_backup_cleanup_failure_keeps_valid_pair_and_reports_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    paths = configure_in_process_build(monkeypatch, tmp_path)
+    backups = capture_output_backups(monkeypatch)
+    cleanup_ready = False
+    original_backup = e5_builder._backup_existing_output
+
+    def enable_cleanup_failure(path: Path) -> Path | None:
+        nonlocal cleanup_ready
+        backup = original_backup(path)
+        if len(backups) == 2:
+            cleanup_ready = True
+        return backup
+
+    monkeypatch.setattr(
+        e5_builder,
+        "_backup_existing_output",
+        enable_cleanup_failure,
+    )
+    original_unlink = Path.unlink
+
+    def fail_bundle_backup_cleanup(
+        path: Path,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        if (
+            cleanup_ready
+            and path == backups.get(paths["bundle"])
+        ):
+            raise OSError("injected backup-cleanup failure")
+        original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_bundle_backup_cleanup)
+
+    assert e5_builder.main() == 0
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    bundle_backup = backups[paths["bundle"]]
+    html_backup = backups[paths["html"]]
+    assert bundle_backup is not None
+    assert html_backup is not None
+    assert summary["warning"] == (
+        "published outputs are valid; backup cleanup incomplete"
+    )
+    assert summary["recovery_backups"] == [str(bundle_backup)]
+    assert captured.err == ""
+    assert json.loads(
+        paths["bundle"].read_text(encoding="utf-8")
+    )["meta"]["query_count"] == 2
+    assert paths["html"].read_bytes() == b"new-html"
+    assert bundle_backup.read_bytes() == b"old-bundle"
+    assert not html_backup.exists()
+    assert not paths["staged_bundle"].exists()
+    assert not paths["staged_html"].exists()
+    assert list(tmp_path.rglob(".*.rollback.*")) == [
+        bundle_backup
+    ]
+    assert SECRET_QUESTION not in captured.out + captured.err
+    assert SECRET_ANSWER not in captured.out + captured.err
 
 
 def test_cli_builds_bundle_and_html_without_printing_raw_text(

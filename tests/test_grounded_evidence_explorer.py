@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -161,6 +162,22 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _fixture_metric_pair(
+    query_id: str, system: str
+) -> dict[str, float]:
+    if query_id == "q2":
+        return {"ndcg_at_10": 0.0, "reciprocal_rank": 0.0}
+    first_positive_rank = 2 if system == "dense_reference" else 3
+    ideal_dcg = 1.0 + 1.0 / math.log2(3)
+    return {
+        "ndcg_at_10": (
+            1.0 / math.log2(first_positive_rank + 1)
+        )
+        / ideal_dcg,
+        "reciprocal_rank": 1.0 / first_positive_rank,
+    }
+
+
 def write_e5_fixture(
     tmp_path: Path, mutation: str | None = None
 ) -> dict[str, Path]:
@@ -271,21 +288,43 @@ def write_e5_fixture(
     qrels_path.write_text("\n".join(qrel_rows) + "\n", encoding="utf-8")
 
     evaluation_path = tmp_path / "evaluation.json"
-    evaluation_rows = [
-        {
-            "query_id": query_id,
-            "system": system,
-            "ndcg_at_10": (
-                1.25
-                if mutation == "metric_out_of_range"
-                and (query_id, system) == ("q1", "dense_reference")
-                else 0.0
-            ),
-            "reciprocal_rank": 0.0,
-        }
-        for query_id in QUERY_IDS
-        for system in SYSTEMS
-    ]
+    evaluation_rows = []
+    for query_id in QUERY_IDS:
+        for system in SYSTEMS:
+            metrics = _fixture_metric_pair(query_id, system)
+            if query_id == "q1":
+                if (
+                    mutation == "metric_out_of_range"
+                    and system == "dense_reference"
+                ):
+                    metrics["ndcg_at_10"] = 1.25
+                elif (
+                    mutation == "metric_nonfinal_ndcg_mismatch"
+                    and system == "dense_reference"
+                ):
+                    metrics["ndcg_at_10"] = 0.9
+                elif (
+                    mutation == "metric_nonfinal_mrr_mismatch"
+                    and system == "raw_hierarchical"
+                ):
+                    metrics["reciprocal_rank"] = 0.9
+                elif (
+                    mutation == "metric_final_mismatch"
+                    and system == "raw_hierarchical_dense_equal"
+                ):
+                    metrics["ndcg_at_10"] = 0.9
+                elif mutation == "stale_all_zero_metrics":
+                    metrics = {
+                        "ndcg_at_10": 0.0,
+                        "reciprocal_rank": 0.0,
+                    }
+            evaluation_rows.append(
+                {
+                    "query_id": query_id,
+                    "system": system,
+                    **metrics,
+                }
+            )
     _write_json(
         evaluation_path,
         {
@@ -400,4 +439,40 @@ def test_bundle_fails_closed(tmp_path: Path, mutation: str, message: str) -> Non
     paths = write_e5_fixture(tmp_path, mutation=mutation)
 
     with pytest.raises(EvidenceBundleError, match=message):
+        build_evidence_bundle(**paths)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "metric_nonfinal_ndcg_mismatch",
+        "metric_nonfinal_mrr_mismatch",
+        "metric_final_mismatch",
+    ],
+)
+def test_bundle_rejects_within_range_metrics_inconsistent_with_ranks_and_qrels(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    paths = write_e5_fixture(tmp_path, mutation=mutation)
+
+    with pytest.raises(
+        EvidenceBundleError,
+        match="evidence component metrics differ for q1",
+    ):
+        build_evidence_bundle(**paths)
+
+
+def test_false_cohorts_cannot_survive_stale_internally_consistent_metrics(
+    tmp_path: Path,
+) -> None:
+    paths = write_e5_fixture(
+        tmp_path,
+        mutation="stale_all_zero_metrics",
+    )
+
+    with pytest.raises(
+        EvidenceBundleError,
+        match="evidence component metrics differ for q1",
+    ):
         build_evidence_bundle(**paths)

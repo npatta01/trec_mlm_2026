@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from trec_mlm.metrics import ndcg_at_k, reciprocal_rank
 from trec_mlm.profile_evaluation import validate_qrel_inventories
 from trec_mlm.query_knn import load_complete_qrels, load_queries_tsv
 
@@ -235,6 +236,27 @@ def _validate_evidence_candidate_schema(
         _validate_evidence_record_schema(record)
 
 
+def _derive_component_metric(
+    candidates: Mapping[str, Mapping[str, Any]],
+    *,
+    system: str,
+) -> dict[str, float]:
+    ranking = sorted(
+        candidates,
+        key=lambda candidate_id: int(
+            candidates[candidate_id]["ranks"][system]
+        ),
+    )
+    qrels = {
+        candidate_id: float(candidate["qrel_grade"])
+        for candidate_id, candidate in candidates.items()
+    }
+    return {
+        "ndcg_at_10": ndcg_at_k(ranking, qrels, 10),
+        "reciprocal_rank": reciprocal_rank(ranking, qrels),
+    }
+
+
 def _validate_evidence_query(
     query: Any,
     *,
@@ -299,16 +321,6 @@ def _validate_evidence_query(
         )
         for system in SYSTEMS
     }
-    expected_cohorts = derive_cohorts(
-        {
-            system: validated_metrics[system]["ndcg_at_10"]
-            for system in SYSTEMS
-        }
-    )
-    if list(cohorts) != expected_cohorts:
-        raise EvidenceBundleError(
-            f"evidence cohorts differ for {query_id}"
-        )
     if query["context_risk"] is not has_context_risk(
         query["query_text"]
     ):
@@ -367,6 +379,36 @@ def _validate_evidence_query(
             raise EvidenceBundleError(
                 f"evidence bundle candidate schema differs for {query_id}"
             )
+
+    for system in SYSTEMS:
+        expected_metric = _derive_component_metric(
+            candidates,
+            system=system,
+        )
+        if any(
+            not math.isclose(
+                validated_metrics[system][name],
+                expected_metric[name],
+                rel_tol=0.0,
+                abs_tol=METRIC_TOLERANCE,
+            )
+            for name in ("ndcg_at_10", "reciprocal_rank")
+        ):
+            raise EvidenceBundleError(
+                "evidence component metrics differ for "
+                f"{query_id} {system}"
+            )
+
+    expected_cohorts = derive_cohorts(
+        {
+            system: validated_metrics[system]["ndcg_at_10"]
+            for system in SYSTEMS
+        }
+    )
+    if list(cohorts) != expected_cohorts:
+        raise EvidenceBundleError(
+            f"evidence cohorts differ for {query_id}"
+        )
 
     expected_best_record_order = sorted(
         candidates,

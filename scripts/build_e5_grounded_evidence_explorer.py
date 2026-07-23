@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Collection
 import json
 import os
 from pathlib import Path
@@ -123,7 +124,7 @@ def _promote_output_pair(
     bundle: Path,
     staged_html: Path,
     html: Path,
-) -> None:
+) -> tuple[Path, ...]:
     """Replace both requested outputs only after both staged files pass."""
 
     pairs = (
@@ -139,7 +140,8 @@ def _promote_output_pair(
             staged.replace(destination)
             promoted.append(destination)
     except OSError as error:
-        rollback_error: OSError | None = None
+        rollback_errors: list[OSError] = []
+        unrestored_backups: list[Path] = []
         for destination in reversed(promoted):
             backup = backups.get(destination)
             try:
@@ -148,18 +150,53 @@ def _promote_output_pair(
                 else:
                     backup.replace(destination)
             except OSError as current_error:
-                rollback_error = current_error
-        if rollback_error is not None:
+                rollback_errors.append(current_error)
+                if backup is not None:
+                    unrestored_backups.append(backup)
+        cleanup_failures = _cleanup_backups(
+            backups.values(),
+            preserve=unrestored_backups,
+        )
+        recovery_backups = tuple(
+            dict.fromkeys(
+                [*unrestored_backups, *cleanup_failures]
+            )
+        )
+        if rollback_errors:
             raise E5ExplorerBuildError(
-                "output publication and rollback failed"
-            ) from rollback_error
+                "output publication failed; recovery required; "
+                "preserved_backups="
+                f"{json.dumps([str(path) for path in recovery_backups])}"
+            ) from rollback_errors[0]
+        if cleanup_failures:
+            raise E5ExplorerBuildError(
+                "output publication failed; backup cleanup incomplete; "
+                "preserved_backups="
+                f"{json.dumps([str(path) for path in cleanup_failures])}"
+            ) from error
         raise E5ExplorerBuildError(
             "output publication failed"
         ) from error
-    finally:
-        for backup in backups.values():
-            if backup is not None:
-                backup.unlink(missing_ok=True)
+    return _cleanup_backups(backups.values())
+
+
+def _cleanup_backups(
+    backups: Collection[Path | None],
+    *,
+    preserve: Collection[Path] = (),
+) -> tuple[Path, ...]:
+    """Remove disposable backups and return paths that could not be removed."""
+
+    preserved = set(preserve)
+    failures: list[Path] = []
+    for backup in backups:
+        if backup is None or backup in preserved:
+            continue
+        try:
+            backup.unlink(missing_ok=True)
+        except OSError:
+            failures.append(backup)
+    return tuple(failures)
 
 
 def run_generic_builder(
@@ -329,6 +366,7 @@ def main() -> int:
     )
     temporary_bundle: Path | None = None
     temporary_html: Path | None = None
+    recovery_backups: tuple[Path, ...] = ()
     try:
         temporary_bundle = _temporary_output_path(
             bundle_output,
@@ -351,7 +389,7 @@ def main() -> int:
             evidence_bundle=temporary_bundle,
             output=temporary_html,
         )
-        _promote_output_pair(
+        recovery_backups = _promote_output_pair(
             staged_bundle=temporary_bundle,
             bundle=bundle_output,
             staged_html=temporary_html,
@@ -367,19 +405,27 @@ def main() -> int:
         if temporary_html is not None:
             temporary_html.unlink(missing_ok=True)
 
-    print(
-        json.dumps(
+    summary = {
+        "bundle": str(bundle_output),
+        "evidence_per_candidate": bundle["meta"][
+            "evidence_per_candidate"
+        ],
+        "html": str(html_output),
+        "query_count": bundle["meta"]["query_count"],
+    }
+    if recovery_backups:
+        summary.update(
             {
-                "bundle": str(bundle_output),
-                "evidence_per_candidate": bundle["meta"][
-                    "evidence_per_candidate"
+                "recovery_backups": [
+                    str(path) for path in recovery_backups
                 ],
-                "html": str(html_output),
-                "query_count": bundle["meta"]["query_count"],
-            },
-            sort_keys=True,
+                "warning": (
+                    "published outputs are valid; "
+                    "backup cleanup incomplete"
+                ),
+            }
         )
-    )
+    print(json.dumps(summary, sort_keys=True))
     return 0
 
 

@@ -10,6 +10,7 @@ import heapq
 import json
 import math
 import re
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -809,10 +810,22 @@ def validate_grounded_contract(
 ) -> dict[str, list[dict[str, Any]]]:
     """Bind grounded evidence to frozen rows, complete qrels, and query text."""
 
-    from trec_mlm.grounded_evidence_explorer import (
-        derive_mechanism,
-        derive_retrieval_outcome,
-    )
+    source_root = str(REPO_ROOT)
+    inserted_source_root = source_root not in sys.path
+    if inserted_source_root:
+        sys.path.insert(0, source_root)
+    try:
+        from trec_mlm.grounded_evidence_explorer import (
+            derive_mechanism,
+            derive_retrieval_outcome,
+        )
+    except ImportError as error:
+        raise ExplorerInputError(
+            "could not load authoritative grounded-evidence classifiers"
+        ) from error
+    finally:
+        if inserted_source_root:
+            sys.path.remove(source_root)
 
     if set(qrels) != set(grouped):
         raise ExplorerInputError("evidence bundle requires complete qrels")

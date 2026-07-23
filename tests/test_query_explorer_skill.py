@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -917,6 +918,53 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             "grounded evidence requires --top-candidates of at least 10",
             completed.stderr,
         )
+
+    def test_direct_grounded_cli_resolves_its_source_repository(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
+        )
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        bootstrap = (
+            "import pathlib, runpy, sys\n"
+            "source_root = pathlib.Path(sys.argv.pop(1)).resolve()\n"
+            "sys.path[:] = [entry for entry in sys.path "
+            "if not entry or pathlib.Path(entry).resolve() != source_root]\n"
+            "script = sys.argv[1]\n"
+            "sys.argv = sys.argv[1:]\n"
+            "runpy.run_path(script, run_name='__main__')\n"
+        )
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                bootstrap,
+                str(ROOT),
+                str(SCRIPT),
+                "--repo-root",
+                str(self.root),
+                "--run-dir",
+                str(self.run_dir),
+                "--top-candidates",
+                "4",
+                "--evidence-bundle",
+                str(bundle),
+                "--no-responses",
+            ],
+            cwd=self.root,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertNotIn("ModuleNotFoundError", completed.stderr)
+        self.assertTrue((self.run_dir / "query_explorer.html").is_file())
 
     def test_skill_command_builds_safe_self_contained_explorer(self) -> None:
         self.write_fixture()

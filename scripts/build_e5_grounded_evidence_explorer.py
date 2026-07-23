@@ -156,7 +156,7 @@ def _source_input_paths(
     qrels: Path,
     profiles: Path,
 ) -> tuple[Path, ...]:
-    return (
+    sources = [
         queries,
         qrels,
         profiles,
@@ -175,7 +175,11 @@ def _source_input_paths(
         construction / "records.json",
         construction / "rankings" / "profile_only.json",
         construction / "rankings" / "dense_profile_equal.json",
-    )
+    ]
+    run_validation = refinement / "runs" / "validation.json"
+    if run_validation.is_file():
+        sources.append(run_validation)
+    return tuple(sources)
 
 
 def _same_file(left: Path, right: Path) -> bool:

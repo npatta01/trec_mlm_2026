@@ -30,6 +30,7 @@ SOURCE_NAMES = (
     "profiles",
     "evaluation",
     "final_trec_run",
+    "run_validation",
     "refinement_inputs",
     "dense_reference_ranking",
     "raw_hierarchical_ranking",
@@ -78,6 +79,7 @@ class E5Fixture(Mapping[str, Path]):
                 / "runs"
                 / "raw_hierarchical_dense_equal.trec"
             ),
+            "run_validation": refinement / "runs" / "validation.json",
             "refinement_inputs": refinement / "inputs.json",
             "dense_reference_ranking": (
                 refinement / "rankings" / "dense_reference.json"
@@ -223,6 +225,7 @@ def e5_fixture(tmp_path: Path) -> E5Fixture:
         ),
         encoding="utf-8",
     )
+    _write_json(run_dir / "validation.json", {})
     return E5Fixture(
         {
             "root": tmp_path,
@@ -439,3 +442,37 @@ def test_cli_allows_private_bundle_beneath_refinement_root(
     assert completed.returncode == 0, completed.stderr
     assert bundle.is_file()
     assert html.is_file()
+
+
+def test_cli_rejects_canonical_html_alias_to_run_validation_before_bundle_write(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    validation = e5_fixture.source_paths()["run_validation"]
+    validation_before = validation.read_bytes()
+    html = validation.parent / "unused" / ".." / validation.name
+    bundle = tmp_path / "private" / "evidence.json"
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: output path aliases a source input" in completed.stderr
+    assert validation.read_bytes() == validation_before
+    assert not bundle.exists()
+
+
+def test_cli_rejects_html_hard_link_to_run_validation_before_bundle_write(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    validation = e5_fixture.source_paths()["run_validation"]
+    validation_before = validation.read_bytes()
+    html = tmp_path / "validation-alias.html"
+    os.link(validation, html)
+    bundle = tmp_path / "private" / "evidence.json"
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: output path aliases a source input" in completed.stderr
+    assert validation.read_bytes() == validation_before
+    assert html.read_bytes() == validation_before
+    assert not bundle.exists()

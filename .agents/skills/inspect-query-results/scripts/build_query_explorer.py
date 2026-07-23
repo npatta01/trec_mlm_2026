@@ -13,7 +13,7 @@ import re
 import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping, Sequence
+from typing import Any, Collection, Iterable, Iterator, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -35,6 +35,34 @@ PRIMARY_RUN_FILENAMES = (
 )
 QUERY_HEADER_ALIASES = ("query_id", "qid", "target_query_id")
 QUERY_TEXT_ALIASES = ("query_text", "text", "query", "question")
+EVIDENCE_SYSTEMS = (
+    "dense_reference",
+    "profile_only",
+    "dense_profile_equal",
+    "raw_hierarchical",
+    "raw_hierarchical_dense_equal",
+)
+EVIDENCE_RANK_SYSTEMS = (*EVIDENCE_SYSTEMS, "best_record_cosine")
+EVIDENCE_BEHAVIORS = frozenset(
+    {"substantive response", "exact refusal", "empty"}
+)
+EVIDENCE_RETRIEVAL_OUTCOMES = frozenset(
+    {
+        "top-1 success",
+        "top-10 but not top-1",
+        "no relevant candidate in top 10",
+    }
+)
+EVIDENCE_MECHANISMS = frozenset(
+    {
+        "no development-positive candidate",
+        "fusion suppression",
+        "relevant candidate ranked first",
+        "top-10 retrieval, top-1 miss",
+        "aggregation suppression",
+        "evidence/routing gap",
+    }
+)
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'-]{1,}")
 NONLETTER_RE = re.compile(r"[^a-z]+")
 STOPWORDS = frozenset(
@@ -107,6 +135,11 @@ def parse_args() -> argparse.Namespace:
         "--qrels",
         type=Path,
         help="Optional post-run ground-truth labels in four-column TREC qrels format.",
+    )
+    parser.add_argument(
+        "--evidence-bundle",
+        type=Path,
+        help="Optional validated grounded-evidence JSON; requires complete qrels.",
     )
     parser.add_argument("--profiles", type=Path)
     parser.add_argument("--discovery", type=Path)
@@ -352,6 +385,7 @@ def validate_and_group_rows(
     rows: Sequence[Mapping[str, Any]],
     *,
     top_candidates: int,
+    retain_all: bool = False,
 ) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     seen_pairs: set[tuple[str, str]] = set()
@@ -384,8 +418,26 @@ def validate_and_group_rows(
             raise ExplorerInputError(
                 f"ranks for query {query_id!r} are not contiguous from 1"
             )
-        grouped[query_id] = values[:top_candidates]
+        grouped[query_id] = values if retain_all else values[:top_candidates]
     return dict(grouped), warnings
+
+
+def select_display_rows(
+    values: Sequence[Mapping[str, Any]],
+    *,
+    top_candidates: int,
+    positive_ids: Collection[str] = (),
+) -> list[dict[str, Any]]:
+    """Select top-ranked rows and positives without changing frozen order."""
+
+    wanted = {
+        str(item["candidate_id"]) for item in values[:top_candidates]
+    } | set(positive_ids)
+    return [
+        dict(item)
+        for item in values
+        if str(item["candidate_id"]) in wanted
+    ]
 
 
 def load_queries(path: Path) -> tuple[dict[str, str], list[str]]:
@@ -513,6 +565,299 @@ def load_qrels(path: Path) -> dict[str, dict[str, float]]:
     if not qrels:
         raise ExplorerInputError(f"qrels file has no judgments: {path}")
     return dict(qrels)
+
+
+def _is_finite_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _valid_identifier_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and all(isinstance(item, str) and item for item in value)
+        and len(value) == len(set(value))
+    )
+
+
+def _validate_evidence_record(record: Any) -> bool:
+    if not isinstance(record, dict) or set(record) != {
+        "record_id",
+        "source_query_id",
+        "question",
+        "response",
+        "similarity",
+        "behavior",
+    }:
+        return False
+    return (
+        isinstance(record["record_id"], str)
+        and bool(record["record_id"])
+        and isinstance(record["source_query_id"], str)
+        and bool(record["source_query_id"])
+        and isinstance(record["question"], str)
+        and isinstance(record["response"], str)
+        and _is_finite_number(record["similarity"])
+        and isinstance(record["behavior"], str)
+        and record["behavior"] in EVIDENCE_BEHAVIORS
+    )
+
+
+def _validate_evidence_candidate(
+    candidate: Any,
+    *,
+    candidate_id: str,
+    candidate_count: int,
+    evidence_per_candidate: int,
+    includes_evidence: bool,
+) -> bool:
+    if not isinstance(candidate, dict) or set(candidate) != {
+        "candidate_id",
+        "qrel_grade",
+        "is_positive",
+        "ranks",
+        "best_record_cosine",
+        "mean_top_10_cosine",
+        "evidence",
+    }:
+        return False
+    ranks = candidate["ranks"]
+    evidence = candidate["evidence"]
+    expected_evidence_count = evidence_per_candidate if includes_evidence else 0
+    if (
+        candidate["candidate_id"] != candidate_id
+        or not _is_finite_number(candidate["qrel_grade"])
+        or not isinstance(candidate["is_positive"], bool)
+        or candidate["is_positive"] != (float(candidate["qrel_grade"]) > 0.0)
+        or not isinstance(ranks, dict)
+        or set(ranks) != set(EVIDENCE_RANK_SYSTEMS)
+        or any(
+            type(rank) is not int or not 1 <= rank <= candidate_count
+            for rank in ranks.values()
+        )
+        or not _is_finite_number(candidate["best_record_cosine"])
+        or not _is_finite_number(candidate["mean_top_10_cosine"])
+        or not isinstance(evidence, list)
+        or len(evidence) != expected_evidence_count
+        or any(not _validate_evidence_record(record) for record in evidence)
+    ):
+        return False
+    similarities = [float(record["similarity"]) for record in evidence]
+    return similarities == sorted(similarities, reverse=True)
+
+
+def _validate_evidence_query(
+    query: Any,
+    *,
+    query_id: str,
+    candidate_count: int,
+    evidence_per_candidate: int,
+) -> frozenset[str]:
+    if not isinstance(query, dict) or set(query) != {
+        "query_id",
+        "query_text",
+        "display_candidate_ids",
+        "evidence_candidate_ids",
+        "component_metrics",
+        "cohorts",
+        "context_risk",
+        "retrieval_outcome",
+        "mechanism",
+        "candidates",
+    }:
+        raise ExplorerInputError(
+            f"evidence bundle query schema differs for {query_id}"
+        )
+    display_ids = query["display_candidate_ids"]
+    evidence_ids = query["evidence_candidate_ids"]
+    metrics = query["component_metrics"]
+    cohorts = query["cohorts"]
+    candidates = query["candidates"]
+    if (
+        query["query_id"] != query_id
+        or not isinstance(query["query_text"], str)
+        or not _valid_identifier_list(display_ids)
+        or not _valid_identifier_list(evidence_ids)
+        or not isinstance(metrics, dict)
+        or set(metrics) != set(EVIDENCE_SYSTEMS)
+        or not isinstance(cohorts, list)
+        or any(not isinstance(cohort, str) or not cohort for cohort in cohorts)
+        or len(cohorts) != len(set(cohorts))
+        or not isinstance(query["context_risk"], bool)
+        or not isinstance(query["retrieval_outcome"], str)
+        or query["retrieval_outcome"] not in EVIDENCE_RETRIEVAL_OUTCOMES
+        or not isinstance(query["mechanism"], str)
+        or query["mechanism"] not in EVIDENCE_MECHANISMS
+        or not isinstance(candidates, dict)
+        or len(candidates) != candidate_count
+        or any(not isinstance(candidate_id, str) or not candidate_id for candidate_id in candidates)
+        or not set(display_ids) <= set(candidates)
+        or not set(evidence_ids) <= set(display_ids)
+    ):
+        raise ExplorerInputError(
+            f"evidence bundle query schema differs for {query_id}"
+        )
+    for metric in metrics.values():
+        if (
+            not isinstance(metric, dict)
+            or set(metric) != {"ndcg_at_10", "reciprocal_rank"}
+            or not all(_is_finite_number(value) for value in metric.values())
+            or not all(0.0 <= float(value) <= 1.0 for value in metric.values())
+        ):
+            raise ExplorerInputError(
+                f"evidence bundle query schema differs for {query_id}"
+            )
+
+    candidate_ids = frozenset(candidates)
+    for candidate_id, candidate in candidates.items():
+        if not _validate_evidence_candidate(
+            candidate,
+            candidate_id=candidate_id,
+            candidate_count=candidate_count,
+            evidence_per_candidate=evidence_per_candidate,
+            includes_evidence=candidate_id in set(evidence_ids),
+        ):
+            raise ExplorerInputError(
+                f"evidence bundle candidate schema differs for {query_id}"
+            )
+    for system in EVIDENCE_RANK_SYSTEMS:
+        ranks = {
+            int(candidate["ranks"][system])
+            for candidate in candidates.values()
+        }
+        if ranks != set(range(1, candidate_count + 1)):
+            raise ExplorerInputError(
+                f"evidence bundle candidate schema differs for {query_id}"
+            )
+    return candidate_ids
+
+
+def load_evidence_bundle(
+    path: Path, query_ids: Collection[str]
+) -> dict[str, Any]:
+    """Load and validate a renderer-neutral grounded-evidence bundle."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ExplorerInputError(
+            f"could not read evidence bundle: {path}"
+        ) from error
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"schema_version", "meta", "queries"}
+        or type(payload.get("schema_version")) is not int
+        or payload.get("schema_version") != 1
+        or not isinstance(payload.get("queries"), dict)
+        or set(payload["queries"]) != set(query_ids)
+    ):
+        raise ExplorerInputError("evidence bundle query inventory differs")
+    meta = payload.get("meta")
+    if (
+        not isinstance(meta, dict)
+        or set(meta)
+        != {
+            "query_count",
+            "candidate_count",
+            "evidence_per_candidate",
+            "qrels_usage",
+        }
+        or type(meta["query_count"]) is not int
+        or meta["query_count"] != len(query_ids)
+        or type(meta["candidate_count"]) is not int
+        or meta["candidate_count"] < 1
+        or type(meta["evidence_per_candidate"]) is not int
+        or meta["evidence_per_candidate"] != 3
+        or meta["qrels_usage"]
+        != "Post-freeze evaluation and failure inspection only"
+    ):
+        raise ExplorerInputError("evidence bundle meta schema differs")
+
+    candidate_inventory: frozenset[str] | None = None
+    for query_id in payload["queries"]:
+        current_inventory = _validate_evidence_query(
+            payload["queries"][query_id],
+            query_id=query_id,
+            candidate_count=meta["candidate_count"],
+            evidence_per_candidate=meta["evidence_per_candidate"],
+        )
+        if candidate_inventory is None:
+            candidate_inventory = current_inventory
+        elif current_inventory != candidate_inventory:
+            raise ExplorerInputError(
+                "evidence bundle candidate inventory differs"
+            )
+    return payload
+
+
+def validate_grounded_contract(
+    evidence_bundle: Mapping[str, Any],
+    *,
+    grouped: Mapping[str, Sequence[Mapping[str, Any]]],
+    qrels: Mapping[str, Mapping[str, float]],
+    queries: Mapping[str, str],
+    top_candidates: int,
+) -> dict[str, list[dict[str, Any]]]:
+    """Bind grounded evidence to frozen rows, complete qrels, and query text."""
+
+    if set(qrels) != set(grouped):
+        raise ExplorerInputError("evidence bundle requires complete qrels")
+    selected: dict[str, list[dict[str, Any]]] = {}
+    for query_id, values in grouped.items():
+        candidate_ids = {
+            str(value["candidate_id"]) for value in values
+        }
+        if (
+            query_id not in qrels
+            or set(qrels[query_id]) != candidate_ids
+        ):
+            raise ExplorerInputError(
+                "evidence bundle requires complete qrels"
+            )
+        grounded = evidence_bundle["queries"][query_id]
+        candidates = grounded["candidates"]
+        if set(candidates) != candidate_ids:
+            raise ExplorerInputError(
+                f"evidence candidate inventory differs for {query_id}"
+            )
+        if grounded["query_text"] != queries[query_id]:
+            raise ExplorerInputError(
+                f"evidence query text differs for {query_id}"
+            )
+        for value in values:
+            candidate_id = str(value["candidate_id"])
+            candidate = candidates[candidate_id]
+            grade = float(qrels[query_id][candidate_id])
+            if (
+                float(candidate["qrel_grade"]) != grade
+                or candidate["is_positive"] != (grade > 0.0)
+                or candidate["ranks"]["raw_hierarchical_dense_equal"]
+                != int(value["rank"])
+            ):
+                raise ExplorerInputError(
+                    f"evidence candidate contract differs for {query_id}"
+                )
+        positive_ids = {
+            candidate_id
+            for candidate_id, grade in qrels[query_id].items()
+            if float(grade) > 0.0
+        }
+        selected[query_id] = select_display_rows(
+            values,
+            top_candidates=top_candidates,
+            positive_ids=positive_ids,
+        )
+        actual_ids = [
+            str(value["candidate_id"]) for value in selected[query_id]
+        ]
+        if actual_ids != grounded["display_candidate_ids"]:
+            raise ExplorerInputError(
+                f"evidence display ordering differs for {query_id}"
+            )
+    return selected
 
 
 def build_evaluation(
@@ -942,6 +1287,7 @@ def build_payload(
     warnings: Sequence[str],
     candidate_limit: int,
     evaluation: Mapping[str, Any] | None,
+    evidence_bundle: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     missing_queries = sorted(set(grouped) - set(queries))
     if missing_queries:
@@ -963,6 +1309,11 @@ def build_payload(
         }
         for query_id in ordered_ids
     ]
+    if evidence_bundle is not None:
+        for query in query_rows:
+            query["grounded"] = dict(
+                evidence_bundle["queries"][query["id"]]
+            )
     embedded_candidates = sorted(
         {
             str(result["candidate_id"])
@@ -994,43 +1345,44 @@ def build_payload(
         notes.append(
             "No historical responses met the relatedness and usability thresholds."
         )
+    payload_meta = {
+        "title": title,
+        "input": display_path(input_path, root),
+        "input_sha256": file_sha256(input_path),
+        "queries_source": display_path(query_path, root),
+        "qrels_source": display_path(qrels_path, root) if qrels_path else None,
+        "profiles_source": display_path(profile_path, root)
+        if profile_path and profile_path.is_file()
+        else None,
+        "discovery_source": display_path(discovery_path, root)
+        if discovery_path
+        else None,
+        "score_field": schema["score_column"],
+        "input_kind": schema["input_kind"],
+        "query_count": len(query_rows),
+        "candidate_count": len(embedded_candidates),
+        "candidate_limit": candidate_limit,
+        "displayed_result_count": sum(
+            len(query["results"]) for query in query_rows
+        ),
+        "profile_count": len(selected_profiles),
+        "profile_version": profile_version,
+        "discovery_query_count": source_count,
+        "embedded_response_count": embedded_response_count,
+        "labels_included": bool(evaluation),
+        "evaluated_query_count": evaluation["query_count"] if evaluation else 0,
+        "macro_ndcg_at_10": evaluation["macro_ndcg_at_10"]
+        if evaluation
+        else None,
+        "mean_reciprocal_rank": evaluation["mean_reciprocal_rank"]
+        if evaluation
+        else None,
+        "notes": notes,
+    }
+    if evidence_bundle is not None:
+        payload_meta["grounded_evidence"] = dict(evidence_bundle["meta"])
     return {
-        "meta": {
-            "title": title,
-            "input": display_path(input_path, root),
-            "input_sha256": file_sha256(input_path),
-            "queries_source": display_path(query_path, root),
-            "qrels_source": display_path(qrels_path, root) if qrels_path else None,
-            "profiles_source": display_path(profile_path, root)
-            if profile_path and profile_path.is_file()
-            else None,
-            "discovery_source": display_path(discovery_path, root)
-            if discovery_path
-            else None,
-            "score_field": schema["score_column"],
-            "input_kind": schema["input_kind"],
-            "query_count": len(query_rows),
-            "candidate_count": len(embedded_candidates),
-            "candidate_limit": candidate_limit,
-            "displayed_result_count": sum(
-                len(query["results"]) for query in query_rows
-            ),
-            "profile_count": len(selected_profiles),
-            "profile_version": profile_version,
-            "discovery_query_count": source_count,
-            "embedded_response_count": embedded_response_count,
-            "labels_included": bool(evaluation),
-            "evaluated_query_count": evaluation["query_count"]
-            if evaluation
-            else 0,
-            "macro_ndcg_at_10": evaluation["macro_ndcg_at_10"]
-            if evaluation
-            else None,
-            "mean_reciprocal_rank": evaluation["mean_reciprocal_rank"]
-            if evaluation
-            else None,
-            "notes": notes,
-        },
+        "meta": payload_meta,
         "queries": query_rows,
         "profiles": selected_profiles,
         "responses": related_responses,
@@ -1601,7 +1953,15 @@ def main() -> int:
             score_column=args.score_column,
         )
     grouped, warnings = validate_and_group_rows(
-        rows, top_candidates=args.top_candidates
+        rows,
+        top_candidates=args.top_candidates,
+        retain_all=True,
+    )
+    evidence_path = resolve_path(args.evidence_bundle, root)
+    evidence_bundle = (
+        load_evidence_bundle(evidence_path, grouped)
+        if evidence_path is not None
+        else None
     )
 
     qrels_path = infer_qrels_path(
@@ -1615,6 +1975,10 @@ def main() -> int:
         qrels = load_qrels(qrels_path)
         evaluation = build_evaluation(rows, qrels)
         attach_qrel_labels(grouped, qrels)
+    else:
+        qrels = {}
+    if evidence_bundle is not None and qrels_path is None:
+        raise ExplorerInputError("evidence bundle requires complete qrels")
 
     query_path = infer_query_path(root, run_dir, args.queries)
     queries, query_order = load_queries(query_path)
@@ -1628,6 +1992,21 @@ def main() -> int:
     selected_query_texts = {
         query_id: queries[query_id] for query_id in grouped
     }
+    if evidence_bundle is not None:
+        grouped = validate_grounded_contract(
+            evidence_bundle,
+            grouped=grouped,
+            qrels=qrels,
+            queries=queries,
+            top_candidates=args.top_candidates,
+        )
+    else:
+        grouped = {
+            query_id: select_display_rows(
+                values, top_candidates=args.top_candidates
+            )
+            for query_id, values in grouped.items()
+        }
 
     profile_path = resolve_path(args.profiles, root)
     if args.profiles is not None and (profile_path is None or not profile_path.is_file()):
@@ -1686,11 +2065,19 @@ def main() -> int:
         warnings=warnings,
         candidate_limit=args.top_candidates,
         evaluation=evaluation,
+        evidence_bundle=evidence_bundle,
     )
     output_path = resolve_path(args.output, root) or run_dir / "query_explorer.html"
     validate_output_path(
         output_path,
-        input_paths=(input_path, query_path, qrels_path, profile_path, discovery_path),
+        input_paths=(
+            input_path,
+            query_path,
+            qrels_path,
+            profile_path,
+            discovery_path,
+            evidence_path,
+        ),
     )
     write_html_atomically(output_path, render_html(payload))
 

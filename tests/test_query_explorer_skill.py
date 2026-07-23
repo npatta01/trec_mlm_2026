@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from typing import Any
 import unittest
 
 
@@ -332,6 +333,410 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
         )
         self.assertIsNotNone(match)
         return json.loads(match.group(1))
+
+    def run_builder(
+        self, *extra_args: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--repo-root",
+                str(self.root),
+                "--run-dir",
+                str(self.run_dir),
+                *extra_args,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def payload_from_output(self) -> dict[str, Any]:
+        return self.payload_from_html(
+            (self.run_dir / "query_explorer.html").read_text(encoding="utf-8")
+        )
+
+    def write_complete_qrel_fixture(
+        self,
+        *,
+        candidate_count: int,
+        positive_candidate: str,
+    ) -> None:
+        (self.root / "data/dev/llm_dev_data.tsv").write_text(
+            "q1\tA grounded test query\n", encoding="utf-8"
+        )
+        candidate_ids = [
+            f"model-{chr(ord('a') + index)}" for index in range(candidate_count)
+        ]
+        (self.run_dir / "predictions.tsv").write_text(
+            "query_id\tcandidate_id\tscore\trank\n"
+            + "".join(
+                f"q1\t{candidate_id}\t{candidate_count - rank + 1}\t{rank}\n"
+                for rank, candidate_id in enumerate(candidate_ids, start=1)
+            ),
+            encoding="utf-8",
+        )
+        qrels = self.root / "data/dev/labels.txt"
+        qrels.write_text(
+            "".join(
+                f"q1 0 {candidate_id} {2 if candidate_id == positive_candidate else 0}\n"
+                for candidate_id in candidate_ids
+            ),
+            encoding="utf-8",
+        )
+        (self.run_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "qrels_path": "data/dev/labels.txt",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def write_evidence_bundle(
+        self,
+        *,
+        query_ids: list[str] | None = None,
+        display_ids: list[str] | None = None,
+        override: dict[str, Any] | None = None,
+    ) -> Path:
+        with (self.run_dir / "predictions.tsv").open(
+            encoding="utf-8", newline=""
+        ) as handle:
+            prediction_rows = list(
+                csv.DictReader(
+                    handle,
+                    delimiter="\t",
+                )
+            )
+        candidates_by_query: dict[str, list[str]] = {}
+        ranks_by_query: dict[str, dict[str, int]] = {}
+        for row in prediction_rows:
+            query_id = row.get("query_id") or row.get("target_query_id")
+            candidate_id = row.get("candidate_id") or row.get("model_id")
+            rank_text = row.get("rank") or row.get("final_rank")
+            assert query_id and candidate_id and rank_text
+            candidates_by_query.setdefault(query_id, []).append(candidate_id)
+            ranks_by_query.setdefault(query_id, {})[candidate_id] = int(rank_text)
+        for query_id, candidate_ids in candidates_by_query.items():
+            candidate_ids.sort(key=ranks_by_query[query_id].__getitem__)
+
+        with (self.root / "data/dev/llm_dev_data.tsv").open(
+            encoding="utf-8", newline=""
+        ) as handle:
+            query_texts = {
+                row[0]: row[1]
+                for row in csv.reader(handle, delimiter="\t")
+            }
+        qrels: dict[str, dict[str, float]] = {}
+        qrels_path = self.root / "data/dev/labels.txt"
+        if qrels_path.is_file():
+            for line in qrels_path.read_text(encoding="utf-8").splitlines():
+                query_id, _iteration, candidate_id, grade = line.split()
+                qrels.setdefault(query_id, {})[candidate_id] = float(grade)
+
+        selected_query_ids = query_ids or list(candidates_by_query)
+        query_payload: dict[str, dict[str, Any]] = {}
+        for query_id in selected_query_ids:
+            source_query_id = (
+                query_id if query_id in candidates_by_query else next(iter(candidates_by_query))
+            )
+            candidate_ids = candidates_by_query[source_query_id]
+            final_ranks = ranks_by_query[source_query_id]
+            selected_display_ids = display_ids or candidate_ids
+            candidate_payload: dict[str, dict[str, Any]] = {}
+            for candidate_id in candidate_ids:
+                rank = final_ranks[candidate_id]
+                grade = qrels.get(source_query_id, {}).get(candidate_id, 0.0)
+                candidate_payload[candidate_id] = {
+                    "candidate_id": candidate_id,
+                    "qrel_grade": grade,
+                    "is_positive": grade > 0.0,
+                    "ranks": {
+                        "dense_reference": rank,
+                        "profile_only": rank,
+                        "dense_profile_equal": rank,
+                        "raw_hierarchical": rank,
+                        "raw_hierarchical_dense_equal": rank,
+                        "best_record_cosine": rank,
+                    },
+                    "best_record_cosine": 1.0 / rank,
+                    "mean_top_10_cosine": 0.5 / rank,
+                    "evidence": (
+                        [
+                            {
+                                "record_id": f"{candidate_id}-record-{index}",
+                                "source_query_id": f"source-{index}",
+                                "question": f"Historical question {index}",
+                                "response": f"Historical response {index}",
+                                "similarity": 1.0 / (rank + index),
+                                "behavior": "substantive response",
+                            }
+                            for index in range(1, 4)
+                        ]
+                        if candidate_id in selected_display_ids
+                        else []
+                    ),
+                }
+            positive_ranks = [
+                final_ranks[candidate_id]
+                for candidate_id in candidate_ids
+                if qrels.get(source_query_id, {}).get(candidate_id, 0.0) > 0.0
+            ]
+            best_positive_rank = min(positive_ranks, default=None)
+            query_payload[query_id] = {
+                "query_id": query_id,
+                "query_text": query_texts.get(source_query_id, "Wrong query"),
+                "display_candidate_ids": selected_display_ids,
+                "evidence_candidate_ids": selected_display_ids,
+                "component_metrics": {
+                    system: {"ndcg_at_10": 0.0, "reciprocal_rank": 0.0}
+                    for system in (
+                        "dense_reference",
+                        "profile_only",
+                        "dense_profile_equal",
+                        "raw_hierarchical",
+                        "raw_hierarchical_dense_equal",
+                    )
+                },
+                "cohorts": ["zero fused nDCG@10"],
+                "context_risk": False,
+                "retrieval_outcome": (
+                    "top-1 success"
+                    if best_positive_rank == 1
+                    else "top-10 but not top-1"
+                    if best_positive_rank is not None and best_positive_rank <= 10
+                    else "no relevant candidate in top 10"
+                ),
+                "mechanism": (
+                    "relevant candidate ranked first"
+                    if best_positive_rank == 1
+                    else "top-10 retrieval, top-1 miss"
+                    if best_positive_rank is not None and best_positive_rank <= 10
+                    else "no development-positive candidate"
+                ),
+                "candidates": candidate_payload,
+            }
+        candidate_count = len(next(iter(candidates_by_query.values())))
+        payload: dict[str, Any] = {
+            "schema_version": 1,
+            "meta": {
+                "query_count": len(selected_query_ids),
+                "candidate_count": candidate_count,
+                "evidence_per_candidate": 3,
+                "qrels_usage": "Post-freeze evaluation and failure inspection only",
+            },
+            "queries": query_payload,
+        }
+        if override:
+            payload.update(override)
+        path = self.root / "evidence.json"
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return path
+
+    def test_no_bundle_preserves_existing_payload_shape(self) -> None:
+        self.write_fixture()
+        completed = self.run_builder(
+            "--top-candidates", "2", "--no-responses"
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        payload = self.payload_from_output()
+        self.assertNotIn("grounded_evidence", payload["meta"])
+        self.assertNotIn("grounded", payload["queries"][0])
+        self.assertEqual(
+            ["model-a", "model-b"],
+            [
+                result["candidate_id"]
+                for result in payload["queries"][0]["results"]
+            ],
+        )
+
+    def test_bundle_adds_positive_below_limit_without_reordering(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-d"]
+        )
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        payload = self.payload_from_output()
+        query = payload["queries"][0]
+        self.assertEqual(
+            ["model-a", "model-b", "model-d"],
+            [result["candidate_id"] for result in query["results"]],
+        )
+        self.assertEqual(4, query["results"][-1]["rank"])
+        self.assertEqual(2.0, query["results"][-1]["grade"])
+        self.assertEqual(
+            payload["meta"]["grounded_evidence"],
+            {
+                "query_count": 1,
+                "candidate_count": 4,
+                "evidence_per_candidate": 3,
+                "qrels_usage": "Post-freeze evaluation and failure inspection only",
+            },
+        )
+        self.assertEqual("q1", query["grounded"]["query_id"])
+
+    def test_bundle_inventory_mismatch_leaves_existing_html_unchanged(self) -> None:
+        self.write_fixture()
+        output = self.run_dir / "query_explorer.html"
+        output.write_text("known-good", encoding="utf-8")
+        bundle = self.write_evidence_bundle(query_ids=["wrong-query"])
+        completed = self.run_builder(
+            "--evidence-bundle",
+            str(bundle),
+            "--output",
+            str(output),
+            "--no-responses",
+        )
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence bundle query inventory differs", completed.stderr)
+        self.assertEqual("known-good", output.read_text(encoding="utf-8"))
+
+    def test_bundle_requires_complete_qrels(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        (self.root / "data/dev/labels.txt").write_text(
+            "q1 0 model-a 0\nq1 0 model-d 2\n", encoding="utf-8"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-d"]
+        )
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence bundle requires complete qrels", completed.stderr)
+
+    def test_bundle_rejects_extra_qrel_queries(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-d"]
+        )
+        qrels_path = self.root / "data/dev/labels.txt"
+        with qrels_path.open("a", encoding="utf-8") as handle:
+            for candidate_id in ("model-a", "model-b", "model-c", "model-d"):
+                handle.write(f"q2 0 {candidate_id} 0\n")
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence bundle requires complete qrels", completed.stderr)
+
+    def test_bundle_query_contract_mismatch_fails_closed(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-d"]
+        )
+        payload = json.loads(bundle.read_text(encoding="utf-8"))
+        payload["queries"]["q1"]["query_text"] = "Different text"
+        bundle.write_text(json.dumps(payload), encoding="utf-8")
+        output = self.run_dir / "query_explorer.html"
+        output.write_text("known-good", encoding="utf-8")
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--output",
+            str(output),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence query text differs for q1", completed.stderr)
+        self.assertEqual("known-good", output.read_text(encoding="utf-8"))
+
+    def test_bundle_cannot_reorder_qrel_selected_rows(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-d", "model-a", "model-b"]
+        )
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence display ordering differs for q1", completed.stderr)
+
+    def test_bundle_rejects_nested_schema_differences(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-d"]
+        )
+        payload = json.loads(bundle.read_text(encoding="utf-8"))
+        del payload["queries"]["q1"]["candidates"]["model-a"]["ranks"][
+            "dense_reference"
+        ]
+        bundle.write_text(json.dumps(payload), encoding="utf-8")
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence bundle candidate schema differs", completed.stderr)
+
+    def test_bundle_reports_malformed_nested_types_as_input_errors(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-d"]
+        )
+        payload = json.loads(bundle.read_text(encoding="utf-8"))
+        payload["queries"]["q1"]["retrieval_outcome"] = []
+        bundle.write_text(json.dumps(payload), encoding="utf-8")
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("evidence bundle query schema differs", completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_skill_command_builds_safe_self_contained_explorer(self) -> None:
         self.write_fixture()

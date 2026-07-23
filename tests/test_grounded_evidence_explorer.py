@@ -14,7 +14,7 @@ from trec_mlm.grounded_evidence_explorer import (
 
 
 QUERY_IDS = ("q1", "q2")
-CANDIDATE_IDS = tuple(f"c{index}" for index in range(1, 13))
+CANDIDATE_IDS = tuple(f"c{index}" for index in range(1, 23))
 SYSTEMS = (
     "dense_reference",
     "profile_only",
@@ -80,7 +80,7 @@ def write_e5_fixture(
 
     selected_ids: list[list[list[str]]] = []
     records: list[dict[str, str]] = []
-    similarities = np.zeros((2, 12, 10), dtype="<f8")
+    similarities = np.zeros((2, len(CANDIDATE_IDS), 10), dtype="<f8")
     for query_index, query_id in enumerate(QUERY_IDS):
         selected_for_query: list[list[str]] = []
         for candidate_index, candidate_id in enumerate(CANDIDATE_IDS):
@@ -129,7 +129,7 @@ def write_e5_fixture(
 
     qrels_path = tmp_path / "qrels.txt"
     qrel_rows = [
-        f"{query_id} 0 {candidate_id} {1 if candidate_id == 'c3' else 0}"
+        f"{query_id} 0 {candidate_id} {1 if query_id == 'q1' and candidate_id in {'c3', 'c22'} else 0}"
         for query_id in QUERY_IDS
         for candidate_id in CANDIDATE_IDS
     ]
@@ -198,8 +198,29 @@ def test_bundle_has_complete_component_ranks_and_needed_evidence(tmp_path: Path)
     bundle = build_evidence_bundle(**paths)
 
     query = bundle["queries"]["q1"]
-    assert query["display_candidate_ids"] == list(CANDIDATE_IDS)
-    assert query["evidence_candidate_ids"] == list(CANDIDATE_IDS[:10])
+    assert len(CANDIDATE_IDS) > 20
+    assert query["display_candidate_ids"] == [*CANDIDATE_IDS[:20], "c22"]
+    assert query["evidence_candidate_ids"] == [*CANDIDATE_IDS[:10], "c22"]
+    assert query["candidates"]["c22"]["is_positive"] is True
+    assert query["candidates"]["c22"]["ranks"]["raw_hierarchical_dense_equal"] == 22
+    late_positive_evidence = query["candidates"]["c22"]["evidence"]
+    assert [record["record_id"] for record in late_positive_evidence] == [
+        "q1-c22-r1",
+        "q1-c22-r2",
+        "q1-c22-r3",
+    ]
+    assert len(late_positive_evidence) == 3
+    assert all(
+        set(record) == {
+            "record_id",
+            "source_query_id",
+            "question",
+            "response",
+            "similarity",
+            "behavior",
+        }
+        for record in late_positive_evidence
+    )
     assert query["candidates"]["c2"]["ranks"] == {
         "dense_reference": 3,
         "profile_only": 2,

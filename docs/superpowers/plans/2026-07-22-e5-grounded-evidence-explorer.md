@@ -44,7 +44,7 @@
 
 **Interfaces:**
 - Consumes: `build_evidence_bundle(refinement_dir: Path, construction_dir: Path, evaluation_path: Path, queries_path: Path, qrels_path: Path) -> dict[str, Any]`.
-- Produces: a JSON-safe mapping with `schema_version`, `meta`, and `queries`; each query contains `cohorts`, `context_risk`, `mechanism`, `component_metrics`, and candidate entries keyed by candidate ID.
+- Produces: a JSON-safe mapping with `schema_version`, `meta`, and `queries`; each query contains `component_metrics` and candidate entries keyed by candidate ID. Task 2 adds `cohorts`, `context_risk`, and `mechanism`.
 - Raises: `EvidenceBundleError` for every validation failure.
 - Test fixture: `write_e5_fixture(tmp_path: Path, mutation: str | None = None) -> dict[str, Path]` writes two queries, twelve candidates, complete qrels, all five complete rankings, a `(2, 12, 10)` little-endian float64 similarity array, matching selected IDs, records, and evaluation rows. A requested mutation changes only the named invariant.
 

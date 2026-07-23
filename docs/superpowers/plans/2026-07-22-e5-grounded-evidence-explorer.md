@@ -24,7 +24,7 @@
 
 ## File map
 
-- Create `trec_mlm/grounded_evidence_explorer.py`: artifact loading, validation, cohort/mechanism derivation, evidence selection, and bundle serialization.
+- Create `trec_mlm/grounded_evidence_explorer.py`: artifact loading, validation, cohort/retrieval-outcome/mechanism derivation, evidence selection, and bundle serialization.
 - Create `tests/test_grounded_evidence_explorer.py`: focused unit fixtures for bundle semantics and all fail-closed conditions.
 - Modify `.agents/skills/inspect-query-results/scripts/build_query_explorer.py`: optional evidence-bundle loading, top-20-plus-positive union, bundle merge, and accessible UI rendering.
 - Modify `tests/test_query_explorer_skill.py`: generic compatibility, bundle integration, escaping, UI labels, and atomic-failure coverage.
@@ -44,7 +44,7 @@
 
 **Interfaces:**
 - Consumes: `build_evidence_bundle(refinement_dir: Path, construction_dir: Path, evaluation_path: Path, queries_path: Path, qrels_path: Path) -> dict[str, Any]`.
-- Produces: a JSON-safe mapping with `schema_version`, `meta`, and `queries`; each query contains `component_metrics` and candidate entries keyed by candidate ID. Task 2 adds `cohorts`, `context_risk`, and `mechanism`.
+- Produces: a JSON-safe mapping with `schema_version`, `meta`, and `queries`; each query contains `component_metrics` and candidate entries keyed by candidate ID. Task 2 adds `cohorts`, `context_risk`, `retrieval_outcome`, and `mechanism`.
 - Raises: `EvidenceBundleError` for every validation failure.
 - Test fixture: `write_e5_fixture(tmp_path: Path, mutation: str | None = None) -> dict[str, Path]` writes two queries, twelve candidates, complete qrels, all five complete rankings, a `(2, 12, 10)` little-endian float64 similarity array, matching selected IDs, records, and evaluation rows. A requested mutation changes only the named invariant.
 
@@ -247,7 +247,7 @@ git commit -m "feat: build grounded E5 evidence bundle"
 
 ---
 
-### Task 2: Derive deterministic cohorts, mechanisms, and context-risk flags
+### Task 2: Derive deterministic cohorts, retrieval outcomes, mechanisms, and context-risk flags
 
 **Files:**
 - Modify: `trec_mlm/grounded_evidence_explorer.py`
@@ -255,7 +255,7 @@ git commit -m "feat: build grounded E5 evidence bundle"
 
 **Interfaces:**
 - Consumes: complete rank maps, per-system `ndcg_at_10`, positive candidate IDs, and frozen query text from Task 1.
-- Produces: `derive_cohorts(metrics: Mapping[str, float]) -> list[str]`, `derive_mechanism(positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]) -> str`, and `has_context_risk(text: str) -> bool`.
+- Produces: `derive_cohorts(metrics: Mapping[str, float]) -> list[str]`, `derive_retrieval_outcome(positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]) -> str`, `derive_mechanism(positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]) -> str`, and `has_context_risk(text: str) -> bool`. Each bundle query serializes all four classifications. Existing nDCG cohorts are unchanged; `retrieval_outcome` is an additional rank-1 diagnostic.
 
 - [ ] **Step 1: Write failing table-driven tests for every cohort and mechanism**
 
@@ -282,11 +282,24 @@ def test_derive_cohorts(metrics, expected):
       "best_record_cosine": {"p": 3}}, "aggregation suppression"),
     ({"raw_hierarchical": {"p": 14}, "raw_hierarchical_dense_equal": {"p": 20},
       "best_record_cosine": {"p": 13}}, "evidence/routing gap"),
+    ({"raw_hierarchical": {"p": 1}, "raw_hierarchical_dense_equal": {"p": 1},
+      "best_record_cosine": {"p": 1}}, "relevant candidate ranked first"),
     ({"raw_hierarchical": {"p": 14}, "raw_hierarchical_dense_equal": {"p": 7},
-      "best_record_cosine": {"p": 13}}, "relevant candidate retrieved"),
+      "best_record_cosine": {"p": 13}}, "top-10 retrieval, top-1 miss"),
 ])
 def test_derive_mechanism(positions, expected):
     assert derive_mechanism({"p"}, positions) == expected
+
+
+@pytest.mark.parametrize("final_rank, expected", [
+    (1, "top-1 success"),
+    (7, "top-10 but not top-1"),
+    (11, "no relevant candidate in top 10"),
+])
+def test_derive_retrieval_outcome(final_rank, expected):
+    assert derive_retrieval_outcome(
+        {"p"}, {"raw_hierarchical_dense_equal": {"p": final_rank}}
+    ) == expected
 ```
 
 - [ ] **Step 2: Run these tests and confirm they fail**
@@ -317,14 +330,32 @@ def derive_cohorts(metrics: Mapping[str, float]) -> list[str]:
 
 
 def derive_mechanism(positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]) -> str:
-    best = lambda system: min(positions[system][candidate_id] for candidate_id in positive_ids)
+    if not positive_ids:
+        return "no development-positive candidate"
+    def best(system):
+        return min(positions[system][candidate_id] for candidate_id in positive_ids)
     if best("raw_hierarchical") <= 10 and best("raw_hierarchical_dense_equal") > 10:
         return "fusion suppression"
+    if best("raw_hierarchical_dense_equal") == 1:
+        return "relevant candidate ranked first"
+    if best("raw_hierarchical_dense_equal") <= 10:
+        return "top-10 retrieval, top-1 miss"
     if best("best_record_cosine") <= 10 and best("raw_hierarchical") > 10:
         return "aggregation suppression"
     if best("best_record_cosine") > 10:
         return "evidence/routing gap"
-    return "relevant candidate retrieved"
+    raise EvidenceBundleError("mechanism rank classification is incomplete")
+
+
+def derive_retrieval_outcome(positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]) -> str:
+    if not positive_ids:
+        return "no relevant candidate in top 10"
+    final_rank = min(positions["raw_hierarchical_dense_equal"][candidate_id] for candidate_id in positive_ids)
+    if final_rank == 1:
+        return "top-1 success"
+    if final_rank <= 10:
+        return "top-10 but not top-1"
+    return "no relevant candidate in top 10"
 
 
 CONTEXT_RISK_RE = re.compile(
@@ -528,6 +559,9 @@ function matchesEvaluationFilter(query) {
   if (state.evaluationFilter === "new_zero_regression") return tags.has("new zero regression");
   if (state.evaluationFilter === "rescued") return tags.has("rescued prior zero");
   if (state.evaluationFilter === "context_risk") return query.grounded.context_risk === true;
+  if (state.evaluationFilter === "top_1_success") return query.grounded.retrieval_outcome === "top-1 success";
+  if (state.evaluationFilter === "top_10_miss") return query.grounded.retrieval_outcome === "top-10 but not top-1";
+  if (state.evaluationFilter === "top_10_absent") return query.grounded.retrieval_outcome === "no relevant candidate in top 10";
   return true;
 }
 ```
@@ -552,6 +586,7 @@ function appendGroundedCells(row, groundedCandidate) {
 function renderBestPositiveSummary(query) {
   const best = query.grounded.best_positive;
   const summary = el("div", "mechanism-summary");
+  summary.appendChild(el("strong", "", query.grounded.retrieval_outcome));
   summary.appendChild(el("strong", "", query.grounded.mechanism));
   summary.appendChild(el("p", "", "Best development-positive candidate: " + best.candidate_id));
   summary.appendChild(el("p", "", rankColumns.map(([key, label]) =>

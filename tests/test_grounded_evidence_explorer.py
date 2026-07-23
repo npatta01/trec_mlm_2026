@@ -12,6 +12,7 @@ from trec_mlm.grounded_evidence_explorer import (
     classify_behavior,
     derive_cohorts,
     derive_mechanism,
+    derive_retrieval_outcome,
     has_context_risk,
 )
 
@@ -74,6 +75,37 @@ def test_derive_cohorts(metrics: dict[str, float], expected: list[str]) -> None:
     ("positions", "expected"),
     [
         (
+            {"raw_hierarchical_dense_equal": {"p": 1}},
+            "top-1 success",
+        ),
+        (
+            {"raw_hierarchical_dense_equal": {"p": 7}},
+            "top-10 but not top-1",
+        ),
+        (
+            {"raw_hierarchical_dense_equal": {"p": 11}},
+            "no relevant candidate in top 10",
+        ),
+    ],
+)
+def test_derive_retrieval_outcome(
+    positions: dict[str, dict[str, int]], expected: str
+) -> None:
+    assert derive_retrieval_outcome({"p"}, positions) == expected
+
+
+@pytest.mark.parametrize(
+    ("positions", "expected"),
+    [
+        (
+            {
+                "raw_hierarchical": {"p": 1},
+                "raw_hierarchical_dense_equal": {"p": 1},
+                "best_record_cosine": {"p": 1},
+            },
+            "relevant candidate ranked first",
+        ),
+        (
             {
                 "raw_hierarchical": {"p": 4},
                 "raw_hierarchical_dense_equal": {"p": 20},
@@ -103,7 +135,7 @@ def test_derive_cohorts(metrics: dict[str, float], expected: list[str]) -> None:
                 "raw_hierarchical_dense_equal": {"p": 7},
                 "best_record_cosine": {"p": 13},
             },
-            "relevant candidate retrieved",
+            "top-10 retrieval, top-1 miss",
         ),
     ],
 )
@@ -331,6 +363,16 @@ def test_bundle_has_complete_component_ranks_and_needed_evidence(tmp_path: Path)
         "best_record_cosine": 2,
     }
     assert query["candidates"]["c11"]["evidence"] == []
+
+
+def test_bundle_adds_rank_one_retrieval_outcome(tmp_path: Path) -> None:
+    paths = write_e5_fixture(tmp_path)
+
+    bundle = build_evidence_bundle(**paths)
+
+    query = bundle["queries"]["q1"]
+    assert query["retrieval_outcome"] == "top-10 but not top-1"
+    assert query["mechanism"] == "top-10 retrieval, top-1 miss"
 
 
 @pytest.mark.parametrize(

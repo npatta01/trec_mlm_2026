@@ -57,18 +57,41 @@ def derive_mechanism(
 ) -> str:
     """Describe the relevant-positive rank pattern without asserting a cause."""
 
+    if not positive_ids:
+        return "no development-positive candidate"
+
     def best(system: str) -> int:
         return min(positions[system][candidate_id] for candidate_id in positive_ids)
 
     if best("raw_hierarchical") <= 10 and best("raw_hierarchical_dense_equal") > 10:
         return "fusion suppression"
+    if best("raw_hierarchical_dense_equal") == 1:
+        return "relevant candidate ranked first"
     if best("raw_hierarchical_dense_equal") <= 10:
-        return "relevant candidate retrieved"
+        return "top-10 retrieval, top-1 miss"
     if best("best_record_cosine") <= 10 and best("raw_hierarchical") > 10:
         return "aggregation suppression"
     if best("best_record_cosine") > 10:
         return "evidence/routing gap"
-    return "relevant candidate retrieved"
+    raise EvidenceBundleError("mechanism rank classification is incomplete")
+
+
+def derive_retrieval_outcome(
+    positive_ids: Collection[str], positions: Mapping[str, Mapping[str, int]]
+) -> str:
+    """Classify the best positive final-fusion position by rank-one success."""
+
+    if not positive_ids:
+        return "no relevant candidate in top 10"
+    final_rank = min(
+        positions["raw_hierarchical_dense_equal"][candidate_id]
+        for candidate_id in positive_ids
+    )
+    if final_rank == 1:
+        return "top-1 success"
+    if final_rank <= 10:
+        return "top-10 but not top-1"
+    return "no relevant candidate in top 10"
 
 
 def has_context_risk(text: str) -> bool:
@@ -331,6 +354,12 @@ def _build_query_entry(
         "display_candidate_ids": display_ids,
         "evidence_candidate_ids": evidence_ids,
         "component_metrics": {name: dict(evaluation[name]) for name in SYSTEMS},
+        "cohorts": derive_cohorts(
+            {name: evaluation[name]["ndcg_at_10"] for name in SYSTEMS}
+        ),
+        "context_risk": has_context_risk(query_text),
+        "retrieval_outcome": derive_retrieval_outcome(positives, positions),
+        "mechanism": derive_mechanism(positives, positions),
         "candidates": candidates,
     }
 

@@ -69,7 +69,8 @@ into a renderer-neutral evidence bundle. It must:
 4. retain exactly the first three persisted records for each included
    query-candidate pair;
 5. attach component ranks without comparing raw scores across systems;
-6. derive post-run cohort and mechanism tags from frozen ranks and qrels; and
+6. derive post-run cohorts plus separate retrieval-outcome and mechanism rank
+   diagnostics from frozen ranks and qrels; and
 7. emit no response text to stdout or logs.
 
 The evidence schema is optional from the generic explorer's perspective. A
@@ -106,6 +107,10 @@ Keep weakest-first navigation and add filters for:
 - rescued prior zero; and
 - possible missing-context wording.
 
+The query list also filters the independent retrieval outcome: `top-1 success`,
+`top-10 but not top-1`, or `no relevant candidate in top 10`. The latter two
+remain failures even when a positive candidate is in the final fused top ten.
+
 The missing-context flag is a deterministic surface heuristic for pronouns or
 deictic wording without an explicit antecedent. It must be labeled `context-risk
 flag`, never a proven failure cause.
@@ -117,21 +122,24 @@ Each selected query shows:
 - query ID and text;
 - fused nDCG@10 and first relevant rank;
 - cohort tags;
+- retrieval outcome;
 - the best development-positive candidate's ranks in dense, profile, prior
   fusion, raw hierarchical, and new fusion; and
 - a concise mechanism tag.
 
-Mechanism tags are assigned in this order:
+Retrieval outcome is assigned from the best development-positive final-fusion
+rank: rank 1 is `top-1 success`, ranks 2–10 are `top-10 but not top-1`, and a
+rank above 10 is `no relevant candidate in top 10`. It is independent of the
+existing nDCG cohorts.
 
-1. `fusion suppression` when a positive candidate is top ten in raw
-   hierarchical ranking but no positive survives the new fused top ten;
-2. `aggregation suppression` when a positive candidate is top ten by its best
-   persisted raw-record cosine across candidates but is outside the raw
-   hierarchical top ten;
-3. `evidence/routing gap` when no positive candidate reaches the top ten even by
-   best-record cosine; and
-4. `relevant candidate retrieved` when the new fused top ten contains a
-   positive candidate.
+Mechanism tags are assigned in this order: `relevant candidate ranked first`
+at final rank 1; `top-10 retrieval, top-1 miss` at final ranks 2–10; then, for
+a final rank above 10, `fusion suppression` when raw hierarchical is top ten,
+`aggregation suppression` when best-record cosine is top ten but raw
+hierarchical is outside the top ten, or `evidence/routing gap` when best-record
+cosine is also outside the top ten. A query without a development-positive
+candidate is explicitly identified rather than inferred to have a causal
+failure.
 
 These are deterministic descriptions of ranks, not assessor explanations.
 

@@ -177,8 +177,7 @@ def _source_input_paths(
         construction / "rankings" / "dense_profile_equal.json",
     ]
     run_validation = refinement / "runs" / "validation.json"
-    if run_validation.is_file():
-        sources.append(run_validation)
+    sources.append(run_validation)
     return tuple(sources)
 
 

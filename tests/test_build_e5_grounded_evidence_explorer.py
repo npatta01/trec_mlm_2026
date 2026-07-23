@@ -476,3 +476,19 @@ def test_cli_rejects_html_hard_link_to_run_validation_before_bundle_write(
     assert validation.read_bytes() == validation_before
     assert html.read_bytes() == validation_before
     assert not bundle.exists()
+
+
+def test_cli_reserves_absent_run_validation_path_before_bundle_write(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    validation = e5_fixture.source_paths()["run_validation"]
+    validation.unlink()
+    html = tmp_path / "live.html"
+    html.write_bytes(b"known-good-html")
+
+    completed = run_cli(e5_fixture, bundle=validation, html=html)
+
+    assert completed.returncode == 2
+    assert "error: output path aliases a source input" in completed.stderr
+    assert not validation.exists()
+    assert html.read_bytes() == b"known-good-html"

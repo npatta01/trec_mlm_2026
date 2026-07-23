@@ -35,34 +35,6 @@ PRIMARY_RUN_FILENAMES = (
 )
 QUERY_HEADER_ALIASES = ("query_id", "qid", "target_query_id")
 QUERY_TEXT_ALIASES = ("query_text", "text", "query", "question")
-EVIDENCE_SYSTEMS = (
-    "dense_reference",
-    "profile_only",
-    "dense_profile_equal",
-    "raw_hierarchical",
-    "raw_hierarchical_dense_equal",
-)
-EVIDENCE_RANK_SYSTEMS = (*EVIDENCE_SYSTEMS, "best_record_cosine")
-EVIDENCE_BEHAVIORS = frozenset(
-    {"substantive response", "exact refusal", "empty"}
-)
-EVIDENCE_RETRIEVAL_OUTCOMES = frozenset(
-    {
-        "top-1 success",
-        "top-10 but not top-1",
-        "no relevant candidate in top 10",
-    }
-)
-EVIDENCE_MECHANISMS = frozenset(
-    {
-        "no development-positive candidate",
-        "fusion suppression",
-        "relevant candidate ranked first",
-        "top-10 retrieval, top-1 miss",
-        "aggregation suppression",
-        "evidence/routing gap",
-    }
-)
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'-]{1,}")
 NONLETTER_RE = re.compile(r"[^a-z]+")
 STOPWORDS = frozenset(
@@ -576,172 +548,40 @@ def load_qrels(path: Path) -> dict[str, dict[str, float]]:
     return dict(qrels)
 
 
-def _is_finite_number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(float(value))
-    )
-
-
-def _valid_identifier_list(value: Any) -> bool:
-    return (
-        isinstance(value, list)
-        and all(isinstance(item, str) and item for item in value)
-        and len(value) == len(set(value))
-    )
-
-
-def _validate_evidence_record(record: Any) -> bool:
-    if not isinstance(record, dict) or set(record) != {
-        "record_id",
-        "source_query_id",
-        "question",
-        "response",
-        "similarity",
-        "behavior",
-    }:
-        return False
-    return (
-        isinstance(record["record_id"], str)
-        and bool(record["record_id"])
-        and isinstance(record["source_query_id"], str)
-        and bool(record["source_query_id"])
-        and isinstance(record["question"], str)
-        and isinstance(record["response"], str)
-        and _is_finite_number(record["similarity"])
-        and isinstance(record["behavior"], str)
-        and record["behavior"] in EVIDENCE_BEHAVIORS
-    )
-
-
-def _validate_evidence_candidate(
-    candidate: Any,
+def _validate_authoritative_evidence_bundle(
+    payload: Any,
     *,
-    candidate_id: str,
-    candidate_count: int,
-    evidence_per_candidate: int,
-    includes_evidence: bool,
-) -> bool:
-    if not isinstance(candidate, dict) or set(candidate) != {
-        "candidate_id",
-        "qrel_grade",
-        "is_positive",
-        "ranks",
-        "best_record_cosine",
-        "mean_top_10_cosine",
-        "evidence",
-    }:
-        return False
-    ranks = candidate["ranks"]
-    evidence = candidate["evidence"]
-    expected_evidence_count = evidence_per_candidate if includes_evidence else 0
-    if (
-        candidate["candidate_id"] != candidate_id
-        or not _is_finite_number(candidate["qrel_grade"])
-        or not isinstance(candidate["is_positive"], bool)
-        or candidate["is_positive"] != (float(candidate["qrel_grade"]) > 0.0)
-        or not isinstance(ranks, dict)
-        or set(ranks) != set(EVIDENCE_RANK_SYSTEMS)
-        or any(
-            type(rank) is not int or not 1 <= rank <= candidate_count
-            for rank in ranks.values()
+    expected_query_ids: Collection[str],
+    final_component_metrics: (
+        Mapping[str, Mapping[str, Any]] | None
+    ) = None,
+) -> None:
+    """Use the producer's validator so bundle semantics cannot drift."""
+
+    source_root = str(REPO_ROOT)
+    inserted_source_root = source_root not in sys.path
+    if inserted_source_root:
+        sys.path.insert(0, source_root)
+    try:
+        from trec_mlm.grounded_evidence_explorer import (
+            EvidenceBundleError,
+            validate_evidence_bundle,
         )
-        or not _is_finite_number(candidate["best_record_cosine"])
-        or not _is_finite_number(candidate["mean_top_10_cosine"])
-        or not isinstance(evidence, list)
-        or len(evidence) != expected_evidence_count
-        or any(not _validate_evidence_record(record) for record in evidence)
-    ):
-        return False
-    similarities = [float(record["similarity"]) for record in evidence]
-    return similarities == sorted(similarities, reverse=True)
-
-
-def _validate_evidence_query(
-    query: Any,
-    *,
-    query_id: str,
-    candidate_count: int,
-    evidence_per_candidate: int,
-) -> frozenset[str]:
-    if not isinstance(query, dict) or set(query) != {
-        "query_id",
-        "query_text",
-        "display_candidate_ids",
-        "evidence_candidate_ids",
-        "component_metrics",
-        "cohorts",
-        "context_risk",
-        "retrieval_outcome",
-        "mechanism",
-        "candidates",
-    }:
+    except ImportError as error:
         raise ExplorerInputError(
-            f"evidence bundle query schema differs for {query_id}"
+            "could not load authoritative grounded-evidence validator"
+        ) from error
+    try:
+        validate_evidence_bundle(
+            payload,
+            expected_query_ids=expected_query_ids,
+            final_component_metrics=final_component_metrics,
         )
-    display_ids = query["display_candidate_ids"]
-    evidence_ids = query["evidence_candidate_ids"]
-    metrics = query["component_metrics"]
-    cohorts = query["cohorts"]
-    candidates = query["candidates"]
-    if (
-        query["query_id"] != query_id
-        or not isinstance(query["query_text"], str)
-        or not _valid_identifier_list(display_ids)
-        or not _valid_identifier_list(evidence_ids)
-        or not isinstance(metrics, dict)
-        or set(metrics) != set(EVIDENCE_SYSTEMS)
-        or not isinstance(cohorts, list)
-        or any(not isinstance(cohort, str) or not cohort for cohort in cohorts)
-        or len(cohorts) != len(set(cohorts))
-        or not isinstance(query["context_risk"], bool)
-        or not isinstance(query["retrieval_outcome"], str)
-        or query["retrieval_outcome"] not in EVIDENCE_RETRIEVAL_OUTCOMES
-        or not isinstance(query["mechanism"], str)
-        or query["mechanism"] not in EVIDENCE_MECHANISMS
-        or not isinstance(candidates, dict)
-        or len(candidates) != candidate_count
-        or any(not isinstance(candidate_id, str) or not candidate_id for candidate_id in candidates)
-        or not set(display_ids) <= set(candidates)
-        or not set(evidence_ids) <= set(display_ids)
-    ):
-        raise ExplorerInputError(
-            f"evidence bundle query schema differs for {query_id}"
-        )
-    for metric in metrics.values():
-        if (
-            not isinstance(metric, dict)
-            or set(metric) != {"ndcg_at_10", "reciprocal_rank"}
-            or not all(_is_finite_number(value) for value in metric.values())
-            or not all(0.0 <= float(value) <= 1.0 for value in metric.values())
-        ):
-            raise ExplorerInputError(
-                f"evidence bundle query schema differs for {query_id}"
-            )
-
-    candidate_ids = frozenset(candidates)
-    for candidate_id, candidate in candidates.items():
-        if not _validate_evidence_candidate(
-            candidate,
-            candidate_id=candidate_id,
-            candidate_count=candidate_count,
-            evidence_per_candidate=evidence_per_candidate,
-            includes_evidence=candidate_id in set(evidence_ids),
-        ):
-            raise ExplorerInputError(
-                f"evidence bundle candidate schema differs for {query_id}"
-            )
-    for system in EVIDENCE_RANK_SYSTEMS:
-        ranks = {
-            int(candidate["ranks"][system])
-            for candidate in candidates.values()
-        }
-        if ranks != set(range(1, candidate_count + 1)):
-            raise ExplorerInputError(
-                f"evidence bundle candidate schema differs for {query_id}"
-            )
-    return candidate_ids
+    except EvidenceBundleError as error:
+        raise ExplorerInputError(str(error)) from error
+    finally:
+        if inserted_source_root:
+            sys.path.remove(source_root)
 
 
 def load_evidence_bundle(
@@ -755,50 +595,10 @@ def load_evidence_bundle(
         raise ExplorerInputError(
             f"could not read evidence bundle: {path}"
         ) from error
-    if (
-        not isinstance(payload, dict)
-        or set(payload) != {"schema_version", "meta", "queries"}
-        or type(payload.get("schema_version")) is not int
-        or payload.get("schema_version") != 1
-        or not isinstance(payload.get("queries"), dict)
-        or set(payload["queries"]) != set(query_ids)
-    ):
-        raise ExplorerInputError("evidence bundle query inventory differs")
-    meta = payload.get("meta")
-    if (
-        not isinstance(meta, dict)
-        or set(meta)
-        != {
-            "query_count",
-            "candidate_count",
-            "evidence_per_candidate",
-            "qrels_usage",
-        }
-        or type(meta["query_count"]) is not int
-        or meta["query_count"] != len(query_ids)
-        or type(meta["candidate_count"]) is not int
-        or meta["candidate_count"] < 1
-        or type(meta["evidence_per_candidate"]) is not int
-        or meta["evidence_per_candidate"] != 3
-        or meta["qrels_usage"]
-        != "Post-freeze evaluation and failure inspection only"
-    ):
-        raise ExplorerInputError("evidence bundle meta schema differs")
-
-    candidate_inventory: frozenset[str] | None = None
-    for query_id in payload["queries"]:
-        current_inventory = _validate_evidence_query(
-            payload["queries"][query_id],
-            query_id=query_id,
-            candidate_count=meta["candidate_count"],
-            evidence_per_candidate=meta["evidence_per_candidate"],
-        )
-        if candidate_inventory is None:
-            candidate_inventory = current_inventory
-        elif current_inventory != candidate_inventory:
-            raise ExplorerInputError(
-                "evidence bundle candidate inventory differs"
-            )
+    _validate_authoritative_evidence_bundle(
+        payload,
+        expected_query_ids=query_ids,
+    )
     return payload
 
 
@@ -809,25 +609,21 @@ def validate_grounded_contract(
     qrels: Mapping[str, Mapping[str, float]],
     queries: Mapping[str, str],
     top_candidates: int,
+    evaluation: Mapping[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
     """Bind grounded evidence to frozen rows, complete qrels, and query text."""
 
-    source_root = str(REPO_ROOT)
-    inserted_source_root = source_root not in sys.path
-    if inserted_source_root:
-        sys.path.insert(0, source_root)
-    try:
-        from trec_mlm.grounded_evidence_explorer import (
-            derive_mechanism,
-            derive_retrieval_outcome,
-        )
-    except ImportError as error:
-        raise ExplorerInputError(
-            "could not load authoritative grounded-evidence classifiers"
-        ) from error
-    finally:
-        if inserted_source_root:
-            sys.path.remove(source_root)
+    _validate_authoritative_evidence_bundle(
+        evidence_bundle,
+        expected_query_ids=grouped,
+        final_component_metrics={
+            query_id: {
+                "ndcg_at_10": metric["ndcg_at_10"],
+                "reciprocal_rank": metric["reciprocal_rank"],
+            }
+            for query_id, metric in evaluation["per_query"].items()
+        },
+    )
 
     if set(qrels) != set(grouped):
         raise ExplorerInputError("evidence bundle requires complete qrels")
@@ -893,29 +689,6 @@ def validate_grounded_contract(
         ):
             raise ExplorerInputError(
                 f"evidence record coverage differs for {query_id}"
-            )
-        positions = {
-            system: {
-                candidate_id: int(candidate["ranks"][system])
-                for candidate_id, candidate in candidates.items()
-            }
-            for system in EVIDENCE_RANK_SYSTEMS
-        }
-        try:
-            expected_retrieval_outcome = derive_retrieval_outcome(
-                positive_ids, positions
-            )
-            expected_mechanism = derive_mechanism(positive_ids, positions)
-        except ValueError as error:
-            raise ExplorerInputError(
-                f"evidence classification cannot be derived for {query_id}"
-            ) from error
-        if (
-            grounded["retrieval_outcome"] != expected_retrieval_outcome
-            or grounded["mechanism"] != expected_mechanism
-        ):
-            raise ExplorerInputError(
-                f"evidence classification differs for {query_id}"
             )
         selected[query_id] = select_display_rows(
             values,
@@ -1762,7 +1535,9 @@ HTML_TEMPLATE = r'''<!doctype html>
       byId("labelLegend").hidden = !data.meta.labels_included;
       byId("summary").replaceChildren();
       addPill(number(data.meta.query_count) + " queries");
-      addPill("Top " + number(data.meta.candidate_limit) + " candidates per query");
+      addPill(groundedMode
+        ? "Top " + number(data.meta.candidate_limit) + " plus development-positive candidates"
+        : "Top " + number(data.meta.candidate_limit) + " candidates per query");
       addPill(number(data.meta.candidate_count) + " unique candidates represented");
       if (data.meta.profile_count) addPill(number(data.meta.profile_count) + " candidate profiles");
       if (data.meta.discovery_query_count) addPill(number(data.meta.discovery_query_count) + " historical questions scanned");
@@ -1911,8 +1686,8 @@ HTML_TEMPLATE = r'''<!doctype html>
         summary.appendChild(el("p", "", "Best development-positive candidate: " + best.candidate_id));
         summary.appendChild(el("p", "", rankColumns.map(([key, label]) =>
           label + " " + best.ranks[key]).join(" · ")));
-        summary.appendChild(el("p", "", "Best E5 cosine " + formatMetric(best.best_record_cosine) +
-          " · Mean top-10 E5 cosine " + formatMetric(best.mean_top_10_cosine)));
+        summary.appendChild(el("p", "", "Best-record E5 cosine similarity " + formatMetric(best.best_record_cosine) +
+          " · Mean top-10 E5 cosine similarity " + formatMetric(best.mean_top_10_cosine)));
       } else {
         summary.appendChild(el("p", "", "Best development-positive candidate: none in complete development qrels"));
       }
@@ -1948,8 +1723,8 @@ HTML_TEMPLATE = r'''<!doctype html>
       if (query.grounded) {
         rankColumns.forEach(([_key, label]) =>
           header.appendChild(el("th", "", label)));
-        header.appendChild(el("th", "", "Best E5 cosine"));
-        header.appendChild(el("th", "", "Mean top-10 E5 cosine"));
+        header.appendChild(el("th", "", "Best-record E5 cosine similarity"));
+        header.appendChild(el("th", "", "Mean top-10 E5 cosine similarity"));
       }
       header.appendChild(el("th", "", "System score"));
     }
@@ -2272,12 +2047,17 @@ def main() -> int:
         query_id: queries[query_id] for query_id in grouped
     }
     if evidence_bundle is not None:
+        if evaluation is None:
+            raise ExplorerInputError(
+                "evidence bundle requires complete qrels"
+            )
         grouped = validate_grounded_contract(
             evidence_bundle,
             grouped=grouped,
             qrels=qrels,
             queries=queries,
             top_candidates=args.top_candidates,
+            evaluation=evaluation,
         )
     else:
         grouped = {

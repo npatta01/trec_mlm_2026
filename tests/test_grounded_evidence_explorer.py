@@ -271,19 +271,25 @@ def write_e5_fixture(
     qrels_path.write_text("\n".join(qrel_rows) + "\n", encoding="utf-8")
 
     evaluation_path = tmp_path / "evaluation.json"
+    evaluation_rows = [
+        {
+            "query_id": query_id,
+            "system": system,
+            "ndcg_at_10": (
+                1.25
+                if mutation == "metric_out_of_range"
+                and (query_id, system) == ("q1", "dense_reference")
+                else 0.0
+            ),
+            "reciprocal_rank": 0.0,
+        }
+        for query_id in QUERY_IDS
+        for system in SYSTEMS
+    ]
     _write_json(
         evaluation_path,
         {
-            "per_query_rows": [
-                {
-                    "query_id": query_id,
-                    "system": system,
-                    "ndcg_at_10": 0.0,
-                    "reciprocal_rank": 0.0,
-                }
-                for query_id in QUERY_IDS
-                for system in SYSTEMS
-            ]
+            "per_query_rows": evaluation_rows,
         },
     )
     return {
@@ -387,6 +393,7 @@ def test_bundle_adds_rank_one_retrieval_outcome(tmp_path: Path) -> None:
         ("similarity_order", "finite and non-increasing"),
         ("array_shape", "shape"),
         ("qrel_pair_missing", "qrel inventory"),
+        ("metric_out_of_range", r"finite and in \[0, 1\]"),
     ],
 )
 def test_bundle_fails_closed(tmp_path: Path, mutation: str, message: str) -> None:

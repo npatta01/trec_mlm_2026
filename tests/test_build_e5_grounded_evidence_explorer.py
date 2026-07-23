@@ -195,7 +195,9 @@ def e5_fixture(tmp_path: Path) -> E5Fixture:
                     "query_id": query_id,
                     "system": system,
                     "ndcg_at_10": 0.0,
-                    "reciprocal_rank": 0.0,
+                    "reciprocal_rank": (
+                        1.0 / 22 if query_id == "q1" else 0.0
+                    ),
                 }
                 for query_id in QUERY_IDS
                 for system in SYSTEMS
@@ -294,37 +296,46 @@ def test_cli_builds_bundle_and_html_without_printing_raw_text(
     assert '"candidate_limit":20' in html.read_text(encoding="utf-8")
 
 
-def test_cli_validation_failure_preserves_live_html(
+def test_cli_validation_failure_preserves_prior_outputs(
     e5_fixture: E5Fixture, tmp_path: Path
 ) -> None:
     bundle = tmp_path / "private" / "evidence.json"
+    bundle.parent.mkdir()
+    bundle.write_bytes(b"known-good-bundle")
     html = tmp_path / "explorer.html"
-    html.write_text("known-good", encoding="utf-8")
+    html.write_bytes(b"known-good-html")
     e5_fixture.corrupt_record_owner()
 
     completed = run_cli(e5_fixture, bundle=bundle, html=html)
 
     assert completed.returncode == 2
     assert "error: evidence bundle validation failed" in completed.stderr
-    assert html.read_text(encoding="utf-8") == "known-good"
+    assert bundle.read_bytes() == b"known-good-bundle"
+    assert html.read_bytes() == b"known-good-html"
     assert SECRET_QUESTION not in completed.stdout + completed.stderr
     assert SECRET_ANSWER not in completed.stdout + completed.stderr
 
 
-def test_cli_renderer_failure_preserves_live_html(
+def test_cli_renderer_failure_preserves_prior_outputs_and_removes_temps(
     e5_fixture: E5Fixture, tmp_path: Path
 ) -> None:
     bundle = tmp_path / "private" / "evidence.json"
+    bundle.parent.mkdir()
+    bundle.write_bytes(b"known-good-bundle")
     html = tmp_path / "explorer.html"
-    html.write_text("known-good", encoding="utf-8")
+    html.write_bytes(b"known-good-html")
     e5_fixture["profiles"].write_text("{invalid", encoding="utf-8")
 
     completed = run_cli(e5_fixture, bundle=bundle, html=html)
 
     assert completed.returncode == 2
-    assert bundle.is_file()
-    assert html.read_text(encoding="utf-8") == "known-good"
-    assert not list(tmp_path.glob(".*.building.*.html"))
+    assert bundle.read_bytes() == b"known-good-bundle"
+    assert html.read_bytes() == b"known-good-html"
+    assert not [
+        path
+        for path in tmp_path.rglob(".*")
+        if ".building." in path.name
+    ]
 
 
 def test_cli_rejects_bundle_path_that_aliases_live_html(

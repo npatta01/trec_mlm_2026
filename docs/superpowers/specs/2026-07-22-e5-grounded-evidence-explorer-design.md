@@ -75,12 +75,23 @@ into a renderer-neutral evidence bundle. It must:
 
 The evidence schema is optional from the generic explorer's perspective. A
 normal run without E5 evidence must continue to produce the existing explorer.
+The task-specific builder owns source-truth binding for component ranks by
+loading the sealed ranking artifacts. A bundle-only generic consumer cannot
+independently prove non-final component ranks; it validates each complete rank
+permutation and every semantic relation derivable from the bundle instead.
 
 ### Generic renderer extension
 
 Extend the current query explorer renderer to accept the validated optional
 bundle. Rendering remains entirely client-side after page load; the HTML must
 make no network requests and require no adjacent JSON files.
+
+Producer and consumer use the same authoritative semantic validator. It
+rederives cohorts, context risk, behavior tags, retrieval outcome, mechanism,
+record-ID uniqueness, best-record cosine scalars and tie-broken ranks, and
+requires finite nDCG and reciprocal-rank metrics in `[0, 1]`. The consumer also
+compares the bundle's final-component metrics with its independent generic
+evaluation from the supplied run and qrels.
 
 The renderer must escape all query, profile, question, and response text. It
 must label cosine values as `E5 cosine similarity`, component positions as
@@ -175,14 +186,18 @@ evidence drawer.
 
 ## Error handling
 
-Fail closed before writing HTML if inventories differ, selected records are
+Fail closed before promotion if inventories differ, selected records are
 missing or assigned to the wrong candidate, array shapes differ, similarities
-are non-finite or out of order, component rankings are incomplete, or qrels do
-not cover the exact 322-by-150 inventory.
+are non-finite or out of order, component rankings are incomplete, metrics fall
+outside `[0, 1]`, semantic fields cannot be rederived, or qrels do not cover the
+exact 322-by-150 inventory.
 
-Write the final report atomically. A failed build must leave the previous live
-report untouched. Do not silently fall back to lexical response matching or to
-profile-only rendering when the E5 evidence bundle was requested.
+Write the bundle and HTML to unique sibling staging paths and validate the HTML
+against the staged bundle. Replace both requested outputs only after both
+staged artifacts succeed; a validation or rendering failure must leave both
+prior outputs byte-for-byte unchanged and remove the staging files. Do not
+silently fall back to lexical response matching or to profile-only rendering
+when the E5 evidence bundle was requested.
 
 ## Testing and verification
 
@@ -196,7 +211,8 @@ Focused fixture tests must cover:
 - HTML escaping of query and response text;
 - preservation of frozen candidate ordering;
 - refusal, empty, and substantive behavior tags;
-- failure atomicity; and
+- rejection of false derivable semantics and out-of-range metrics;
+- both-output failure atomicity; and
 - unchanged generic explorer behavior without an evidence bundle.
 
 Full verification must additionally confirm:

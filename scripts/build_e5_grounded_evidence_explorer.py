@@ -83,17 +83,83 @@ def write_json_atomically(path: Path, payload: dict[str, Any]) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def _temporary_html_path(output: Path) -> Path:
+def _temporary_output_path(output: Path, *, suffix: str) -> Path:
+    """Reserve a unique sibling staging path without leaving an empty file."""
+
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{output.stem}.building.",
-        suffix=".html",
+        prefix=f".{output.name}.building.",
+        suffix=suffix,
         dir=output.parent,
     )
     os.close(descriptor)
     temporary = Path(temporary_name)
     temporary.unlink()
     return temporary
+
+
+def _backup_existing_output(path: Path) -> Path | None:
+    if not path.exists():
+        return None
+    descriptor, backup_name = tempfile.mkstemp(
+        prefix=f".{path.name}.rollback.",
+        suffix=path.suffix,
+        dir=path.parent,
+    )
+    os.close(descriptor)
+    backup = Path(backup_name)
+    backup.unlink()
+    try:
+        os.link(path, backup)
+    except OSError:
+        backup.unlink(missing_ok=True)
+        raise
+    return backup
+
+
+def _promote_output_pair(
+    *,
+    staged_bundle: Path,
+    bundle: Path,
+    staged_html: Path,
+    html: Path,
+) -> None:
+    """Replace both requested outputs only after both staged files pass."""
+
+    pairs = (
+        (staged_bundle, bundle),
+        (staged_html, html),
+    )
+    backups: dict[Path, Path | None] = {}
+    promoted: list[Path] = []
+    try:
+        for _staged, destination in pairs:
+            backups[destination] = _backup_existing_output(destination)
+        for staged, destination in pairs:
+            staged.replace(destination)
+            promoted.append(destination)
+    except OSError as error:
+        rollback_error: OSError | None = None
+        for destination in reversed(promoted):
+            backup = backups.get(destination)
+            try:
+                if backup is None:
+                    destination.unlink(missing_ok=True)
+                else:
+                    backup.replace(destination)
+            except OSError as current_error:
+                rollback_error = current_error
+        if rollback_error is not None:
+            raise E5ExplorerBuildError(
+                "output publication and rollback failed"
+            ) from rollback_error
+        raise E5ExplorerBuildError(
+            "output publication failed"
+        ) from error
+    finally:
+        for backup in backups.values():
+            if backup is not None:
+                backup.unlink(missing_ok=True)
 
 
 def run_generic_builder(
@@ -199,6 +265,10 @@ def _validate_unresolved_output_paths(
         )
     if html.is_symlink():
         raise E5ExplorerBuildError("HTML output path must not be a symlink")
+    if bundle.exists() and not bundle.is_file():
+        raise E5ExplorerBuildError(
+            "bundle output path is not a regular file"
+        )
 
 
 def _validate_output_aliases(
@@ -257,11 +327,18 @@ def main() -> int:
         queries_path=queries,
         qrels_path=qrels,
     )
-    write_json_atomically(bundle_output, bundle)
-
+    temporary_bundle: Path | None = None
     temporary_html: Path | None = None
     try:
-        temporary_html = _temporary_html_path(html_output)
+        temporary_bundle = _temporary_output_path(
+            bundle_output,
+            suffix=".json",
+        )
+        temporary_html = _temporary_output_path(
+            html_output,
+            suffix=".html",
+        )
+        write_json_atomically(temporary_bundle, bundle)
         run_generic_builder(
             input_path=(
                 refinement
@@ -271,13 +348,22 @@ def main() -> int:
             queries=queries,
             qrels=qrels,
             profiles=profiles,
-            evidence_bundle=bundle_output,
+            evidence_bundle=temporary_bundle,
             output=temporary_html,
         )
-        temporary_html.replace(html_output)
+        _promote_output_pair(
+            staged_bundle=temporary_bundle,
+            bundle=bundle_output,
+            staged_html=temporary_html,
+            html=html_output,
+        )
     except OSError as error:
-        raise E5ExplorerBuildError("HTML publication failed") from error
+        raise E5ExplorerBuildError(
+            "output staging failed"
+        ) from error
     finally:
+        if temporary_bundle is not None:
+            temporary_bundle.unlink(missing_ok=True)
         if temporary_html is not None:
             temporary_html.unlink(missing_ok=True)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 import json
+import math
 from pathlib import Path
 import re
 from typing import Any
@@ -26,6 +27,10 @@ SYSTEMS = (
     "raw_hierarchical",
     "raw_hierarchical_dense_equal",
 )
+RANK_SYSTEMS = (*SYSTEMS, "best_record_cosine")
+EVIDENCE_PER_CANDIDATE = 3
+QRELS_USAGE = "Post-freeze evaluation and failure inspection only"
+METRIC_TOLERANCE = 1e-12
 CONTEXT_RISK_RE = re.compile(
     r"\b(this|that|these|those|it|they|them|he|she|there|the former|the latter|what happened next)\b",
     re.IGNORECASE,
@@ -109,6 +114,405 @@ def classify_behavior(response: str) -> str:
     if normalized in EXACT_REFUSALS:
         return "exact refusal"
     return "substantive response"
+
+
+def _is_finite_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _unit_interval_metric(value: Any, *, label: str) -> float:
+    if not _is_finite_number(value) or not 0.0 <= float(value) <= 1.0:
+        raise EvidenceBundleError(
+            f"{label} must be finite and in [0, 1]"
+        )
+    return float(value)
+
+
+def _valid_identifier_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and all(isinstance(item, str) and item for item in value)
+        and len(value) == len(set(value))
+    )
+
+
+def _validate_metric_pair(
+    metric: Any,
+    *,
+    label: str,
+    schema_error: str,
+) -> dict[str, float]:
+    if (
+        not isinstance(metric, Mapping)
+        or set(metric) != {"ndcg_at_10", "reciprocal_rank"}
+    ):
+        raise EvidenceBundleError(schema_error)
+    return {
+        name: _unit_interval_metric(
+            metric[name],
+            label=f"{label} {name}",
+        )
+        for name in ("ndcg_at_10", "reciprocal_rank")
+    }
+
+
+def _validate_evidence_record_schema(record: Any) -> None:
+    if (
+        not isinstance(record, Mapping)
+        or set(record)
+        != {
+            "record_id",
+            "source_query_id",
+            "question",
+            "response",
+            "similarity",
+            "behavior",
+        }
+        or not isinstance(record["record_id"], str)
+        or not record["record_id"]
+        or not isinstance(record["source_query_id"], str)
+        or not record["source_query_id"]
+        or not isinstance(record["question"], str)
+        or not isinstance(record["response"], str)
+        or not _is_finite_number(record["similarity"])
+        or not isinstance(record["behavior"], str)
+    ):
+        raise EvidenceBundleError(
+            "evidence bundle candidate schema differs"
+        )
+
+
+def _validate_evidence_candidate_schema(
+    candidate: Any,
+    *,
+    candidate_id: str,
+    candidate_count: int,
+    expected_evidence_count: int,
+) -> None:
+    if (
+        not isinstance(candidate, Mapping)
+        or set(candidate)
+        != {
+            "candidate_id",
+            "qrel_grade",
+            "is_positive",
+            "ranks",
+            "best_record_cosine",
+            "mean_top_10_cosine",
+            "evidence",
+        }
+    ):
+        raise EvidenceBundleError(
+            "evidence bundle candidate schema differs"
+        )
+    ranks = candidate["ranks"]
+    evidence = candidate["evidence"]
+    if (
+        candidate["candidate_id"] != candidate_id
+        or not _is_finite_number(candidate["qrel_grade"])
+        or not isinstance(candidate["is_positive"], bool)
+        or candidate["is_positive"]
+        != (float(candidate["qrel_grade"]) > 0.0)
+        or not isinstance(ranks, Mapping)
+        or set(ranks) != set(RANK_SYSTEMS)
+        or any(
+            type(rank) is not int or not 1 <= rank <= candidate_count
+            for rank in ranks.values()
+        )
+        or not _is_finite_number(candidate["best_record_cosine"])
+        or not _is_finite_number(candidate["mean_top_10_cosine"])
+        or not isinstance(evidence, list)
+        or len(evidence) != expected_evidence_count
+    ):
+        raise EvidenceBundleError(
+            "evidence bundle candidate schema differs"
+        )
+    for record in evidence:
+        _validate_evidence_record_schema(record)
+
+
+def _validate_evidence_query(
+    query: Any,
+    *,
+    query_id: str,
+    candidate_count: int,
+    evidence_per_candidate: int,
+) -> frozenset[str]:
+    query_schema_error = (
+        f"evidence bundle query schema differs for {query_id}"
+    )
+    if (
+        not isinstance(query, Mapping)
+        or set(query)
+        != {
+            "query_id",
+            "query_text",
+            "display_candidate_ids",
+            "evidence_candidate_ids",
+            "component_metrics",
+            "cohorts",
+            "context_risk",
+            "retrieval_outcome",
+            "mechanism",
+            "candidates",
+        }
+    ):
+        raise EvidenceBundleError(query_schema_error)
+    display_ids = query["display_candidate_ids"]
+    evidence_ids = query["evidence_candidate_ids"]
+    metrics = query["component_metrics"]
+    cohorts = query["cohorts"]
+    candidates = query["candidates"]
+    if (
+        query["query_id"] != query_id
+        or not isinstance(query["query_text"], str)
+        or not _valid_identifier_list(display_ids)
+        or not _valid_identifier_list(evidence_ids)
+        or not isinstance(metrics, Mapping)
+        or set(metrics) != set(SYSTEMS)
+        or not isinstance(cohorts, list)
+        or any(not isinstance(cohort, str) or not cohort for cohort in cohorts)
+        or len(cohorts) != len(set(cohorts))
+        or not isinstance(query["context_risk"], bool)
+        or not isinstance(query["retrieval_outcome"], str)
+        or not isinstance(query["mechanism"], str)
+        or not isinstance(candidates, Mapping)
+        or len(candidates) != candidate_count
+        or any(
+            not isinstance(candidate_id, str) or not candidate_id
+            for candidate_id in candidates
+        )
+        or not set(display_ids) <= set(candidates)
+        or not set(evidence_ids) <= set(display_ids)
+    ):
+        raise EvidenceBundleError(query_schema_error)
+
+    validated_metrics = {
+        system: _validate_metric_pair(
+            metrics[system],
+            label=f"evidence {query_id} {system}",
+            schema_error=query_schema_error,
+        )
+        for system in SYSTEMS
+    }
+    expected_cohorts = derive_cohorts(
+        {
+            system: validated_metrics[system]["ndcg_at_10"]
+            for system in SYSTEMS
+        }
+    )
+    if list(cohorts) != expected_cohorts:
+        raise EvidenceBundleError(
+            f"evidence cohorts differ for {query_id}"
+        )
+    if query["context_risk"] is not has_context_risk(
+        query["query_text"]
+    ):
+        raise EvidenceBundleError(
+            f"evidence context-risk flag differs for {query_id}"
+        )
+
+    evidence_id_set = set(evidence_ids)
+    record_ids: set[str] = set()
+    for candidate_id, candidate in candidates.items():
+        _validate_evidence_candidate_schema(
+            candidate,
+            candidate_id=candidate_id,
+            candidate_count=candidate_count,
+            expected_evidence_count=(
+                evidence_per_candidate
+                if candidate_id in evidence_id_set
+                else 0
+            ),
+        )
+        evidence = candidate["evidence"]
+        similarities = [
+            float(record["similarity"]) for record in evidence
+        ]
+        if similarities != sorted(similarities, reverse=True):
+            raise EvidenceBundleError(
+                f"evidence similarity order differs for {query_id}"
+            )
+        for record in evidence:
+            record_id = record["record_id"]
+            if record_id in record_ids:
+                raise EvidenceBundleError(
+                    f"evidence record IDs differ for {query_id}"
+                )
+            record_ids.add(record_id)
+            if record["behavior"] != classify_behavior(
+                record["response"]
+            ):
+                raise EvidenceBundleError(
+                    f"evidence behavior differs for {query_id}"
+                )
+        if evidence and (
+            float(evidence[0]["similarity"])
+            != float(candidate["best_record_cosine"])
+        ):
+            raise EvidenceBundleError(
+                f"evidence best-record cosine differs for {query_id}"
+            )
+
+    for system in RANK_SYSTEMS:
+        ranks = {
+            int(candidate["ranks"][system])
+            for candidate in candidates.values()
+        }
+        if ranks != set(range(1, candidate_count + 1)):
+            raise EvidenceBundleError(
+                f"evidence bundle candidate schema differs for {query_id}"
+            )
+
+    expected_best_record_order = sorted(
+        candidates,
+        key=lambda candidate_id: (
+            -float(candidates[candidate_id]["best_record_cosine"]),
+            candidate_id,
+        ),
+    )
+    actual_best_record_order = sorted(
+        candidates,
+        key=lambda candidate_id: int(
+            candidates[candidate_id]["ranks"]["best_record_cosine"]
+        ),
+    )
+    if actual_best_record_order != expected_best_record_order:
+        raise EvidenceBundleError(
+            f"evidence best-record cosine ranks differ for {query_id}"
+        )
+
+    positive_ids = {
+        candidate_id
+        for candidate_id, candidate in candidates.items()
+        if candidate["is_positive"]
+    }
+    positions = {
+        system: {
+            candidate_id: int(candidate["ranks"][system])
+            for candidate_id, candidate in candidates.items()
+        }
+        for system in RANK_SYSTEMS
+    }
+    if (
+        query["retrieval_outcome"]
+        != derive_retrieval_outcome(positive_ids, positions)
+        or query["mechanism"] != derive_mechanism(positive_ids, positions)
+    ):
+        raise EvidenceBundleError(
+            f"evidence classification differs for {query_id}"
+        )
+    return frozenset(candidates)
+
+
+def validate_evidence_bundle(
+    payload: Any,
+    *,
+    expected_query_ids: Collection[str] | None = None,
+    final_component_metrics: (
+        Mapping[str, Mapping[str, Any]] | None
+    ) = None,
+) -> frozenset[str]:
+    """Validate all bundle-intrinsic semantics and optional final metrics.
+
+    Non-final component ranks are source-bound by the task-specific builder.
+    A generic bundle consumer can validate their complete permutations, but it
+    cannot independently prove those ranks without the external artifacts.
+    """
+
+    if (
+        not isinstance(payload, Mapping)
+        or set(payload) != {"schema_version", "meta", "queries"}
+        or type(payload.get("schema_version")) is not int
+        or payload.get("schema_version") != 1
+        or not isinstance(payload.get("queries"), Mapping)
+        or any(
+            not isinstance(query_id, str) or not query_id
+            for query_id in payload.get("queries", {})
+        )
+    ):
+        raise EvidenceBundleError(
+            "evidence bundle query inventory differs"
+        )
+    queries = payload["queries"]
+    if (
+        expected_query_ids is not None
+        and set(queries) != set(expected_query_ids)
+    ):
+        raise EvidenceBundleError(
+            "evidence bundle query inventory differs"
+        )
+    meta = payload.get("meta")
+    if (
+        not isinstance(meta, Mapping)
+        or set(meta)
+        != {
+            "query_count",
+            "candidate_count",
+            "evidence_per_candidate",
+            "qrels_usage",
+        }
+        or type(meta["query_count"]) is not int
+        or meta["query_count"] != len(queries)
+        or type(meta["candidate_count"]) is not int
+        or meta["candidate_count"] < 1
+        or type(meta["evidence_per_candidate"]) is not int
+        or meta["evidence_per_candidate"] != EVIDENCE_PER_CANDIDATE
+        or meta["qrels_usage"] != QRELS_USAGE
+    ):
+        raise EvidenceBundleError(
+            "evidence bundle meta schema differs"
+        )
+
+    candidate_inventory: frozenset[str] | None = None
+    for query_id, query in queries.items():
+        current_inventory = _validate_evidence_query(
+            query,
+            query_id=query_id,
+            candidate_count=meta["candidate_count"],
+            evidence_per_candidate=meta["evidence_per_candidate"],
+        )
+        if candidate_inventory is None:
+            candidate_inventory = current_inventory
+        elif current_inventory != candidate_inventory:
+            raise EvidenceBundleError(
+                "evidence bundle candidate inventory differs"
+            )
+
+    if final_component_metrics is not None:
+        if set(final_component_metrics) != set(queries):
+            raise EvidenceBundleError(
+                "evidence final component metric inventory differs"
+            )
+        for query_id, query in queries.items():
+            expected = _validate_metric_pair(
+                final_component_metrics[query_id],
+                label=f"generic evaluation {query_id}",
+                schema_error=(
+                    "generic final component metric schema differs"
+                ),
+            )
+            actual = query["component_metrics"][
+                "raw_hierarchical_dense_equal"
+            ]
+            if any(
+                not math.isclose(
+                    float(actual[name]),
+                    expected[name],
+                    rel_tol=0.0,
+                    abs_tol=METRIC_TOLERANCE,
+                )
+                for name in ("ndcg_at_10", "reciprocal_rank")
+            ):
+                raise EvidenceBundleError(
+                    "evidence final component metrics differ for "
+                    f"{query_id}"
+                )
+    return candidate_inventory or frozenset()
 
 
 def _load_json(path: Path) -> Any:
@@ -295,12 +699,18 @@ def _evaluation_rows(
         if query_id not in rows or system not in SYSTEMS or system in rows[query_id]:
             raise EvidenceBundleError("evaluation row inventory differs")
         try:
-            ndcg = float(row["ndcg_at_10"])
-            reciprocal_rank = float(row["reciprocal_rank"])
-        except (KeyError, TypeError, ValueError) as error:
+            ndcg_value = row["ndcg_at_10"]
+            reciprocal_rank_value = row["reciprocal_rank"]
+        except KeyError as error:
             raise EvidenceBundleError("evaluation row schema differs") from error
-        if not np.isfinite((ndcg, reciprocal_rank)).all():
-            raise EvidenceBundleError("evaluation metrics must be finite")
+        ndcg = _unit_interval_metric(
+            ndcg_value,
+            label="evaluation ndcg_at_10",
+        )
+        reciprocal_rank = _unit_interval_metric(
+            reciprocal_rank_value,
+            label="evaluation reciprocal_rank",
+        )
         rows[query_id][str(system)] = {
             "ndcg_at_10": ndcg,
             "reciprocal_rank": reciprocal_rank,
@@ -447,13 +857,18 @@ def build_evidence_bundle(
             similarities=similarities[query_index],
             records=records,
         )
-    return {
+    bundle = {
         "schema_version": 1,
         "meta": {
             "query_count": len(query_ids),
             "candidate_count": len(candidate_ids),
-            "evidence_per_candidate": 3,
-            "qrels_usage": "Post-freeze evaluation and failure inspection only",
+            "evidence_per_candidate": EVIDENCE_PER_CANDIDATE,
+            "qrels_usage": QRELS_USAGE,
         },
         "queries": query_payload,
     }
+    validate_evidence_bundle(
+        bundle,
+        expected_query_ids=query_ids,
+    )
+    return bundle

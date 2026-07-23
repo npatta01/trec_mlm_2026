@@ -564,10 +564,28 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                 if final_ranks[candidate_id] <= 10
                 or candidate_id in positive_ids
             ]
+            generic_metric = EXPLORER.build_evaluation(
+                [
+                    {
+                        "query_id": source_query_id,
+                        "candidate_id": candidate_id,
+                        "rank": final_ranks[candidate_id],
+                    }
+                    for candidate_id in candidate_ids
+                ],
+                {
+                    source_query_id: qrels.get(source_query_id, {}),
+                },
+            )["per_query"][source_query_id]
+            metric_pair = {
+                "ndcg_at_10": generic_metric["ndcg_at_10"],
+                "reciprocal_rank": generic_metric["reciprocal_rank"],
+            }
             candidate_payload: dict[str, dict[str, Any]] = {}
             for candidate_id in candidate_ids:
                 rank = final_ranks[candidate_id]
                 grade = qrels.get(source_query_id, {}).get(candidate_id, 0.0)
+                best_record_cosine = 1.0 / (rank + 1)
                 candidate_payload[candidate_id] = {
                     "candidate_id": candidate_id,
                     "qrel_grade": grade,
@@ -580,7 +598,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                         "raw_hierarchical_dense_equal": rank,
                         "best_record_cosine": rank,
                     },
-                    "best_record_cosine": 1.0 / rank,
+                    "best_record_cosine": best_record_cosine,
                     "mean_top_10_cosine": 0.5 / rank,
                     "evidence": (
                         [
@@ -589,7 +607,10 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                                 "source_query_id": f"source-{index}",
                                 "question": f"Historical question {index}",
                                 "response": f"Historical response {index}",
-                                "similarity": 1.0 / (rank + index),
+                                "similarity": (
+                                    best_record_cosine
+                                    - ((index - 1) * 0.001)
+                                ),
                                 "behavior": "substantive response",
                             }
                             for index in range(1, 4)
@@ -610,7 +631,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                 "display_candidate_ids": selected_display_ids,
                 "evidence_candidate_ids": selected_evidence_ids,
                 "component_metrics": {
-                    system: {"ndcg_at_10": 0.0, "reciprocal_rank": 0.0}
+                    system: dict(metric_pair)
                     for system in (
                         "dense_reference",
                         "profile_only",
@@ -619,7 +640,14 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                         "raw_hierarchical_dense_equal",
                     )
                 },
-                "cohorts": ["zero fused nDCG@10"],
+                "cohorts": (
+                    [
+                        "zero fused nDCG@10",
+                        "persistent all-system zero",
+                    ]
+                    if metric_pair["ndcg_at_10"] == 0.0
+                    else []
+                ),
                 "context_risk": False,
                 "retrieval_outcome": (
                     "top-1 success"
@@ -777,8 +805,8 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             "Prior fusion rank",
             "Raw hierarchical rank",
             "New fusion rank",
-            "Best E5 cosine",
-            "Mean top-10 E5 cosine",
+            "Best-record E5 cosine similarity",
+            "Mean top-10 E5 cosine similarity",
             "System score",
             "E5 cosine similarity",
             "Nearest historical behavior",
@@ -818,6 +846,8 @@ report.evidenceArticles = firstDrawer
 report.lexicalSectionHidden = document.getElementById("responseSection").hidden;
 report.lexicalResponsesEmpty =
   document.getElementById("responseList").textContent.trim() === "";
+report.summaryPills = [...document.querySelectorAll("#summary .pill")]
+  .map((pill) => pill.textContent);
 
 const filter = document.getElementById("evaluationFilter");
 filter.value = "rescued";
@@ -861,6 +891,10 @@ report.searchRecovered = {
 """,
         )
         self.assertEqual(3, grounded_report["evidenceArticles"])
+        self.assertIn(
+            "Top 10 plus development-positive candidates",
+            grounded_report["summaryPills"],
+        )
         self.assertEqual(
             {
                 "queryText": "",
@@ -925,6 +959,8 @@ report.evidenceDrawers = document.querySelectorAll(".evidence-drawer").length;
 report.lexicalSectionHidden = document.getElementById("responseSection").hidden;
 report.lexicalResponseCards =
   document.querySelectorAll("#responseList .history-card").length;
+report.summaryPills = [...document.querySelectorAll("#summary .pill")]
+  .map((pill) => pill.textContent);
 """,
         )
         self.assertEqual(
@@ -934,6 +970,14 @@ report.lexicalResponseCards =
                 "evidenceDrawers": 0,
                 "lexicalSectionHidden": False,
                 "lexicalResponseCards": 1,
+                "summaryPills": [
+                    "2 queries",
+                    "Top 2 candidates per query",
+                    "3 unique candidates represented",
+                    "2 candidate profiles",
+                    "3 historical questions scanned",
+                    "Dev labels · nDCG@10 0.000 · MRR 0.000",
+                ],
             },
             legacy_report,
         )
@@ -1255,6 +1299,118 @@ report.lexicalResponseCards =
                     "evidence classification differs for q1",
                     completed.stderr,
                 )
+
+    def assert_bundle_mutation_rejected(
+        self,
+        mutation: Any,
+        *,
+        expected_error: str,
+    ) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-b"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=[
+                "model-a",
+                "model-b",
+                "model-c",
+                "model-d",
+            ]
+        )
+        payload = json.loads(bundle.read_text(encoding="utf-8"))
+        mutation(payload["queries"]["q1"])
+        bundle.write_text(json.dumps(payload), encoding="utf-8")
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "4",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn(expected_error, completed.stderr)
+
+    def test_bundle_rejects_wrong_cohorts(self) -> None:
+        self.assert_bundle_mutation_rejected(
+            lambda query: query.__setitem__(
+                "cohorts", ["zero fused nDCG@10"]
+            ),
+            expected_error="evidence cohorts differ for q1",
+        )
+
+    def test_bundle_rejects_wrong_context_flag(self) -> None:
+        self.assert_bundle_mutation_rejected(
+            lambda query: query.__setitem__("context_risk", True),
+            expected_error="evidence context-risk flag differs for q1",
+        )
+
+    def test_bundle_rejects_wrong_behavior_classification(self) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            query["candidates"]["model-a"]["evidence"][0][
+                "response"
+            ] = "I don't know"
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error="evidence behavior differs for q1",
+        )
+
+    def test_bundle_rejects_duplicate_record_id(self) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            evidence = query["candidates"]["model-a"]["evidence"]
+            evidence[1]["record_id"] = evidence[0]["record_id"]
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error="evidence record IDs differ for q1",
+        )
+
+    def test_bundle_rejects_mismatched_best_cosine_scalar(self) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            candidate = query["candidates"]["model-a"]
+            candidate["best_record_cosine"] += 0.0001
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error="evidence best-record cosine differs for q1",
+        )
+
+    def test_bundle_rejects_false_best_cosine_rank_permutation(self) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            candidates = query["candidates"]
+            candidates["model-a"]["ranks"]["best_record_cosine"] = 2
+            candidates["model-b"]["ranks"]["best_record_cosine"] = 1
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error="evidence best-record cosine ranks differ for q1",
+        )
+
+    def test_bundle_rejects_out_of_range_component_metric(self) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            query["component_metrics"]["dense_reference"][
+                "ndcg_at_10"
+            ] = 1.25
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error="must be finite and in [0, 1]",
+        )
+
+    def test_bundle_rejects_final_metric_mismatching_generic_evaluation(
+        self,
+    ) -> None:
+        def mutate(query: dict[str, Any]) -> None:
+            query["component_metrics"][
+                "raw_hierarchical_dense_equal"
+            ]["reciprocal_rank"] = 0.25
+
+        self.assert_bundle_mutation_rejected(
+            mutate,
+            expected_error="evidence final component metrics differ for q1",
+        )
 
     def test_bundle_derives_required_top_ten_and_positive_evidence_ids(
         self,

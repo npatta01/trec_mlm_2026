@@ -4,7 +4,7 @@
 
 **Goal:** Build and privately publish a self-contained explorer that diagnoses all 322 frozen E5 development queries using component ranks, qrels-derived cohorts, and the exact three nearest historical question-response records for each displayed evidence candidate.
 
-**Architecture:** A new `trec_mlm.grounded_evidence_explorer` module validates the frozen E5 artifacts and produces a renderer-neutral JSON bundle without recomputing similarity. The existing generic query explorer accepts that bundle optionally, unions the final top 20 with all positive candidates, and renders component ranks, filters, mechanism tags, and evidence drawers. A thin task-specific CLI builds the private bundle and final HTML atomically from the sealed artifacts.
+**Architecture:** A new `trec_mlm.grounded_evidence_explorer` module validates the frozen E5 artifacts and produces a renderer-neutral JSON bundle without recomputing similarity. Its semantic validator is authoritative for both producer and generic consumer; the task-specific builder remains responsible for binding component ranks to source artifacts. The existing generic query explorer accepts that bundle optionally, unions the final top 20 with all positive candidates, and renders component ranks, filters, mechanism tags, and evidence drawers. A thin task-specific CLI stages and validates the private bundle and final HTML before promoting both outputs together.
 
 **Tech Stack:** Python 3.11+, NumPy, stdlib JSON/HTML/JavaScript, pytest, Ruff, static tailnet-only Tailscale Serve.
 
@@ -16,7 +16,8 @@
 - Embed exactly three full historical records for every final top-ten candidate and every development-positive candidate.
 - Label evidence as `Nearest historical behavior` and similarity as `E5 cosine similarity`; never describe either as correctness, confidence, probability, or expertise.
 - Keep raw historical answers outside Git and only in the private build bundle and tailnet-only rendered HTML.
-- Fail closed before replacing output when inventories, shapes, record membership, ranking completeness, or similarity validity differ.
+- Fail closed before replacing either output when inventories, shapes, record membership, ranking completeness, metric bounds, derivable semantics, or similarity validity differ.
+- Stage bundle and HTML at unique sibling paths; validation or renderer failure must preserve both prior outputs byte-for-byte and remove all staging files.
 - Preserve generic explorer behavior when no evidence bundle is supplied.
 - Do not modify, stage, or commit the unrelated dirty files already present in the worktree.
 
@@ -401,7 +402,7 @@ git commit -m "feat: classify grounded explorer failures"
 
 **Interfaces:**
 - Consumes: optional `--evidence-bundle PATH`; `load_evidence_bundle(path: Path, query_ids: Collection[str]) -> dict[str, Any]`.
-- Produces: existing payload unchanged when absent; when present, each query gains `grounded`, results become final top 20 plus all positives, and `meta.grounded_evidence` describes the embedded evidence.
+- Produces: existing payload unchanged when absent; when present, each query gains `grounded`, results become final top 20 plus all positives, and `meta.grounded_evidence` describes the embedded evidence. The loader calls `validate_evidence_bundle(...)` from the producer module, rederives every bundle-intrinsic semantic relation, and binds final-component metrics to the generic run/qrels evaluation. Non-final component ranks are validated as complete permutations; their external source-truth binding remains the task-specific builder's responsibility.
 - Test helpers: `self.run_builder(*extra_args: str) -> subprocess.CompletedProcess[str]` invokes the existing script against `self.root`; `self.payload_from_output() -> dict[str, Any]` parses `self.run_dir / "query_explorer.html"`; and `self.write_evidence_bundle(...) -> Path` writes a schema-version-1 bundle matching the existing three-candidate fixture unless an override is supplied.
 
 - [ ] **Step 1: Write a failing generic-compatibility test before changing behavior**
@@ -646,7 +647,7 @@ git commit -m "feat: render grounded ranking diagnostics"
 
 **Interfaces:**
 - Consumes CLI flags `--refinement`, `--construction`, `--evaluation`, `--queries`, `--qrels`, `--profiles`, `--bundle-output`, and `--html-output`.
-- Produces the private JSON bundle first and then the final HTML only after all validation succeeds; stdout contains paths and aggregate counts but no question or response text.
+- Produces staged private JSON and HTML siblings, validates the HTML against the staged bundle, and only then promotes both requested outputs. Validation or rendering failure preserves both prior outputs byte-for-byte; stdout contains paths and aggregate counts but no question or response text.
 - Test helpers: `run_cli(e5_fixture: Mapping[str, Path], *, bundle: Path, html: Path) -> subprocess.CompletedProcess[str]` invokes the task-specific script; `e5_fixture` uses the complete fixture contract from Task 1 and exposes `corrupt_record_owner()` to change one selected record's candidate only.
 
 - [ ] **Step 1: Write failing CLI orchestration and no-leak tests**
@@ -663,13 +664,17 @@ def test_cli_builds_bundle_and_html_without_printing_raw_text(e5_fixture, tmp_pa
     assert json.loads(bundle.read_text())["meta"]["query_count"] == 2
 
 
-def test_cli_validation_failure_preserves_live_html(e5_fixture, tmp_path):
+def test_cli_renderer_failure_preserves_prior_outputs(e5_fixture, tmp_path):
+    bundle = tmp_path / "evidence.json"
     html = tmp_path / "explorer.html"
-    html.write_text("known-good", encoding="utf-8")
-    e5_fixture.corrupt_record_owner()
-    completed = run_cli(e5_fixture, html=html)
+    bundle.write_bytes(b"known-good-bundle")
+    html.write_bytes(b"known-good-html")
+    e5_fixture.corrupt_profiles()
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
     assert completed.returncode == 2
-    assert html.read_text(encoding="utf-8") == "known-good"
+    assert bundle.read_bytes() == b"known-good-bundle"
+    assert html.read_bytes() == b"known-good-html"
+    assert not list(tmp_path.rglob(".*.building.*"))
 ```
 
 - [ ] **Step 2: Run the CLI tests and confirm the red state**
@@ -678,7 +683,7 @@ Run: `uv run pytest tests/test_build_e5_grounded_evidence_explorer.py -q`
 
 Expected: collection or subprocess failure because the CLI does not exist.
 
-- [ ] **Step 3: Implement one-command orchestration using a temporary sibling HTML**
+- [ ] **Step 3: Implement one-command orchestration with two staged siblings**
 
 ```python
 def main() -> int:
@@ -690,20 +695,27 @@ def main() -> int:
         queries_path=args.queries,
         qrels_path=args.qrels,
     )
-    write_json_atomically(args.bundle_output, bundle)
-    temporary_html = args.html_output.with_name(f".{args.html_output.stem}.building.html")
+    temporary_bundle = _temporary_output_path(args.bundle_output, suffix=".json")
+    temporary_html = _temporary_output_path(args.html_output, suffix=".html")
     try:
+        write_json_atomically(temporary_bundle, bundle)
         run_generic_builder(
             input_path=args.refinement / "runs" / "raw_hierarchical_dense_equal.trec",
             queries=args.queries,
             qrels=args.qrels,
             profiles=args.profiles,
-            evidence_bundle=args.bundle_output,
+            evidence_bundle=temporary_bundle,
             output=temporary_html,
             top_candidates=20,
         )
-        temporary_html.replace(args.html_output)
+        _promote_output_pair(
+            staged_bundle=temporary_bundle,
+            bundle=args.bundle_output,
+            staged_html=temporary_html,
+            html=args.html_output,
+        )
     finally:
+        temporary_bundle.unlink(missing_ok=True)
         temporary_html.unlink(missing_ok=True)
     print(json.dumps({
         "bundle": str(args.bundle_output.resolve()),
@@ -828,16 +840,24 @@ PY
 
 Expected: assertions pass and only aggregate query/byte counts print.
 
-- [ ] **Step 4: Replace the private bundle and HTML atomically after the audit**
+- [ ] **Step 4: Rebuild directly to the stable pair after the candidate audit**
 
 ```bash
-mv /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/explorer/evidence_bundle.candidate.json \
-  /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/explorer/evidence_bundle.json
-mv /home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.candidate.html \
-  /home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html
+uv run python scripts/build_e5_grounded_evidence_explorer.py \
+  --refinement /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1 \
+  --construction /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction \
+  --evaluation /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/evaluation.json \
+  --queries data/dev/llm_dev_data.tsv \
+  --qrels data/dev/llm_dev_qrels.txt \
+  --profiles reports/trec_2026_llm_profiles.json \
+  --bundle-output /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/explorer/evidence_bundle.json \
+  --html-output /home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html
 ```
 
-Expected: both stable paths exist and no `.candidate` files remain.
+Expected: the CLI stages and validates both artifacts, then promotes the stable
+pair together. A failure leaves both prior stable paths byte-for-byte unchanged.
+Remove the `.candidate` files only after the stable outputs pass the same
+artifact audit.
 
 - [ ] **Step 5: Update the failure ledger and portal description with private-data disclosure**
 

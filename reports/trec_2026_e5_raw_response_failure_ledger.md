@@ -18,11 +18,13 @@ Primary system: `raw_hierarchical_dense_equal`.
 | New zero regression | 1 | Prior fused baseline was nonzero; new fusion is zero | P0 regression |
 | Prior zeros rescued | 8 | Prior fused baseline was zero; new fusion is nonzero | Preserve as regression tests |
 
-The complete interactive explorer contains all 322 queries, defaults to weakest
-nDCG first, and can filter to zero-nDCG failures. It includes query text,
-top-20 rankings, development labels, every positively labeled candidate, and
-its system rank. Raw historical responses are deliberately excluded from the
-rendered artifact.
+The complete private interactive explorer covers all 322 development queries,
+defaults to weakest nDCG first, and supports the frozen failure cohorts. It
+shows the final top 20 plus all development-positive candidates, component
+ranks, and exactly three nearest historical question-response records for each
+final top-ten or positive candidate. Historical answers are embedded in the
+private, tailnet-only HTML; similarity and substantive output do not establish
+correctness.
 
 ## P0: new zero regression
 
@@ -69,4 +71,5 @@ The new fusion rescued eight prior zero-score queries:
 - Sealed evaluation: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/evaluation.json`
 - Rankings: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1/rankings/`
 - Selected raw evidence IDs: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1/selected_record_ids.json`
-- Interactive explorer: `/home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html`
+- Private interactive explorer (tailnet-only; embeds selected full historical answers): `https://npatta01-framework.tail481212.ts.net/plans/e5-raw-response-failure-explorer.html`
+- Canonical rendered path: `/home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html`

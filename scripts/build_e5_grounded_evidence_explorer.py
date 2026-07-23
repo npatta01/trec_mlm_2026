@@ -143,26 +143,108 @@ def run_generic_builder(
 def _validate_html_destination(path: Path) -> None:
     if path.suffix.lower() != ".html":
         raise E5ExplorerBuildError("HTML output path must end in .html")
-    if path.is_symlink():
-        raise E5ExplorerBuildError("HTML output path must not be a symlink")
     if path.exists() and not path.is_file():
         raise E5ExplorerBuildError("HTML output path is not a regular file")
 
 
+def _source_input_paths(
+    *,
+    refinement: Path,
+    construction: Path,
+    evaluation: Path,
+    queries: Path,
+    qrels: Path,
+    profiles: Path,
+) -> tuple[Path, ...]:
+    return (
+        queries,
+        qrels,
+        profiles,
+        evaluation,
+        refinement / "runs" / "raw_hierarchical_dense_equal.trec",
+        refinement / "inputs.json",
+        refinement / "rankings" / "dense_reference.json",
+        refinement / "rankings" / "raw_hierarchical.json",
+        (
+            refinement
+            / "rankings"
+            / "raw_hierarchical_dense_equal.json"
+        ),
+        refinement / "selected_record_ids.json",
+        refinement / "top_record_similarities.npy",
+        construction / "records.json",
+        construction / "rankings" / "profile_only.json",
+        construction / "rankings" / "dense_profile_equal.json",
+    )
+
+
+def _same_file(left: Path, right: Path) -> bool:
+    if left == right:
+        return True
+    try:
+        return left.exists() and right.exists() and left.samefile(right)
+    except OSError:
+        return False
+
+
+def _validate_unresolved_output_paths(
+    bundle: Path, html: Path
+) -> None:
+    if bundle.is_symlink():
+        raise E5ExplorerBuildError(
+            "bundle output path must not be a symlink"
+        )
+    if html.is_symlink():
+        raise E5ExplorerBuildError("HTML output path must not be a symlink")
+
+
+def _validate_output_aliases(
+    *,
+    bundle: Path,
+    html: Path,
+    sources: tuple[Path, ...],
+) -> None:
+    if _same_file(bundle, html):
+        raise E5ExplorerBuildError(
+            "bundle and HTML output paths must be different"
+        )
+    if any(
+        _same_file(output, source)
+        for output in (bundle, html)
+        for source in sources
+    ):
+        raise E5ExplorerBuildError("output path aliases a source input")
+
+
 def main() -> int:
     args = parse_args()
+    requested_bundle = args.bundle_output
+    requested_html = args.html_output
+    _validate_unresolved_output_paths(
+        requested_bundle, requested_html
+    )
+
     refinement = args.refinement.resolve()
     construction = args.construction.resolve()
     evaluation = args.evaluation.resolve()
     queries = args.queries.resolve()
     qrels = args.qrels.resolve()
     profiles = args.profiles.resolve()
-    bundle_output = args.bundle_output.resolve()
-    html_output = args.html_output.resolve()
-    if bundle_output == html_output:
-        raise E5ExplorerBuildError(
-            "bundle and HTML output paths must be different"
-        )
+    bundle_output = requested_bundle.resolve()
+    html_output = requested_html.resolve()
+    sources = _source_input_paths(
+        refinement=refinement,
+        construction=construction,
+        evaluation=evaluation,
+        queries=queries,
+        qrels=qrels,
+        profiles=profiles,
+    )
+    _validate_output_aliases(
+        bundle=bundle_output,
+        html=html_output,
+        sources=sources,
+    )
     _validate_html_destination(html_output)
 
     bundle = build_evidence_bundle(

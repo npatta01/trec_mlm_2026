@@ -24,6 +24,22 @@ SYSTEMS = (
 )
 SECRET_QUESTION = "secret historical question"
 SECRET_ANSWER = "secret historical answer"
+SOURCE_NAMES = (
+    "queries",
+    "qrels",
+    "profiles",
+    "evaluation",
+    "final_trec_run",
+    "refinement_inputs",
+    "dense_reference_ranking",
+    "raw_hierarchical_ranking",
+    "raw_hierarchical_dense_equal_ranking",
+    "selected_record_ids",
+    "top_record_similarities",
+    "construction_records",
+    "profile_only_ranking",
+    "dense_profile_equal_ranking",
+)
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -48,6 +64,44 @@ class E5Fixture(Mapping[str, Path]):
         records = json.loads(records_path.read_text(encoding="utf-8"))
         records[0]["candidate_id"] = "c2"
         _write_json(records_path, records)
+
+    def source_paths(self) -> dict[str, Path]:
+        refinement = self["refinement"]
+        construction = self["construction"]
+        return {
+            "queries": self["queries"],
+            "qrels": self["qrels"],
+            "profiles": self["profiles"],
+            "evaluation": self["evaluation"],
+            "final_trec_run": (
+                refinement
+                / "runs"
+                / "raw_hierarchical_dense_equal.trec"
+            ),
+            "refinement_inputs": refinement / "inputs.json",
+            "dense_reference_ranking": (
+                refinement / "rankings" / "dense_reference.json"
+            ),
+            "raw_hierarchical_ranking": (
+                refinement / "rankings" / "raw_hierarchical.json"
+            ),
+            "raw_hierarchical_dense_equal_ranking": (
+                refinement
+                / "rankings"
+                / "raw_hierarchical_dense_equal.json"
+            ),
+            "selected_record_ids": refinement / "selected_record_ids.json",
+            "top_record_similarities": (
+                refinement / "top_record_similarities.npy"
+            ),
+            "construction_records": construction / "records.json",
+            "profile_only_ranking": (
+                construction / "rankings" / "profile_only.json"
+            ),
+            "dense_profile_equal_ranking": (
+                construction / "rankings" / "dense_profile_equal.json"
+            ),
+        }
 
 
 @pytest.fixture
@@ -280,3 +334,108 @@ def test_cli_rejects_bundle_path_that_aliases_live_html(
 
     assert completed.returncode == 2
     assert html.read_text(encoding="utf-8") == "known-good"
+
+
+@pytest.mark.parametrize("source_name", SOURCE_NAMES)
+def test_cli_rejects_bundle_output_aliasing_any_source_before_writing(
+    e5_fixture: E5Fixture,
+    tmp_path: Path,
+    source_name: str,
+) -> None:
+    source = e5_fixture.source_paths()[source_name]
+    source_before = source.read_bytes()
+    html = tmp_path / "live.html"
+    html.write_bytes(b"known-good-html")
+
+    completed = run_cli(e5_fixture, bundle=source, html=html)
+
+    assert completed.returncode == 2
+    assert "error: output path aliases a source input" in completed.stderr
+    assert source.read_bytes() == source_before
+    assert html.read_bytes() == b"known-good-html"
+    assert SECRET_QUESTION not in completed.stdout + completed.stderr
+    assert SECRET_ANSWER not in completed.stdout + completed.stderr
+
+
+def test_cli_rejects_html_output_hard_linked_to_source_before_writing(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    source = e5_fixture["profiles"]
+    source_before = source.read_bytes()
+    html = tmp_path / "source-alias.html"
+    os.link(source, html)
+    bundle = tmp_path / "private" / "evidence.json"
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: output path aliases a source input" in completed.stderr
+    assert source.read_bytes() == source_before
+    assert html.read_bytes() == source_before
+    assert not bundle.exists()
+
+
+def test_cli_rejects_hard_linked_output_paths_before_writing(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    bundle = tmp_path / "evidence.json"
+    bundle.write_bytes(b"known-good-output")
+    html = tmp_path / "explorer.html"
+    os.link(bundle, html)
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: bundle and HTML output paths must be different" in completed.stderr
+    assert bundle.read_bytes() == b"known-good-output"
+    assert html.read_bytes() == b"known-good-output"
+
+
+def test_cli_rejects_bundle_output_symlink_before_writing(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    target = tmp_path / "protected-bundle.json"
+    target.write_bytes(b"known-good-bundle")
+    bundle = tmp_path / "evidence.json"
+    bundle.symlink_to(target)
+    html = tmp_path / "explorer.html"
+    html.write_bytes(b"known-good-html")
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: bundle output path must not be a symlink" in completed.stderr
+    assert bundle.is_symlink()
+    assert target.read_bytes() == b"known-good-bundle"
+    assert html.read_bytes() == b"known-good-html"
+
+
+def test_cli_rejects_html_output_symlink_before_writing_bundle(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    target = tmp_path / "protected.html"
+    target.write_bytes(b"known-good-html")
+    html = tmp_path / "explorer.html"
+    html.symlink_to(target)
+    bundle = tmp_path / "private" / "evidence.json"
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: HTML output path must not be a symlink" in completed.stderr
+    assert html.is_symlink()
+    assert target.read_bytes() == b"known-good-html"
+    assert not bundle.exists()
+
+
+def test_cli_allows_private_bundle_beneath_refinement_root(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    bundle = e5_fixture["refinement"] / "explorer" / "evidence.json"
+    html = tmp_path / "explorer.html"
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 0, completed.stderr
+    assert bundle.is_file()
+    assert html.is_file()

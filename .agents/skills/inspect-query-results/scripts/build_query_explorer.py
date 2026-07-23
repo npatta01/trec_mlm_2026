@@ -453,16 +453,17 @@ def load_queries(path: Path) -> tuple[dict[str, str], list[str]]:
     queries: dict[str, str] = {}
     order: list[str] = []
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle, delimiter="\t")
-        rows = list(reader)
-    if not rows:
+        lines = [raw_line.rstrip("\r\n") for raw_line in handle]
+    if not lines:
         raise ExplorerInputError(f"query file is empty: {path}")
 
     start = 0
     query_index = 0
     text_index = 1
-    lowered = [value.strip().lower() for value in rows[0]]
-    if any(value in QUERY_HEADER_ALIASES for value in lowered):
+    header = lines[0].split("\t")
+    lowered = [value.strip().lower() for value in header]
+    headered = any(value in QUERY_HEADER_ALIASES for value in lowered)
+    if headered:
         start = 1
         query_index = next(
             index for index, value in enumerate(lowered) if value in QUERY_HEADER_ALIASES
@@ -476,7 +477,8 @@ def load_queries(path: Path) -> tuple[dict[str, str], list[str]]:
             )
         text_index = matches[0]
 
-    for row_number, row in enumerate(rows[start:], start=start + 1):
+    for row_number, line in enumerate(lines[start:], start=start + 1):
+        row = line.split("\t") if headered else line.split("\t", maxsplit=1)
         if len(row) <= max(query_index, text_index):
             raise ExplorerInputError(f"query row {row_number} has too few columns")
         query_id = row[query_index].strip()

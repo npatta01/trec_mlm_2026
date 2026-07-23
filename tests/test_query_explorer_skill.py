@@ -14,6 +14,8 @@ import tempfile
 from typing import Any
 import unittest
 
+from trec_mlm.query_knn import load_queries_tsv
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = (
@@ -25,6 +27,108 @@ if SPEC is None or SPEC.loader is None:  # pragma: no cover - import system fail
     raise RuntimeError("could not load query explorer builder")
 EXPLORER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(EXPLORER)
+
+
+class QueryExplorerQueryLoaderTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+
+    def tearDown(self) -> None:
+        self.directory.cleanup()
+
+    def test_unheaded_query_preserves_literal_surrounding_quotes(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text(
+            '  q1  \t"literal quoted text"  \r\n',
+            encoding="utf-8",
+        )
+
+        queries, order = EXPLORER.load_queries(path)
+
+        self.assertEqual({"q1": '"literal quoted text"'}, queries)
+        self.assertEqual(["q1"], order)
+
+    def test_unheaded_query_preserves_tabs_in_text(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text("q1\talpha\tbeta\n", encoding="utf-8")
+
+        queries, order = EXPLORER.load_queries(path)
+
+        self.assertEqual({"q1": "alpha\tbeta"}, queries)
+        self.assertEqual(["q1"], order)
+
+    def test_headered_query_preserves_alias_columns_and_literal_quotes(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text(
+            "metadata\tquestion\tqid\n"
+            'ignored\t"literal quoted text"\tq1\n',
+            encoding="utf-8",
+        )
+
+        queries, order = EXPLORER.load_queries(path)
+
+        self.assertEqual({"q1": '"literal quoted text"'}, queries)
+        self.assertEqual(["q1"], order)
+
+    def test_unheaded_query_keeps_normal_parsing_and_order(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text(
+            "q1\tFirst query\nq2\tSecond query\n",
+            encoding="utf-8",
+        )
+
+        queries, order = EXPLORER.load_queries(path)
+
+        self.assertEqual(
+            {"q1": "First query", "q2": "Second query"},
+            queries,
+        )
+        self.assertEqual(["q1", "q2"], order)
+
+    def test_query_file_rejects_malformed_rows(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text("q1\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            EXPLORER.ExplorerInputError,
+            "too few columns",
+        ):
+            EXPLORER.load_queries(path)
+
+    def test_query_file_rejects_blank_ids_or_text(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text("q1\t   \n", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            EXPLORER.ExplorerInputError,
+            "blank ID or text",
+        ):
+            EXPLORER.load_queries(path)
+
+    def test_query_file_rejects_duplicate_ids(self) -> None:
+        path = self.root / "queries.tsv"
+        path.write_text(
+            "q1\tFirst query\nq1\tSecond query\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            EXPLORER.ExplorerInputError,
+            "duplicate query ID",
+        ):
+            EXPLORER.load_queries(path)
+
+    def test_official_queries_match_authoritative_loader(self) -> None:
+        path = ROOT / "data/dev/llm_dev_data.tsv"
+
+        queries, order = EXPLORER.load_queries(path)
+        authoritative = load_queries_tsv(path)
+
+        self.assertEqual(322, len(queries))
+        self.assertEqual(322, len(authoritative))
+        self.assertTrue(queries == authoritative)
+        self.assertTrue(order == list(authoritative))
 
 
 class QueryExplorerSchemaTest(unittest.TestCase):

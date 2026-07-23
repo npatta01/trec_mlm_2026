@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import csv
+import html as html_lib
 import importlib.util
 import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -594,6 +596,64 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             encoding="utf-8"
         )
 
+    def execute_browser_probe(
+        self,
+        html: str,
+        probe: str,
+    ) -> dict[str, Any]:
+        browser = shutil.which("google-chrome")
+        self.assertIsNotNone(
+            browser,
+            "the local headless browser required by the DOM interaction test is missing",
+        )
+        driver = f"""
+<script>
+(() => {{
+  const report = {{}};
+  try {{
+    {probe}
+  }} catch (error) {{
+    report.error = String(error && error.stack ? error.stack : error);
+  }}
+  const output = document.createElement("pre");
+  output.id = "interactionResults";
+  output.textContent = JSON.stringify(report);
+  document.body.appendChild(output);
+}})();
+</script>
+"""
+        harness = self.root / "interaction-probe.html"
+        harness.write_text(
+            html.replace("</body>", driver + "</body>", 1),
+            encoding="utf-8",
+        )
+        completed = subprocess.run(
+            [
+                str(browser),
+                "--headless=new",
+                "--no-sandbox",
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--allow-file-access-from-files",
+                "--dump-dom",
+                harness.resolve().as_uri(),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        match = re.search(
+            r'<pre id="interactionResults">(.*?)</pre>',
+            completed.stdout,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(match, completed.stdout[-2000:])
+        report = json.loads(html_lib.unescape(match.group(1)))
+        self.assertNotIn("error", report, report.get("error"))
+        return report
+
     def test_grounded_ui_has_filters_ranks_and_neutral_evidence_copy(
         self,
     ) -> None:
@@ -639,6 +699,140 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
         self.assertNotIn("</script><img", html)
         self.assertIn("item.response", html)
         self.assertIn("textContent", html)
+
+    def test_executed_dom_clears_empty_filters_and_preserves_both_modes(
+        self,
+    ) -> None:
+        grounded_html = self.build_and_read_grounded_html()
+        grounded_report = self.execute_browser_probe(
+            grounded_html,
+            """
+const firstDrawer = document.querySelector(".evidence-drawer");
+report.evidenceArticles = firstDrawer
+  ? firstDrawer.querySelectorAll("article").length
+  : -1;
+report.lexicalSectionHidden = document.getElementById("responseSection").hidden;
+report.lexicalResponsesEmpty =
+  document.getElementById("responseList").textContent.trim() === "";
+
+const filter = document.getElementById("evaluationFilter");
+filter.value = "rescued";
+filter.dispatchEvent(new Event("change", { bubbles: true }));
+report.emptyFilter = {
+  queryText: document.getElementById("queryHeading").textContent,
+  resultRows: document.getElementById("resultsBody").childElementCount,
+  candidateText: document.getElementById("candidateHeading").textContent,
+  emptyText: document.getElementById("mainEmpty")?.textContent.trim() || "",
+  emptyRole: document.getElementById("mainEmpty")?.getAttribute("role") || "",
+  queryHidden: document.getElementById("queryCard")?.hidden === true,
+  resultsHidden: document.getElementById("resultsSection")?.hidden === true,
+  candidateHidden: document.getElementById("candidateSection").hidden,
+};
+
+filter.value = "top_10_absent";
+filter.dispatchEvent(new Event("change", { bubbles: true }));
+report.recovered = {
+  queryText: document.getElementById("queryHeading").textContent,
+  resultRows: document.querySelectorAll("#resultsBody > tr:not(.evidence-row)").length,
+  candidateText: document.getElementById("candidateHeading").textContent,
+  emptyHidden: document.getElementById("mainEmpty")?.hidden === true,
+};
+
+const search = document.getElementById("querySearch");
+search.value = "does not occur";
+search.dispatchEvent(new Event("input", { bubbles: true }));
+report.emptySearch = {
+  queryText: document.getElementById("queryHeading").textContent,
+  resultRows: document.getElementById("resultsBody").childElementCount,
+  candidateText: document.getElementById("candidateHeading").textContent,
+  emptyText: document.getElementById("mainEmpty").textContent.trim(),
+};
+search.value = "";
+search.dispatchEvent(new Event("input", { bubbles: true }));
+report.searchRecovered = {
+  queryText: document.getElementById("queryHeading").textContent,
+  candidateText: document.getElementById("candidateHeading").textContent,
+  emptyHidden: document.getElementById("mainEmpty").hidden,
+};
+""",
+        )
+        self.assertEqual(3, grounded_report["evidenceArticles"])
+        self.assertEqual(
+            {
+                "queryText": "",
+                "resultRows": 0,
+                "candidateText": "",
+                "emptyText": "No queries match this filter.",
+                "emptyRole": "status",
+                "queryHidden": True,
+                "resultsHidden": True,
+                "candidateHidden": True,
+            },
+            grounded_report["emptyFilter"],
+        )
+        self.assertTrue(grounded_report["lexicalSectionHidden"])
+        self.assertTrue(grounded_report["lexicalResponsesEmpty"])
+        self.assertEqual(
+            {
+                "queryText": "A grounded test query",
+                "resultRows": 11,
+                "candidateText": "model-a",
+                "emptyHidden": True,
+            },
+            grounded_report["recovered"],
+        )
+        self.assertEqual(
+            {
+                "queryText": "",
+                "resultRows": 0,
+                "candidateText": "",
+                "emptyText": "No queries match this filter.",
+            },
+            grounded_report["emptySearch"],
+        )
+        self.assertEqual(
+            {
+                "queryText": "A grounded test query",
+                "candidateText": "model-a",
+                "emptyHidden": True,
+            },
+            grounded_report["searchRecovered"],
+        )
+
+        self.write_fixture()
+        completed = self.run_builder(
+            "--top-candidates",
+            "2",
+            "--responses-per-candidate",
+            "2",
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        legacy_html = (self.run_dir / "query_explorer.html").read_text(
+            encoding="utf-8"
+        )
+        legacy_report = self.execute_browser_probe(
+            legacy_html,
+            """
+report.headers = [...document.querySelectorAll("#resultsHead th")]
+  .map((cell) => cell.textContent);
+report.resultRows =
+  document.querySelectorAll("#resultsBody > tr:not(.evidence-row)").length;
+report.evidenceDrawers = document.querySelectorAll(".evidence-drawer").length;
+report.lexicalSectionHidden = document.getElementById("responseSection").hidden;
+report.lexicalResponseCards =
+  document.querySelectorAll("#responseList .history-card").length;
+""",
+        )
+        self.assertEqual(
+            {
+                "headers": ["Rank", "Candidate", "System score"],
+                "resultRows": 2,
+                "evidenceDrawers": 0,
+                "lexicalSectionHidden": False,
+                "lexicalResponseCards": 1,
+            },
+            legacy_report,
+        )
 
     def test_no_bundle_preserves_existing_payload_shape(self) -> None:
         self.write_fixture()

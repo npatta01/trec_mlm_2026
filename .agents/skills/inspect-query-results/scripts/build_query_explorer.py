@@ -1596,6 +1596,7 @@ HTML_TEMPLATE = r'''<!doctype html>
     .history-response { margin: 7px 0 0; color: var(--muted); font-size: .88rem; }
     .history-meta { margin-top: 7px; color: var(--muted); font-size: .72rem; }
     .empty { border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); padding: 12px; font-size: .86rem; }
+    .main-empty { padding: 18px; }
     .warning-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: .82rem; }
     .foot { margin-top: 18px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
     @media (max-width: 920px) {
@@ -1657,14 +1658,15 @@ HTML_TEMPLATE = r'''<!doctype html>
         <div class="query-list" id="queryList"></div>
       </aside>
       <div class="main">
-        <section class="panel query-card" aria-labelledby="queryHeading">
+        <section class="panel query-card" id="queryCard" aria-labelledby="queryHeading">
           <span class="mono" id="activeQueryId"></span>
           <h2 id="queryHeading"></h2>
           <div class="query-evaluation" id="queryEvaluation"></div>
           <div id="groundedSummary"></div>
         </section>
+        <div class="panel empty main-empty" id="mainEmpty" role="status" hidden>No queries match this filter.</div>
         <div class="results-grid" id="resultsGrid">
-          <section class="panel section" aria-labelledby="resultsHeading">
+          <section class="panel section" id="resultsSection" aria-labelledby="resultsHeading">
             <h2 id="resultsHeading">Top candidates</h2>
             <p class="section-note"><span id="resultLimit"></span> Select a candidate to inspect its history.<span id="labelLegend"> G0/G1/G2 badges are development ground-truth grades.</span> Scores belong to this run only and should not be compared with scores from another approach.</p>
             <div class="table-wrap">
@@ -1823,10 +1825,10 @@ HTML_TEMPLATE = r'''<!doctype html>
       return queries;
     }
 
-    function renderQueryList() {
+    function renderQueryList(queries) {
       const list = byId("queryList");
       list.replaceChildren();
-      visibleQueries().forEach((query) => {
+      queries.forEach((query) => {
         const button = el("button", "query-button");
         button.type = "button";
         button.setAttribute("aria-current", query.id === state.queryId ? "true" : "false");
@@ -1842,6 +1844,52 @@ HTML_TEMPLATE = r'''<!doctype html>
         list.appendChild(button);
       });
       if (!list.childElementCount) list.appendChild(el("div", "empty", "No queries match this search."));
+    }
+
+    function synchronizeSelection(queries) {
+      if (!queries.length) {
+        state.queryId = null;
+        state.candidateId = null;
+        return;
+      }
+      let query = queries.find((item) => item.id === state.queryId);
+      if (!query) {
+        query = queries[0];
+        state.queryId = query.id;
+        state.candidateId = null;
+      }
+      if (!query.results.some((result) => result.candidate_id === state.candidateId)) {
+        state.candidateId = query.results[0] ? query.results[0].candidate_id : null;
+      }
+    }
+
+    function renderEmptyMain() {
+      byId("mainEmpty").hidden = false;
+      byId("queryCard").hidden = true;
+      byId("resultsGrid").hidden = true;
+      byId("resultsSection").hidden = true;
+      byId("candidateSection").hidden = true;
+      byId("activeQueryId").textContent = "";
+      byId("queryHeading").textContent = "";
+      byId("queryEvaluation").replaceChildren();
+      byId("groundedSummary").replaceChildren();
+      byId("resultsBody").replaceChildren();
+      byId("oracleReference").replaceChildren();
+      byId("candidateRank").textContent = "";
+      byId("candidateHeading").textContent = "";
+      byId("candidateSummary").textContent = "";
+      byId("candidateStats").replaceChildren();
+      byId("candidateTerms").replaceChildren();
+      byId("responseList").replaceChildren();
+      byId("candidateWarnings").replaceChildren();
+    }
+
+    function showMain() {
+      byId("mainEmpty").hidden = true;
+      byId("queryCard").hidden = false;
+      byId("resultsGrid").hidden = false;
+      byId("resultsSection").hidden = false;
+      byId("candidateSection").hidden = false;
     }
 
     function renderBestPositiveSummary(query) {
@@ -2036,15 +2084,17 @@ HTML_TEMPLATE = r'''<!doctype html>
       const responseList = byId("responseList");
       responseList.replaceChildren();
       byId("responseSection").hidden = Boolean(query.grounded);
-      const responses = (((data.responses || {})[query.id] || {})[result.candidate_id] || []);
-      responses.forEach((item) => {
-        const card = el("article", "history-card");
-        card.appendChild(el("p", "history-question", item.source_query));
-        card.appendChild(el("p", "history-response", item.response));
-        card.appendChild(el("div", "history-meta", "Historical query " + item.source_query_id + " · lexical overlap " + percent(item.similarity)));
-        responseList.appendChild(card);
-      });
-      if (!responses.length) responseList.appendChild(el("div", "empty", "No usable related response was embedded for this candidate."));
+      if (!query.grounded) {
+        const responses = (((data.responses || {})[query.id] || {})[result.candidate_id] || []);
+        responses.forEach((item) => {
+          const card = el("article", "history-card");
+          card.appendChild(el("p", "history-question", item.source_query));
+          card.appendChild(el("p", "history-response", item.response));
+          card.appendChild(el("div", "history-meta", "Historical query " + item.source_query_id + " · lexical overlap " + percent(item.similarity)));
+          responseList.appendChild(card);
+        });
+        if (!responses.length) responseList.appendChild(el("div", "empty", "No usable related response was embedded for this candidate."));
+      }
 
       byId("candidateWarnings").replaceChildren();
       const warnings = profile && Array.isArray(profile.warnings) ? profile.warnings : [];
@@ -2053,22 +2103,24 @@ HTML_TEMPLATE = r'''<!doctype html>
     }
 
     function renderAll() {
-      renderQueryList();
+      const queries = visibleQueries();
+      synchronizeSelection(queries);
+      renderQueryList(queries);
+      if (!queries.length) {
+        renderEmptyMain();
+        return;
+      }
+      showMain();
       renderResults();
       renderCandidate();
     }
 
     byId("querySearch").addEventListener("input", (event) => {
       state.search = event.target.value;
-      renderQueryList();
+      renderAll();
     });
     byId("evaluationFilter").addEventListener("change", (event) => {
       state.evaluationFilter = event.target.value;
-      const first = visibleQueries()[0];
-      if (first) {
-        state.queryId = first.id;
-        state.candidateId = first.results[0] ? first.results[0].candidate_id : null;
-      }
       renderAll();
     });
     byId("queryToggle").addEventListener("click", () => {

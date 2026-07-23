@@ -15,7 +15,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Collection, Iterable, Iterator, Mapping, Sequence
 
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 QUERY_ALIASES = ("target_query_id", "query_id", "outer_query_id", "qid")
 CANDIDATE_ALIASES = ("model_id", "candidate_id", "doc_id")
@@ -142,7 +141,14 @@ def parse_args() -> argparse.Namespace:
         help="Optional validated grounded-evidence JSON; requires complete qrels.",
     )
     parser.add_argument("--profiles", type=Path)
-    parser.add_argument("--discovery", type=Path)
+    parser.add_argument(
+        "--discovery",
+        type=Path,
+        help=(
+            "Optional legacy lexical-response source; cannot be combined "
+            "with --evidence-bundle."
+        ),
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--title", default="Query Results Explorer")
     parser.add_argument("--top-candidates", type=positive_int, default=10)
@@ -803,6 +809,11 @@ def validate_grounded_contract(
 ) -> dict[str, list[dict[str, Any]]]:
     """Bind grounded evidence to frozen rows, complete qrels, and query text."""
 
+    from trec_mlm.grounded_evidence_explorer import (
+        derive_mechanism,
+        derive_retrieval_outcome,
+    )
+
     if set(qrels) != set(grouped):
         raise ExplorerInputError("evidence bundle requires complete qrels")
     selected: dict[str, list[dict[str, Any]]] = {}
@@ -845,6 +856,52 @@ def validate_grounded_contract(
             for candidate_id, grade in qrels[query_id].items()
             if float(grade) > 0.0
         }
+        required_depth = min(10, len(values))
+        if top_candidates < required_depth:
+            raise ExplorerInputError(
+                "grounded evidence requires --top-candidates of at least "
+                f"{required_depth}"
+            )
+        required_evidence_ids = [
+            str(value["candidate_id"])
+            for value in values
+            if int(value["rank"]) <= 10
+            or str(value["candidate_id"]) in positive_ids
+        ]
+        if grounded["evidence_candidate_ids"] != required_evidence_ids:
+            raise ExplorerInputError(
+                f"evidence candidate ordering differs for {query_id}"
+            )
+        if any(
+            len(candidates[candidate_id]["evidence"]) != 3
+            for candidate_id in required_evidence_ids
+        ):
+            raise ExplorerInputError(
+                f"evidence record coverage differs for {query_id}"
+            )
+        positions = {
+            system: {
+                candidate_id: int(candidate["ranks"][system])
+                for candidate_id, candidate in candidates.items()
+            }
+            for system in EVIDENCE_RANK_SYSTEMS
+        }
+        try:
+            expected_retrieval_outcome = derive_retrieval_outcome(
+                positive_ids, positions
+            )
+            expected_mechanism = derive_mechanism(positive_ids, positions)
+        except ValueError as error:
+            raise ExplorerInputError(
+                f"evidence classification cannot be derived for {query_id}"
+            ) from error
+        if (
+            grounded["retrieval_outcome"] != expected_retrieval_outcome
+            or grounded["mechanism"] != expected_mechanism
+        ):
+            raise ExplorerInputError(
+                f"evidence classification differs for {query_id}"
+            )
         selected[query_id] = select_display_rows(
             values,
             top_candidates=top_candidates,
@@ -1963,6 +2020,10 @@ def main() -> int:
         if evidence_path is not None
         else None
     )
+    if evidence_bundle is not None and args.discovery is not None:
+        raise ExplorerInputError(
+            "--discovery cannot be combined with --evidence-bundle"
+        )
 
     qrels_path = infer_qrels_path(
         root,
@@ -2019,7 +2080,7 @@ def main() -> int:
     related_responses: dict[str, dict[str, list[dict[str, Any]]]] = {}
     source_count = 0
     discovery_path: Path | None = None
-    if not args.no_responses:
+    if not args.no_responses and evidence_bundle is None:
         discovery_path = resolve_path(args.discovery, root)
         if args.discovery is not None and (
             discovery_path is None or not discovery_path.is_file()

@@ -399,6 +399,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
         *,
         query_ids: list[str] | None = None,
         display_ids: list[str] | None = None,
+        evidence_ids: list[str] | None = None,
         override: dict[str, Any] | None = None,
     ) -> Path:
         with (self.run_dir / "predictions.tsv").open(
@@ -445,6 +446,17 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             candidate_ids = candidates_by_query[source_query_id]
             final_ranks = ranks_by_query[source_query_id]
             selected_display_ids = display_ids or candidate_ids
+            positive_ids = {
+                candidate_id
+                for candidate_id in candidate_ids
+                if qrels.get(source_query_id, {}).get(candidate_id, 0.0) > 0.0
+            }
+            selected_evidence_ids = evidence_ids or [
+                candidate_id
+                for candidate_id in candidate_ids
+                if final_ranks[candidate_id] <= 10
+                or candidate_id in positive_ids
+            ]
             candidate_payload: dict[str, dict[str, Any]] = {}
             for candidate_id in candidate_ids:
                 rank = final_ranks[candidate_id]
@@ -475,7 +487,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                             }
                             for index in range(1, 4)
                         ]
-                        if candidate_id in selected_display_ids
+                        if candidate_id in selected_evidence_ids
                         else []
                     ),
                 }
@@ -489,7 +501,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                 "query_id": query_id,
                 "query_text": query_texts.get(source_query_id, "Wrong query"),
                 "display_candidate_ids": selected_display_ids,
-                "evidence_candidate_ids": selected_display_ids,
+                "evidence_candidate_ids": selected_evidence_ids,
                 "component_metrics": {
                     system: {"ndcg_at_10": 0.0, "reciprocal_rank": 0.0}
                     for system in (
@@ -514,6 +526,8 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
                     if best_positive_rank == 1
                     else "top-10 retrieval, top-1 miss"
                     if best_positive_rank is not None and best_positive_rank <= 10
+                    else "evidence/routing gap"
+                    if best_positive_rank is not None
                     else "no development-positive candidate"
                 ),
                 "candidates": candidate_payload,
@@ -554,14 +568,17 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
 
     def test_bundle_adds_positive_below_limit_without_reordering(self) -> None:
         self.write_complete_qrel_fixture(
-            candidate_count=4, positive_candidate="model-d"
+            candidate_count=12, positive_candidate="model-l"
         )
+        display_ids = [
+            f"model-{chr(ord('a') + index)}" for index in range(10)
+        ] + ["model-l"]
         bundle = self.write_evidence_bundle(
-            display_ids=["model-a", "model-b", "model-d"]
+            display_ids=display_ids
         )
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "10",
             "--evidence-bundle",
             str(bundle),
             "--no-responses",
@@ -570,21 +587,34 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
         payload = self.payload_from_output()
         query = payload["queries"][0]
         self.assertEqual(
-            ["model-a", "model-b", "model-d"],
+            display_ids,
             [result["candidate_id"] for result in query["results"]],
         )
-        self.assertEqual(4, query["results"][-1]["rank"])
+        self.assertEqual(12, query["results"][-1]["rank"])
         self.assertEqual(2.0, query["results"][-1]["grade"])
         self.assertEqual(
             payload["meta"]["grounded_evidence"],
             {
                 "query_count": 1,
-                "candidate_count": 4,
+                "candidate_count": 12,
                 "evidence_per_candidate": 3,
                 "qrels_usage": "Post-freeze evaluation and failure inspection only",
             },
         )
-        self.assertEqual("q1", query["grounded"]["query_id"])
+        grounded = query["grounded"]
+        self.assertEqual("q1", grounded["query_id"])
+        self.assertEqual(
+            "no relevant candidate in top 10",
+            grounded["retrieval_outcome"],
+        )
+        self.assertEqual("evidence/routing gap", grounded["mechanism"])
+        self.assertEqual(display_ids, grounded["evidence_candidate_ids"])
+        self.assertTrue(
+            all(
+                len(grounded["candidates"][candidate_id]["evidence"]) == 3
+                for candidate_id in display_ids
+            )
+        )
 
     def test_bundle_inventory_mismatch_leaves_existing_html_unchanged(self) -> None:
         self.write_fixture()
@@ -610,11 +640,11 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             "q1 0 model-a 0\nq1 0 model-d 2\n", encoding="utf-8"
         )
         bundle = self.write_evidence_bundle(
-            display_ids=["model-a", "model-b", "model-d"]
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
         )
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "4",
             "--evidence-bundle",
             str(bundle),
             "--no-responses",
@@ -627,7 +657,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             candidate_count=4, positive_candidate="model-d"
         )
         bundle = self.write_evidence_bundle(
-            display_ids=["model-a", "model-b", "model-d"]
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
         )
         qrels_path = self.root / "data/dev/labels.txt"
         with qrels_path.open("a", encoding="utf-8") as handle:
@@ -636,7 +666,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
 
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "4",
             "--evidence-bundle",
             str(bundle),
             "--no-responses",
@@ -650,7 +680,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             candidate_count=4, positive_candidate="model-d"
         )
         bundle = self.write_evidence_bundle(
-            display_ids=["model-a", "model-b", "model-d"]
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
         )
         payload = json.loads(bundle.read_text(encoding="utf-8"))
         payload["queries"]["q1"]["query_text"] = "Different text"
@@ -660,7 +690,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
 
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "4",
             "--evidence-bundle",
             str(bundle),
             "--output",
@@ -677,12 +707,12 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             candidate_count=4, positive_candidate="model-d"
         )
         bundle = self.write_evidence_bundle(
-            display_ids=["model-d", "model-a", "model-b"]
+            display_ids=["model-d", "model-a", "model-b", "model-c"]
         )
 
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "4",
             "--evidence-bundle",
             str(bundle),
             "--no-responses",
@@ -696,7 +726,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             candidate_count=4, positive_candidate="model-d"
         )
         bundle = self.write_evidence_bundle(
-            display_ids=["model-a", "model-b", "model-d"]
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
         )
         payload = json.loads(bundle.read_text(encoding="utf-8"))
         del payload["queries"]["q1"]["candidates"]["model-a"]["ranks"][
@@ -706,7 +736,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
 
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "4",
             "--evidence-bundle",
             str(bundle),
             "--no-responses",
@@ -720,7 +750,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
             candidate_count=4, positive_candidate="model-d"
         )
         bundle = self.write_evidence_bundle(
-            display_ids=["model-a", "model-b", "model-d"]
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
         )
         payload = json.loads(bundle.read_text(encoding="utf-8"))
         payload["queries"]["q1"]["retrieval_outcome"] = []
@@ -728,7 +758,7 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
 
         completed = self.run_builder(
             "--top-candidates",
-            "2",
+            "4",
             "--evidence-bundle",
             str(bundle),
             "--no-responses",
@@ -737,6 +767,156 @@ class QueryExplorerEndToEndTest(unittest.TestCase):
         self.assertEqual(2, completed.returncode)
         self.assertIn("evidence bundle query schema differs", completed.stderr)
         self.assertNotIn("Traceback", completed.stderr)
+
+    def test_grounded_bundle_disables_legacy_discovery_matching(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=12, positive_candidate="model-l"
+        )
+        display_ids = [
+            f"model-{chr(ord('a') + index)}" for index in range(10)
+        ] + ["model-l"]
+        bundle = self.write_evidence_bundle(display_ids=display_ids)
+        (self.root / "data/dev/llm_discovery_data.json").write_text(
+            json.dumps(
+                {
+                    "source-1": {
+                        "query": "A grounded test query with historical context",
+                        "responses": {
+                            "model-l": (
+                                "A long legacy response that would otherwise be "
+                                "selected by lexical overlap for the qrel-added row."
+                            )
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "10",
+            "--evidence-bundle",
+            str(bundle),
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        payload = self.payload_from_output()
+        self.assertEqual({}, payload["responses"])
+        self.assertIsNone(payload["meta"]["discovery_source"])
+        self.assertEqual(0, payload["meta"]["discovery_query_count"])
+        self.assertEqual(0, payload["meta"]["embedded_response_count"])
+
+    def test_grounded_bundle_rejects_explicit_legacy_discovery(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=4, positive_candidate="model-d"
+        )
+        bundle = self.write_evidence_bundle(
+            display_ids=["model-a", "model-b", "model-c", "model-d"]
+        )
+        discovery = self.root / "discovery.json"
+        discovery.write_text("{}", encoding="utf-8")
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "4",
+            "--evidence-bundle",
+            str(bundle),
+            "--discovery",
+            str(discovery),
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn(
+            "--discovery cannot be combined with --evidence-bundle",
+            completed.stderr,
+        )
+
+    def test_bundle_rejects_false_semantic_classifications(self) -> None:
+        for field, false_value in (
+            ("retrieval_outcome", "top-1 success"),
+            ("mechanism", "relevant candidate ranked first"),
+        ):
+            with self.subTest(field=field):
+                self.write_complete_qrel_fixture(
+                    candidate_count=4, positive_candidate="model-b"
+                )
+                bundle = self.write_evidence_bundle(
+                    display_ids=[
+                        "model-a",
+                        "model-b",
+                        "model-c",
+                        "model-d",
+                    ]
+                )
+                payload = json.loads(bundle.read_text(encoding="utf-8"))
+                payload["queries"]["q1"][field] = false_value
+                bundle.write_text(json.dumps(payload), encoding="utf-8")
+
+                completed = self.run_builder(
+                    "--top-candidates",
+                    "4",
+                    "--evidence-bundle",
+                    str(bundle),
+                    "--no-responses",
+                )
+
+                self.assertEqual(2, completed.returncode)
+                self.assertIn(
+                    "evidence classification differs for q1",
+                    completed.stderr,
+                )
+
+    def test_bundle_derives_required_top_ten_and_positive_evidence_ids(
+        self,
+    ) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=12, positive_candidate="model-l"
+        )
+        top_ten = [
+            f"model-{chr(ord('a') + index)}" for index in range(10)
+        ]
+        bundle = self.write_evidence_bundle(
+            display_ids=[*top_ten, "model-l"],
+            evidence_ids=top_ten,
+        )
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "10",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn(
+            "evidence candidate ordering differs for q1",
+            completed.stderr,
+        )
+
+    def test_grounded_bundle_requires_top_ten_display_depth(self) -> None:
+        self.write_complete_qrel_fixture(
+            candidate_count=12, positive_candidate="model-l"
+        )
+        display_ids = [
+            f"model-{chr(ord('a') + index)}" for index in range(10)
+        ] + ["model-l"]
+        bundle = self.write_evidence_bundle(display_ids=display_ids)
+
+        completed = self.run_builder(
+            "--top-candidates",
+            "9",
+            "--evidence-bundle",
+            str(bundle),
+            "--no-responses",
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn(
+            "grounded evidence requires --top-candidates of at least 10",
+            completed.stderr,
+        )
 
     def test_skill_command_builds_safe_self_contained_explorer(self) -> None:
         self.write_fixture()

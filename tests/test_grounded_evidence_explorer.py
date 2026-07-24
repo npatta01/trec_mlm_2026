@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from trec_mlm.artifact_io import manifest_aggregate_sha256, manifest_entries
 from trec_mlm.grounded_evidence_explorer import (
     EvidenceBundleError,
     build_evidence_bundle,
@@ -140,9 +141,7 @@ def test_derive_retrieval_outcome(
         ),
     ],
 )
-def test_derive_mechanism(
-    positions: dict[str, dict[str, int]], expected: str
-) -> None:
+def test_derive_mechanism(positions: dict[str, dict[str, int]], expected: str) -> None:
     assert derive_mechanism({"p"}, positions) == expected
 
 
@@ -162,25 +161,34 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _fixture_metric_pair(
-    query_id: str, system: str
-) -> dict[str, float]:
+def _finalize_fixture_artifact(
+    root: Path, artifact_type: str, *, version: int = 1
+) -> None:
+    entries = manifest_entries(root)
+    _write_json(
+        root / "manifest.json",
+        {
+            "artifact_type": artifact_type,
+            "version": version,
+            "qrel_free": True,
+            "files": entries,
+            "aggregate_sha256": manifest_aggregate_sha256(entries),
+        },
+    )
+
+
+def _fixture_metric_pair(query_id: str, system: str) -> dict[str, float]:
     if query_id == "q2":
         return {"ndcg_at_10": 0.0, "reciprocal_rank": 0.0}
     first_positive_rank = 2 if system == "dense_reference" else 3
     ideal_dcg = 1.0 + 1.0 / math.log2(3)
     return {
-        "ndcg_at_10": (
-            1.0 / math.log2(first_positive_rank + 1)
-        )
-        / ideal_dcg,
+        "ndcg_at_10": (1.0 / math.log2(first_positive_rank + 1)) / ideal_dcg,
         "reciprocal_rank": 1.0 / first_positive_rank,
     }
 
 
-def write_e5_fixture(
-    tmp_path: Path, mutation: str | None = None
-) -> dict[str, Path]:
+def write_e5_fixture(tmp_path: Path, mutation: str | None = None) -> dict[str, Path]:
     refinement_dir = tmp_path / "refinement"
     construction_dir = tmp_path / "construction"
     refinement_rankings = refinement_dir / "rankings"
@@ -225,7 +233,11 @@ def write_e5_fixture(
     if mutation == "ranking_duplicate":
         rankings["raw_hierarchical"]["q1"] = ["c1", "c1", *CANDIDATE_IDS[2:]]
     for system, payload in rankings.items():
-        root = refinement_rankings if system.startswith("raw_") or system == "dense_reference" else construction_rankings
+        root = (
+            refinement_rankings
+            if system.startswith("raw_") or system == "dense_reference"
+            else construction_rankings
+        )
         _write_json(root / f"{system}.json", payload)
 
     selected_ids: list[list[list[str]]] = []
@@ -247,7 +259,10 @@ def write_e5_fixture(
                 owner = candidate_id
                 if mutation == "record_owner" and record_id == "r1":
                     owner = "c2"
-                if mutation == "record_owner_outside_evidence" and record_id == "q1-c11-r1":
+                if (
+                    mutation == "record_owner_outside_evidence"
+                    and record_id == "q1-c11-r1"
+                ):
                     owner = "c12"
                 records.append(
                     {
@@ -258,7 +273,11 @@ def write_e5_fixture(
                         "response": response,
                     }
                 )
-            start = 0.91 if (query_id, candidate_id) == ("q1", "c1") else 0.8 - candidate_index / 100
+            start = (
+                0.91
+                if (query_id, candidate_id) == ("q1", "c1")
+                else 0.8 - candidate_index / 100
+            )
             similarities[query_index, candidate_index] = np.asarray(
                 [start - rank * 0.01 for rank in range(10)], dtype="<f8"
             )
@@ -299,10 +318,7 @@ def write_e5_fixture(
             ):
                 metrics["ndcg_at_10"] = 5e-13
             elif query_id == "q1":
-                if (
-                    mutation == "metric_out_of_range"
-                    and system == "dense_reference"
-                ):
+                if mutation == "metric_out_of_range" and system == "dense_reference":
                     metrics["ndcg_at_10"] = 1.25
                 elif (
                     mutation == "metric_nonfinal_ndcg_mismatch"
@@ -337,6 +353,10 @@ def write_e5_fixture(
             "per_query_rows": evaluation_rows,
         },
     )
+    _finalize_fixture_artifact(refinement_dir, "raw_response_refinement_manifest")
+    _finalize_fixture_artifact(
+        construction_dir, "candidate_semantic_profile_manifest", version=2
+    )
     return {
         "refinement_dir": refinement_dir,
         "construction_dir": construction_dir,
@@ -363,6 +383,17 @@ def test_build_bundle_uses_first_three_persisted_records(tmp_path: Path) -> None
     assert candidate["mean_top_10_cosine"] == pytest.approx(0.565)
 
 
+def test_build_bundle_rejects_locally_consistent_tampering(tmp_path: Path) -> None:
+    paths = write_e5_fixture(tmp_path)
+    selected_path = paths["refinement_dir"] / "selected_record_ids.json"
+    selected = json.loads(selected_path.read_text(encoding="utf-8"))
+    selected[0][0][0], selected[0][0][1] = selected[0][0][1], selected[0][0][0]
+    _write_json(selected_path, selected)
+
+    with pytest.raises(EvidenceBundleError, match="manifest.*selected_record_ids.json"):
+        build_evidence_bundle(**paths)
+
+
 @pytest.mark.parametrize(
     ("response", "expected"),
     [
@@ -376,7 +407,9 @@ def test_classify_behavior(response: str, expected: str) -> None:
     assert classify_behavior(response) == expected
 
 
-def test_bundle_has_complete_component_ranks_and_needed_evidence(tmp_path: Path) -> None:
+def test_bundle_has_complete_component_ranks_and_needed_evidence(
+    tmp_path: Path,
+) -> None:
     paths = write_e5_fixture(tmp_path)
 
     bundle = build_evidence_bundle(**paths)
@@ -395,7 +428,8 @@ def test_bundle_has_complete_component_ranks_and_needed_evidence(tmp_path: Path)
     ]
     assert len(late_positive_evidence) == 3
     assert all(
-        set(record) == {
+        set(record)
+        == {
             "record_id",
             "source_query_id",
             "question",

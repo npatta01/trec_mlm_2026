@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from scripts import build_e5_grounded_evidence_explorer as e5_builder
+from trec_mlm.artifact_io import manifest_aggregate_sha256, manifest_entries
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +49,22 @@ SOURCE_NAMES = (
 
 def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _finalize_fixture_artifact(
+    root: Path, artifact_type: str, *, version: int
+) -> None:
+    entries = manifest_entries(root)
+    _write_json(
+        root / "manifest.json",
+        {
+            "artifact_type": artifact_type,
+            "version": version,
+            "qrel_free": True,
+            "files": entries,
+            "aggregate_sha256": manifest_aggregate_sha256(entries),
+        },
+    )
 
 
 class E5Fixture(Mapping[str, Path]):
@@ -231,6 +248,16 @@ def e5_fixture(tmp_path: Path) -> E5Fixture:
         encoding="utf-8",
     )
     _write_json(run_dir / "validation.json", {})
+    _finalize_fixture_artifact(
+        refinement,
+        "raw_response_refinement_manifest",
+        version=1,
+    )
+    _finalize_fixture_artifact(
+        construction,
+        "candidate_semantic_profile_manifest",
+        version=2,
+    )
     return E5Fixture(
         {
             "root": tmp_path,

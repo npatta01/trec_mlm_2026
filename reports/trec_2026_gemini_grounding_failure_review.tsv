@@ -1,0 +1,29 @@
+question_id	search_used	outcome	confidence	review_note
+276298	false	no_rescue	high	Search was not invoked; the regenerated carpet answer retained the material historical and artistic overstatements.
+291511	false	regeneration_only_rescue	high	Search was not invoked, but regeneration corrected the erroneous Reichstag Fire year; this is not evidence for grounding.
+541905	true	clear_rescue	high	Removed the anachronistic climate explanation and gave the supported logistical, demographic, and conflict factors.
+56cd5df262d2951400fa6546	true	clear_rescue	high	Identified Ho Keung Tse; the Federal Circuit record confirms Tse as the plaintiff against Apple.
+570d69bafed7b91900d46033	true	partial_rescue	medium	Preserved Poitiers and exposed an alternative plausible three-loss sequence instead of forcing one interpretation.
+5725ea6889a1e219009ac0a0	true	partial_rescue	medium	Included Changesite-(Y), but still returned several possible discoveries instead of resolving the intended one.
+5727e0032ca10214002d9886	true	no_rescue	medium	Added plausible public advocates but did not identify the exact speaker requested.
+572972f46aef051400154ef6	true	clear_rescue	medium	Replaced the inflated guard-cell chloroplast count with a more plausible species-dependent range and caveat.
+572b8fff111d821400f38f1e	true	no_rescue	medium	Returned a 2009-2013 spoken-at-home estimate rather than the question's 2009 first-language quantity.
+5a78bc5e554299148911f978	true	original_review_false_positive	high	The original and grounded answers both correctly identified Anthony Asquith as dying first.
+5a79ab765542996c55b2dc30	true	original_review_false_positive	high	The original and grounded answers both correctly identified Lloyd Kaufman as younger.
+5a7a2aff5542996a35c17115	true	clear_rescue	medium	Identified Departures, which independent publishing sources place in Hearst Shkulev Media's portfolio.
+5a7a3f765542994f819ef191	true	original_review_false_positive	high	The original and grounded answers both correctly placed The Computer Wore Tennis Shoes before The Watcher in the Woods.
+5a7d434c5542995f4f40224a	true	clear_rescue	high	Resolved the road chain and supplied the requested object: the A49 traverses the Welsh Marches.
+5a7f9ee855429969796c1af3	true	no_rescue	medium	Search did not resolve the malformed premise; the answer confidently substituted the grandson and divine inspiration.
+5a80b91c5542992bc0c4a7e3	true	no_rescue	medium	Returned two current matches but omitted the likely historically intended HDFC Bank answer; temporal ambiguity remains.
+5a80bc3f5542992bc0c4a801	true	clear_rescue	high	Corrected Glenn O'Brien to Ken Tucker, author of Scarface Nation.
+5a83188155429954d2e2ec19	true	partial_rescue	medium	Corrected the actor from Whoopi Goldberg to Kelsey Grammer and included Frasier's shows, but offered several character interpretations.
+5a8320735542990548d0b17d	true	clear_rescue	high	Identified Yakkity Yak creator Mark Gravas and Kapow Pictures, co-owned with Sandra Walters.
+5a84717c554299123d8c2254	true	partial_rescue	high	Directly supplied the historically intended San Jose Sharks while retaining the important retirement correction.
+5a84c1fd5542991dd0999de0	true	clear_rescue	high	Corrected Del Close to Charles Nelson Reilly and named The Life of Reilly directors Frank L. Anderson and Barry Poltermann.
+5a84e13b5542994c784dda75	true	clear_rescue	high	Corrected Korn to Los Angeles band Otep; album credits confirm Greg Wells produced and co-wrote House of Secrets.
+5a8c52d6554299240d9c2114	true	clear_rescue	high	Corrected the answer to yes by distinguishing American DRUM! from similarly named non-US magazines.
+5ab4083655429976abd1bd3b	true	partial_rescue	medium	Clarified that the cases principally concern different amendments, but the vague wording prevents a single crisp target.
+5ab7f06d554299366779405b	true	clear_rescue	high	Corrected the overbroad shrub classification: both are flowering-plant genera, while Hermannia also includes herbs and subshrubs.
+5ac02a53554299012d1db5c4	true	no_rescue	medium	Search produced several possible artists and cities without identifying the intended performer.
+5ae7b9bf5542993210983f0d	true	clear_rescue	high	Corrected Jo Siffert to Clay Regazzoni; the 1971 Race of Champions results list Regazzoni first.
+Q1815	true	partial_rescue	medium	Correctly separated Teva's immediate-release Adderall from Takeda's Adderall XR, but the generic-manufacturer list remains time-dependent.

@@ -38,9 +38,9 @@ Development evidence only. No held-out effectiveness claim is supported.
 
 ## Evidence indexes
 
-- [Per-query evidence](../../../../reports/trec_2026_experiment_per_query.tsv)
-- [Relevant-candidate slice evidence](../../../../reports/trec_2026_experiment_topic_slices.tsv)
-- [Positive-density slice evidence](../../../../reports/trec_2026_experiment_density_slices.tsv)
+- **Per-query evidence:** `reports/trec_2026_experiment_per_query.tsv`
+- **Relevant-candidate slice evidence:** `reports/trec_2026_experiment_topic_slices.tsv`
+- **Positive-density slice evidence:** `reports/trec_2026_experiment_density_slices.tsv`
 
 ## Caveats
 

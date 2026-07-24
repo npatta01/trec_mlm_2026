@@ -1495,18 +1495,18 @@ def _run_evidence_links(build: HubBuild, system: SystemRecord) -> list[str]:
     links: list[str] = []
     if system.per_query_available:
         links.append(
-            "- [Per-query evidence]"
-            "(../../../../reports/trec_2026_experiment_per_query.tsv)"
+            "- **Per-query evidence:** "
+            "`reports/trec_2026_experiment_per_query.tsv`"
         )
     if any(row.system_id == system.system_id for row in build.ledger.topic_slices):
         links.append(
-            "- [Relevant-candidate slice evidence]"
-            "(../../../../reports/trec_2026_experiment_topic_slices.tsv)"
+            "- **Relevant-candidate slice evidence:** "
+            "`reports/trec_2026_experiment_topic_slices.tsv`"
         )
     if any(row.system_id == system.system_id for row in build.ledger.density_slices):
         links.append(
-            "- [Positive-density slice evidence]"
-            "(../../../../reports/trec_2026_experiment_density_slices.tsv)"
+            "- **Positive-density slice evidence:** "
+            "`reports/trec_2026_experiment_density_slices.tsv`"
         )
     return links
 

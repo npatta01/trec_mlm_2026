@@ -663,6 +663,7 @@ def test_run_pages_preserve_evaluation_scope(sample_build: HubBuild) -> None:
     assert "trec_2026_experiment_per_query.tsv" in page
     assert "trec_2026_experiment_topic_slices.tsv" in page
     assert "trec_2026_experiment_density_slices.tsv" in page
+    assert "../../../../reports/" not in page
 
 
 def test_restricted_run_page_warns_against_cross_scope_comparison(

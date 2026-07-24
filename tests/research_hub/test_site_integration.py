@@ -69,6 +69,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert "does not claim" in problem
 
     protocols = (ROOT / "research/hub/protocols/index.qmd").read_text()
+    assert "../../../protocols/" not in protocols
     for path in sorted((ROOT / "protocols").glob("*.md")):
         assert path.relative_to(ROOT).as_posix() in protocols
 
@@ -121,6 +122,46 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     assert "listing:" not in studies
     assert "listing:" not in data
     assert "listing:" not in background
+
+
+def test_generated_pages_and_theme_use_the_open_visual_system() -> None:
+    build = build_research_hub(ROOT)
+    outputs = render_hub_outputs(build)
+    generated = "\n".join(outputs.values())
+    theme = (ROOT / "research/hub/assets/theme.scss").read_text()
+
+    for class_name in (
+        "hub-theme-row",
+        "hub-conclusion",
+        "hub-question-row",
+        "hub-evidence-line",
+        "hub-study-row",
+        "hub-background-row",
+    ):
+        assert class_name in generated
+        assert f".{class_name}" in theme
+
+    for index_path in (
+        "research/hub/generated/summary.qmd",
+        "research/hub/generated/themes-index.qmd",
+        "research/hub/generated/questions-index.qmd",
+        "research/hub/generated/studies-index.qmd",
+        "research/hub/generated/background-index.qmd",
+    ):
+        source = outputs[Path(index_path)]
+        assert "listing:" not in source
+        assert "line count" not in source.lower()
+        assert "line-count" not in source.lower()
+        assert "study_type" not in source
+
+    assert ".hub-theme-row:hover" in theme
+    assert ".hub-theme-row:focus-visible" in theme
+    assert ".hub-decision-strip" in theme
+    assert "@media (forced-colors: active)" in theme
+    assert "@media (max-width: 768px)" in theme
+    assert ".content table" in theme
+    assert "overflow-x: auto" in theme
+    assert "$web-font-path: false" in theme
 
 
 def test_generated_navigation_contains_every_canonical_record() -> None:

@@ -64,15 +64,12 @@ def test_render_catalog_is_deterministic(sample_build: HubBuild) -> None:
     )
 
 
-def test_catalog_renders_theme_paths(sample_build: HubBuild) -> None:
+def test_catalog_excludes_themes_until_theme_pages_exist(
+    sample_build: HubBuild,
+) -> None:
     payload = json.loads(render_catalog(sample_build))
-    theme = next(
-        row
-        for row in payload["resources"]
-        if row["type"] == "theme" and row["id"] == "candidate-evidence"
-    )
 
-    assert theme["rendered_path"] == "themes/candidate-evidence.html"
+    assert not any(row["type"] == "theme" for row in payload["resources"])
 
 
 def test_catalog_collects_sorted_related_ids_and_run_study_links(

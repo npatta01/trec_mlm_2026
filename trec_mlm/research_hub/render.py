@@ -135,7 +135,6 @@ def _related_ids(record: HubRecord) -> list[str]:
 
 def _rendered_path(record: HubRecord) -> str:
     directory = {
-        "theme": "themes",
         "question": "questions",
         "study": "studies",
         "test": "ideas",
@@ -166,6 +165,7 @@ def render_catalog(build: HubBuild) -> str:
             "related_ids": _related_ids(record),
         }
         for record in build.sources.all_records()
+        if record.kind != "theme"
     ]
     for system in build.ledger.systems:
         system_id = _validate_system_id(system.system_id)

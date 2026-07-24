@@ -1,0 +1,38 @@
+---
+resource_id: reference-model-planning
+title: "Reference-model planning — July 21, 2026"
+resource_type: methods_landscape
+summary: "Dated planning evidence for reference generation, judging, cost, and local-runtime choices."
+canonical_source_path: reports/trec_2026_reference_model_landscape_2026-07-21.md
+citations:
+  - "TREC 2026 reference-model landscape dated 2026-07-21"
+  - "Official Gemini model and pricing documentation reviewed 2026-07-21"
+  - "Official Qwen3.6-27B and Gemma 4 model cards reviewed 2026-07-21"
+  - "Official AMD, Lemonade, and vLLM runtime documentation reviewed 2026-07-21"
+tags: [reference-models, planning, judging, local-inference]
+question_ids: [response-evidence, reference-reliability, failure-conditions]
+reviewed_on: 2026-07-24
+---
+
+Reference generators and judges support evidence construction; they do not
+directly rank candidate IDs. The dated July 21 review recommends Gemini 3.6
+Flash as the primary API reference generator, Qwen3.6-27B as the preferred
+local retry, Gemma 4 31B-it as a model-family control, and Gemini 3.5 Flash-Lite
+only for high-volume mechanical judging after calibration.
+
+Those are planning recommendations based on official provider documentation,
+published general benchmarks, cost envelopes, and local runtime evidence.
+General MMLU-Pro, GPQA, HLE, throughput, and price comparisons do not establish
+reference quality on this question mix. The controlling report requires a
+reviewed pilot before adopting a generator or judge.
+
+Provider model changes, dated prices, and a failed local backend are operational
+facts, not organizer judgments and not candidate-ranking results. The report
+therefore separates verified documentation from hardware-fit and task-fit
+inferences and calls for cheap readiness canaries before substantial local runs.
+
+## Deep dive
+
+Read the [dated reference-model landscape](../library/reference-model-landscape.qmd)
+for model-by-model evidence, cost assumptions, runtime constraints, unknowns,
+and the proposed allocation.

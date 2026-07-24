@@ -28,6 +28,7 @@ _STATIC_OUTPUT_PATHS = (
     Path("research/catalog.json"),
     Path("research/hub/generated/coverage.qmd"),
     Path("research/hub/generated/background-index.qmd"),
+    Path("research/hub/generated/data-index.qmd"),
     Path("research/hub/generated/history.qmd"),
     Path("research/hub/generated/questions-index.qmd"),
     Path("research/hub/generated/runs.qmd"),
@@ -478,13 +479,13 @@ def render_background_index_qmd(build: HubBuild) -> str:
             "Wider methods and evaluations",
             "Connect expert finding, retrieval, routing, and evaluation research "
             "to this task without importing results across incompatible settings.",
-            ("llm-routing-literature", "related-competitions"),
+            ("methods-landscape", "llm-routing-literature", "related-competitions"),
         ),
         (
             "Current model and reference planning",
             "Use the dated planning evidence to choose reference generators and "
             "review controls; it is not candidate-ranking evidence.",
-            ("methods-landscape",),
+            ("reference-model-planning",),
         ),
     )
     configured_ids = {
@@ -538,6 +539,86 @@ def render_background_index_qmd(build: HubBuild) -> str:
                 ]
             )
         lines.append("</div>")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _dataset_availability_class(record: HubRecord) -> str:
+    availability = str(record.metadata.get("availability", ""))
+    sharing = str(record.metadata.get("sharing", ""))
+    if availability == "tracked_complete":
+        return "hub-available"
+    if sharing in {"local_only", "metadata_only"}:
+        return "hub-restricted"
+    return "hub-mixed"
+
+
+def render_data_index_qmd(build: HubBuild) -> str:
+    """Render the Data catalog from canonical dataset records."""
+
+    groups = (
+        (
+            "provided",
+            "Organizer-provided data",
+            "These records define the development task and how its rankings "
+            "are evaluated.",
+        ),
+        (
+            "collected",
+            "Collected evidence",
+            "Evidence gathered from candidate models under bounded project "
+            "protocols.",
+        ),
+        (
+            "generated",
+            "Generated data and run evidence",
+            "Artifacts produced by ranking and evaluation workflows.",
+        ),
+        (
+            "external",
+            "External data",
+            "Referenced data maintained outside this repository.",
+        ),
+    )
+    datasets = sorted(build.sources.datasets, key=lambda row: row.record_id)
+    lines = [
+        "The catalog is generated from canonical dataset records. It separates "
+        "organizer-provided data from collected, generated, and external "
+        "evidence without reproducing sensitive source content.",
+        "",
+        "::: {.hub-data-groups}",
+    ]
+    for category, heading, introduction in groups:
+        records = [
+            record
+            for record in datasets
+            if record.metadata.get("category") == category
+        ]
+        if not records:
+            continue
+        lines.extend(["", f"## {heading}", "", introduction])
+        for index, record in enumerate(records):
+            if index:
+                lines.extend(["", "---"])
+            lines.extend(
+                [
+                    "",
+                    f"### [{_markdown_table_text(record.title)}]"
+                    f"({record.record_id}.qmd)",
+                    "",
+                    str(record.metadata.get("plain_english", "")),
+                    "",
+                    (
+                        '<div class="hub-badges">'
+                        f'<span class="hub-badge">{html.escape(_human_label(category))}'
+                        "</span>"
+                        f'<span class="hub-badge {_dataset_availability_class(record)}">'
+                        f"{html.escape(_human_label(record.metadata.get('availability', '')))}"
+                        "</span>"
+                        "</div>"
+                    ),
+                ]
+            )
+    lines.extend(["", ":::"])
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -1540,6 +1621,9 @@ def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
             Path(
                 "research/hub/generated/background-index.qmd"
             ): render_background_index_qmd(build),
+            Path(
+                "research/hub/generated/data-index.qmd"
+            ): render_data_index_qmd(build),
             Path(
                 "research/hub/generated/themes-index.qmd"
             ): render_themes_index_qmd(build),

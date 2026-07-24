@@ -49,6 +49,19 @@ history snapshot, and machine-readable catalog.
 6. Add the study ID to the linked question records and any linked approach or
    dataset records.
 
+## Add a dataset
+
+1. Copy `templates/dataset.qmd.example` to `data/<dataset-id>.qmd`.
+2. Record its category, provenance, permitted use, leakage constraints,
+   sharing boundary, availability, and reproducibility in front matter.
+3. Keep sensitive source content out of the record body and static hub.
+4. Link existing studies with `study_ids`; update those study records when the
+   relationship is new.
+
+The next build automatically updates the generated Data index and both copies
+of the machine-readable catalog. Do not add the dataset manually to
+`data/index.qmd` or either catalog.
+
 ## Link a run
 
 Add or update the run through the experiment-ledger workflow, then use its exact

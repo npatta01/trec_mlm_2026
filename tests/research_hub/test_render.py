@@ -19,6 +19,7 @@ from trec_mlm.research_hub.render import (
     _validate_system_id,
     _yaml_scalar,
     render_catalog,
+    render_data_index_qmd,
     render_hub_outputs,
     render_run_pages,
     render_runs_qmd,
@@ -184,6 +185,43 @@ def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
     assert "candidate-evidence" in themes
     assert "Open across themes" not in themes
     assert "Highest-value next tests" not in themes
+
+
+def test_data_index_is_derived_from_dataset_records_and_reflects_changes(
+    sample_build: HubBuild,
+) -> None:
+    dataset = sample_build.sources.datasets[0]
+    changed = replace(
+        dataset,
+        record_id="changed-development-set",
+        title="Changed development set",
+        source_path="research/hub/data/changed-development-set.qmd",
+        metadata={
+            **dataset.metadata,
+            "dataset_id": "changed-development-set",
+            "plain_english": "Changed dataset description from its canonical record.",
+            "category": "collected",
+            "availability": "metadata tracked",
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(sample_build.sources, datasets=(dataset, changed)),
+    )
+
+    output = render_data_index_qmd(build)
+
+    assert "## Organizer-provided data" in output
+    assert "## Collected evidence" in output
+    assert "[development-set title](development-set.qmd)" in output
+    assert "[Changed development set](changed-development-set.qmd)" in output
+    assert "Changed dataset description from its canonical record." in output
+    assert "Metadata tracked" in output
+    assert "hub-data-groups" in output
+    assert "hub-badges" in output
+    assert "hub-data-card" not in output
+    assert "hub-data-grid" not in output
+    assert "listing:" not in output
 
 
 def test_generated_study_detail_contains_decision_and_evidence_sections(

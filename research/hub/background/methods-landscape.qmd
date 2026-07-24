@@ -1,15 +1,14 @@
 ---
 resource_id: methods-landscape
-title: "Methods and reference-model planning"
+title: "Methods landscape"
 resource_type: methods_landscape
-summary: "A staged method ladder plus the dated, bounded role of reference-generation and judge models."
+summary: "A staged method ladder for retrieval, candidate evidence, weak labels, and learned fusion."
 canonical_source_path: reports/trec_2026_approaches_guide.artifact.json
 citations:
   - "TREC 2026 approaches guide and its 80-source primary-source registry"
-  - "TREC 2026 reference-model landscape dated 2026-07-21"
   - "Cawley and Talbot (2010), selection bias and nested evaluation"
   - "Guo et al. (2017), calibration of modern neural networks"
-tags: [methods, reference-models, planning]
+tags: [methods, retrieval, evaluation]
 question_ids: [response-evidence, reference-reliability, failure-conditions]
 reviewed_on: 2026-07-24
 ---
@@ -40,24 +39,8 @@ Every tuning choice, prior, clustering step, weak-label calibration, and fusion
 weight stays inside the training side of evaluation. Development gains remain
 development evidence; they are not hidden-test claims.
 
-## Bounded role of reference models
-
-Reference generators and judges support evidence construction; they do not
-directly rank candidate IDs. The dated July 21 landscape recommends Gemini 3.6
-Flash as the primary API reference generator, Qwen3.6-27B as the preferred
-local retry, Gemma 4 31B-it as a model-family control, and Gemini 3.5 Flash-Lite
-only for high-volume mechanical judging after calibration. Those are planning
-recommendations based on provider documentation, published general benchmarks,
-cost envelopes, and local runtime evidence.
-
-General MMLU-Pro, GPQA, HLE, throughput, and price comparisons do not prove
-reference quality on this question mix. The controlling report explicitly
-requires the designed reviewed pilot before adopting a generator or judge.
-Provider model changes, dated prices, and a failed local backend are operational
-facts, not organizer judgments and not candidate-ranking results.
-
 ## Deep dive
 
-Read the [dated reference-model landscape](../library/reference-model-landscape.qmd)
-for the model-by-model evidence, cost assumptions, runtime constraints, unknowns,
-and proposed allocation.
+Use the staged [2026 approaches and literature guide](../library/approaches-guide.html)
+for the complete method ladder, task-shape comparison, primary-source registry,
+and experiment-design boundaries.

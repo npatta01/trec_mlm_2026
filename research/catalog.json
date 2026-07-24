@@ -133,13 +133,13 @@
         "response-evidence"
       ],
       "rendered_path": "background/methods-landscape.html",
-      "summary": "A staged method ladder plus the dated, bounded role of reference-generation and judge models.",
+      "summary": "A staged method ladder for retrieval, candidate evidence, weak labels, and learned fusion.",
       "tags": [
+        "evaluation",
         "methods",
-        "planning",
-        "reference-models"
+        "retrieval"
       ],
-      "title": "Methods and reference-model planning",
+      "title": "Methods landscape",
       "type": "background"
     },
     {
@@ -158,6 +158,25 @@
         "prior-art"
       ],
       "title": "Prior participant approaches",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/background/reference-model-planning.qmd",
+      "id": "reference-model-planning",
+      "related_ids": [
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence"
+      ],
+      "rendered_path": "background/reference-model-planning.html",
+      "summary": "Dated planning evidence for reference generation, judging, cost, and local-runtime choices.",
+      "tags": [
+        "judging",
+        "local-inference",
+        "planning",
+        "reference-models"
+      ],
+      "title": "Reference-model planning \u2014 July 21, 2026",
       "type": "background"
     },
     {
@@ -285,6 +304,7 @@
       "related_ids": [
         "behavior-profile",
         "candidate-label-matching",
+        "label-ranker-pilots",
         "multiresolution-profiles",
         "semantic-failure-clusters",
         "semantic-profiles"
@@ -302,6 +322,7 @@
       "canonical_path": "research/hub/questions/failure-conditions.qmd",
       "id": "failure-conditions",
       "related_ids": [
+        "candidate-label-matching",
         "e5-raw-response-refinement",
         "failure-aware-fusion",
         "gemini-grounding-failure-review",
@@ -309,7 +330,8 @@
         "label-ranker-pilots",
         "query-cluster-aggregation",
         "reference-review-trigger",
-        "semantic-failure-clusters"
+        "semantic-failure-clusters",
+        "source-query-first"
       ],
       "rendered_path": "questions/failure-conditions.html",
       "summary": "Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?",
@@ -366,6 +388,7 @@
       "related_ids": [
         "e5-raw-response-refinement",
         "failure-aware-fusion",
+        "four-model-reference-review",
         "reference-review-trigger",
         "response-retrieval",
         "response-volume-normalization",

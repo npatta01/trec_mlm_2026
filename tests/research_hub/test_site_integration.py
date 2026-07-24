@@ -54,7 +54,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         "test": 3,
         "approach": 5,
         "dataset": 6,
-        "background": 5,
+        "background": 6,
     }
     assert build.validation.linked_system_count == len(build.ledger.systems) == 98
 
@@ -113,6 +113,10 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
 
     assert "{{< include ../generated/questions-index.qmd >}}" in questions
     assert "{{< include ../generated/background-index.qmd >}}" in background
+    assert data.strip().endswith(
+        "{{< include ../generated/data-index.qmd >}}"
+    )
+    assert "Candidate inventory" not in data
     assert "{{< include ../generated/studies-index.qmd >}}" in studies
     assert "{{< include ../generated/themes-index.qmd >}}" in themes
     assert "research summary" not in themes.lower()
@@ -120,8 +124,6 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     assert "{{< include generated/summary.qmd >}}" in summary
     assert 'searchParams.get("theme")' in ledger_script
     assert "[data-themes]" in ledger_script
-    assert "hub-data-groups" in data
-    assert "Organizer-provided" in data
     assert "listing:" not in questions
     assert "listing:" not in studies
     assert "listing:" not in data
@@ -151,6 +153,7 @@ def test_generated_pages_and_theme_use_the_open_visual_system() -> None:
         "research/hub/generated/questions-index.qmd",
         "research/hub/generated/studies-index.qmd",
         "research/hub/generated/background-index.qmd",
+        "research/hub/generated/data-index.qmd",
     ):
         source = outputs[Path(index_path)]
         assert "listing:" not in source
@@ -213,6 +216,7 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
     questions = outputs[Path("research/hub/generated/questions-index.qmd")]
     studies = outputs[Path("research/hub/generated/studies-index.qmd")]
     background = outputs[Path("research/hub/generated/background-index.qmd")]
+    data = outputs[Path("research/hub/generated/data-index.qmd")]
 
     for theme in build.sources.themes:
         assert theme.record_id in summary
@@ -236,6 +240,8 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
         assert "%40" not in outputs[detail_path]
     for resource in build.sources.background:
         assert resource.record_id in background
+    for dataset in build.sources.datasets:
+        assert dataset.record_id in data
 
 
 def test_contributor_guide_and_complete_record_templates() -> None:
@@ -246,6 +252,7 @@ def test_contributor_guide_and_complete_record_templates() -> None:
     for phrase in (
         "Add a question",
         "Add a study",
+        "Add a dataset",
         "Link a run",
         "Build generated outputs",
         "Check generated outputs",
@@ -261,6 +268,8 @@ def test_contributor_guide_and_complete_record_templates() -> None:
     assert "evaluation scope" in guide.lower()
     assert "confidence boundary" in guide.lower()
     assert "canonical" in guide.lower()
+    assert "data index" in guide.lower()
+    assert "machine-readable catalog" in guide.lower()
     assert "CONTRIBUTING.md" in rendered_guide
     assert any(
         row.get("text") == "Contribute"

@@ -14,8 +14,11 @@ project:
     - "protocols/*.qmd"
     - "evidence/*.qmd"
     - "themes/index.qmd"
+    - "library/*.qmd"
     - "generated/themes/*.qmd"
     - "generated/runs/*.qmd"
+  post-render:
+    - "uv run python ../../scripts/stage_research_hub_resources.py --root ../.. --output-dir _site"
   resources:
     - assets/ledger.js
     - catalog.json

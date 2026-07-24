@@ -2,24 +2,65 @@
 resource_id: prior-participant-approaches
 title: "Prior participant approaches"
 resource_type: participant_review
-summary: "A compact map from prior participant methods to the current research questions."
-canonical_source_path: reports/trec_2026_approaches_guide_source_notes.md
-citations: ["Participant and method citations are preserved in the source notes."]
+summary: "How six 2025 teams converted queries, responses, profiles, and weak labels into expert rankings."
+canonical_source_path: reports/trec_2025_mllm_literature_review.md
+citations:
+  - "SRCB at TREC 2025"
+  - "UDInfo at TREC 2025"
+  - "GenAIus at TREC 2025"
+  - "UvA IRLab at TREC 2025 and official indelab and paulphys run descriptions"
 tags: [participants, methods, prior-art]
 question_ids: [query-only-routing, candidate-evidence, response-evidence]
 reviewed_on: 2026-07-24
 ---
 
-The source notes separate query retrieval, candidate evidence, response
-comparison, reranking, and learned fusion. That map is a planning aid, not
-evidence that every borrowed technique will transfer.
+The participant papers describe three complementary ways to infer expertise:
+learn from estimated quality labels, retrieve fine-grained behavioral evidence,
+or summarize each candidate and learn how its profile interacts with a query.
+The most useful lesson is not a single winning architecture; it is the evidence
+decomposition those systems expose.
 
-## Why this matters for 2026
+## Three reusable blueprints
 
-It shows which parts of the prior playbook have already received bounded tests
-and which remain prospective.
+**SRCB: manufacture supervision, then learn a scorer.** SRCB used stronger
+models and rerankers to create pseudo-labels where trusted discovery grades were
+absent, encoded queries or query-answer evidence, and trained neural scoring
+variants. Its strongest official run demonstrates that high-quality weak
+supervision can be useful, but the participant paper does not fully map every
+submitted run to a configuration. A 2026 reproduction must save judge inputs,
+prompts, raw outputs, and calibration rather than treating pseudo-labels as
+qrels.
 
-## What this does not prove
+**UDInfo: blend local and stable evidence.** Its best run retrieved similar
+historical queries and combined candidate grades from those neighbors with a
+global candidate prior and the nearest query-domain cluster. Its profile route
+also used answer centroids and nearest answers. This is the closest prior
+blueprint for a leakage-safe query-neighbor router, provided every prior,
+cluster, and tuning decision is learned inside the training side of a split.
 
-A participant's reported success is not a directly comparable local result. See
-[`reports/trec_2026_approaches_guide_source_notes.md`](../../../reports/trec_2026_approaches_guide_source_notes.md).
+**GenAIus: retrieve evidence before aggregating experts.** GenAIus indexed
+individual historical responses, retrieved them with BM25 and RM3, optionally
+reranked with SPLADE, and summed evidence back to model IDs. Response indexes
+beat the team's whole-candidate profile run. The method is an interpretable
+control for dense response retrieval, but raw sums can reward candidates with
+more surviving evidence, so counts, caps, normalization, and rank-discounted
+votes need explicit ablations.
+
+UvA IRLab, indelab, and paulphys add confidence/logprob features, dual encoders,
+tree ensembles, and behavioral profiles. Their reports are useful design leads,
+not equally strong reproduction evidence: some values conflict with the
+official evaluation, and some architecture details are only submitter-reported.
+
+## Comparison boundary
+
+The 2025 pool contained 1,131 simulated cluster-backed experts; 2026 has a
+different fixed pool and evidence distribution. Official 2025 scores cannot be
+placed beside local 2026 development scores as though they share queries,
+labels, or judging. Participant methods enter this repository as hypotheses and
+controls. They become 2026 evidence only after query-grouped validation on the
+current data.
+
+## Deep dive
+
+Open the staged [interactive participant-method guide](../library/trec-2025-interactive.html)
+for the full run table and method diagrams.

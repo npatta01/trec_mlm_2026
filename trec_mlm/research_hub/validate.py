@@ -51,7 +51,6 @@ BACKGROUND_TYPES = frozenset(
     {
         "literature_review",
         "participant_review",
-        "competition",
         "benchmark",
         "methods_landscape",
     }

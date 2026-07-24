@@ -21,6 +21,11 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert config["project"]["resources"] == ["assets/ledger.js", "catalog.json"]
     assert "generated/runs/*.qmd" in config["project"]["render"]
     assert "generated/themes/*.qmd" in config["project"]["render"]
+    assert "library/*.qmd" in config["project"]["render"]
+    assert config["project"]["post-render"] == [
+        "uv run python ../../scripts/stage_research_hub_resources.py "
+        "--root ../.. --output-dir _site"
+    ]
     assert {
         row["text"] for row in config["website"]["navbar"]["left"]
     } >= {"Themes"}
@@ -76,6 +81,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     problem = (ROOT / "research/hub/start-here/problem.qmd").read_text()
     questions = (ROOT / "research/hub/questions/index.qmd").read_text()
     data = (ROOT / "research/hub/data/index.qmd").read_text()
+    background = (ROOT / "research/hub/background/index.qmd").read_text()
 
     assert "hub-task-flow" in problem
     assert "hub-example" in problem
@@ -85,6 +91,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     ledger_script = (ROOT / "research/hub/assets/ledger.js").read_text()
 
     assert "{{< include ../generated/questions-index.qmd >}}" in questions
+    assert "{{< include ../generated/background-index.qmd >}}" in background
     assert "{{< include ../generated/studies-index.qmd >}}" in studies
     assert "{{< include ../generated/themes-index.qmd >}}" in themes
     assert "research summary" not in themes.lower()
@@ -97,6 +104,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     assert "listing:" not in questions
     assert "listing:" not in studies
     assert "listing:" not in data
+    assert "listing:" not in background
 
 
 def test_generated_navigation_contains_every_canonical_record() -> None:
@@ -107,6 +115,7 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
     themes = outputs[Path("research/hub/generated/themes-index.qmd")]
     questions = outputs[Path("research/hub/generated/questions-index.qmd")]
     studies = outputs[Path("research/hub/generated/studies-index.qmd")]
+    background = outputs[Path("research/hub/generated/background-index.qmd")]
 
     for theme in build.sources.themes:
         assert theme.record_id in summary
@@ -118,3 +127,5 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
         assert question.record_id in questions
     for study in build.sources.studies:
         assert study.record_id in studies
+    for resource in build.sources.background:
+        assert resource.record_id in background

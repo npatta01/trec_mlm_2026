@@ -1,0 +1,6 @@
+---
+title: "TREC 2025 Million LLMs literature review"
+description: "The audited task, participant-method, result, and limitation review."
+---
+
+{{< include ../../../reports/trec_2025_mllm_literature_review.md >}}

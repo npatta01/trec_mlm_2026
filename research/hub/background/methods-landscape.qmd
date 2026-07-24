@@ -1,26 +1,63 @@
 ---
 resource_id: methods-landscape
-title: "Methods and reference-model landscape"
+title: "Methods and reference-model planning"
 resource_type: methods_landscape
-summary: "A source-backed map of retrieval, profiles, reference generation, and reranking choices."
-canonical_source_path: reports/trec_2026_reference_model_landscape_2026-07-21.md
-citations: ["Provider and model references are preserved in the dated landscape report."]
+summary: "A staged method ladder plus the dated, bounded role of reference-generation and judge models."
+canonical_source_path: reports/trec_2026_approaches_guide.artifact.json
+citations:
+  - "TREC 2026 approaches guide and its 80-source primary-source registry"
+  - "TREC 2026 reference-model landscape dated 2026-07-21"
+  - "Cawley and Talbot (2010), selection bias and nested evaluation"
+  - "Guo et al. (2017), calibration of modern neural networks"
 tags: [methods, reference-models, planning]
 question_ids: [response-evidence, reference-reliability, failure-conditions]
 reviewed_on: 2026-07-24
 ---
 
-The landscape report compares bounded reference-generation options and their
-operational constraints. It informs which generator or review path is feasible;
-it is not itself a ranking experiment.
+The methods landscape is a sequence of evidence questions, not a menu of
+features to combine at once. Begin with controls that reveal the data's
+structure, add historical response evidence, and introduce weak supervision or
+learned fusion only after each component has an auditable held-out signal.
 
-## Why this matters for 2026
+## Method ladder
 
-Response-derived evidence depends on the quality and custody of its reference
-inputs.
+1. **Stable controls:** rank by a fold-local global prior, sparse similar-query
+   retrieval, and frozen dense query retrieval.
+2. **Evidence retrieval:** index historical responses and query-response pairs;
+   compare sparse, dense, and rank-fused retrieval; aggregate back to candidates
+   with counts and normalization visible.
+3. **Candidate summaries:** test behavior, topic, refusal, length, and
+   confidence profiles only for improvement beyond the raw evidence that
+   generated them.
+4. **Weak labels:** grade historical responses with explicit rubrics, blinded
+   candidate identity, multiple judge configurations, saved raw votes, and
+   calibration against separately reviewed examples.
+5. **Learning to rank:** combine out-of-fold component predictions at the query
+   group level. With only hundreds of independent questions, 150 candidate rows
+   per question do not create thousands of independent training examples.
 
-## What this does not prove
+Every tuning choice, prior, clustering step, weak-label calibration, and fusion
+weight stays inside the training side of evaluation. Development gains remain
+development evidence; they are not hidden-test claims.
 
-Provider specifications and planning estimates are not organizer judgments.
-See the
-[`dated landscape report`](../../../reports/trec_2026_reference_model_landscape_2026-07-21.md).
+## Bounded role of reference models
+
+Reference generators and judges support evidence construction; they do not
+directly rank candidate IDs. The dated July 21 landscape recommends Gemini 3.6
+Flash as the primary API reference generator, Qwen3.6-27B as the preferred
+local retry, Gemma 4 31B-it as a model-family control, and Gemini 3.5 Flash-Lite
+only for high-volume mechanical judging after calibration. Those are planning
+recommendations based on provider documentation, published general benchmarks,
+cost envelopes, and local runtime evidence.
+
+General MMLU-Pro, GPQA, HLE, throughput, and price comparisons do not prove
+reference quality on this question mix. The controlling report explicitly
+requires the designed reviewed pilot before adopting a generator or judge.
+Provider model changes, dated prices, and a failed local backend are operational
+facts, not organizer judgments and not candidate-ranking results.
+
+## Deep dive
+
+Read the [dated reference-model landscape](../library/reference-model-landscape.qmd)
+for the model-by-model evidence, cost assumptions, runtime constraints, unknowns,
+and proposed allocation.

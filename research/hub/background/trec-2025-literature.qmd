@@ -2,25 +2,56 @@
 resource_id: trec-2025-literature
 title: "What the 2025 Million LLMs track taught us"
 resource_type: literature_review
-summary: "A source-backed synthesis of the prior track and participant approaches."
+summary: "The prior task, its strongest evidence families, and the limits of its official evaluation."
 canonical_source_path: reports/trec_2025_mllm_literature_review.md
-citations: ["Citations are preserved in the controlling literature review."]
+citations:
+  - "Official TREC 2025 Million LLMs overview paper"
+  - "SRCB, UDInfo, GenAIus, and UvA IRLab TREC 2025 participant papers"
+  - "Official TREC 2025 run appendix and trec_eval files"
 tags: [trec-2025, prior-art, llm-routing]
 question_ids: [query-only-routing, candidate-evidence, response-evidence]
 reviewed_on: 2026-07-24
 ---
 
-Prior teams treated model selection as an information-retrieval and routing
-problem, using query evidence, response evidence, learned rankers, and hybrid
-signals. The controlling review preserves the paper-level citations.
+The 2025 Million LLMs track reframed retrieval: instead of ranking documents,
+systems ranked model IDs by how likely each simulated expert was to answer a new
+question well. The pool contained 1,131 cluster-backed expert IDs. Participants
+could use released historical queries, precomputed answers, and response
+metadata, but they could not call the candidates on a test question. That makes
+the prior track a close methodological predecessor to 2026, not a study of
+interchangeable commercial foundation models.
 
-## Why this matters for 2026
+## What the official results support
 
-It identifies credible approach families and helps distinguish a genuine gap
-from a renamed prior method.
+The strongest systems combined several kinds of historical evidence. SRCB's
+`submission_4` led the official nDCG@10 ranking with a pipeline built around
+weak labels and Qwen3-Embedding-8B representations. UDInfo combined judged
+neighbors, global candidate priors, and query-domain clusters. GenAIus showed
+that classical expert search remained competitive: retrieve individual past
+responses with BM25/RM3, then aggregate their scores back to the candidate that
+produced them. Across papers, response-level evidence was generally more useful
+than one giant profile per candidate, while embeddings, log-probability
+summaries, and learned rankers were most credible when paired with meaningful
+behavioral evidence.
 
-## What this does not prove
+These findings define useful 2026 controls: stable priors, sparse and dense
+query retrieval, response retrieval, normalized evidence aggregation, and
+auditable weak-label features. They do not establish which combination wins on
+the new candidate pool.
 
-Prior-track results do not establish effectiveness on this development data or
-the unavailable hidden test. See
-[`reports/trec_2025_mllm_literature_review.md`](../../../reports/trec_2025_mllm_literature_review.md).
+## Evaluation and comparability boundary
+
+The official overview reports 50 test questions, ground-truth answers for 37,
+and only 16 questions with at least one relevant candidate answer. Final labels
+used GPT-5-as-judge after the planned pooled human assessment was not completed.
+The leaderboard is therefore a valuable first method comparison, but small
+differences are fragile. Its scores are neither hidden-test evidence for 2026
+nor proof that a method transfers across a changed candidate pool, discovery
+set, and judgment process. All local claims in this hub remain development
+claims until the organizer's hidden evaluation.
+
+## Deep dive
+
+Read the [audited TREC 2025 literature review](../library/trec-2025-literature-review.qmd)
+for the task construction, all 19 official runs, participant recipes, source
+links, and unresolved reporting discrepancies.

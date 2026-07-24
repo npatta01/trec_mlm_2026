@@ -26,6 +26,7 @@ _STATIC_OUTPUT_PATHS = (
     Path("reports/trec_2026_research_hub_summary.md"),
     Path("research/catalog.json"),
     Path("research/hub/generated/coverage.qmd"),
+    Path("research/hub/generated/background-index.qmd"),
     Path("research/hub/generated/history.qmd"),
     Path("research/hub/generated/questions-index.qmd"),
     Path("research/hub/generated/runs.qmd"),
@@ -460,6 +461,84 @@ def render_themes_index_qmd(build: HubBuild) -> str:
         "## Themes",
         *_render_theme_rows(build, href_prefix="../generated/themes"),
     ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_background_index_qmd(build: HubBuild) -> str:
+    """Render source-backed Background navigation in an editorial reading order."""
+
+    records = {record.record_id: record for record in build.sources.background}
+    groups = (
+        (
+            "TREC 2025",
+            "Start with the task and then inspect how participants turned "
+            "historical behavior into model rankings.",
+            ("trec-2025-literature", "prior-participant-approaches"),
+        ),
+        (
+            "Wider methods and evaluations",
+            "Connect expert finding, retrieval, routing, and evaluation research "
+            "to this task without importing results across incompatible settings.",
+            ("llm-routing-literature", "related-competitions"),
+        ),
+        (
+            "Current model and reference planning",
+            "Use the dated planning evidence to choose reference generators and "
+            "review controls; it is not candidate-ranking evidence.",
+            ("methods-landscape",),
+        ),
+    )
+    configured_ids = {
+        record_id for _, _, record_ids in groups for record_id in record_ids
+    }
+    additional_ids = tuple(sorted(set(records) - configured_ids))
+    if additional_ids:
+        groups = (
+            *groups,
+            (
+                "Additional background",
+                "Other source-backed context registered by this build.",
+                additional_ids,
+            ),
+        )
+
+    lines = [
+        "These resources synthesize the controlling reviews and preserve the "
+        "boundary between development evidence, prior-track results, and "
+        "adjacent research.",
+    ]
+    for heading, introduction, record_ids in groups:
+        present_ids = tuple(record_id for record_id in record_ids if record_id in records)
+        if not present_ids:
+            continue
+        lines.extend(
+            [
+                "",
+                f"## {heading}",
+                "",
+                introduction,
+                "",
+                '<div class="hub-background-list">',
+            ]
+        )
+        for record_id in present_ids:
+            record = records[record_id]
+            lines.extend(
+                [
+                    (
+                        '<a class="hub-background-row" '
+                        f'href="{html.escape(record.record_id, quote=True)}.qmd">'
+                    ),
+                    f"<strong>{html.escape(record.title)}</strong>",
+                    (
+                        "<span>"
+                        f"{html.escape(str(record.metadata.get('summary', '')))}"
+                        "</span>"
+                    ),
+                    "</a>",
+                ]
+            )
+        lines.append("</div>")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -1173,6 +1252,9 @@ def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
                 build
             ),
             Path("research/hub/generated/summary.qmd"): render_summary_qmd(build),
+            Path(
+                "research/hub/generated/background-index.qmd"
+            ): render_background_index_qmd(build),
             Path(
                 "research/hub/generated/themes-index.qmd"
             ): render_themes_index_qmd(build),

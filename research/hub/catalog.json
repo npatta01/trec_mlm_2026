@@ -115,11 +115,11 @@
         "query-only-routing"
       ],
       "rendered_path": "background/llm-routing-literature.html",
-      "summary": "Research on selecting models under quality, capability, and cost constraints.",
+      "summary": "What expert finding, model routing, and simple retrieval contribute under different task rules.",
       "tags": [
+        "expert-finding",
         "literature",
-        "routing",
-        "selection"
+        "routing"
       ],
       "title": "Wider LLM-routing literature",
       "type": "background"
@@ -133,13 +133,13 @@
         "response-evidence"
       ],
       "rendered_path": "background/methods-landscape.html",
-      "summary": "A source-backed map of retrieval, profiles, reference generation, and reranking choices.",
+      "summary": "A staged method ladder plus the dated, bounded role of reference-generation and judge models.",
       "tags": [
         "methods",
         "planning",
         "reference-models"
       ],
-      "title": "Methods and reference-model landscape",
+      "title": "Methods and reference-model planning",
       "type": "background"
     },
     {
@@ -151,7 +151,7 @@
         "response-evidence"
       ],
       "rendered_path": "background/prior-participant-approaches.html",
-      "summary": "A compact map from prior participant methods to the current research questions.",
+      "summary": "How six 2025 teams converted queries, responses, profiles, and weak labels into expert rankings.",
       "tags": [
         "methods",
         "participants",
@@ -168,13 +168,13 @@
         "response-evidence"
       ],
       "rendered_path": "background/related-competitions.html",
-      "summary": "Neighboring model-routing and answer-selection tasks, separated from direct TREC comparisons.",
+      "summary": "Neighboring evaluations that test retrieval, routing, judging, or distribution shift under different contracts.",
       "tags": [
         "benchmarks",
         "comparability",
-        "competitions"
+        "routing-evaluation"
       ],
-      "title": "Related competitions and benchmarks",
+      "title": "Adjacent benchmarks and routing evaluations",
       "type": "background"
     },
     {
@@ -186,7 +186,7 @@
         "response-evidence"
       ],
       "rendered_path": "background/trec-2025-literature.html",
-      "summary": "A source-backed synthesis of the prior track and participant approaches.",
+      "summary": "The prior task, its strongest evidence families, and the limits of its official evaluation.",
       "tags": [
         "llm-routing",
         "prior-art",

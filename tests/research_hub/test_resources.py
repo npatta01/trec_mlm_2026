@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from scripts.stage_research_hub_resources import RESOURCE_ALLOWLIST, stage_resources
+from trec_mlm.research_hub.build import build_research_hub
+from trec_mlm.research_hub.render import render_hub_outputs
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_background_records_use_audited_sources_and_named_evidence() -> None:
+    build = build_research_hub(ROOT)
+    background = {record.record_id: record for record in build.sources.background}
+
+    assert (
+        background["llm-routing-literature"].metadata["canonical_source_path"]
+        == "reports/trec_2026_approaches_guide.artifact.json"
+    )
+    assert "competition" not in background["related-competitions"].title.lower()
+    assert "RouterBench" in background["llm-routing-literature"].body
+    assert "SRCB" in background["trec-2025-literature"].body
+    assert all("placeholder" not in record.body.lower() for record in background.values())
+    assert all(
+        "deep dive" in record.body.lower() for record in background.values()
+    )
+
+
+def test_background_index_is_generated_and_grouped() -> None:
+    build = build_research_hub(ROOT)
+    output = render_hub_outputs(build)[
+        Path("research/hub/generated/background-index.qmd")
+    ]
+
+    assert "## TREC 2025" in output
+    assert "## Wider methods and evaluations" in output
+    assert "## Current model and reference planning" in output
+    assert "hub-background-row" in output
+    assert "listing:" not in output
+    for record in build.sources.background:
+        assert f'{record.record_id}.qmd"' in output
+
+
+def _write_allowlisted_sources(root: Path, html: str = "<!doctype html><p>safe</p>") -> None:
+    for source in RESOURCE_ALLOWLIST:
+        path = root / source
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(html, encoding="utf-8")
+
+
+def test_stage_resources_copies_only_the_exact_allowlist(tmp_path: Path) -> None:
+    _write_allowlisted_sources(tmp_path)
+    unrelated = tmp_path / "reports/not-allowlisted.html"
+    unrelated.write_text("<p>do not copy</p>", encoding="utf-8")
+    output_dir = tmp_path / "research/hub/_site"
+
+    staged = stage_resources(tmp_path, output_dir)
+
+    expected = tuple(
+        sorted(output_dir / destination for destination in RESOURCE_ALLOWLIST.values())
+    )
+    assert staged == expected
+    assert all(path.read_text(encoding="utf-8").endswith("<p>safe</p>") for path in staged)
+    assert not (output_dir / "library/not-allowlisted.html").exists()
+
+
+def test_stage_resources_rejects_output_outside_hub_site(tmp_path: Path) -> None:
+    _write_allowlisted_sources(tmp_path)
+
+    with pytest.raises(ValueError, match="research/hub/_site"):
+        stage_resources(tmp_path, tmp_path / "elsewhere")
+
+
+@pytest.mark.parametrize(
+    ("unsafe_html", "message"),
+    [
+        ('<a href="file:///tmp/private">local</a>', "file URL"),
+        ("<p>/home/npatta01/private</p>", "private home path"),
+        ("-----BEGIN PRIVATE KEY-----", "private-key"),
+        ('<script src="https://cdn.example/app.js"></script>', "external executable"),
+        ('<link rel="stylesheet" href="//cdn.example/app.css">', "external executable"),
+    ],
+)
+def test_stage_resources_rejects_private_or_executable_content(
+    tmp_path: Path,
+    unsafe_html: str,
+    message: str,
+) -> None:
+    _write_allowlisted_sources(tmp_path, unsafe_html)
+
+    with pytest.raises(ValueError, match=message):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+    assert not (tmp_path / "research/hub/_site/library").exists()

@@ -31,7 +31,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert build.validation.linked_system_count == len(build.ledger.systems) == 98
 
     problem = (ROOT / "research/hub/start-here/problem.qmd").read_text()
-    assert "## The problem in one sentence" in problem
+    assert "## What are we building?" in problem
     assert "150 candidate LLMs" in problem
     assert "hidden test" in problem.lower()
 
@@ -58,3 +58,18 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         by_study["grounded-data-quality-audit"].metadata["study_type"]
         == "data_quality"
     )
+
+
+def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
+    problem = (ROOT / "research/hub/start-here/problem.qmd").read_text()
+    questions = (ROOT / "research/hub/questions/index.qmd").read_text()
+    data = (ROOT / "research/hub/data/index.qmd").read_text()
+
+    assert "hub-task-flow" in problem
+    assert "hub-example" in problem
+    assert "hub-question-list" in questions
+    assert "current bounded answer" in questions.lower()
+    assert "hub-data-groups" in data
+    assert "Organizer-provided" in data
+    assert "listing:" not in questions
+    assert "listing:" not in data

@@ -1,26 +1,119 @@
 ---
 title: "The task in plain English"
-description: "What is ranked, what evidence is available, and what cannot yet be claimed."
+description: "How a request becomes a ranked list of candidate LLMs—and what evidence may be used."
+toc: true
 ---
 
-## The problem in one sentence
+## What are we building?
 
-Given a user's request, rank 150 candidate LLMs so that the models most likely
-to answer that request well appear first.
+For every new user request, the system must order **150 candidate LLMs** from
+most to least promising. It does not answer the request itself. It chooses which
+models should get the first opportunity to answer it.
 
-## What information do we have?
+::: {.hub-task-flow aria-label="The four stages of the ranking task"}
+::: {.hub-flow-step}
+<span class="hub-step-number">1</span>
 
-For development, we have historical requests and relevance labels indicating
-which candidate LLMs were suitable. We also have candidate identifiers and
-separately collected or generated evidence described in the Data Catalog.
+### New request
 
-## What are we trying to learn?
+The text a user submits, such as a factual question, coding problem, or request
+for advice.
+:::
 
-We test whether query similarity, candidate descriptions, model responses, or
-combinations of those signals improve the ranking without using a held-out
-query's relevance labels to construct its answer.
+::: {.hub-flow-step}
+<span class="hub-step-number">2</span>
 
-## The evidence boundary
+### Available evidence
 
-All effectiveness results in this hub are development evidence. The hidden test
-labels are unavailable, so a development improvement is not a hidden-test claim.
+Similar historical requests, candidate profiles, or previously collected model
+responses—depending on the study.
+:::
+
+::: {.hub-flow-step}
+<span class="hub-step-number">3</span>
+
+### Ranking method
+
+A method scores how well each candidate appears to fit this particular request.
+:::
+
+::: {.hub-flow-step}
+<span class="hub-step-number">4</span>
+
+### Ordered candidates
+
+The result is a list from rank 1 through rank 150. Better-suited models should
+appear nearer the top.
+:::
+:::
+
+## A small illustrative example
+
+::: {.hub-example}
+::: {.hub-example-request}
+**New request**
+
+“Why are the leaves on my tomato plant turning yellow?”
+:::
+
+::: {.hub-example-evidence}
+**Possible evidence**
+
+- Past gardening requests and which models suited them
+- A candidate profile describing strength in plant-care explanations
+- A previously collected response that reveals whether the model understood the topic
+:::
+
+::: {.hub-example-result}
+**What the router produces**
+
+1. Candidate 37 — strongest estimated fit
+2. Candidate 104 — next strongest
+3. Candidate 12 — next strongest
+4. …the remaining 147 candidates
+:::
+:::
+
+This example explains the shape of the task; it is not an actual scored query or
+a claim about those candidate identifiers.
+
+## How do we know whether a ranking is good?
+
+For the **development requests**, the organizers provide relevance judgments
+(qrels): labels indicating which candidates were suitable for each historical
+request. We compare a method's ranking with those labels using ranking metrics.
+
+The crucial distinction is:
+
+::: {.hub-compare-grid}
+::: {.hub-compare-card}
+### Construction evidence
+
+Information the method is allowed to use to produce a ranking, such as request
+text, historical training examples, profiles, or bounded response evidence.
+:::
+
+::: {.hub-compare-card}
+### Evaluation evidence
+
+The relevance labels used afterward to measure the ranking. A request's own
+labels must not be used to construct its ranking.
+:::
+:::
+
+## What are the studies trying to learn?
+
+The studies compare different evidence sources and ranking strategies:
+
+- Is request similarity alone a strong baseline?
+- Does evidence describing each candidate improve that baseline?
+- Can model responses or a generated reference answer help?
+- When do those signals become unreliable?
+
+::: {.hub-evidence-boundary}
+### The evidence boundary
+
+All effectiveness results in this hub are **development evidence**. Hidden-test
+relevance labels are unavailable. A method that improves development results is
+promising, but that does not yet prove it will improve the hidden test.
+:::

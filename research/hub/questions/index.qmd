@@ -1,14 +1,66 @@
 ---
 title: "Research Questions"
 description: "What the project is trying to learn and the current bounded answer."
-listing:
-  contents: ["*.qmd"]
-  type: grid
-  sort: "status"
-  filter-ui: true
-  sort-ui: true
-  fields: [title, plain_english, status, confidence]
+toc: false
 ---
 
-A research question comes before a technique. Each page gives the plain-English
-comparison, current answer, uncertainty, linked studies, and next tests.
+A research question comes before a technique. Start with the question and its
+current bounded answer; open the card for supporting studies, limitations, and
+next tests.
+
+::: {.hub-question-list}
+::: {.hub-question-card}
+### [When do promising signals fail?](failure-conditions.qmd)
+
+Which request types, evidence gaps, and operational constraints make a ranking
+or reference method unreliable?
+
+<div class="hub-card-answer"><strong>Current bounded answer</strong> Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists.</div>
+
+<div class="hub-badges"><span class="hub-badge hub-status-open">Open</span><span class="hub-badge">Low confidence</span></div>
+:::
+
+::: {.hub-question-card}
+### [Can candidate-side semantic evidence improve query-only retrieval?](candidate-evidence.qmd)
+
+When choosing an LLM, does it help to consider what each candidate model is good
+at, not only compare the request with past requests?
+
+<div class="hub-card-answer"><strong>Current bounded answer</strong> Yes on development evidence, subject to the evidence limits on the question page.</div>
+
+<div class="hub-badges"><span class="hub-badge hub-status-partial">Partially answered</span><span class="hub-badge">Moderate confidence</span></div>
+:::
+
+::: {.hub-question-card}
+### [How far can query-only routing go?](query-only-routing.qmd)
+
+Can a new request be routed well by comparing it with historical requests,
+before using candidate responses?
+
+<div class="hub-card-answer"><strong>Current bounded answer</strong> Dense query neighbors are a useful stable control, but candidate-side evidence improved development results.</div>
+
+<div class="hub-badges"><span class="hub-badge hub-status-partial">Partially answered</span><span class="hub-badge">Moderate confidence</span></div>
+:::
+
+::: {.hub-question-card}
+### [How reliable must a generated reference be?](reference-reliability.qmd)
+
+When a generated answer guides candidate comparison, when is it trustworthy
+enough and when should it be reviewed?
+
+<div class="hub-card-answer"><strong>Current bounded answer</strong> Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.</div>
+
+<div class="hub-badges"><span class="hub-badge hub-status-partial">Partially answered</span><span class="hub-badge">Moderate confidence</span></div>
+:::
+
+::: {.hub-question-card}
+### [Can model responses provide useful ranking evidence?](response-evidence.qmd)
+
+Does comparing a request or reference answer with candidate responses help
+choose the best models?
+
+<div class="hub-card-answer"><strong>Current bounded answer</strong> Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.</div>
+
+<div class="hub-badges"><span class="hub-badge hub-status-partial">Partially answered</span><span class="hub-badge">Low confidence</span></div>
+:::
+:::

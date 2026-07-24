@@ -16,7 +16,7 @@ def ledger_build() -> LedgerBuild:
 
 
 @pytest.fixture
-def minimal_sources(tmp_path: Path) -> HubSources:
+def minimal_sources(tmp_path: Path, ledger_build: LedgerBuild) -> HubSources:
     evidence_path = tmp_path / "evidence" / "receipt.md"
     evidence_path.parent.mkdir()
     evidence_path.write_text("tracked evidence\n", encoding="utf-8")
@@ -84,7 +84,7 @@ def minimal_sources(tmp_path: Path) -> HubSources:
                 conclusion="The control remains useful.",
                 decision="retain_control",
                 decision_summary="Keep the established baseline.",
-                system_ids=["dense_nested"],
+                system_ids=[row.system_id for row in ledger_build.systems],
                 representative_system_ids=["dense_nested"],
                 comparison_system_ids=["dense_nested"],
                 evidence_refs=[evidence_ref],

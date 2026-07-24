@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -25,6 +26,23 @@ ID_FIELDS = {
     "dataset": "dataset_id",
     "background": "resource_id",
 }
+_SAFE_RECORD_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+
+
+def validate_record_identity(record: HubRecord) -> None:
+    """Require a portable slug whose identity is its canonical filename stem."""
+
+    if not _SAFE_RECORD_ID.fullmatch(record.record_id):
+        raise ValueError(
+            f"{record.source_path}: {record.kind} id must be a safe lowercase slug: "
+            f"{record.record_id!r}"
+        )
+    source_stem = Path(record.source_path).stem
+    if record.record_id != source_stem:
+        raise ValueError(
+            f"{record.source_path}: {record.kind} id {record.record_id!r} "
+            f"must exactly match filename stem {source_stem!r}"
+        )
 
 
 def _relative_source(root: Path, path: Path) -> str:
@@ -59,7 +77,7 @@ def parse_qmd_record(root: Path, path: Path, kind: str) -> HubRecord:
     if not isinstance(title, str) or not title.strip():
         raise ValueError(f"{path}: title must be a nonempty string")
     body = "\n".join(lines[closing + 1 :]).strip()
-    return HubRecord(
+    record = HubRecord(
         kind=kind,
         record_id=record_id,
         title=title,
@@ -67,6 +85,8 @@ def parse_qmd_record(root: Path, path: Path, kind: str) -> HubRecord:
         metadata=metadata,
         body=body,
     )
+    validate_record_identity(record)
+    return record
 
 
 def load_hub_sources(

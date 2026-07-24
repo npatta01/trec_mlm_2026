@@ -8,7 +8,7 @@ status: partially_answered
 current_answer: "Yes on development evidence, subject to the evidence limits below."
 confidence: moderate
 confidence_boundary: "Development-only evidence; candidate artifacts have mixed custody and the hidden test is unavailable."
-study_ids: [candidate-label-matching, behavior-profile, semantic-profiles, multiresolution-profiles]
+study_ids: [candidate-label-matching, behavior-profile, semantic-profiles, multiresolution-profiles, label-ranker-pilots]
 open_subquestions: ["Which candidate evidence generalizes beyond development?", "Which profile resolution is robust rather than diagnostic?"]
 next_test_ids: [semantic-failure-clusters]
 evidence_refs: [reports/trec_2026_experiment_ledger.md]

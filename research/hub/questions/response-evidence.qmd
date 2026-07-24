@@ -8,7 +8,7 @@ status: partially_answered
 current_answer: "Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence."
 confidence: low
 confidence_boundary: "Most ranking evidence is development-only and some response corpora are private or locally held."
-study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement]
+study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement, four-model-reference-review]
 open_subquestions: ["Can reliable references support a leakage-safe reranker?", "Which response failures are predictable before ranking?"]
 next_test_ids: [failure-aware-fusion, reference-review-trigger]
 evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_e5_raw_response_refinement_results.md]

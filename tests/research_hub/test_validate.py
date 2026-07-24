@@ -27,7 +27,7 @@ def test_validation_returns_record_and_linked_system_counts(
         "dataset": 1,
         "background": 1,
     }
-    assert summary.linked_system_count == 1
+    assert summary.linked_system_count == len(ledger_build.systems)
 
 
 @pytest.mark.parametrize(
@@ -247,6 +247,84 @@ def test_validation_rejects_unknown_study_system(
     with pytest.raises(ValueError, match="not-a-real-system"):
         validate_hub_sources(
             replace(minimal_sources, studies=(study,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_rejects_orphan_ledger_run(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    study = minimal_sources.studies[0]
+    orphan_id = ledger_build.systems[-1].system_id
+    study = replace(
+        study,
+        metadata={
+            **study.metadata,
+            "system_ids": [
+                system_id
+                for system_id in study.metadata["system_ids"]
+                if system_id != orphan_id
+            ],
+        },
+    )
+
+    with pytest.raises(ValueError, match=rf"orphan ledger run.*{orphan_id}"):
+        validate_hub_sources(
+            replace(minimal_sources, studies=(study,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_study_missing_from_linked_question(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = minimal_sources.questions[0]
+    question = replace(
+        question,
+        metadata={**question.metadata, "study_ids": []},
+    )
+
+    with pytest.raises(ValueError, match="question.*study relationships.*dense-baseline"):
+        validate_hub_sources(
+            replace(minimal_sources, questions=(question,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_question_missing_from_linked_study(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = minimal_sources.questions[0]
+    secondary = replace(
+        question,
+        record_id="secondary-question",
+        source_path="research/hub/questions/secondary-question.qmd",
+        metadata={
+            **question.metadata,
+            "question_id": "secondary-question",
+            "study_ids": [],
+        },
+    )
+    study = minimal_sources.studies[0]
+    study = replace(
+        study,
+        metadata={**study.metadata, "question_ids": ["secondary-question"]},
+    )
+
+    with pytest.raises(
+        ValueError, match="question.*study relationships.*candidate-evidence"
+    ):
+        validate_hub_sources(
+            replace(
+                minimal_sources,
+                questions=(question, secondary),
+                studies=(study,),
+            ),
             ledger_build,
             tmp_path,
         )

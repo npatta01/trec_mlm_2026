@@ -9,6 +9,7 @@ from pathlib import Path
 
 from trec_mlm.experiment_ledger import LedgerBuild
 
+from .load import validate_record_identity
 from .model import HubRecord, HubSources
 
 QUESTION_STATUSES = frozenset({"open", "partially_answered", "answered", "parked"})
@@ -373,6 +374,24 @@ def _validate_relationships(
         _require_known_ids(record, "dataset_ids", dataset_ids)
         _require_known_ids(record, "supersedes", study_ids)
         _require_known_ids(record, "superseded_by", study_ids)
+    question_study_links = {
+        (record.record_id, study_id)
+        for record in sources.questions
+        for study_id in require_string_list(record, "study_ids")
+    }
+    study_question_links = {
+        (question_id, record.record_id)
+        for record in sources.studies
+        for question_id in require_string_list(record, "question_ids")
+    }
+    if question_study_links != study_question_links:
+        missing_from_questions = sorted(study_question_links - question_study_links)
+        missing_from_studies = sorted(question_study_links - study_question_links)
+        raise ValueError(
+            "question-study relationships must be reciprocal; "
+            f"missing from question study_ids: {missing_from_questions}; "
+            f"missing from study question_ids: {missing_from_studies}"
+        )
     for record in sources.tests:
         _require_known_ids(record, "linked_question_ids", question_ids)
         if record.metadata.get("stage") == "completed":
@@ -388,13 +407,18 @@ def _validate_relationships(
         _require_known_ids(record, "study_ids", study_ids)
     for record in sources.background:
         _require_known_ids(record, "question_ids", question_ids)
-    return len(
-        {
-            system_id
-            for record in sources.studies
-            for system_id in require_string_list(record, "system_ids")
-        }
-    )
+    linked_system_ids = {
+        system_id
+        for record in sources.studies
+        for system_id in require_string_list(record, "system_ids")
+    }
+    orphan_system_ids = sorted(system_ids - linked_system_ids)
+    if orphan_system_ids:
+        raise ValueError(
+            "orphan ledger run(s) must be linked from at least one canonical "
+            f"study system_ids list: {orphan_system_ids}"
+        )
+    return len(linked_system_ids)
 
 
 def validate_hub_sources(
@@ -405,6 +429,7 @@ def validate_hub_sources(
     records = sources.all_records()
     owners: dict[tuple[str, str], str] = {}
     for record in records:
+        validate_record_identity(record)
         key = (record.kind, record.record_id)
         if key in owners:
             raise ValueError(

@@ -39,6 +39,32 @@ def test_parse_qmd_record_rejects_unsafe_yaml_tag(tmp_path: Path) -> None:
         parse_qmd_record(tmp_path, path, "question")
 
 
+@pytest.mark.parametrize("record_id", ["Uppercase", "has_underscore", "two--parts"])
+def test_parse_qmd_record_rejects_unsafe_record_id(
+    tmp_path: Path,
+    record_id: str,
+) -> None:
+    path = tmp_path / f"{record_id}.qmd"
+    path.write_text(
+        f"---\nquestion_id: {record_id}\ntitle: Unsafe ID\n---\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="safe lowercase slug"):
+        parse_qmd_record(tmp_path, path, "question")
+
+
+def test_parse_qmd_record_requires_id_to_match_filename_stem(tmp_path: Path) -> None:
+    path = tmp_path / "different-name.qmd"
+    path.write_text(
+        "---\nquestion_id: candidate-evidence\ntitle: Mismatched ID\n---\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="must exactly match filename stem"):
+        parse_qmd_record(tmp_path, path, "question")
+
+
 def test_load_hub_sources_sorts_records_by_id(tmp_path: Path) -> None:
     directory = tmp_path / "research/hub/questions"
     directory.mkdir(parents=True)

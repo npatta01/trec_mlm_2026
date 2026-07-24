@@ -22,6 +22,7 @@ from trec_mlm.research_hub.render import (
     render_hub_outputs,
     render_run_pages,
     render_runs_qmd,
+    render_study_detail_pages,
     render_summary_markdown,
     render_summary_qmd,
 )
@@ -46,7 +47,7 @@ def sample_build(
                 "dataset": 1,
                 "background": 1,
             },
-            linked_system_count=1,
+            linked_system_count=len(ledger_build.systems),
         ),
     )
 
@@ -88,6 +89,7 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
         question,
         record_id="secondary-question",
         title="Secondary question",
+        source_path="research/hub/questions/secondary-question.qmd",
         metadata={
             **question.metadata,
             "question_id": "secondary-question",
@@ -102,6 +104,7 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
         study,
         record_id="secondary-study",
         title="Secondary study",
+        source_path="research/hub/studies/secondary-study.qmd",
         metadata={
             **study.metadata,
             "study_id": "secondary-study",
@@ -234,7 +237,7 @@ def test_study_detail_partitions_representative_runs_by_evaluation_scope(
         ),
     )
 
-    detail = render_hub_outputs(build)[
+    detail = render_study_detail_pages(build)[
         Path("research/hub/generated/studies/dense-baseline.md")
     ]
     development = detail.split(
@@ -416,6 +419,68 @@ def test_run_page_rejects_unsafe_system_filename_component(system_id: str) -> No
         _validate_system_id(system_id)
 
 
+def test_run_pages_reject_orphan_ledger_run(sample_build: HubBuild) -> None:
+    study = sample_build.sources.studies[0]
+    orphan_id = sample_build.ledger.systems[-1].system_id
+    study = replace(
+        study,
+        metadata={
+            **study.metadata,
+            "system_ids": [
+                system_id
+                for system_id in study.metadata["system_ids"]
+                if system_id != orphan_id
+            ],
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(sample_build.sources, studies=(study,)),
+    )
+
+    with pytest.raises(ValueError, match=rf"orphan ledger run.*{orphan_id}"):
+        render_run_pages(build)
+
+
+def test_run_index_rejects_orphan_ledger_run(sample_build: HubBuild) -> None:
+    study = sample_build.sources.studies[0]
+    orphan_id = sample_build.ledger.systems[-1].system_id
+    study = replace(
+        study,
+        metadata={
+            **study.metadata,
+            "system_ids": [
+                system_id
+                for system_id in study.metadata["system_ids"]
+                if system_id != orphan_id
+            ],
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(sample_build.sources, studies=(study,)),
+    )
+
+    with pytest.raises(ValueError, match=rf"orphan ledger run.*{orphan_id}"):
+        render_runs_qmd(build)
+
+
+def test_render_rejects_hub_record_filename_identity_mismatch(
+    sample_build: HubBuild,
+) -> None:
+    question = replace(
+        sample_build.sources.questions[0],
+        source_path="research/hub/questions/different-name.qmd",
+    )
+    build = replace(
+        sample_build,
+        sources=replace(sample_build.sources, questions=(question,)),
+    )
+
+    with pytest.raises(ValueError, match="must exactly match filename stem"):
+        render_hub_outputs(build)
+
+
 def test_decision_history_orders_known_dates_ascending_and_labels_unknown(
     sample_build: HubBuild,
 ) -> None:
@@ -518,6 +583,10 @@ def test_coverage_is_question_by_approach_with_counted_evidence_states(
 ) -> None:
     question = sample_build.sources.questions[0]
     study = sample_build.sources.studies[0]
+    study = replace(
+        study,
+        metadata={**study.metadata, "system_ids": ["dense_nested"]},
+    )
     approach = sample_build.sources.approaches[0]
     uncovered = replace(
         approach,
@@ -585,6 +654,10 @@ def test_coverage_preserves_restricted_and_unscored_evidence_states(
     sample_build: HubBuild,
 ) -> None:
     study = sample_build.sources.studies[0]
+    study = replace(
+        study,
+        metadata={**study.metadata, "system_ids": ["dense_nested"]},
+    )
     studies = (
         study,
         replace(

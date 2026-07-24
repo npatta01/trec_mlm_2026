@@ -14,6 +14,7 @@ from urllib.parse import quote
 from trec_mlm.experiment_ledger import SystemRecord
 
 from .build import HubBuild
+from .load import validate_record_identity
 from .model import HubRecord
 
 _QUESTION_STATUS_PRIORITY = {
@@ -154,6 +155,8 @@ def _rendered_path(record: HubRecord) -> str:
 def render_catalog(build: HubBuild) -> str:
     """Render the stable, machine-readable search catalog."""
 
+    for record in build.sources.all_records():
+        validate_record_identity(record)
     resources = [
         {
             "id": record.record_id,
@@ -174,11 +177,7 @@ def render_catalog(build: HubBuild) -> str:
     ]
     for system in build.ledger.systems:
         system_id = _validate_system_id(system.system_id)
-        study_ids = sorted(
-            study.record_id
-            for study in build.sources.studies
-            if system_id in _metadata_list(study, "system_ids")
-        )
+        study_ids = _linked_study_ids(build, system_id)
         resources.append(
             {
                 "id": system_id,
@@ -1394,15 +1393,23 @@ def _render_run_index(build: HubBuild) -> str:
 
 
 def render_runs_qmd(build: HubBuild) -> str:
+    for system in build.ledger.systems:
+        _linked_study_ids(build, system.system_id)
     return _render_run_index(build).rstrip() + "\n"
 
 
 def _linked_study_ids(build: HubBuild, system_id: str) -> list[str]:
-    return sorted(
+    study_ids = sorted(
         study.record_id
         for study in build.sources.studies
         if system_id in _metadata_list(study, "system_ids")
     )
+    if not study_ids:
+        raise ValueError(
+            "orphan ledger run must be linked from at least one canonical "
+            f"study system_ids list: {system_id!r}"
+        )
+    return study_ids
 
 
 def _scope_guard(system: SystemRecord) -> str:
@@ -1460,10 +1467,7 @@ def _render_run_page(build: HubBuild, system: SystemRecord) -> str:
         "",
     ]
     linked_studies = _linked_study_ids(build, system_id)
-    if linked_studies:
-        lines.extend(f"- {_inline_code(study_id)}" for study_id in linked_studies)
-    else:
-        lines.append("No canonical study currently links this run.")
+    lines.extend(f"- {_inline_code(study_id)}" for study_id in linked_studies)
     lines.extend(
         [
             "",
@@ -1523,6 +1527,8 @@ def render_run_pages(build: HubBuild) -> dict[Path, str]:
 def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
     """Render every tracked generated output without touching the filesystem."""
 
+    for record in build.sources.all_records():
+        validate_record_identity(record)
     return _validated_output_mapping(
         {
             Path("research/catalog.json"): render_catalog(build),

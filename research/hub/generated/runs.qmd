@@ -1,0 +1,659 @@
+---
+title: "Experiment Runs"
+---
+
+# Experiment Runs
+
+Development evidence only. Compare metrics only within the same evaluation scope.
+
+::: {data-hub-filter-group=""}
+<div class="hub-filter-controls">
+<label>Search runs<input type="search" data-hub-filter placeholder="System, family, or method"></label>
+<label>Promotion<select data-hub-status><option value="">All</option>
+<option value="constructed_not_evaluated">constructed_not_evaluated</option>
+<option value="diagnostic_only">diagnostic_only</option>
+<option value="invalid">invalid</option>
+<option value="promoted_development">promoted_development</option>
+<option value="restricted_pilot">restricted_pilot</option>
+<option value="stable_control">stable_control</option>
+<option value="stopped_unscored">stopped_unscored</option>
+<option value="valid_negative">valid_negative</option>
+</select></label>
+<label>Evaluation scope<select data-hub-scope><option value="">All</option>
+<option value="constructed_not_evaluated">constructed_not_evaluated</option>
+<option value="dev_322x150">dev_322x150</option>
+<option value="invalid_unscored">invalid_unscored</option>
+<option value="restricted_12x20">restricted_12x20</option>
+<option value="restricted_6">restricted_6</option>
+</select></label>
+</div>
+<p class="visually-hidden" aria-live="polite" data-hub-filter-live></p>
+
+## Evaluation scope: `constructed_not_evaluated`
+
+### Evidence: `unscored`
+
+<div class="hub-grid">
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="constructed_not_evaluated" data-scope="constructed_not_evaluated" data-search="discovery_behavior_topic_v1 behavior_profile one descriptive behavior/topic profile per candidate built from official discovery history.">
+<h4><a href="../generated/runs/discovery_behavior_topic_v1.html"><code>discovery_behavior_topic_v1</code></a></h4>
+<p>constructed_not_evaluated · constructed_not_evaluated · unscored</p>
+<p>One descriptive behavior/topic profile per candidate built from official discovery history.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="constructed_not_evaluated" data-search="source_alignment__k10 source_query_first source-query alignment grid candidate with k=10; no standalone aggregate was reported.">
+<h4><a href="../generated/runs/source_alignment__k10.html"><code>source_alignment__k10</code></a></h4>
+<p>diagnostic_only · constructed_not_evaluated · unscored</p>
+<p>Source-query alignment grid candidate with k=10; no standalone aggregate was reported.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="constructed_not_evaluated" data-search="source_alignment__k20 source_query_first source-query alignment grid candidate with k=20; no standalone aggregate was reported.">
+<h4><a href="../generated/runs/source_alignment__k20.html"><code>source_alignment__k20</code></a></h4>
+<p>diagnostic_only · constructed_not_evaluated · unscored</p>
+<p>Source-query alignment grid candidate with k=20; no standalone aggregate was reported.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="constructed_not_evaluated" data-search="source_alignment__k40 source_query_first source-query alignment grid candidate with k=40; no standalone aggregate was reported.">
+<h4><a href="../generated/runs/source_alignment__k40.html"><code>source_alignment__k40</code></a></h4>
+<p>diagnostic_only · constructed_not_evaluated · unscored</p>
+<p>Source-query alignment grid candidate with k=40; no standalone aggregate was reported.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+</div>
+
+## Evaluation scope: `dev_322x150`
+
+### Evidence: `aggregate_only`
+
+<div class="hub-grid">
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_m3_contextual candidate_label_matching reviewed contextual label-embedding sweep result: bge-m3 contextual.">
+<h4><a href="../generated/runs/bge_m3_contextual.html"><code>bge_m3_contextual</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Reviewed contextual label-embedding sweep result: BGE-M3 contextual.</p>
+<p>nDCG@10 0.257600 · MRR 0.319700</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@1 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=1.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@1.html"><code>bge_small_en_v1_5@1</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=1.</p>
+<p>nDCG@10 0.197636 · MRR 0.268335</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@10 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=10.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@10.html"><code>bge_small_en_v1_5@10</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=10.</p>
+<p>nDCG@10 0.296145 · MRR 0.352663</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@100 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=100.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@100.html"><code>bge_small_en_v1_5@100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=100.</p>
+<p>nDCG@10 0.296868 · MRR 0.337794</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@20 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=20.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@20.html"><code>bge_small_en_v1_5@20</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=20.</p>
+<p>nDCG@10 0.302868 · MRR 0.349356</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@3 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=3.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@3.html"><code>bge_small_en_v1_5@3</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=3.</p>
+<p>nDCG@10 0.246263 · MRR 0.310501</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@5 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=5.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@5.html"><code>bge_small_en_v1_5@5</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=5.</p>
+<p>nDCG@10 0.266609 · MRR 0.327756</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bge_small_en_v1_5@50 dense_query_knn fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=50.">
+<h4><a href="../generated/runs/bge_small_en_v1_5@50.html"><code>bge_small_en_v1_5@50</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=50.</p>
+<p>nDCG@10 0.313098 · MRR 0.362384</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__query_response__aggressive__d100 response_retrieval fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d100.">
+<h4><a href="../generated/runs/bm25__query_response__aggressive__d100.html"><code>bm25__query_response__aggressive__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d100.</p>
+<p>nDCG@10 0.262112 · MRR 0.315972</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__query_response__aggressive__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d1000.">
+<h4><a href="../generated/runs/bm25__query_response__aggressive__d1000.html"><code>bm25__query_response__aggressive__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d1000.</p>
+<p>nDCG@10 0.263979 · MRR 0.330664</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__query_response__aggressive__d500 response_retrieval fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d500.">
+<h4><a href="../generated/runs/bm25__query_response__aggressive__d500.html"><code>bm25__query_response__aggressive__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d500.</p>
+<p>nDCG@10 0.268632 · MRR 0.322219</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__query_response__basic__d100 response_retrieval fixed response-retrieval grid diagnostic bm25__query_response__basic__d100.">
+<h4><a href="../generated/runs/bm25__query_response__basic__d100.html"><code>bm25__query_response__basic__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__query_response__basic__d100.</p>
+<p>nDCG@10 0.263408 · MRR 0.321848</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__query_response__basic__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25__query_response__basic__d1000.">
+<h4><a href="../generated/runs/bm25__query_response__basic__d1000.html"><code>bm25__query_response__basic__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__query_response__basic__d1000.</p>
+<p>nDCG@10 0.268642 · MRR 0.328425</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__query_response__basic__d500 response_retrieval fixed response-retrieval grid diagnostic bm25__query_response__basic__d500.">
+<h4><a href="../generated/runs/bm25__query_response__basic__d500.html"><code>bm25__query_response__basic__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__query_response__basic__d500.</p>
+<p>nDCG@10 0.274804 · MRR 0.331708</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__response_only__aggressive__d100 response_retrieval fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d100.">
+<h4><a href="../generated/runs/bm25__response_only__aggressive__d100.html"><code>bm25__response_only__aggressive__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d100.</p>
+<p>nDCG@10 0.245786 · MRR 0.297986</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__response_only__aggressive__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d1000.">
+<h4><a href="../generated/runs/bm25__response_only__aggressive__d1000.html"><code>bm25__response_only__aggressive__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d1000.</p>
+<p>nDCG@10 0.260738 · MRR 0.311635</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__response_only__aggressive__d500 response_retrieval fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d500.">
+<h4><a href="../generated/runs/bm25__response_only__aggressive__d500.html"><code>bm25__response_only__aggressive__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d500.</p>
+<p>nDCG@10 0.263521 · MRR 0.310094</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__response_only__basic__d100 response_retrieval fixed response-retrieval grid diagnostic bm25__response_only__basic__d100.">
+<h4><a href="../generated/runs/bm25__response_only__basic__d100.html"><code>bm25__response_only__basic__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__response_only__basic__d100.</p>
+<p>nDCG@10 0.247137 · MRR 0.300701</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__response_only__basic__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25__response_only__basic__d1000.">
+<h4><a href="../generated/runs/bm25__response_only__basic__d1000.html"><code>bm25__response_only__basic__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__response_only__basic__d1000.</p>
+<p>nDCG@10 0.259963 · MRR 0.313064</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25__response_only__basic__d500 response_retrieval fixed response-retrieval grid diagnostic bm25__response_only__basic__d500.">
+<h4><a href="../generated/runs/bm25__response_only__basic__d500.html"><code>bm25__response_only__basic__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25__response_only__basic__d500.</p>
+<p>nDCG@10 0.263773 · MRR 0.310973</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__query_response__aggressive__d100 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d100.">
+<h4><a href="../generated/runs/bm25_rm3__query_response__aggressive__d100.html"><code>bm25_rm3__query_response__aggressive__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d100.</p>
+<p>nDCG@10 0.271769 · MRR 0.322022</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__query_response__aggressive__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d1000.">
+<h4><a href="../generated/runs/bm25_rm3__query_response__aggressive__d1000.html"><code>bm25_rm3__query_response__aggressive__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d1000.</p>
+<p>nDCG@10 0.287799 · MRR 0.332140</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__query_response__aggressive__d500 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d500.">
+<h4><a href="../generated/runs/bm25_rm3__query_response__aggressive__d500.html"><code>bm25_rm3__query_response__aggressive__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d500.</p>
+<p>nDCG@10 0.290853 · MRR 0.331621</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__query_response__basic__d100 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d100.">
+<h4><a href="../generated/runs/bm25_rm3__query_response__basic__d100.html"><code>bm25_rm3__query_response__basic__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d100.</p>
+<p>nDCG@10 0.275572 · MRR 0.329559</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__query_response__basic__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d1000.">
+<h4><a href="../generated/runs/bm25_rm3__query_response__basic__d1000.html"><code>bm25_rm3__query_response__basic__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d1000.</p>
+<p>nDCG@10 0.283512 · MRR 0.331745</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__query_response__basic__d500 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d500.">
+<h4><a href="../generated/runs/bm25_rm3__query_response__basic__d500.html"><code>bm25_rm3__query_response__basic__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d500.</p>
+<p>nDCG@10 0.291498 · MRR 0.325283</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__response_only__aggressive__d100 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d100.">
+<h4><a href="../generated/runs/bm25_rm3__response_only__aggressive__d100.html"><code>bm25_rm3__response_only__aggressive__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d100.</p>
+<p>nDCG@10 0.260719 · MRR 0.311438</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__response_only__aggressive__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d1000.">
+<h4><a href="../generated/runs/bm25_rm3__response_only__aggressive__d1000.html"><code>bm25_rm3__response_only__aggressive__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d1000.</p>
+<p>nDCG@10 0.284077 · MRR 0.319888</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__response_only__aggressive__d500 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d500.">
+<h4><a href="../generated/runs/bm25_rm3__response_only__aggressive__d500.html"><code>bm25_rm3__response_only__aggressive__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d500.</p>
+<p>nDCG@10 0.291311 · MRR 0.330025</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__response_only__basic__d100 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d100.">
+<h4><a href="../generated/runs/bm25_rm3__response_only__basic__d100.html"><code>bm25_rm3__response_only__basic__d100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d100.</p>
+<p>nDCG@10 0.256494 · MRR 0.309900</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__response_only__basic__d1000 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d1000.">
+<h4><a href="../generated/runs/bm25_rm3__response_only__basic__d1000.html"><code>bm25_rm3__response_only__basic__d1000</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d1000.</p>
+<p>nDCG@10 0.286455 · MRR 0.324969</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="bm25_rm3__response_only__basic__d500 response_retrieval fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d500.">
+<h4><a href="../generated/runs/bm25_rm3__response_only__basic__d500.html"><code>bm25_rm3__response_only__basic__d500</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d500.</p>
+<p>nDCG@10 0.293039 · MRR 0.335901</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="dense_e5_equal semantic_profiles equal-weight fusion of dense query neighbors and contextual e5 labels.">
+<h4><a href="../generated/runs/dense_e5_equal.html"><code>dense_e5_equal</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Equal-weight fusion of dense query neighbors and contextual E5 labels.</p>
+<p>nDCG@10 0.386326 · MRR 0.419134</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="dense_profile_dense_heavy semantic_profiles dense-heavy fixed fusion with semantic profiles.">
+<h4><a href="../generated/runs/dense_profile_dense_heavy.html"><code>dense_profile_dense_heavy</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Dense-heavy fixed fusion with semantic profiles.</p>
+<p>nDCG@10 0.410328 · MRR 0.446773</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="dense_profile_e5_equal semantic_profiles three-way equal-weight dense/profile/contextual-e5 fusion.">
+<h4><a href="../generated/runs/dense_profile_e5_equal.html"><code>dense_profile_e5_equal</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Three-way equal-weight dense/profile/contextual-E5 fusion.</p>
+<p>nDCG@10 0.431145 · MRR 0.446489</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@1 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=1.">
+<h4><a href="../generated/runs/e5_small_v2@1.html"><code>e5_small_v2@1</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=1.</p>
+<p>nDCG@10 0.202829 · MRR 0.265552</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@10 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=10.">
+<h4><a href="../generated/runs/e5_small_v2@10.html"><code>e5_small_v2@10</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=10.</p>
+<p>nDCG@10 0.264274 · MRR 0.311031</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@100 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=100.">
+<h4><a href="../generated/runs/e5_small_v2@100.html"><code>e5_small_v2@100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=100.</p>
+<p>nDCG@10 0.271022 · MRR 0.328359</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@20 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=20.">
+<h4><a href="../generated/runs/e5_small_v2@20.html"><code>e5_small_v2@20</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=20.</p>
+<p>nDCG@10 0.290983 · MRR 0.340097</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@3 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=3.">
+<h4><a href="../generated/runs/e5_small_v2@3.html"><code>e5_small_v2@3</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=3.</p>
+<p>nDCG@10 0.226425 · MRR 0.289222</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@5 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=5.">
+<h4><a href="../generated/runs/e5_small_v2@5.html"><code>e5_small_v2@5</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=5.</p>
+<p>nDCG@10 0.255900 · MRR 0.309913</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="e5_small_v2@50 dense_query_knn fixed dense query-neighbor diagnostic using e5_small_v2 with k=50.">
+<h4><a href="../generated/runs/e5_small_v2@50.html"><code>e5_small_v2@50</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using e5_small_v2 with k=50.</p>
+<p>nDCG@10 0.295825 · MRR 0.334830</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="global_prior query_controls leave-one-query-out global candidate-grade prior.">
+<h4><a href="../generated/runs/global_prior.html"><code>global_prior</code></a></h4>
+<p>stable_control · dev_322x150 · aggregate_only</p>
+<p>Leave-one-query-out global candidate-grade prior.</p>
+<p>nDCG@10 0.138524 · MRR 0.206653</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="hard_cluster_k20_preflight query_cluster_aggregation post-hoc mean candidate grades from the assigned hard query cluster at k=20.">
+<h4><a href="../generated/runs/hard_cluster_k20_preflight.html"><code>hard_cluster_k20_preflight</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Post-hoc mean candidate grades from the assigned hard query cluster at k=20.</p>
+<p>nDCG@10 0.290224 · MRR 0.324295</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="hard_cluster_k40_preflight query_cluster_aggregation post-hoc mean candidate grades from the assigned hard query cluster at k=40.">
+<h4><a href="../generated/runs/hard_cluster_k40_preflight.html"><code>hard_cluster_k40_preflight</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Post-hoc mean candidate grades from the assigned hard query cluster at k=40.</p>
+<p>nDCG@10 0.286564 · MRR 0.335053</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="jina_v5_contextual candidate_label_matching reviewed contextual label-embedding sweep result: jina v5 small contextual.">
+<h4><a href="../generated/runs/jina_v5_contextual.html"><code>jina_v5_contextual</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Reviewed contextual label-embedding sweep result: Jina v5 small contextual.</p>
+<p>nDCG@10 0.312200 · MRR 0.371100</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="local_domain_prior query_cluster_aggregation nested local-neighbor, hard query-cluster domain, and global-prior blend.">
+<h4><a href="../generated/runs/local_domain_prior.html"><code>local_domain_prior</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Nested local-neighbor, hard query-cluster domain, and global-prior blend.</p>
+<p>nDCG@10 0.348681 · MRR 0.380159</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="matched_neighbor_k20_preflight query_cluster_aggregation post-hoc equal-support positive-cosine neighbor control matched to k=20 hard-cluster support.">
+<h4><a href="../generated/runs/matched_neighbor_k20_preflight.html"><code>matched_neighbor_k20_preflight</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Post-hoc equal-support positive-cosine neighbor control matched to k=20 hard-cluster support.</p>
+<p>nDCG@10 0.339526 · MRR 0.382336</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="matched_neighbor_k40_preflight query_cluster_aggregation post-hoc equal-support positive-cosine neighbor control matched to k=40 hard-cluster support.">
+<h4><a href="../generated/runs/matched_neighbor_k40_preflight.html"><code>matched_neighbor_k40_preflight</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Post-hoc equal-support positive-cosine neighbor control matched to k=40 hard-cluster support.</p>
+<p>nDCG@10 0.328197 · MRR 0.368802</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@1 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=1.">
+<h4><a href="../generated/runs/minilm_l6@1.html"><code>minilm_l6@1</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=1.</p>
+<p>nDCG@10 0.240502 · MRR 0.294053</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@10 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=10.">
+<h4><a href="../generated/runs/minilm_l6@10.html"><code>minilm_l6@10</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=10.</p>
+<p>nDCG@10 0.325416 · MRR 0.366562</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@100 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=100.">
+<h4><a href="../generated/runs/minilm_l6@100.html"><code>minilm_l6@100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=100.</p>
+<p>nDCG@10 0.328725 · MRR 0.376375</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@20 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=20.">
+<h4><a href="../generated/runs/minilm_l6@20.html"><code>minilm_l6@20</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=20.</p>
+<p>nDCG@10 0.333024 · MRR 0.373370</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@3 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=3.">
+<h4><a href="../generated/runs/minilm_l6@3.html"><code>minilm_l6@3</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=3.</p>
+<p>nDCG@10 0.277532 · MRR 0.323659</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@5 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=5.">
+<h4><a href="../generated/runs/minilm_l6@5.html"><code>minilm_l6@5</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=5.</p>
+<p>nDCG@10 0.293659 · MRR 0.332075</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="minilm_l6@50 dense_query_knn fixed dense query-neighbor diagnostic using minilm_l6 with k=50.">
+<h4><a href="../generated/runs/minilm_l6@50.html"><code>minilm_l6@50</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using minilm_l6 with k=50.</p>
+<p>nDCG@10 0.330642 · MRR 0.368489</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@1 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=1.">
+<h4><a href="../generated/runs/mpnet_base_v2@1.html"><code>mpnet_base_v2@1</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=1.</p>
+<p>nDCG@10 0.224624 · MRR 0.292853</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@10 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=10.">
+<h4><a href="../generated/runs/mpnet_base_v2@10.html"><code>mpnet_base_v2@10</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=10.</p>
+<p>nDCG@10 0.329194 · MRR 0.371793</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@100 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=100.">
+<h4><a href="../generated/runs/mpnet_base_v2@100.html"><code>mpnet_base_v2@100</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=100.</p>
+<p>nDCG@10 0.336803 · MRR 0.380515</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@20 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=20.">
+<h4><a href="../generated/runs/mpnet_base_v2@20.html"><code>mpnet_base_v2@20</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=20.</p>
+<p>nDCG@10 0.355128 · MRR 0.391454</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@3 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=3.">
+<h4><a href="../generated/runs/mpnet_base_v2@3.html"><code>mpnet_base_v2@3</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=3.</p>
+<p>nDCG@10 0.266863 · MRR 0.312219</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@5 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=5.">
+<h4><a href="../generated/runs/mpnet_base_v2@5.html"><code>mpnet_base_v2@5</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=5.</p>
+<p>nDCG@10 0.291478 · MRR 0.338711</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="mpnet_base_v2@50 dense_query_knn fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=50.">
+<h4><a href="../generated/runs/mpnet_base_v2@50.html"><code>mpnet_base_v2@50</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=50.</p>
+<p>nDCG@10 0.360458 · MRR 0.403989</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="mpnet_raw_label candidate_label_matching zero-shot cosine matching between questions and raw candidate labels.">
+<h4><a href="../generated/runs/mpnet_raw_label.html"><code>mpnet_raw_label</code></a></h4>
+<p>stable_control · dev_322x150 · aggregate_only</p>
+<p>Zero-shot cosine matching between questions and raw candidate labels.</p>
+<p>nDCG@10 0.319500 · MRR 0.367400</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="nomic_v15_contextual candidate_label_matching reviewed contextual label-embedding sweep result: nomic embed v1.5 contextual.">
+<h4><a href="../generated/runs/nomic_v15_contextual.html"><code>nomic_v15_contextual</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Reviewed contextual label-embedding sweep result: Nomic Embed v1.5 contextual.</p>
+<p>nDCG@10 0.259100 · MRR 0.325900</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="qwen06b_contextual candidate_label_matching reviewed contextual label-embedding sweep result: qwen3-embedding 0.6b contextual.">
+<h4><a href="../generated/runs/qwen06b_contextual.html"><code>qwen06b_contextual</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Reviewed contextual label-embedding sweep result: Qwen3-Embedding 0.6B contextual.</p>
+<p>nDCG@10 0.300000 · MRR 0.341200</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="qwen4b_contextual candidate_label_matching reviewed contextual label-embedding sweep result: qwen3-embedding 4b contextual.">
+<h4><a href="../generated/runs/qwen4b_contextual.html"><code>qwen4b_contextual</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Reviewed contextual label-embedding sweep result: Qwen3-Embedding 4B contextual.</p>
+<p>nDCG@10 0.342000 · MRR 0.390200</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="qwen8b_contextual candidate_label_matching reviewed contextual label-embedding sweep result: qwen3-embedding 8b contextual.">
+<h4><a href="../generated/runs/qwen8b_contextual.html"><code>qwen8b_contextual</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Reviewed contextual label-embedding sweep result: Qwen3-Embedding 8B contextual.</p>
+<p>nDCG@10 0.328100 · MRR 0.379600</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="response_sumscore_nested response_retrieval nested response-level bm25/rm3 retrieval with sum aggregation and configuration selection.">
+<h4><a href="../generated/runs/response_sumscore_nested.html"><code>response_sumscore_nested</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Nested response-level BM25/RM3 retrieval with sum aggregation and configuration selection.</p>
+<p>nDCG@10 0.277358 · MRR 0.317533</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="response_top10sum_nested response_volume_normalization nested response-volume-normalized retrieval; every fold selected top10_sum.">
+<h4><a href="../generated/runs/response_top10sum_nested.html"><code>response_top10sum_nested</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Nested response-volume-normalized retrieval; every fold selected top10_sum.</p>
+<p>nDCG@10 0.289225 · MRR 0.328255</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="source_alignment_nested source_query_first nested source-query-first lexical response alignment.">
+<h4><a href="../generated/runs/source_alignment_nested.html"><code>source_alignment_nested</code></a></h4>
+<p>valid_negative · dev_322x150 · aggregate_only</p>
+<p>Nested source-query-first lexical response alignment.</p>
+<p>nDCG@10 0.203268 · MRR 0.248219</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="target_response_same_k source_query_first nonselecting target-to-response diagnostic at the source-alignment selected k.">
+<h4><a href="../generated/runs/target_response_same_k.html"><code>target_response_same_k</code></a></h4>
+<p>diagnostic_only · dev_322x150 · aggregate_only</p>
+<p>Nonselecting target-to-response diagnostic at the source-alignment selected k.</p>
+<p>nDCG@10 0.202332 · MRR 0.251004</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="tfidf_fixed_k10 query_controls fixed k=10 tf-idf query-neighbor grade transfer control.">
+<h4><a href="../generated/runs/tfidf_fixed_k10.html"><code>tfidf_fixed_k10</code></a></h4>
+<p>stable_control · dev_322x150 · aggregate_only</p>
+<p>Fixed k=10 TF-IDF query-neighbor grade transfer control.</p>
+<p>nDCG@10 0.217654 · MRR 0.277696</p>
+</article>
+</div>
+
+### Evidence: `stored_per_query`
+
+<div class="hub-grid">
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="a1_top2_k10 multiresolution_profiles issue-18 multiresolution profile diagnostic a1_top2_k10.">
+<h4><a href="../generated/runs/a1_top2_k10.html"><code>a1_top2_k10</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Issue-18 multiresolution profile diagnostic a1_top2_k10.</p>
+<p>nDCG@10 0.419360 · MRR 0.452138</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="a1_top2_k10_dense_equal multiresolution_profiles issue-18 multiresolution profile diagnostic a1_top2_k10_dense_equal.">
+<h4><a href="../generated/runs/a1_top2_k10_dense_equal.html"><code>a1_top2_k10_dense_equal</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Issue-18 multiresolution profile diagnostic a1_top2_k10_dense_equal.</p>
+<p>nDCG@10 0.420150 · MRR 0.447786</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="contextual_e5 candidate_label_matching frozen contextual e5 question-to-capability-label matching control.">
+<h4><a href="../generated/runs/contextual_e5.html"><code>contextual_e5</code></a></h4>
+<p>stable_control · dev_322x150 · stored_per_query</p>
+<p>Frozen contextual E5 question-to-capability-label matching control.</p>
+<p>nDCG@10 0.334722 · MRR 0.386566</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="dense_nested dense_query_knn nested leave-one-query-out dense query-neighbor grade transfer with mpnet/k selection.">
+<h4><a href="../generated/runs/dense_nested.html"><code>dense_nested</code></a></h4>
+<p>stable_control · dev_322x150 · stored_per_query</p>
+<p>Nested leave-one-query-out dense query-neighbor grade transfer with MPNet/k selection.</p>
+<p>nDCG@10 0.359855 · MRR 0.404063</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="promoted_development" data-scope="dev_322x150" data-search="dense_profile_equal semantic_profiles equal-weight reciprocal-rank fusion of dense query neighbors and semantic profiles.">
+<h4><a href="../generated/runs/dense_profile_equal.html"><code>dense_profile_equal</code></a></h4>
+<p>promoted_development · dev_322x150 · stored_per_query</p>
+<p>Equal-weight reciprocal-rank fusion of dense query neighbors and semantic profiles.</p>
+<p>nDCG@10 0.420214 · MRR 0.453017</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="dense_profile_profile_heavy semantic_profiles profile-heavy fixed fusion reproduced as issue-18 track a.">
+<h4><a href="../generated/runs/dense_profile_profile_heavy.html"><code>dense_profile_profile_heavy</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Profile-heavy fixed fusion reproduced as issue-18 Track A.</p>
+<p>nDCG@10 0.437630 · MRR 0.469991</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="profile_only semantic_profiles frozen candidate semantic-response profile ranking.">
+<h4><a href="../generated/runs/profile_only.html"><code>profile_only</code></a></h4>
+<p>stable_control · dev_322x150 · stored_per_query</p>
+<p>Frozen candidate semantic-response profile ranking.</p>
+<p>nDCG@10 0.414924 · MRR 0.441698</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="r1_multires_max multiresolution_profiles issue-18 multiresolution profile diagnostic r1_multires_max.">
+<h4><a href="../generated/runs/r1_multires_max.html"><code>r1_multires_max</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Issue-18 multiresolution profile diagnostic r1_multires_max.</p>
+<p>nDCG@10 0.425587 · MRR 0.464634</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="r1_multires_max_dense_equal multiresolution_profiles issue-18 multiresolution profile diagnostic r1_multires_max_dense_equal.">
+<h4><a href="../generated/runs/r1_multires_max_dense_equal.html"><code>r1_multires_max_dense_equal</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Issue-18 multiresolution profile diagnostic r1_multires_max_dense_equal.</p>
+<p>nDCG@10 0.426141 · MRR 0.455626</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="x1_multires_top2 multiresolution_profiles issue-18 multiresolution profile diagnostic x1_multires_top2.">
+<h4><a href="../generated/runs/x1_multires_top2.html"><code>x1_multires_top2</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Issue-18 multiresolution profile diagnostic x1_multires_top2.</p>
+<p>nDCG@10 0.436409 · MRR 0.464610</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="dev_322x150" data-search="x1_multires_top2_dense_equal multiresolution_profiles issue-18 multiresolution profile diagnostic x1_multires_top2_dense_equal.">
+<h4><a href="../generated/runs/x1_multires_top2_dense_equal.html"><code>x1_multires_top2_dense_equal</code></a></h4>
+<p>diagnostic_only · dev_322x150 · stored_per_query</p>
+<p>Issue-18 multiresolution profile diagnostic x1_multires_top2_dense_equal.</p>
+<p>nDCG@10 0.427129 · MRR 0.454720</p>
+</article>
+</div>
+
+## Evaluation scope: `invalid_unscored`
+
+### Evidence: `invalid`
+
+<div class="hub-grid">
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="invalid" data-scope="invalid_unscored" data-search="e5_initial_terminal_token_invalid candidate_label_matching superseded initial e5 label-embedding attempt with an omitted model-specific terminal-token contract.">
+<h4><a href="../generated/runs/e5_initial_terminal_token_invalid.html"><code>e5_initial_terminal_token_invalid</code></a></h4>
+<p>invalid · invalid_unscored · invalid</p>
+<p>Superseded initial E5 label-embedding attempt with an omitted model-specific terminal-token contract.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stopped_unscored" data-scope="invalid_unscored" data-search="generated_listwise label_ranker_pilots generic generated-list ranking pilot that failed complete-permutation validation.">
+<h4><a href="../generated/runs/generated_listwise.html"><code>generated_listwise</code></a></h4>
+<p>stopped_unscored · invalid_unscored · invalid</p>
+<p>Generic generated-list ranking pilot that failed complete-permutation validation.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="stopped_unscored" data-scope="invalid_unscored" data-search="grouprank_7b label_ranker_pilots grouprank smoke test whose two exact-output protocols failed.">
+<h4><a href="../generated/runs/grouprank_7b.html"><code>grouprank_7b</code></a></h4>
+<p>stopped_unscored · invalid_unscored · invalid</p>
+<p>GroupRank smoke test whose two exact-output protocols failed.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="invalid" data-scope="invalid_unscored" data-search="qwen8b_initial_terminal_token_invalid candidate_label_matching superseded initial qwen8b label-embedding attempt with an omitted model-specific terminal-token contract.">
+<h4><a href="../generated/runs/qwen8b_initial_terminal_token_invalid.html"><code>qwen8b_initial_terminal_token_invalid</code></a></h4>
+<p>invalid · invalid_unscored · invalid</p>
+<p>Superseded initial Qwen8B label-embedding attempt with an omitted model-specific terminal-token contract.</p>
+<p class="hub-muted">Effectiveness suppressed for invalid or unscored evidence.</p>
+</article>
+</div>
+
+## Evaluation scope: `restricted_12x20`
+
+### Evidence: `restricted_diagnostic`
+
+<div class="hub-grid">
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="restricted_pilot" data-scope="restricted_12x20" data-search="firstmistral_listwise label_ranker_pilots purpose-trained firstmistral first-token-logit listwise pilot.">
+<h4><a href="../generated/runs/firstmistral_listwise.html"><code>firstmistral_listwise</code></a></h4>
+<p>restricted_pilot · restricted_12x20 · restricted_diagnostic</p>
+<p>Purpose-trained FirstMistral first-token-logit listwise pilot.</p>
+<p>nDCG@10 0.684300 · MRR 0.584700</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="restricted_pilot" data-scope="restricted_12x20" data-search="pointwise_qwen label_ranker_pilots qwen pointwise restricted reranking pilot.">
+<h4><a href="../generated/runs/pointwise_qwen.html"><code>pointwise_qwen</code></a></h4>
+<p>restricted_pilot · restricted_12x20 · restricted_diagnostic</p>
+<p>Qwen pointwise restricted reranking pilot.</p>
+<p>nDCG@10 0.482000 · MRR 0.320900</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="restricted_12x20" data-search="restricted_contextual_e5 label_ranker_pilots restricted contextual e5 control.">
+<h4><a href="../generated/runs/restricted_contextual_e5.html"><code>restricted_contextual_e5</code></a></h4>
+<p>diagnostic_only · restricted_12x20 · restricted_diagnostic</p>
+<p>Restricted contextual E5 control.</p>
+<p>nDCG@10 0.723200 · MRR 0.636100</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="restricted_12x20" data-search="restricted_qwen4b_contextual label_ranker_pilots restricted contextual qwen4b control.">
+<h4><a href="../generated/runs/restricted_qwen4b_contextual.html"><code>restricted_qwen4b_contextual</code></a></h4>
+<p>diagnostic_only · restricted_12x20 · restricted_diagnostic</p>
+<p>Restricted contextual Qwen4B control.</p>
+<p>nDCG@10 0.664800 · MRR 0.558500</p>
+</article>
+</div>
+
+## Evaluation scope: `restricted_6`
+
+### Evidence: `restricted_diagnostic`
+
+<div class="hub-grid">
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="diagnostic_only" data-scope="restricted_6" data-search="generated_listwise_feasibility_6 label_ranker_pilots six-query generated-listwise feasibility pilot with an unreliable generic output format.">
+<h4><a href="../generated/runs/generated_listwise_feasibility_6.html"><code>generated_listwise_feasibility_6</code></a></h4>
+<p>diagnostic_only · restricted_6 · restricted_diagnostic</p>
+<p>Six-query generated-listwise feasibility pilot with an unreliable generic output format.</p>
+<p>nDCG@10 — · MRR —</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="restricted_pilot" data-scope="restricted_6" data-search="pointwise_qwen_feasibility_6 label_ranker_pilots six-query pointwise qwen feasibility pilot; its early top-three signal weakened in the later 12-query diagnostic.">
+<h4><a href="../generated/runs/pointwise_qwen_feasibility_6.html"><code>pointwise_qwen_feasibility_6</code></a></h4>
+<p>restricted_pilot · restricted_6 · restricted_diagnostic</p>
+<p>Six-query pointwise Qwen feasibility pilot; its early top-three signal weakened in the later 12-query diagnostic.</p>
+<p>nDCG@10 — · MRR —</p>
+</article>
+</div>
+:::

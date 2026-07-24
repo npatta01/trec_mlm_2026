@@ -1,0 +1,22 @@
+---
+dataset_id: discovery-responses
+title: "Discovery responses"
+plain_english: "Collected model responses used as candidate-side evidence in bounded studies."
+category: collected
+provenance: "Locally collected responses described by the discovery manifest."
+method: "Collect and retain response artifacts under project controls."
+version: "data/llm_discovery/manifest.json"
+sharing: metadata_only
+repository_path: data/llm_discovery/manifest.json
+sensitivity: restricted
+leakage_constraints: "Do not copy private raw responses into reports or use development qrels to generate them."
+permitted_use: "bounded candidate evidence construction and audit"
+study_ids: []
+availability: "metadata tracked; raw content may be local-only"
+reproducibility: "Manifest-backed where source artifacts remain available."
+representative_sample: "No raw response sample is included."
+tags: [responses, collected, private]
+---
+
+Only provenance and availability are described here. Raw collected response
+content remains outside the static hub.

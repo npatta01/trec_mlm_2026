@@ -1,0 +1,25 @@
+---
+resource_id: llm-routing-literature
+title: "Wider LLM-routing literature"
+resource_type: literature_review
+summary: "Research on selecting models under quality, capability, and cost constraints."
+canonical_source_path: reports/trec_2025_mllm_literature_review.md
+citations: ["Routing citations are preserved in the controlling review."]
+tags: [routing, selection, literature]
+question_ids: [query-only-routing, candidate-evidence, failure-conditions]
+reviewed_on: 2026-07-24
+---
+
+Model routers often combine request features, estimated capability, response
+quality, cost, and uncertainty. The TREC task emphasizes ranking candidates,
+so an operational router is related but not identical.
+
+## Why this matters for 2026
+
+It offers vocabulary for reliability signals and learned fusion.
+
+## What this does not prove
+
+Operational routing performance does not transfer automatically to this
+candidate-ranking evaluation. Follow citations in the
+[`controlling review`](../../../reports/trec_2025_mllm_literature_review.md).

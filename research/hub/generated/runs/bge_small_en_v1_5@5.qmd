@@ -1,0 +1,47 @@
+---
+title: "bge_small_en_v1_5@5"
+---
+
+# `bge_small_en_v1_5@5`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=5.
+- **source_system_id:** `bge_small_en_v1_5@5`
+- **Experiment family:** `dense_query_knn`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `aggregate_only`
+- **Promotion status:** `diagnostic_only`
+- **Artifact state:** `tracked_receipt_only`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.266609
+- **MRR:** 0.327756
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `dense-query-knn`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_dense_query_knn_results.json`
+- **SHA-256:** `3ca4252cb37f12e9272561422fd2a45d0dcbf741770d0f544efda8acf4ddf902`
+- **Ranking coverage:** `none`
+- **Blocker:** The fixed-grid receipt stores only full-development aggregates for this configuration.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `dense_helper_contract_repaired`
+- `development_only`
+- `external_encoder_taxonomy`
+- `qrel_transferred_training`

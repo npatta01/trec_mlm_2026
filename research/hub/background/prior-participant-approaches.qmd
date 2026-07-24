@@ -1,0 +1,25 @@
+---
+resource_id: prior-participant-approaches
+title: "Prior participant approaches"
+resource_type: participant_review
+summary: "A compact map from prior participant methods to the current research questions."
+canonical_source_path: reports/trec_2026_approaches_guide_source_notes.md
+citations: ["Participant and method citations are preserved in the source notes."]
+tags: [participants, methods, prior-art]
+question_ids: [query-only-routing, candidate-evidence, response-evidence]
+reviewed_on: 2026-07-24
+---
+
+The source notes separate query retrieval, candidate evidence, response
+comparison, reranking, and learned fusion. That map is a planning aid, not
+evidence that every borrowed technique will transfer.
+
+## Why this matters for 2026
+
+It shows which parts of the prior playbook have already received bounded tests
+and which remain prospective.
+
+## What this does not prove
+
+A participant's reported success is not a directly comparable local result. See
+[`reports/trec_2026_approaches_guide_source_notes.md`](../../../reports/trec_2026_approaches_guide_source_notes.md).

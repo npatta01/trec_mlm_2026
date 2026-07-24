@@ -1,0 +1,38 @@
+---
+study_id: semantic-profiles
+title: "Candidate semantic profiles"
+study_type: ranking_experiment
+question_ids: [candidate-evidence]
+approach_ids: [candidate-profiles, dense-query-retrieval, reranking]
+status: concluded
+outcome: mixed
+objective: "Evaluate whether candidate semantic profiles improve ranking."
+hypothesis: "Qrel-free candidate profiles add complementary evidence to the frozen dense control."
+rationale: "The tracked protocol and result receipt define this bounded comparison."
+rationale_provenance: contemporaneous
+protocol_summary: "Construct profiles without qrels, freeze rankings, then evaluate."
+conclusion: "Profile evidence improved development ranking in fusion, while weighting variants produced mixed outcomes."
+decision: adopt
+decision_summary: "Promote equal-weight dense/profile fusion; retain profile-only as a control."
+system_ids: [profile_only, dense_profile_equal, dense_profile_dense_heavy, dense_profile_profile_heavy, dense_e5_equal, dense_profile_e5_equal]
+representative_system_ids: [dense_profile_equal, dense_profile_profile_heavy, profile_only]
+evidence_refs: [protocols/trec_2026_candidate_semantic_profiles.md, reports/trec_2026_candidate_semantic_profiles_results.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, generated-embeddings, run-artifacts]
+started_on: unknown
+concluded_on: 2026-07-16
+supersedes: []
+superseded_by: []
+limitations: "Development-only evidence; diagnostic higher scores are not promoted and some local artifacts are missing."
+tags: [candidate-evidence, profiles, fusion]
+---
+
+## Decision
+
+Adopt `dense_profile_equal` for development and retain `profile_only` as the
+stable qrel-free control. The higher diagnostic weighting is not silently
+promoted.
+
+## Evidence boundary
+
+The hidden test is unavailable. Metrics and artifact states come from the
+ledger, not this narrative page.

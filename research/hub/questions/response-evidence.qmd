@@ -1,0 +1,32 @@
+---
+question_id: response-evidence
+title: "Can model responses provide useful ranking evidence?"
+plain_english: "Does comparing a request or reference answer with candidate responses help choose the best models?"
+status: partially_answered
+current_answer: "Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence."
+confidence: low
+confidence_boundary: "Most ranking evidence is development-only and some response corpora are private or locally held."
+study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement]
+open_subquestions: ["Can reliable references support a leakage-safe reranker?", "Which response failures are predictable before ranking?"]
+next_test_ids: [failure-aware-fusion, reference-review-trigger]
+evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_e5_raw_response_refinement_results.md]
+updated_on: 2026-07-24
+tags: [responses, retrieval, reranking]
+---
+
+## In plain English
+
+Instead of only reading a model's name or profile, compare what it actually
+answered. A response about the wrong entity may reveal a poor candidate even
+when its wording overlaps the request.
+
+## Evidence limits
+
+Direct retrieval and refinement studies use development evidence with distinct
+protocols. Private raw response text is not exposed here, and reference answers
+are pivots rather than gold labels.
+
+## Linked studies
+
+The studies separate lexical retrieval, volume normalization, source-query-first
+controls, and a bounded E5 refinement.

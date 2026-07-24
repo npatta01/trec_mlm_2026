@@ -1,0 +1,14 @@
+---
+test_id: semantic-failure-clusters
+title: "Semantic failure clusters"
+stage: idea
+summary: "Group development failures to test whether recurring query types predict method weakness."
+linked_question_ids: [failure-conditions, query-only-routing, candidate-evidence]
+missing_readiness_fields: [hypothesis, decision_rule, evaluation_boundary, artifact_plan]
+priority: medium
+tags: [clusters, failure-analysis]
+---
+
+Clustering can describe repeated failures, but a useful test still needs a
+falsifiable hypothesis and a boundary that prevents tuning on evaluation
+labels.

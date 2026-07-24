@@ -1,0 +1,22 @@
+---
+dataset_id: dev-queries
+title: "Development queries"
+plain_english: "Historical user requests used for development."
+category: provided
+provenance: "Organizer-provided development data documented by the tracked manifest."
+method: "Read query identifiers and text from the organizer TSV."
+version: "tracked file manifest"
+sharing: repository
+repository_path: data/dev/llm_dev_data.tsv
+sensitivity: project_internal
+leakage_constraints: "Use development queries only within development; do not infer hidden-test content."
+permitted_use: "development_construction and development_evaluation"
+study_ids: []
+availability: tracked_complete
+reproducibility: "Verified by data/dev/file_manifest.tsv."
+representative_sample: "Metadata-only description; no query text is copied into the hub."
+tags: [queries, development, provided]
+---
+
+These are the development requests. The canonical data and its hash manifest
+remain under `data/dev/`; this page does not reproduce request text.

@@ -1,0 +1,26 @@
+---
+title: "The task in plain English"
+description: "What is ranked, what evidence is available, and what cannot yet be claimed."
+---
+
+## The problem in one sentence
+
+Given a user's request, rank 150 candidate LLMs so that the models most likely
+to answer that request well appear first.
+
+## What information do we have?
+
+For development, we have historical requests and relevance labels indicating
+which candidate LLMs were suitable. We also have candidate identifiers and
+separately collected or generated evidence described in the Data Catalog.
+
+## What are we trying to learn?
+
+We test whether query similarity, candidate descriptions, model responses, or
+combinations of those signals improve the ranking without using a held-out
+query's relevance labels to construct its answer.
+
+## The evidence boundary
+
+All effectiveness results in this hub are development evidence. The hidden test
+labels are unavailable, so a development improvement is not a hidden-test claim.

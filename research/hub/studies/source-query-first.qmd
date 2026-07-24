@@ -1,0 +1,32 @@
+---
+study_id: source-query-first
+title: "Source-query-first response evidence"
+study_type: ranking_experiment
+question_ids: [response-evidence, failure-conditions]
+approach_ids: [response-evidence, reranking]
+status: concluded
+outcome: negative
+objective: "Test whether source-query alignment should precede target-response evidence."
+hypothesis: "Selecting aligned sources first improves response-derived candidate ranking."
+rationale: "The frozen protocol, result receipt, and decision receipt define the test."
+rationale_provenance: contemporaneous
+protocol_summary: "Construct source-alignment variants and evaluate only the explicitly frozen comparable systems."
+conclusion: "The evaluated source-alignment systems did not beat the established control; three constructed variants remain unscored."
+decision: stop
+decision_summary: "Stop this path in its current form and retain unscored constructions as non-results."
+system_ids: [source_alignment_nested, target_response_same_k, source_alignment__k10, source_alignment__k20, source_alignment__k40]
+representative_system_ids: [source_alignment_nested, target_response_same_k, source_alignment__k10]
+evidence_refs: [protocols/trec_2026_source_query_first.md, reports/trec_2026_source_query_first_results.json, reports/trec_2026_source_query_first_decision.md]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, discovery-responses, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Development-only; constructed-not-evaluated systems have no effectiveness values."
+tags: [responses, source-alignment, unscored]
+---
+
+## Decision
+
+Stop the current source-query-first route. Constructed but unscored variants
+remain visible without effectiveness metrics.

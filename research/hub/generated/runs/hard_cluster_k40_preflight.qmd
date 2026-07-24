@@ -1,0 +1,49 @@
+---
+title: "hard_cluster_k40_preflight"
+---
+
+# `hard_cluster_k40_preflight`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Post-hoc mean candidate grades from the assigned hard query cluster at k=40.
+- **source_system_id:** `cluster_counts.40.cluster_mean`
+- **Experiment family:** `query_cluster_aggregation`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `aggregate_only`
+- **Promotion status:** `diagnostic_only`
+- **Artifact state:** `tracked_receipt_only`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.286564
+- **MRR:** 0.335053
+- **Zero-nDCG queries:** 154
+
+## Linked studies
+
+- `query-cluster-aggregation`
+
+## Evidence receipt
+
+- **Source:** `reports/issue_13_matched_support_preflight.json`
+- **SHA-256:** `31b509eae0660b1007b0116301b450dae1d850ed3696e2b1dca6fe9e60bda10f`
+- **Ranking coverage:** `none`
+- **Blocker:** The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `development_only`
+- `external_encoder_taxonomy`
+- `hard_cluster_posthoc_preflight`
+- `hard_cluster_preflight_not_promotable`
+- `missing_raw_artifacts`
+- `qrel_transferred_training`

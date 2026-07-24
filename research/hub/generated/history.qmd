@@ -1,0 +1,32 @@
+---
+title: "Decision History"
+---
+
+# Decision History
+
+Development evidence only.
+
+## Dated decisions
+
+| Date | Study | Active questions | What changed | Decision | Next study |
+|---|---|---|---|---|---|
+| 2026-07-16 | **Candidate semantic profiles** (`semantic-profiles`) | `candidate-evidence` | Profile evidence improved development ranking in fusion, while weighting variants produced mixed outcomes. | `adopt`: Promote equal-weight dense/profile fusion; retain profile-only as a control. | — |
+| 2026-07-21 | **Four-model reference-answer review** (`four-model-reference-review`) | `reference-reliability`, `response-evidence` | Gemini was the strongest reviewed default, with a material advantage on the purposive sample. | `adopt`: Use Gemini as the default reference generator while retaining Perplexity evidence and escalation. | — |
+| 2026-07-21 | **Gemini grounding failure review** (`gemini-grounding-failure-review`) | `failure-conditions`, `reference-reliability` | Grounding materially helped many true failures but did not provide a reliable blanket cure. | `iterate`: Develop a two-pass disagreement trigger rather than grounding every request. | — |
+| 2026-07-23 | **Grounded reference data-quality audit** (`grounded-data-quality-audit`) | `failure-conditions`, `reference-reliability` | The corpus is structurally complete, but uncertain and non-Search records require stratified source-level review. | `iterate`: Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth. | — |
+
+## Date unknown
+
+| Date | Study | Active questions | What changed | Decision | Next study |
+|---|---|---|---|---|---|
+| unknown | **Discovery behavior profile** (`behavior-profile`) | `candidate-evidence` | The profile was constructed but not evaluated as a full-development ranking. | `informational`: Retain the constructed profile as input evidence, not an effectiveness result. | — |
+| unknown | **Candidate label matching** (`candidate-label-matching`) | `candidate-evidence`, `failure-conditions` | Contextual E5 is a stable control; several alternatives are diagnostic and two initial systems are invalid. | `retain_control`: Retain contextual E5 while preserving invalid and diagnostic variants as bounded evidence. | — |
+| unknown | **Dense query nearest-neighbor retrieval** (`dense-query-knn`) | `query-only-routing` | Dense retrieval established the stable query-only control; parameter variants remain diagnostic. | `retain_control`: Retain dense_nested as the frozen query-only control. | — |
+| unknown | **E5 raw-response refinement** (`e5-raw-response-refinement`) | `failure-conditions`, `response-evidence` | The refinement provides completed diagnostic evidence but does not create a comparable registered ranking system. | `informational`: Use the refinement findings to shape future response tests; do not add a manufactured leaderboard row. | — |
+| unknown | **Label-ranker feasibility pilots** (`label-ranker-pilots`) | `candidate-evidence`, `failure-conditions` | The pilots did not produce a full-development result suitable for promotion. | `stop`: Stop the current pilot forms and preserve restricted diagnostics for future redesign. | — |
+| unknown | **Multiresolution candidate profiles** (`multiresolution-profiles`) | `candidate-evidence` | Several variants are strong development diagnostics, but none displaced the promoted decision. | `retain_control`: Retain the promoted semantic-profile system; keep multiresolution variants diagnostic. | — |
+| unknown | **Query-cluster aggregation** (`query-cluster-aggregation`) | `failure-conditions`, `query-only-routing` | The local prior was negative and preflight variants remained diagnostic. | `reject`: Do not replace dense retrieval with the tested cluster aggregations. | — |
+| unknown | **Simple query controls** (`query-controls`) | `query-only-routing` | Both controls remain aggregate-only baselines rather than promoted results. | `retain_control`: Keep the simple baselines for orientation, not as the current development choice. | — |
+| unknown | **Lexical response retrieval** (`response-retrieval`) | `response-evidence` | Direct lexical response retrieval underperformed the established dense control. | `reject`: Reject direct lexical response retrieval as the primary ranking path. | — |
+| unknown | **Response-volume normalization** (`response-volume-normalization`) | `response-evidence` | The normalized response system remained below the established control. | `reject`: Do not pursue response-volume normalization as a standalone repair. | — |
+| unknown | **Source-query-first response evidence** (`source-query-first`) | `failure-conditions`, `response-evidence` | The evaluated source-alignment systems did not beat the established control; three constructed variants remain unscored. | `stop`: Stop this path in its current form and retain unscored constructions as non-results. | — |

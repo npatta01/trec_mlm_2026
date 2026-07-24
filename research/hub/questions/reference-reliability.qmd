@@ -1,0 +1,31 @@
+---
+question_id: reference-reliability
+title: "How reliable must a generated reference be?"
+plain_english: "When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?"
+status: partially_answered
+current_answer: "Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation."
+confidence: moderate
+confidence_boundary: "The 400-question review was purposive and has no organizer gold; the grounding audit focused on known failures."
+study_ids: [four-model-reference-review, gemini-grounding-failure-review, grounded-data-quality-audit]
+open_subquestions: ["Can a local judge reproduce the escalation set?", "How often does grounding harm an initially good answer?"]
+next_test_ids: [reference-review-trigger, failure-aware-fusion]
+evidence_refs: [reports/trec_2026_four_model_reference_review_2026-07-21.md, reports/trec_2026_gemini_grounding_failure_review_2026-07-21.md]
+updated_on: 2026-07-24
+tags: [references, reliability, grounding]
+---
+
+## In plain English
+
+A reference answer can help compare candidates, but a confident wrong reference
+can invert the decision. The practical question is when to accept, cross-check,
+or mark a case unresolved.
+
+## Evidence limits
+
+The reviewed sample overweights hard questions and contains qualitative
+judgments, not organizer answer-correctness labels.
+
+## Linked studies
+
+The model review chooses a default; the failure review evaluates selective
+grounding; the data-quality audit checks the resulting corpus.

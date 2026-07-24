@@ -1,0 +1,37 @@
+---
+study_id: candidate-label-matching
+title: "Candidate label matching"
+study_type: ranking_experiment
+question_ids: [candidate-evidence, failure-conditions]
+approach_ids: [candidate-profiles]
+status: concluded
+outcome: mixed
+objective: "Test raw and contextual candidate labels as semantic ranking evidence."
+hypothesis: "Contextualized candidate descriptions improve over raw identifier matching."
+rationale: "Reconstructed from the tracked expert-label study and evaluation receipts."
+rationale_provenance: reconstructed
+protocol_summary: "Compare raw labels, contextual encoders, and explicitly invalid initial attempts."
+conclusion: "Contextual E5 is a stable control; several alternatives are diagnostic and two initial systems are invalid."
+decision: retain_control
+decision_summary: "Retain contextual E5 while preserving invalid and diagnostic variants as bounded evidence."
+system_ids: [mpnet_raw_label, qwen8b_initial_terminal_token_invalid, e5_initial_terminal_token_invalid, contextual_e5, qwen8b_contextual, qwen4b_contextual, qwen06b_contextual, jina_v5_contextual, bge_m3_contextual, nomic_v15_contextual]
+representative_system_ids: [mpnet_raw_label, contextual_e5, qwen4b_contextual, qwen8b_initial_terminal_token_invalid]
+evidence_refs: [docs/results/2026-07-13-expert-label-ranking-study.md, reports/trec_2026_issue18_pr17head_evaluation.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, generated-embeddings, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Mixed aggregate and per-query evidence; invalid systems are not scored or compared with valid runs."
+tags: [labels, candidates, contextual]
+---
+
+## Decision
+
+Contextual E5 remains a stable candidate-label control. Invalid terminal-token
+attempts remain visible as failures, never as leaderboard rows.
+
+## History boundary
+
+This narrative is a reconstruction from tracked receipts; original rationale
+and dates are not available.

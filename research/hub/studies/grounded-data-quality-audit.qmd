@@ -1,0 +1,32 @@
+---
+study_id: grounded-data-quality-audit
+title: "Grounded reference data-quality audit"
+study_type: data_quality
+question_ids: [reference-reliability, failure-conditions]
+approach_ids: [reference-generation]
+status: concluded
+outcome: mixed
+objective: "Check completeness, uncertainty, duplication, Search use, and provenance risks in the grounded corpus."
+rationale: "The dated audit records deterministic checks and separates data findings from runtime risks."
+rationale_provenance: contemporaneous
+protocol_summary: "Audit the completed corpus deterministically, then identify selected records requiring adjudication."
+conclusion: "The corpus is structurally complete, but uncertain and non-Search records require stratified source-level review."
+decision: iterate
+decision_summary: "Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth."
+system_ids: []
+representative_system_ids: []
+evidence_refs: [reports/trec_2026_grounded_data_quality_audit_2026-07-23.md]
+dataset_ids: [discovery-responses]
+started_on: unknown
+concluded_on: 2026-07-23
+supersedes: []
+superseded_by: []
+limitations: "Deterministic integrity checks do not prove semantic correctness or exhaustive source support."
+tags: [data-quality, grounding, audit]
+---
+
+## Decision
+
+Use the corpus with explicit uncertainty and review gates. Structural
+completeness is not semantic validation, and private evidence stays outside the
+static hub.

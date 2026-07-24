@@ -1,0 +1,14 @@
+---
+title: "Research Questions"
+description: "What the project is trying to learn and the current bounded answer."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "status"
+  filter-ui: true
+  sort-ui: true
+  fields: [title, plain_english, status, confidence]
+---
+
+A research question comes before a technique. Each page gives the plain-English
+comparison, current answer, uncertainty, linked studies, and next tests.

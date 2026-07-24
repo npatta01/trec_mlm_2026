@@ -1,0 +1,26 @@
+---
+resource_id: trec-2025-literature
+title: "What the 2025 Million LLMs track taught us"
+resource_type: literature_review
+summary: "A source-backed synthesis of the prior track and participant approaches."
+canonical_source_path: reports/trec_2025_mllm_literature_review.md
+citations: ["Citations are preserved in the controlling literature review."]
+tags: [trec-2025, prior-art, llm-routing]
+question_ids: [query-only-routing, candidate-evidence, response-evidence]
+reviewed_on: 2026-07-24
+---
+
+Prior teams treated model selection as an information-retrieval and routing
+problem, using query evidence, response evidence, learned rankers, and hybrid
+signals. The controlling review preserves the paper-level citations.
+
+## Why this matters for 2026
+
+It identifies credible approach families and helps distinguish a genuine gap
+from a renamed prior method.
+
+## What this does not prove
+
+Prior-track results do not establish effectiveness on this development data or
+the unavailable hidden test. See
+[`reports/trec_2025_mllm_literature_review.md`](../../../reports/trec_2025_mllm_literature_review.md).

@@ -1,0 +1,51 @@
+---
+title: "dense_nested"
+---
+
+# `dense_nested`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Nested leave-one-query-out dense query-neighbor grade transfer with MPNet/k selection.
+- **source_system_id:** `dense_nested`
+- **Experiment family:** `dense_query_knn`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `stored_per_query`
+- **Promotion status:** `stable_control`
+- **Artifact state:** `tracked_complete`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `true`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.359855
+- **MRR:** 0.404063
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `dense-query-knn`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_dense_query_knn_results.json`
+- **SHA-256:** `3ca4252cb37f12e9272561422fd2a45d0dcbf741770d0f544efda8acf4ddf902`
+- **Ranking coverage:** `per_query_metrics_only`
+
+## Evidence indexes
+
+- [Per-query evidence](../../../../reports/trec_2026_experiment_per_query.tsv)
+- [Relevant-candidate slice evidence](../../../../reports/trec_2026_experiment_topic_slices.tsv)
+- [Positive-density slice evidence](../../../../reports/trec_2026_experiment_density_slices.tsv)
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `dense_helper_contract_repaired`
+- `development_only`
+- `external_encoder_taxonomy`
+- `qrel_transferred_training`

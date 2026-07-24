@@ -1,0 +1,45 @@
+---
+title: "e5_initial_terminal_token_invalid"
+---
+
+# `e5_initial_terminal_token_invalid`
+
+This restricted or invalid evaluation scope is not directly comparable with full development runs.
+
+## Evidence contract
+
+- **Method:** Superseded initial E5 label-embedding attempt with an omitted model-specific terminal-token contract.
+- **source_system_id:** `Initial E5 sweep`
+- **Experiment family:** `candidate_label_matching`
+- **Evaluation scope:** `invalid_unscored`
+- **Evidence status:** `invalid`
+- **Promotion status:** `invalid`
+- **Artifact state:** `tracked_report_snapshot`
+- **Qrel usage:** `evaluation_only`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** —
+- **MRR:** —
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `candidate-label-matching`
+
+## Evidence receipt
+
+- **Source:** `docs/results/2026-07-13-expert-label-ranking-study.md`
+- **SHA-256:** `9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d`
+- **Ranking coverage:** `none`
+- **Blocker:** The reviewed study retains only the shared invalid-attempt history row; the superseded low scores and per-query outputs are intentionally not quality evidence.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `development_only`
+- `external_encoder_taxonomy`
+- `initial_embedding_prompt_contract_superseded`

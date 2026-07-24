@@ -1,0 +1,52 @@
+---
+title: "dense_profile_equal"
+---
+
+# `dense_profile_equal`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Equal-weight reciprocal-rank fusion of dense query neighbors and semantic profiles.
+- **source_system_id:** `dense_profile_equal`
+- **Experiment family:** `semantic_profiles`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `stored_per_query`
+- **Promotion status:** `promoted_development`
+- **Artifact state:** `local_artifact_missing`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `true`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.420214
+- **MRR:** 0.453017
+- **Zero-nDCG queries:** 99
+
+## Linked studies
+
+- `semantic-profiles`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_candidate_semantic_profiles_results.json`
+- **SHA-256:** `21cfe833c2d48658c6c8ecceffa5a2d9e5a27646e11bfc2a58769f80074ff31a`
+- **Ranking coverage:** `per_query_metrics_only`
+
+## Evidence indexes
+
+- [Per-query evidence](../../../../reports/trec_2026_experiment_per_query.tsv)
+- [Relevant-candidate slice evidence](../../../../reports/trec_2026_experiment_topic_slices.tsv)
+- [Positive-density slice evidence](../../../../reports/trec_2026_experiment_density_slices.tsv)
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `confidence_not_correctness`
+- `development_only`
+- `external_encoder_taxonomy`
+- `profile_qrel_seal_deviation`
+- `qrel_transferred_training`

@@ -299,11 +299,11 @@ def _summary_next_tests(build: HubBuild) -> list[str]:
 
 def _summary_navigation(*, generated_qmd: bool) -> list[str]:
     if generated_qmd:
-        summary = "summary.qmd"
-        coverage = "coverage.qmd"
-        history = "history.qmd"
-        runs = "runs.qmd"
-        catalog = "../../catalog.json"
+        summary = "generated/summary.qmd"
+        coverage = "evidence/coverage.qmd"
+        history = "evidence/history.qmd"
+        runs = "evidence/runs.qmd"
+        catalog = "../catalog.json"
     else:
         summary = "../research/hub/generated/summary.qmd"
         coverage = "../research/hub/generated/coverage.qmd"
@@ -475,7 +475,7 @@ def _render_decision_history(build: HubBuild) -> str:
             if _date_sort_value(study.metadata.get("concluded_on"))[0] == 0
         ),
         key=lambda row: (
-            *_date_sort_value(row.metadata.get("concluded_on")),
+            _history_date_sort_value(row.metadata.get("concluded_on")),
             row.record_id,
         ),
     )
@@ -488,8 +488,19 @@ def _render_decision_history(build: HubBuild) -> str:
         key=lambda row: row.record_id,
     )
     lines.extend(_history_section(build, "Dated decisions", dated))
-    lines.extend(_history_section(build, "Unknown-date decisions", unknown))
+    lines.extend(_history_section(build, "Date unknown", unknown))
     return "\n".join(lines)
+
+
+def _history_date_sort_value(value: object) -> int:
+    if isinstance(value, date):
+        return value.toordinal()
+    if isinstance(value, str) and value != "unknown":
+        try:
+            return date.fromisoformat(value).toordinal()
+        except ValueError:
+            pass
+    return date.max.toordinal()
 
 
 def _history_section(
@@ -559,6 +570,10 @@ def _format_metric(value: float | None) -> str:
 
 
 def _render_run_index(build: HubBuild) -> str:
+    promotions = sorted(
+        {system.promotion_status for system in build.ledger.systems}
+    )
+    scopes = sorted({system.evaluation_scope for system in build.ledger.systems})
     lines = [
         "---",
         'title: "Experiment Runs"',
@@ -567,8 +582,29 @@ def _render_run_index(build: HubBuild) -> str:
         "# Experiment Runs",
         "",
         "Development evidence only. Compare metrics only within the same evaluation scope.",
+        "",
+        '::: {data-hub-filter-group=""}',
+        '<div class="hub-filter-controls">',
+        '<label>Search runs<input type="search" data-hub-filter '
+        'placeholder="System, family, or method"></label>',
+        '<label>Promotion<select data-hub-status><option value="">All</option>',
+        *(
+            f'<option value="{html.escape(value, quote=True)}">'
+            f"{html.escape(value)}</option>"
+            for value in promotions
+        ),
+        "</select></label>",
+        '<label>Evaluation scope<select data-hub-scope><option value="">All</option>',
+        *(
+            f'<option value="{html.escape(value, quote=True)}">'
+            f"{html.escape(value)}</option>"
+            for value in scopes
+        ),
+        "</select></label>",
+        "</div>",
+        '<p class="visually-hidden" aria-live="polite" '
+        "data-hub-filter-live></p>",
     ]
-    scopes = sorted({system.evaluation_scope for system in build.ledger.systems})
     for scope in scopes:
         lines.extend(["", f"## Evaluation scope: {_inline_code(scope)}"])
         evidence_classes = sorted(
@@ -588,38 +624,59 @@ def _render_run_index(build: HubBuild) -> str:
                 ),
                 key=lambda row: row.system_id,
             )
-            lines.extend(["", f"### Evidence: {_inline_code(evidence_status)}", ""])
+            lines.extend(
+                [
+                    "",
+                    f"### Evidence: {_inline_code(evidence_status)}",
+                    "",
+                    '<div class="hub-grid">',
+                ]
+            )
             suppress_effectiveness = evidence_status in {"invalid", "unscored"}
-            if suppress_effectiveness:
-                lines.extend(
-                    [
-                        "| Run | Promotion | Evidence status | Method |",
-                        "|---|---|---|---|",
-                    ]
-                )
-            else:
-                lines.extend(
-                    [
-                        "| Run | Promotion | nDCG@10 | MRR | Method |",
-                        "|---|---|---:|---:|---|",
-                    ]
-                )
             for system in systems:
                 system_id = _validate_system_id(system.system_id)
-                link = f"[{_inline_code(system_id)}](runs/{system_id}.qmd)"
-                promotion = _inline_code(system.promotion_status)
-                method = _markdown_table_text(system.method_summary)
+                search_text = " ".join(
+                    (
+                        system_id,
+                        system.experiment_family,
+                        system.method_summary,
+                    )
+                ).lower()
+                lines.extend(
+                    [
+                        (
+                            '<article class="hub-card hub-filter-row" '
+                            "data-hub-filter-row "
+                            f'data-status="{html.escape(system.promotion_status, quote=True)}" '
+                            f'data-scope="{html.escape(system.evaluation_scope, quote=True)}" '
+                            f'data-search="{html.escape(search_text, quote=True)}">'
+                        ),
+                        (
+                            f'<h4><a href="../generated/runs/'
+                            f'{html.escape(system_id, quote=True)}.html">'
+                            f"<code>{html.escape(system_id)}</code></a></h4>"
+                        ),
+                        (
+                            f"<p>{html.escape(system.promotion_status)} · "
+                            f"{html.escape(system.evaluation_scope)} · "
+                            f"{html.escape(system.evidence_status)}</p>"
+                        ),
+                        f"<p>{html.escape(system.method_summary)}</p>",
+                    ]
+                )
                 if suppress_effectiveness:
                     lines.append(
-                        f"| {link} | {promotion} | "
-                        f"{_inline_code(system.evidence_status)} | {method} |"
+                        '<p class="hub-muted">Effectiveness suppressed for '
+                        "invalid or unscored evidence.</p>"
                     )
                 else:
                     lines.append(
-                        f"| {link} | {promotion} | "
-                        f"{_format_metric(system.ndcg_at_10)} | "
-                        f"{_format_metric(system.mrr)} | {method} |"
+                        f"<p>nDCG@10 {_format_metric(system.ndcg_at_10)} · "
+                        f"MRR {_format_metric(system.mrr)}</p>"
                     )
+                lines.append("</article>")
+            lines.append("</div>")
+    lines.append(":::")
     return "\n".join(lines)
 
 

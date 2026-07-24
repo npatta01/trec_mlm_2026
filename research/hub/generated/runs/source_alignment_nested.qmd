@@ -1,0 +1,49 @@
+---
+title: "source_alignment_nested"
+---
+
+# `source_alignment_nested`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Nested source-query-first lexical response alignment.
+- **source_system_id:** `source_alignment_nested`
+- **Experiment family:** `source_query_first`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `aggregate_only`
+- **Promotion status:** `valid_negative`
+- **Artifact state:** `local_artifact_missing`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.203268
+- **MRR:** 0.248219
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `source-query-first`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_source_query_first_results.json`
+- **SHA-256:** `4f13f59c24bbc2fa3cdbdf7199a0a8fb72ab6ef0bebdd6150a1c03a1c9299c00`
+- **Ranking coverage:** `none`
+- **Blocker:** The tracked receipt stores aggregate metrics only; its referenced ranking and per-query artifacts are not tracked in this checkout.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `confidence_not_correctness`
+- `development_only`
+- `missing_raw_artifacts`
+- `qrel_transferred_training`
+- `response_inventory_dependence`
+- `source_query_stopped`

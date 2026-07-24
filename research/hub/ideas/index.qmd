@@ -1,0 +1,12 @@
+---
+title: "Ideas & Tests"
+description: "Prospective work separated by readiness."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "stage"
+  fields: [title, stage, summary]
+---
+
+Ideas are not results. Missing readiness fields stay visible so an immature idea
+cannot silently appear in the ready queue.

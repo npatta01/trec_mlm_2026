@@ -1,0 +1,14 @@
+---
+title: "Studies"
+description: "Coherent experiments, audits, data-quality checks, and reviews."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "concluded_on desc"
+  filter-ui: true
+  sort-ui: true
+  fields: [title, study_type, outcome, decision, concluded_on]
+---
+
+A study is one decision-relevant unit of research. Technical run variants remain
+datapoints within a study instead of being presented as separate discoveries.

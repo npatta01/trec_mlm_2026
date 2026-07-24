@@ -1,0 +1,14 @@
+---
+test_id: reference-review-trigger
+title: "Reference review trigger"
+stage: idea
+summary: "Predict which generated references need grounding or human review."
+linked_question_ids: [reference-reliability, response-evidence, failure-conditions]
+missing_readiness_fields: [decision_rule, dependencies, artifact_plan, next_action]
+priority: high
+tags: [references, escalation, reliability]
+---
+
+The existing audits motivate selective escalation, but the local trigger and its
+acceptance rule are not yet frozen. Completed E5 refinement evidence is recorded
+as a study, not mislabeled as a future ready test.

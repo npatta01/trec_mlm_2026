@@ -1,0 +1,13 @@
+---
+approach_id: response-evidence
+title: "Response evidence"
+summary: "Use model responses or response-derived features as evidence for ranking candidate LLMs."
+plain_english: "Read what candidates answered, not only their identifiers or profiles."
+question_ids: [response-evidence, failure-conditions]
+study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement]
+current_assessment: "Direct response retrieval underperformed; bounded refinements have separate evidence."
+tags: [responses, retrieval]
+---
+
+Raw responses can be sensitive and locally held. The hub indexes conclusions and
+receipts without copying private content.

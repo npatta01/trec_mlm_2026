@@ -1,0 +1,13 @@
+---
+test_id: failure-aware-fusion
+title: "Failure-aware evidence fusion"
+stage: idea
+summary: "Select evidence sources using a query-level reliability signal."
+linked_question_ids: [failure-conditions, response-evidence, reference-reliability]
+missing_readiness_fields: [decision_rule, dependencies, artifact_plan]
+priority: high
+tags: [fusion, reliability]
+---
+
+This is an idea, not a result. It needs a frozen decision rule, named
+dependencies, and an artifact plan before it can enter the ready queue.

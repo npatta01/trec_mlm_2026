@@ -1,0 +1,26 @@
+---
+resource_id: methods-landscape
+title: "Methods and reference-model landscape"
+resource_type: methods_landscape
+summary: "A source-backed map of retrieval, profiles, reference generation, and reranking choices."
+canonical_source_path: reports/trec_2026_reference_model_landscape_2026-07-21.md
+citations: ["Provider and model references are preserved in the dated landscape report."]
+tags: [methods, reference-models, planning]
+question_ids: [response-evidence, reference-reliability, failure-conditions]
+reviewed_on: 2026-07-24
+---
+
+The landscape report compares bounded reference-generation options and their
+operational constraints. It informs which generator or review path is feasible;
+it is not itself a ranking experiment.
+
+## Why this matters for 2026
+
+Response-derived evidence depends on the quality and custody of its reference
+inputs.
+
+## What this does not prove
+
+Provider specifications and planning estimates are not organizer judgments.
+See the
+[`dated landscape report`](../../../reports/trec_2026_reference_model_landscape_2026-07-21.md).

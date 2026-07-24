@@ -1,0 +1,32 @@
+---
+study_id: query-cluster-aggregation
+title: "Query-cluster aggregation"
+study_type: ranking_experiment
+question_ids: [query-only-routing, failure-conditions]
+approach_ids: [dense-query-retrieval]
+status: concluded
+outcome: mixed
+objective: "Test local domain priors and matched-neighbor cluster aggregation."
+hypothesis: "Aggregating evidence within semantic query clusters improves the dense control."
+rationale: "Reconstructed from the issue-13 result and matched-support preflight receipts."
+rationale_provenance: reconstructed
+protocol_summary: "Evaluate the local prior and bounded hard-cluster or matched-neighbor preflights."
+conclusion: "The local prior was negative and preflight variants remained diagnostic."
+decision: reject
+decision_summary: "Do not replace dense retrieval with the tested cluster aggregations."
+system_ids: [local_domain_prior, hard_cluster_k20_preflight, matched_neighbor_k20_preflight, hard_cluster_k40_preflight, matched_neighbor_k40_preflight]
+representative_system_ids: [local_domain_prior, matched_neighbor_k20_preflight, matched_neighbor_k40_preflight]
+evidence_refs: [reports/issue_13_dense_aggregation_result.md, reports/issue_13_matched_support_preflight.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, generated-embeddings, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Development-only aggregate evidence; preflights are diagnostic and adaptive exploration may overfit."
+tags: [queries, clusters, aggregation]
+---
+
+## Decision
+
+Do not replace the dense control with these aggregations. Their mixed
+diagnostic results remain useful for failure analysis.

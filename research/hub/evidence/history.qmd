@@ -1,0 +1,7 @@
+---
+title: "Decision history"
+description: "What each completed study changed, in evidence order."
+page-layout: full
+---
+
+{{< include ../generated/history.qmd >}}

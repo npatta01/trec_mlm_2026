@@ -1,0 +1,12 @@
+---
+title: "Data Catalog"
+description: "What data exists, where it came from, and how it may be used."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "title"
+  fields: [title, plain_english, category, availability]
+---
+
+A dataset record distinguishes organizer-provided data from collected responses
+and generated artifacts. Sensitive response text is never reproduced here.

@@ -1,0 +1,23 @@
+---
+title: "Evaluation and evidence boundaries"
+description: "How to read nDCG, MRR, scopes, and promotion labels."
+---
+
+## Read the scope first
+
+The main development scope contains 322 queries and 150 candidates. Restricted
+pilots and invalid or unscored runs remain visible, but must not be compared as
+if they share the same population.
+
+## Metrics
+
+**nDCG@10** rewards putting relevant candidates near the top while accounting
+for graded relevance. **MRR** asks how early the first relevant candidate
+appears. Both are development measurements here.
+
+## Promotion is a decision, not a hidden-test result
+
+`promoted_development` records the selected development result.
+`diagnostic_only`, `stable_control`, `valid_negative`, restricted, invalid, and
+unscored states preserve other evidence without overstating it. The hidden test
+is unavailable.

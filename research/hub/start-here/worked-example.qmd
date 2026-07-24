@@ -1,0 +1,20 @@
+---
+title: "Worked example"
+description: "An illustrative request showing how model routing becomes a ranking."
+---
+
+## Illustrative only
+
+Suppose the fabricated request is: “Explain why my balcony basil leaves are
+turning yellow, then give me a safe two-week recovery plan.” The fabricated
+candidates are **GardenGuide**, **CodeTutor**, and **QuickFacts**. No private
+collected response appears in this example.
+
+GardenGuide might rank first because prior requests and its candidate profile
+suggest strength in plant diagnosis and actionable plans. QuickFacts might rank
+second because it can answer factual pieces but is less reliable for a staged
+plan. CodeTutor ranks last because its evidence concerns software, not plants.
+
+The research question is not whether those names sound plausible. It is which
+signals can produce a useful ordering consistently across development requests,
+without borrowing the relevance labels for the request being ranked.

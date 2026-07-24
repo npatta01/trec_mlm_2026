@@ -1,0 +1,31 @@
+---
+question_id: query-only-routing
+title: "How far can query-only routing go?"
+plain_english: "Can a new request be routed well by comparing it with historical requests, before using candidate responses?"
+status: partially_answered
+current_answer: "Dense query neighbors are a useful stable control, but candidate-side evidence improved development results."
+confidence: moderate
+confidence_boundary: "Development-only evidence; repeated tuning on the same queries may overfit and the hidden test is unavailable."
+study_ids: [query-controls, dense-query-knn, query-cluster-aggregation]
+open_subquestions: ["Which query representation transfers best beyond development?", "Can cluster evidence help without unstable tuning?"]
+next_test_ids: [semantic-failure-clusters]
+evidence_refs: [reports/trec_2026_experiment_ledger.md]
+updated_on: 2026-07-24
+tags: [queries, retrieval, routing]
+---
+
+## In plain English
+
+If a request asks for gardening help, should the router look for similar past
+gardening requests and transfer their candidate preferences?
+
+## Evidence limits
+
+All linked scores use development queries. Query-neighbor methods may also
+transfer qrel-derived training evidence, so they are not qrel-free candidate
+descriptions.
+
+## Linked studies
+
+The controls establish simple priors; dense k-nearest-neighbor retrieval is the
+stable query-only control; cluster aggregation remains diagnostic or negative.

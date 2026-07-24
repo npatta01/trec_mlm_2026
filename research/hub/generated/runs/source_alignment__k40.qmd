@@ -1,0 +1,48 @@
+---
+title: "source_alignment__k40"
+---
+
+# `source_alignment__k40`
+
+This run was constructed but not evaluated; no effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Source-query alignment grid candidate with k=40; no standalone aggregate was reported.
+- **source_system_id:** `source_alignment__k40`
+- **Experiment family:** `source_query_first`
+- **Evaluation scope:** `constructed_not_evaluated`
+- **Evidence status:** `unscored`
+- **Promotion status:** `diagnostic_only`
+- **Artifact state:** `local_artifact_missing`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** —
+- **MRR:** —
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `source-query-first`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_source_query_first_results.json`
+- **SHA-256:** `4f13f59c24bbc2fa3cdbdf7199a0a8fb72ab6ef0bebdd6150a1c03a1c9299c00`
+- **Ranking coverage:** `none`
+- **Blocker:** The receipt names this selector candidate but reports no standalone aggregate or per-query ranking for it.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `confidence_not_correctness`
+- `development_only`
+- `missing_raw_artifacts`
+- `qrel_transferred_training`
+- `response_inventory_dependence`
+- `source_query_stopped`

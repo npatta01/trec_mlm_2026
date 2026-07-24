@@ -1,0 +1,12 @@
+---
+title: "Background"
+description: "Source-backed prior work, neighboring competitions, and methods."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "title"
+  fields: [title, summary]
+---
+
+These short records point to controlling reviews. They summarize prior work
+without copying it or treating another benchmark's scores as directly comparable.

@@ -1,0 +1,13 @@
+---
+approach_id: reference-generation
+title: "Reference generation and review"
+summary: "Generate a strong answer pivot, audit its failures, and escalate uncertain cases."
+plain_english: "Create a comparison answer, but treat it as evidence to review rather than an oracle."
+question_ids: [response-evidence, reference-reliability, failure-conditions]
+study_ids: [four-model-reference-review, gemini-grounding-failure-review, grounded-data-quality-audit]
+current_assessment: "Gemini is the reviewed default; selective review remains necessary on difficult cases."
+tags: [references, grounding, review]
+---
+
+Reference quality influences later response comparison. These studies do not
+create comparable TREC ranking rows.

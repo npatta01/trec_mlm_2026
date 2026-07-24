@@ -1,0 +1,39 @@
+/*-- scss:defaults --*/
+$font-size-root: 17px;
+$content-padding-top: 2rem;
+
+/*-- scss:rules --*/
+.hub-hero {
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--bs-primary) 8%, transparent);
+}
+
+.hub-section { margin-block: clamp(2.5rem, 6vw, 5rem); }
+.hub-grid { display: grid; gap: 1rem; grid-template-columns: repeat(3, 1fr); }
+.hub-card {
+  padding: 1.25rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .85rem;
+}
+.hub-filter-controls {
+  display: grid;
+  gap: .75rem;
+  grid-template-columns: minmax(12rem, 2fr) repeat(2, minmax(10rem, 1fr));
+  margin-block: 1.5rem;
+}
+.hub-filter-controls label { font-weight: 600; }
+.hub-filter-controls input,
+.hub-filter-controls select { width: 100%; margin-top: .25rem; }
+.hub-filter-row[hidden] { display: none; }
+.hub-muted { color: var(--bs-secondary-color); }
+.hub-boundary {
+  border-inline-start: .3rem solid var(--bs-warning);
+  padding: .75rem 1rem;
+}
+
+@media (max-width: 768px) {
+  .hub-grid,
+  .hub-filter-controls { grid-template-columns: 1fr; }
+}

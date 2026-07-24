@@ -228,7 +228,7 @@ def test_run_page_rejects_unsafe_system_filename_component(system_id: str) -> No
         _validate_system_id(system_id)
 
 
-def test_decision_history_orders_newest_known_date_first_and_unknown_last(
+def test_decision_history_orders_known_dates_ascending_and_labels_unknown(
     sample_build: HubBuild,
 ) -> None:
     original = sample_build.sources.studies[0]
@@ -267,9 +267,9 @@ def test_decision_history_orders_newest_known_date_first_and_unknown_last(
     history = _render_decision_history(build)
 
     assert "## Dated decisions" in history
-    assert "## Unknown-date decisions" in history
-    assert history.index("`newer`") < history.index("`older`")
-    assert history.index("`older`") < history.index("`unknown-date`")
+    assert "## Date unknown" in history
+    assert history.index("`older`") < history.index("`newer`")
+    assert history.index("`newer`") < history.index("`unknown-date`")
 
 
 def test_decision_history_shows_questions_change_and_supported_causal_next_study(
@@ -442,7 +442,9 @@ def test_run_index_partitions_scopes_and_evidence_classes(
     assert "## Evaluation scope: `restricted_6`" in index
     assert "### Evidence: `stored_per_query`" in index
     assert "### Evidence: `aggregate_only`" in index
-    assert "| Run | Promotion | nDCG@10 | MRR |" in index
+    assert "data-hub-filter" in index
+    assert "data-hub-filter-row" in index
+    assert "dense_profile_equal.html" in index
 
 
 def test_run_index_suppresses_effectiveness_values_for_invalid_and_unscored(
@@ -456,12 +458,10 @@ def test_run_index_suppresses_effectiveness_values_for_invalid_and_unscored(
         1
     ].split("## Evaluation scope:", 1)[0]
 
-    assert "nDCG@10" not in invalid
-    assert "MRR" not in invalid
-    assert "nDCG@10" not in unscored
-    assert "MRR" not in unscored
-    assert "| Run | Promotion | Evidence status |" in invalid
-    assert "| Run | Promotion | Evidence status |" in unscored
+    assert "Effectiveness suppressed" in invalid
+    assert "Effectiveness suppressed" in unscored
+    assert "qwen8b_initial_terminal_token_invalid" in invalid
+    assert "source_alignment__k10" in unscored
 
 
 def test_run_pages_preserve_evaluation_scope(sample_build: HubBuild) -> None:
@@ -518,5 +518,5 @@ def test_summary_navigation_resolves_from_each_output_location(
 
     assert "(../research/hub/generated/coverage.qmd)" in report
     assert "(../research/hub/generated/summary.qmd)" in report
-    assert "(coverage.qmd)" in generated
-    assert "(../../catalog.json)" in generated
+    assert "(evidence/coverage.qmd)" in generated
+    assert "(../catalog.json)" in generated

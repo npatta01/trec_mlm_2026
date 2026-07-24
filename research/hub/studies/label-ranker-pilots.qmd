@@ -1,0 +1,33 @@
+---
+study_id: label-ranker-pilots
+title: "Label-ranker feasibility pilots"
+study_type: ranking_experiment
+question_ids: [candidate-evidence, failure-conditions]
+approach_ids: [reranking, candidate-profiles]
+status: concluded
+outcome: invalid
+objective: "Assess pointwise, listwise, and groupwise label-ranker feasibility."
+hypothesis: "A learned label ranker can improve candidate ordering within bounded pilots."
+rationale: "Reconstructed from the expert-label study that records restricted and stopped runs."
+rationale_provenance: reconstructed
+protocol_summary: "Run small or restricted pilots; retain failures and incomparable scopes explicitly."
+conclusion: "The pilots did not produce a full-development result suitable for promotion."
+decision: stop
+decision_summary: "Stop the current pilot forms and preserve restricted diagnostics for future redesign."
+system_ids: [pointwise_qwen_feasibility_6, generated_listwise_feasibility_6, pointwise_qwen, generated_listwise, grouprank_7b, firstmistral_listwise, restricted_contextual_e5, restricted_qwen4b_contextual]
+representative_system_ids: [pointwise_qwen_feasibility_6, generated_listwise, firstmistral_listwise, restricted_contextual_e5]
+evidence_refs: [docs/results/2026-07-13-expert-label-ranking-study.md, reports/trec_2026_experiment_ledger.md]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Restricted scopes and invalid unscored runs are not directly comparable with full development."
+tags: [reranking, feasibility, restricted]
+---
+
+## Decision
+
+Do not promote these pilot forms. Their failures narrow future test design, but
+restricted and invalid evidence cannot be combined into a full-development
+claim.

@@ -1,0 +1,31 @@
+---
+study_id: e5-raw-response-refinement
+title: "E5 raw-response refinement"
+study_type: audit
+question_ids: [response-evidence, failure-conditions]
+approach_ids: [response-evidence, reranking]
+status: concluded
+outcome: mixed
+objective: "Evaluate bounded E5 refinements over raw response evidence outside the run registry."
+rationale: "The tracked result report and JSON receipt define the completed refinement."
+rationale_provenance: contemporaneous
+protocol_summary: "Run the bounded refinement evaluation and preserve its separate evidence receipt."
+conclusion: "The refinement provides completed diagnostic evidence but does not create a comparable registered ranking system."
+decision: informational
+decision_summary: "Use the refinement findings to shape future response tests; do not add a manufactured leaderboard row."
+system_ids: []
+representative_system_ids: []
+evidence_refs: [reports/trec_2026_e5_raw_response_refinement_results.md, reports/trec_2026_e5_raw_response_refinement_results.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, discovery-responses, generated-embeddings]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Separate completed receipt with no exact run-registry identity; evidence remains bounded to its report."
+tags: [e5, responses, refinement]
+---
+
+## Decision
+
+Treat this as completed evidence, not a prospective ready test and not a
+leaderboard row. Its receipt can motivate a later frozen ranking study.

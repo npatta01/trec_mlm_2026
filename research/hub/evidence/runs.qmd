@@ -1,0 +1,10 @@
+---
+title: "Technical run registry"
+description: "All 98 systems, grouped without crossing evaluation boundaries."
+page-layout: full
+format:
+  html:
+    include-after-body: ../assets/ledger-script.html
+---
+
+{{< include ../generated/runs.qmd >}}

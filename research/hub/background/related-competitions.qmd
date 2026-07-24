@@ -1,0 +1,25 @@
+---
+resource_id: related-competitions
+title: "Related competitions and benchmarks"
+resource_type: competition
+summary: "Neighboring model-routing and answer-selection tasks, separated from direct TREC comparisons."
+canonical_source_path: reports/trec_2026_approaches_guide_source_notes.md
+citations: ["Competition references are preserved in the source notes."]
+tags: [competitions, benchmarks, comparability]
+question_ids: [query-only-routing, response-evidence]
+reviewed_on: 2026-07-24
+---
+
+Other routing, retrieval, and answer-selection benchmarks can suggest methods
+because they share task structure. Their candidate pools, judgments, splits,
+and metrics differ.
+
+## Why this matters for 2026
+
+Task similarity can motivate a test design.
+
+## What this does not prove
+
+External scores are not imported into the TREC development leaderboard and are
+not evidence of direct superiority here. See the
+[`source notes`](../../../reports/trec_2026_approaches_guide_source_notes.md).

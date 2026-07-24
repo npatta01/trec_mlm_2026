@@ -1,0 +1,49 @@
+---
+title: "local_domain_prior"
+---
+
+# `local_domain_prior`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Nested local-neighbor, hard query-cluster domain, and global-prior blend.
+- **source_system_id:** `Dense aggregation`
+- **Experiment family:** `query_cluster_aggregation`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `aggregate_only`
+- **Promotion status:** `valid_negative`
+- **Artifact state:** `tracked_report_snapshot`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.348681
+- **MRR:** 0.380159
+- **Zero-nDCG queries:** 123
+
+## Linked studies
+
+- `query-cluster-aggregation`
+
+## Evidence receipt
+
+- **Source:** `reports/issue_13_dense_aggregation_result.md`
+- **SHA-256:** `45a0cfd6c227f86c8f2479708a68f003d87f37b30c910bb78363410e94b7c15b`
+- **Ranking coverage:** `none`
+- **Blocker:** The tracked report and aggregate receipt omit query IDs, rankings, raw arrays, and per-query metrics; rejected experiment artifacts were intentionally not retained.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `development_only`
+- `external_encoder_taxonomy`
+- `hard_cluster_posthoc_preflight`
+- `hard_cluster_valid_negative`
+- `missing_raw_artifacts`
+- `qrel_transferred_training`

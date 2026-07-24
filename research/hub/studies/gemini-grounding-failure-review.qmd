@@ -1,0 +1,31 @@
+---
+study_id: gemini-grounding-failure-review
+title: "Gemini grounding failure review"
+study_type: audit
+question_ids: [reference-reliability, failure-conditions]
+approach_ids: [reference-generation]
+status: concluded
+outcome: mixed
+objective: "Measure whether Search grounding repairs audited Gemini reference failures."
+rationale: "The dated failure review defines the 28-case cohort and rescue labels."
+rationale_provenance: contemporaneous
+protocol_summary: "Regenerate the locked failure cohort with Search enabled and classify clear, partial, or absent rescue."
+conclusion: "Grounding materially helped many true failures but did not provide a reliable blanket cure."
+decision: iterate
+decision_summary: "Develop a two-pass disagreement trigger rather than grounding every request."
+system_ids: []
+representative_system_ids: []
+evidence_refs: [reports/trec_2026_gemini_grounding_failure_review_2026-07-21.md, reports/trec_2026_gemini_grounding_failure_review.tsv]
+dataset_ids: [discovery-responses, run-artifacts]
+started_on: unknown
+concluded_on: 2026-07-21
+supersedes: []
+superseded_by: []
+limitations: "Selected known failures, reviewer noise, and manual trigger labels prevent population-rate claims."
+tags: [grounding, failures, references]
+---
+
+## Decision
+
+Ground selectively, after a reproducible trigger is calibrated. The observed
+rescues are diagnostic evidence on a selected cohort, not a corpus-wide rate.

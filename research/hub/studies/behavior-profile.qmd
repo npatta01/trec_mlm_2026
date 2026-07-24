@@ -1,0 +1,32 @@
+---
+study_id: behavior-profile
+title: "Discovery behavior profile"
+study_type: ranking_experiment
+question_ids: [candidate-evidence]
+approach_ids: [candidate-profiles]
+status: concluded
+outcome: unscored
+objective: "Construct a candidate profile from discovery-response behavior and topics."
+hypothesis: "Behavior-derived topics provide candidate evidence beyond query similarity."
+rationale: "Reconstructed from the tracked profile audit and ledger record."
+rationale_provenance: reconstructed
+protocol_summary: "Build a qrel-free behavior-topic profile; no comparable evaluation was completed."
+conclusion: "The profile was constructed but not evaluated as a full-development ranking."
+decision: informational
+decision_summary: "Retain the constructed profile as input evidence, not an effectiveness result."
+system_ids: [discovery_behavior_topic_v1]
+representative_system_ids: [discovery_behavior_topic_v1]
+evidence_refs: [reports/trec_2026_discovery_profile_audit.json, reports/trec_2026_llm_profiles.json]
+dataset_ids: [candidate-inventory, discovery-responses, generated-embeddings, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Constructed-not-evaluated; no ranking metric or promotion conclusion is available."
+tags: [behavior, profiles, unscored]
+---
+
+## Decision
+
+Treat this as constructed evidence only. It does not establish that behavior
+profiles improve ranking.

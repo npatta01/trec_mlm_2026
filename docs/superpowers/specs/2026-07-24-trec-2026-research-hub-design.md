@@ -1,6 +1,6 @@
 # TREC 2026 Research Hub Design
 
-**Status:** Approved in chat on 2026-07-24; written specification awaiting user review.
+**Status:** Approved in chat and approved after written-spec review on 2026-07-24.
 
 ## Objective
 

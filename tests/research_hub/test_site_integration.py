@@ -322,6 +322,24 @@ def test_quarto_pre_render_reflects_an_added_question_from_another_cwd(
     for name in ("README.md", "pyproject.toml", "uv.lock"):
         shutil.copy2(ROOT / name, copied_root / name)
 
+    implementation_sentinel = "COPIED_REPOSITORY_RENDERER_EXECUTED"
+    copied_renderer = copied_root / "trec_mlm/research_hub/render.py"
+    copied_renderer.write_text(
+        copied_renderer.read_text(encoding="utf-8")
+        + f"""
+
+_copied_render_questions_index_qmd = render_questions_index_qmd
+
+
+def render_questions_index_qmd(build: HubBuild) -> str:
+    return (
+        _copied_render_questions_index_qmd(build)
+        + "\\n{implementation_sentinel}\\n"
+    )
+""",
+        encoding="utf-8",
+    )
+
     title = "Can automatic contribution propagation be trusted?"
     question_id = "automatic-propagation-proof"
     (copied_root / f"research/hub/questions/{question_id}.qmd").write_text(
@@ -347,8 +365,12 @@ Temporary integration-proof record.
         encoding="utf-8",
     )
 
+    copied_pythonpath = os.pathsep.join(
+        filter(None, (str(copied_root), os.environ.get("PYTHONPATH")))
+    )
     env = {
         **os.environ,
+        "PYTHONPATH": copied_pythonpath,
         "UV_NO_SYNC": "1",
         "UV_PROJECT_ENVIRONMENT": str(ROOT / ".venv"),
     }
@@ -374,3 +396,9 @@ Temporary integration-proof record.
         "research/hub/_site/questions/index.html",
     ):
         assert title in (copied_root / path).read_text(), path
+    assert implementation_sentinel in (
+        copied_root / "research/hub/generated/questions-index.qmd"
+    ).read_text()
+    assert implementation_sentinel in (
+        copied_root / "research/hub/_site/questions/index.html"
+    ).read_text()

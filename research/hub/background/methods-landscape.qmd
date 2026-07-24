@@ -41,6 +41,8 @@ development evidence; they are not hidden-test claims.
 
 ## Deep dive
 
-Use the staged [2026 approaches and literature guide](../library/approaches-guide.html)
-for the complete method ladder, task-shape comparison, primary-source registry,
-and experiment-design boundaries.
+Use the source-backed [wider routing review](llm-routing-literature.qmd) for
+task-shape comparisons and primary papers, then follow the study and protocol
+pages for the local experiment-design boundaries. The complete audited registry
+remains at `reports/trec_2026_approaches_guide.artifact.json` for repository
+agents.

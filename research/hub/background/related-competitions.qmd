@@ -60,5 +60,8 @@ belong in local method comparisons.
 
 ## Deep dive
 
-See the staged [approaches guide and primary-source registry](../library/approaches-guide.html)
-for the routing, retrieval, judging, calibration, leakage, and shift sources.
+Start with [RouterBench](https://arxiv.org/abs/2403.12031),
+[BEIR](https://datasets-benchmarks-proceedings.neurips.cc/paper/2021/hash/65b9eea6e1cd2a47751a186f-Abstract-round2.html),
+and [WILDS](https://proceedings.mlr.press/v139/koh21a.html) for the routing,
+retrieval, and shift contracts. The full audited registry remains at
+`reports/trec_2026_approaches_guide.artifact.json` for repository agents.

@@ -59,5 +59,8 @@ utility, and it still cannot establish hidden-test performance.
 
 ## Deep dive
 
-Use the staged [2026 approaches and literature guide](../library/approaches-guide.html)
-for the 80-source registry, task-shape comparison, and method transfer rules.
+Read the primary [RouterBench paper](https://arxiv.org/abs/2403.12031) and
+[LLMRouterBench evaluation](https://aclanthology.org/2026.findings-acl.1881/)
+alongside this page's task-shape and transfer boundaries. The complete audited
+source registry remains machine-readable at
+`reports/trec_2026_approaches_guide.artifact.json` in the repository.

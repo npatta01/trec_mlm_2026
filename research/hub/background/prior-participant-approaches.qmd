@@ -62,5 +62,6 @@ current data.
 
 ## Deep dive
 
-Open the staged [interactive participant-method guide](../library/trec-2025-interactive.html)
-for the full run table and method diagrams.
+Read the [audited TREC 2025 literature review](../library/trec-2025-literature-review.qmd)
+for the complete official run table, participant methods, comparison caveats,
+and primary-source links.

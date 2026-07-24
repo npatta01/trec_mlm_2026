@@ -21,7 +21,6 @@ project:
   pre-render:
     - "uv run --project ../.. python ../../scripts/build_research_hub.py --root ../.."
   post-render:
-    - "uv run python ../../scripts/stage_research_hub_resources.py --root ../.. --output-dir _site"
     - "uv run python ../../scripts/normalize_research_hub_links.py --root ../.. --output-dir _site"
   resources:
     - assets/ledger.js

@@ -32,8 +32,6 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         "--root ../.."
     ]
     assert config["project"]["post-render"] == [
-        "uv run python ../../scripts/stage_research_hub_resources.py "
-        "--root ../.. --output-dir _site",
         "uv run python ../../scripts/normalize_research_hub_links.py "
         "--root ../.. --output-dir _site",
     ]

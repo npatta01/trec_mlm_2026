@@ -81,6 +81,8 @@ Use tracked repository-relative paths in `evidence_refs`,
 `canonical_source_path`, or `repository_path`. Prefer the structured result or
 receipt plus the controlling authored report. Do not add local paths, secrets,
 raw private responses, placeholder citations, or remote executable assets.
+Self-contained local HTML reports are not copied into the static hub; publish a
+Quarto-rendered Markdown review or link to audited primary sources instead.
 
 ## Build generated outputs
 

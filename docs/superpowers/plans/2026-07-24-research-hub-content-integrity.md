@@ -250,7 +250,6 @@ git commit -m "feat: generate research theme navigation"
 - Modify: `research/hub/background/methods-landscape.qmd`
 - Create: `research/hub/library/trec-2025-literature-review.qmd`
 - Create: `research/hub/library/reference-model-landscape.qmd`
-- Create: `scripts/stage_research_hub_resources.py`
 - Create: `tests/research_hub/test_resources.py`
 - Modify: `trec_mlm/research_hub/validate.py`
 - Modify: `trec_mlm/research_hub/render.py`
@@ -258,9 +257,16 @@ git commit -m "feat: generate research theme navigation"
 
 **Interfaces:**
 - Consumes: the audited canonical reviews and existing rendered reports
-- Produces: substantive Background pages, generated open-row Background index, Quarto-rendered Markdown deep dives, and allowlisted staged HTML resources
+- Produces: substantive Background pages, generated open-row Background index,
+  and Quarto-rendered Markdown or primary-source deep dives
 
-- [ ] **Step 1: Write failing source-integrity and resource-staging tests**
+> **Final security decision:** Raw self-contained HTML reports are not copied
+> into the hub. Their embedded scripts and compressed payloads make a complete
+> publication audit equivalent to maintaining a custom browser security parser.
+> The hub publishes Quarto-rendered Markdown reviews and links to audited
+> primary sources instead; repository agents retain the canonical report paths.
+
+- [ ] **Step 1: Write failing source-integrity tests**
 
 Assert:
 
@@ -272,9 +278,9 @@ assert "RouterBench" in background["llm-routing-literature"].body
 assert "SRCB" in background["trec-2025-literature"].body
 ```
 
-For `stage_resources(root, output_dir)`, test exact allowlisted copies and reject
-an output directory outside `research/hub/_site`. Assert staged HTML contains no
-`file:///`, `/home/npatta01`, private-key header, or external executable asset.
+Assert every Background page has substantive synthesis, a named controlling
+source, an explicit comparison boundary, and a safe Markdown or primary-source
+deep dive. Raw local report HTML must not be staged.
 
 - [ ] **Step 2: Verify tests fail**
 
@@ -295,23 +301,12 @@ evaluations**. Put meaningful synthesis, comparison boundaries, named primary
 sources, and one deep-dive link on each page. Remove pointer-stub prose and
 placeholder citation strings.
 
-- [ ] **Step 4: Add deep-dive rendering and staging**
+- [ ] **Step 4: Add safe deep-dive rendering**
 
-Render the two Markdown deep dives through QMD wrappers. Implement:
-
-```python
-RESOURCE_ALLOWLIST = {
-    Path("reports/trec_2025_mllm_interactive_report.html"):
-        Path("library/trec-2025-interactive.html"),
-    Path("reports/trec_2026_approaches_guide.html"):
-        Path("library/approaches-guide.html"),
-}
-
-def stage_resources(root: Path, output_dir: Path) -> tuple[Path, ...]: ...
-```
-
-Resolve both roots, reject path escapes, copy bytes atomically, and scan copied
-HTML before publication. Add the staging command as a Quarto post-render step.
+Render the two audited Markdown reviews through QMD wrappers. For sources whose
+canonical local report is self-contained HTML, link from the Background
+synthesis to reviewed primary literature and show the repository-relative
+canonical artifact path as code for agents. Do not publish the raw HTML bundle.
 
 - [ ] **Step 5: Generate the Background index and render**
 
@@ -332,7 +327,7 @@ Expected: working local deep-dive targets and no placeholder Background cards.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add research/hub/background research/hub/library research/hub/_quarto.yml trec_mlm/research_hub scripts/stage_research_hub_resources.py tests/research_hub
+git add research/hub/background research/hub/library research/hub/_quarto.yml trec_mlm/research_hub tests/research_hub
 git commit -m "feat: publish source-backed research background"
 ```
 
@@ -488,7 +483,7 @@ uv run --extra dev pytest tests/research_hub -q
 uv run python scripts/build_research_hub.py
 quarto render research/hub
 uv run python scripts/build_research_hub.py --check
-uv run --extra dev ruff check trec_mlm/research_hub scripts/build_research_hub.py scripts/stage_research_hub_resources.py tests/research_hub
+uv run --extra dev ruff check trec_mlm/research_hub scripts/build_research_hub.py scripts/normalize_research_hub_links.py tests/research_hub
 ```
 
 Expected: zero failures, warning-free render, current generated outputs, and clean Ruff.

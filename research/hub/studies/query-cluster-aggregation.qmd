@@ -32,3 +32,5 @@ tags: [queries, clusters, aggregation]
 
 Do not replace the dense control with these aggregations. Their mixed
 diagnostic results remain useful for failure analysis.
+
+{{< include ../generated/studies/query-cluster-aggregation.md >}}

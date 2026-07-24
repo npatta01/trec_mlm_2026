@@ -38,3 +38,5 @@ promoted.
 
 The hidden test is unavailable. Metrics and artifact states come from the
 ledger, not this narrative page.
+
+{{< include ../generated/studies/semantic-profiles.md >}}

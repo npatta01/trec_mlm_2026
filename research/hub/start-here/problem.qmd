@@ -47,35 +47,40 @@ appear nearer the top.
 :::
 :::
 
-## A small illustrative example
+## A tracked development example
 
 ::: {.hub-example}
 ::: {.hub-example-request}
-**New request**
+**Tracked development request**
 
-“Why are the leaves on my tomato plant turning yellow?”
+“Who became the second Karmapa Lama?”
 :::
 
 ::: {.hub-example-evidence}
-**Possible evidence**
+**Construction**
 
-- Past gardening requests and which models suited them
-- A candidate profile describing strength in plant-care explanations
-- A previously collected response that reveals whether the model understood the topic
+The router uses allowed construction evidence to order all 150 candidate IDs.
+It does **not** use this request's relevance grades while constructing that
+ranking.
 :::
 
 ::: {.hub-example-result}
-**What the router produces**
+**Evaluation afterward**
 
-1. Candidate 37 — strongest estimated fit
-2. Candidate 104 — next strongest
-3. Candidate 12 — next strongest
-4. …the remaining 147 candidates
+The tracked development qrels assign grade 2 to these candidate identifiers:
+
+- `Cultures`
+- `People_by_time`
+- `Scholars_and_academics_by_subject`
+
+After construction, evaluation compares the router's complete 150-candidate
+ordering with those grades.
 :::
 :::
 
-This example explains the shape of the task; it is not an actual scored query or
-a claim about those candidate identifiers.
+This example shows the construction/evaluation boundary. It **does not claim**
+that any current method produced a particular ordering, ranked these three
+candidates correctly, or placed them above the other candidates.
 
 ## How do we know whether a ranking is good?
 

@@ -1,0 +1,19 @@
+---
+question_id: replace-question-id
+title: "Replace with the research question"
+primary_theme_id: replace-theme-id
+theme_ids: [replace-theme-id]
+plain_english: "State the question in language a new reader can understand."
+status: open
+current_answer: "State the current bounded answer."
+confidence: low
+confidence_boundary: "State what the current answer cannot establish."
+study_ids: []
+open_subquestions: ["Replace with the most important unresolved subquestion."]
+next_test_ids: []
+evidence_refs: [reports/replace-with-canonical-evidence.md]
+updated_on: 2026-07-24
+tags: []
+---
+
+Explain why this question matters and how to interpret its evidence boundary.

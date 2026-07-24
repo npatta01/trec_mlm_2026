@@ -37,3 +37,5 @@ grid is available in the technical run registry, not repeated here.
 
 The study transfers qrel-derived development evidence and cannot support a
 hidden-test effectiveness claim.
+
+{{< include ../generated/studies/dense-query-knn.md >}}

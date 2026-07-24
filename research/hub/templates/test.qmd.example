@@ -1,0 +1,23 @@
+---
+test_id: replace-test-id
+title: "Replace with the proposed test"
+primary_theme_id: replace-theme-id
+theme_ids: [replace-theme-id]
+stage: ready
+summary: "State the decision-relevant test."
+linked_question_ids: [replace-question-id]
+missing_readiness_fields: []
+hypothesis: "State the frozen expectation."
+rationale: "Explain why this is the next useful test."
+expected_signal: "State the result pattern that would support the hypothesis."
+decision_rule: "State what result causes adoption, rejection, iteration, or stopping."
+dependencies: "List required inputs, software, and prior decisions."
+priority: medium
+evaluation_boundary: "Name the evaluation scope and forbidden comparisons."
+artifact_plan: "Name the outputs and receipts that will be retained."
+next_action: "State one concrete next action."
+tags: []
+---
+
+Record any context needed to execute the test without turning the proposal into
+a result claim.

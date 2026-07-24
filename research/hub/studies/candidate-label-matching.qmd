@@ -37,3 +37,5 @@ attempts remain visible as failures, never as leaderboard rows.
 
 This narrative is a reconstruction from tracked receipts; original rationale
 and dates are not available.
+
+{{< include ../generated/studies/candidate-label-matching.md >}}

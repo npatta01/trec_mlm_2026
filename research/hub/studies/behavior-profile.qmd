@@ -32,3 +32,5 @@ tags: [behavior, profiles, unscored]
 
 Treat this as constructed evidence only. It does not establish that behavior
 profiles improve ranking.
+
+{{< include ../generated/studies/behavior-profile.md >}}

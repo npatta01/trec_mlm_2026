@@ -182,6 +182,74 @@ def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
     assert "Highest-value next tests" not in themes
 
 
+def test_generated_study_detail_contains_decision_and_evidence_sections(
+    sample_build: HubBuild,
+) -> None:
+    outputs = render_hub_outputs(sample_build)
+    detail = outputs[
+        Path("research/hub/generated/studies/dense-baseline.md")
+    ]
+
+    assert "Why this study was run" in detail
+    assert "Protocol and comparison" in detail
+    assert "Current result" in detail
+    assert "Decision and rationale" in detail
+    assert "Evidence limits" in detail
+    assert "Representative runs" in detail
+    assert "Artifact custody" in detail
+    assert "Canonical evidence" in detail
+    assert "Related questions, studies, and next tests" in detail
+    assert "Evaluate on development data." in detail
+    assert "Keep the established baseline." in detail
+    assert "dense_nested" in detail
+    assert "candidate-evidence title" in detail
+    assert "test-candidate-evidence title" in detail
+    assert "**Questions**\n\n-" in detail
+    assert "**Related studies**\n\n-" in detail
+    assert "**Next tests**\n\n-" in detail
+
+
+def test_study_detail_partitions_representative_runs_by_evaluation_scope(
+    sample_build: HubBuild,
+) -> None:
+    study = sample_build.sources.studies[0]
+    mixed_scope_study = replace(
+        study,
+        metadata={
+            **study.metadata,
+            "system_ids": ["dense_nested", "pointwise_qwen_feasibility_6"],
+            "representative_system_ids": [
+                "dense_nested",
+                "pointwise_qwen_feasibility_6",
+            ],
+            "comparison_system_ids": [],
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(
+            sample_build.sources,
+            studies=(mixed_scope_study,),
+        ),
+    )
+
+    detail = render_hub_outputs(build)[
+        Path("research/hub/generated/studies/dense-baseline.md")
+    ]
+    development = detail.split(
+        "### Evaluation scope: `dev_322x150`", 1
+    )[1].split("### Evaluation scope:", 1)[0]
+    restricted = detail.split(
+        "### Evaluation scope: `restricted_6`", 1
+    )[1].split("## Artifact custody", 1)[0]
+
+    assert "dense_nested" in development
+    assert "pointwise_qwen_feasibility_6" not in development
+    assert "pointwise_qwen_feasibility_6" in restricted
+    assert "dense_nested" not in restricted
+    assert "not directly comparable with other evaluation scopes" in detail
+
+
 def test_catalog_collects_sorted_related_ids_and_run_study_links(
     sample_build: HubBuild,
 ) -> None:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import shutil
+import subprocess
 
 import yaml
 
@@ -22,6 +25,10 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert "generated/runs/*.qmd" in config["project"]["render"]
     assert "generated/themes/*.qmd" in config["project"]["render"]
     assert "library/*.qmd" in config["project"]["render"]
+    assert config["project"]["pre-render"] == [
+        "uv run --project ../.. python ../../scripts/build_research_hub.py "
+        "--root ../.."
+    ]
     assert config["project"]["post-render"] == [
         "uv run python ../../scripts/stage_research_hub_resources.py "
         "--root ../.. --output-dir _site"
@@ -51,6 +58,15 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert "## What are we building?" in problem
     assert "150 candidate LLMs" in problem
     assert "hidden test" in problem.lower()
+    assert "Who became the second Karmapa Lama?" in problem
+    for candidate in (
+        "Cultures",
+        "People_by_time",
+        "Scholars_and_academics_by_subject",
+    ):
+        assert candidate in problem
+    assert "Candidate 37" not in problem
+    assert "does not claim" in problem
 
     protocols = (ROOT / "research/hub/protocols/index.qmd").read_text()
     for path in sorted((ROOT / "protocols").glob("*.md")):
@@ -127,5 +143,234 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
         assert question.record_id in questions
     for study in build.sources.studies:
         assert study.record_id in studies
+        detail_path = Path(
+            f"research/hub/generated/studies/{study.record_id}.md"
+        )
+        assert detail_path in outputs
+        canonical = (ROOT / study.source_path).read_text()
+        assert (
+            "{{< include ../generated/studies/"
+            f"{study.record_id}.md >}}"
+        ) in canonical
+        assert "%40" not in outputs[detail_path]
     for resource in build.sources.background:
         assert resource.record_id in background
+
+
+def test_contributor_guide_and_complete_record_templates() -> None:
+    guide = (ROOT / "research/hub/CONTRIBUTING.md").read_text()
+    rendered_guide = (ROOT / "research/hub/contributing.qmd").read_text()
+    config = yaml.safe_load((ROOT / "research/hub/_quarto.yml").read_text())
+
+    for phrase in (
+        "Add a question",
+        "Add a study",
+        "Link a run",
+        "Build generated outputs",
+        "Check generated outputs",
+    ):
+        assert phrase in guide
+    for command in (
+        "uv run python scripts/build_research_hub.py",
+        "quarto render research/hub",
+        "uv run python scripts/build_research_hub.py --check",
+    ):
+        assert command in guide
+    assert "construction" in guide.lower()
+    assert "evaluation scope" in guide.lower()
+    assert "confidence boundary" in guide.lower()
+    assert "canonical" in guide.lower()
+    assert "CONTRIBUTING.md" in rendered_guide
+    assert any(
+        row.get("text") == "Contribute"
+        and row.get("href") == "contributing.qmd"
+        for row in config["website"]["navbar"]["left"]
+    )
+
+    required_fields = {
+        "theme.qmd.example": {
+            "theme_id",
+            "title",
+            "plain_english",
+            "current_conclusion",
+            "decision",
+            "confidence",
+            "confidence_boundary",
+            "next_test_ids",
+            "updated_on",
+            "evidence_refs",
+        },
+        "question.qmd.example": {
+            "question_id",
+            "title",
+            "primary_theme_id",
+            "theme_ids",
+            "plain_english",
+            "status",
+            "current_answer",
+            "confidence",
+            "confidence_boundary",
+            "study_ids",
+            "open_subquestions",
+            "next_test_ids",
+            "updated_on",
+            "evidence_refs",
+        },
+        "study.qmd.example": {
+            "study_id",
+            "title",
+            "primary_theme_id",
+            "theme_ids",
+            "study_type",
+            "question_ids",
+            "approach_ids",
+            "status",
+            "outcome",
+            "objective",
+            "hypothesis",
+            "rationale",
+            "rationale_provenance",
+            "protocol_summary",
+            "conclusion",
+            "decision",
+            "decision_summary",
+            "system_ids",
+            "representative_system_ids",
+            "comparison_system_ids",
+            "evidence_refs",
+            "dataset_ids",
+            "started_on",
+            "concluded_on",
+            "supersedes",
+            "superseded_by",
+            "limitations",
+        },
+        "test.qmd.example": {
+            "test_id",
+            "title",
+            "primary_theme_id",
+            "theme_ids",
+            "stage",
+            "summary",
+            "linked_question_ids",
+            "missing_readiness_fields",
+            "hypothesis",
+            "rationale",
+            "expected_signal",
+            "decision_rule",
+            "dependencies",
+            "priority",
+            "evaluation_boundary",
+            "artifact_plan",
+            "next_action",
+        },
+        "dataset.qmd.example": {
+            "dataset_id",
+            "title",
+            "plain_english",
+            "category",
+            "provenance",
+            "method",
+            "version",
+            "repository_path",
+            "sensitivity",
+            "sharing",
+            "leakage_constraints",
+            "permitted_use",
+            "study_ids",
+            "availability",
+            "reproducibility",
+        },
+        "background.qmd.example": {
+            "resource_id",
+            "title",
+            "resource_type",
+            "summary",
+            "canonical_source_path",
+            "citations",
+            "tags",
+            "question_ids",
+            "reviewed_on",
+        },
+    }
+    for filename, required in required_fields.items():
+        path = ROOT / "research/hub/templates" / filename
+        assert path.is_file()
+        lines = path.read_text().splitlines()
+        closing = lines.index("---", 1)
+        metadata = yaml.safe_load("\n".join(lines[1:closing]))
+        assert required <= set(metadata), filename
+
+
+def test_quarto_pre_render_reflects_an_added_question_from_another_cwd(
+    tmp_path: Path,
+) -> None:
+    copied_root = tmp_path / "repository-copy"
+    copied_root.mkdir()
+    for name in (
+        "configs",
+        "data",
+        "docs",
+        "experiments",
+        "protocols",
+        "reports",
+        "research",
+        "scripts",
+        "trec_mlm",
+    ):
+        shutil.copytree(ROOT / name, copied_root / name)
+    for name in ("README.md", "pyproject.toml", "uv.lock"):
+        shutil.copy2(ROOT / name, copied_root / name)
+
+    title = "Can automatic contribution propagation be trusted?"
+    question_id = "automatic-propagation-proof"
+    (copied_root / f"research/hub/questions/{question_id}.qmd").write_text(
+        f"""---
+question_id: {question_id}
+title: "{title}"
+primary_theme_id: query-only-routing
+theme_ids: [query-only-routing]
+plain_english: "Does one valid question update every derived reader surface?"
+status: open
+current_answer: "This temporary record exists only to test automatic propagation."
+confidence: low
+confidence_boundary: "Build integration only; this is not research evidence."
+study_ids: []
+open_subquestions: ["Will all generated and rendered surfaces agree?"]
+next_test_ids: []
+evidence_refs: [reports/trec_2026_experiment_ledger.md]
+updated_on: 2026-07-24
+---
+
+Temporary integration-proof record.
+""",
+        encoding="utf-8",
+    )
+
+    env = {
+        **os.environ,
+        "UV_NO_SYNC": "1",
+        "UV_PROJECT_ENVIRONMENT": str(ROOT / ".venv"),
+    }
+    completed = subprocess.run(
+        [
+            "quarto",
+            "render",
+            str(copied_root / "research/hub/questions/index.qmd"),
+        ],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+    for path in (
+        "research/hub/generated/questions-index.qmd",
+        "research/hub/generated/themes/query-only-routing.qmd",
+        "research/hub/generated/history.qmd",
+        "research/catalog.json",
+        "research/hub/_site/questions/index.html",
+    ):
+        assert title in (copied_root / path).read_text(), path

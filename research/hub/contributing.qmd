@@ -1,0 +1,7 @@
+---
+title: "How to update this hub"
+description: "Canonical records, relationship rules, and reproducible build commands for contributors and agents."
+toc: true
+---
+
+{{< include CONTRIBUTING.md >}}

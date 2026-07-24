@@ -4,6 +4,7 @@ project:
   output-dir: _site
   render:
     - "index.qmd"
+    - "contributing.qmd"
     - "start-here/*.qmd"
     - "background/*.qmd"
     - "data/*.qmd"
@@ -17,6 +18,8 @@ project:
     - "library/*.qmd"
     - "generated/themes/*.qmd"
     - "generated/runs/*.qmd"
+  pre-render:
+    - "uv run --project ../.. python ../../scripts/build_research_hub.py --root ../.."
   post-render:
     - "uv run python ../../scripts/stage_research_hub_resources.py --root ../.. --output-dir _site"
   resources:
@@ -55,6 +58,8 @@ website:
             href: evidence/history.qmd
           - text: "Runs"
             href: evidence/runs.qmd
+      - text: "Contribute"
+        href: contributing.qmd
 format:
   html:
     theme:

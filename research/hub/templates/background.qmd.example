@@ -1,0 +1,14 @@
+---
+resource_id: replace-background-id
+title: "Replace with the background resource title"
+resource_type: literature_review
+summary: "State what this resource contributes to the research program."
+canonical_source_path: reports/replace-with-controlling-source.md
+citations: ["Replace with a named primary source recorded by the controlling review."]
+tags: []
+question_ids: [replace-question-id]
+reviewed_on: 2026-07-24
+---
+
+Synthesize the useful background on-page, name comparison boundaries, and point
+to the controlling source for the complete review.

@@ -30,3 +30,15 @@ Development evidence only.
 | unknown | **Lexical response retrieval** (`response-retrieval`) | `response-evidence` | Direct lexical response retrieval underperformed the established dense control. | `reject`: Reject direct lexical response retrieval as the primary ranking path. | — |
 | unknown | **Response-volume normalization** (`response-volume-normalization`) | `response-evidence` | The normalized response system remained below the established control. | `reject`: Do not pursue response-volume normalization as a standalone repair. | — |
 | unknown | **Source-query-first response evidence** (`source-query-first`) | `failure-conditions`, `response-evidence` | The evaluated source-alignment systems did not beat the established control; three constructed variants remain unscored. | `stop`: Stop this path in its current form and retain unscored constructions as non-results. | — |
+
+## Current question snapshots
+
+These rows are regenerated from canonical question records; they are current states, not additional dated decisions.
+
+| Updated | Question | Status | Current bounded answer | Confidence boundary |
+|---|---|---|---|---|
+| 2026-07-24 | **Can candidate-side semantic evidence improve query-only retrieval?** (`candidate-evidence`) | `partially_answered` | Yes on development evidence, subject to the evidence limits below. | Development-only evidence; candidate artifacts have mixed custody and the hidden test is unavailable. |
+| 2026-07-24 | **When do promising signals fail?** (`failure-conditions`) | `open` | Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists. | Observed development and audit failures are diagnostic; they do not estimate hidden-test prevalence. |
+| 2026-07-24 | **How far can query-only routing go?** (`query-only-routing`) | `partially_answered` | Dense query neighbors are a useful stable control, but candidate-side evidence improved development results. | Development-only evidence; repeated tuning on the same queries may overfit and the hidden test is unavailable. |
+| 2026-07-24 | **How reliable must a generated reference be?** (`reference-reliability`) | `partially_answered` | Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation. | The 400-question review was purposive and has no organizer gold; the grounding audit focused on known failures. |
+| 2026-07-24 | **Can model responses provide useful ranking evidence?** (`response-evidence`) | `partially_answered` | Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence. | Most ranking evidence is development-only and some response corpora are private or locally held. |

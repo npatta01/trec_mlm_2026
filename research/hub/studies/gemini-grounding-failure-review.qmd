@@ -31,3 +31,5 @@ tags: [grounding, failures, references]
 
 Ground selectively, after a reproducible trigger is calibrated. The observed
 rescues are diagnostic evidence on a selected cohort, not a corpus-wide rate.
+
+{{< include ../generated/studies/gemini-grounding-failure-review.md >}}

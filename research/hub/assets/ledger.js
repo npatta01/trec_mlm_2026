@@ -24,3 +24,11 @@ document.querySelectorAll("[data-hub-filter-group]").forEach((group) => {
   });
   apply();
 });
+
+const requestedTheme = new URL(window.location.href).searchParams.get("theme");
+if (requestedTheme) {
+  document.querySelectorAll("[data-themes]").forEach((row) => {
+    const themes = (row.dataset.themes || "").split(/\s+/).filter(Boolean);
+    row.hidden = !themes.includes(requestedTheme);
+  });
+}

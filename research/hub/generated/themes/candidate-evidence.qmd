@@ -1,0 +1,64 @@
+---
+title: "Candidate evidence"
+description: "Use semantic evidence about candidate models to improve ranking beyond query-only controls."
+toc: false
+---
+
+Use semantic evidence about candidate models to improve ranking beyond query-only controls.
+
+::: {.hub-conclusion}
+## Current conclusion
+
+Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.
+:::
+
+<div class="hub-decision-strip">
+<div><strong>Practical decision</strong><br>
+Adopt
+</div>
+<div><strong>Confidence and evidence boundary</strong><br>
+Moderate confidence. Development-only evidence; diagnostic variants and incomplete construction artifacts do not establish hidden-test gains.
+</div>
+<div><strong>Next move</strong><br>
+<a href="../../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: Group development failures to test whether recurring query types predict method weakness.
+</div>
+</div>
+
+## Questions in this theme
+
+<div class="hub-question-row">
+<h3><a href="../../questions/candidate-evidence.qmd">Can candidate-side semantic evidence improve query-only retrieval?</a></h3>
+<p>When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?</p>
+<p><strong>Current bounded answer</strong><br>Yes on development evidence, subject to the evidence limits below.</p>
+<p><strong>Still open</strong></p>
+<ul>
+<li>Which candidate evidence generalizes beyond development?</li>
+<li>Which profile resolution is robust rather than diagnostic?</li>
+</ul>
+</div>
+
+<div class="hub-question-row">
+<h3><a href="../../questions/failure-conditions.qmd">When do promising signals fail?</a></h3>
+<p>Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?</p>
+<p><strong>Current bounded answer</strong><br>Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists.</p>
+<p><strong>Still open</strong></p>
+<ul>
+<li>Can failure clusters be detected before a decision?</li>
+<li>Can reliability-aware fusion improve without adding leakage?</li>
+</ul>
+</div>
+
+<div class="hub-question-row">
+<h3><a href="../../questions/query-only-routing.qmd">How far can query-only routing go?</a></h3>
+<p>Can a new request be routed well by comparing it with historical requests, before using candidate responses?</p>
+<p><strong>Current bounded answer</strong><br>Dense query neighbors are a useful stable control, but candidate-side evidence improved development results.</p>
+<p><strong>Still open</strong></p>
+<ul>
+<li>Which query representation transfers best beyond development?</li>
+<li>Can cluster evidence help without unstable tuning?</li>
+</ul>
+</div>
+
+## Evidence behind this position
+
+<a class="hub-evidence-line" href="../../studies/index.html?theme=candidate-evidence">Explore 5 studies linked to this theme in the study library.</a>

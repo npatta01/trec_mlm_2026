@@ -89,11 +89,15 @@ def test_render_hub_outputs_has_exact_deterministic_path_contract(
 
     assert set(outputs) == {
         Path("research/catalog.json"),
+        Path("research/hub/catalog.json"),
         Path("reports/trec_2026_research_hub_summary.md"),
         Path("research/hub/generated/summary.qmd"),
+        Path("research/hub/generated/questions-index.qmd"),
+        Path("research/hub/generated/studies-index.qmd"),
         Path("research/hub/generated/coverage.qmd"),
         Path("research/hub/generated/history.qmd"),
         Path("research/hub/generated/runs.qmd"),
+        Path("research/hub/generated/themes/candidate-evidence.qmd"),
         *{
             Path(f"research/hub/generated/runs/{system.system_id}.qmd")
             for system in sample_build.ledger.systems

@@ -13,6 +13,8 @@ project:
     - "approaches/*.qmd"
     - "protocols/*.qmd"
     - "evidence/*.qmd"
+    - "themes/index.qmd"
+    - "generated/themes/*.qmd"
     - "generated/runs/*.qmd"
   resources:
     - assets/ledger.js
@@ -28,6 +30,8 @@ website:
         href: background/index.qmd
       - text: "Data"
         href: data/index.qmd
+      - text: "Themes"
+        href: index.qmd
       - text: "Research"
         menu:
           - text: "Questions"

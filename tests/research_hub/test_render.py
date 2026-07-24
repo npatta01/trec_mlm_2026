@@ -19,6 +19,7 @@ from trec_mlm.research_hub.render import (
     _validate_system_id,
     _yaml_scalar,
     render_catalog,
+    render_hub_outputs,
     render_run_pages,
     render_runs_qmd,
     render_summary_markdown,
@@ -64,12 +65,98 @@ def test_render_catalog_is_deterministic(sample_build: HubBuild) -> None:
     )
 
 
-def test_catalog_excludes_themes_until_theme_pages_exist(
+def test_catalog_includes_themes_with_generated_page_paths(
     sample_build: HubBuild,
 ) -> None:
     payload = json.loads(render_catalog(sample_build))
+    resources = {(row["type"], row["id"]): row for row in payload["resources"]}
 
-    assert not any(row["type"] == "theme" for row in payload["resources"])
+    assert resources[("theme", "candidate-evidence")]["rendered_path"] == (
+        "generated/themes/candidate-evidence.html"
+    )
+
+
+def test_hierarchy_outputs_are_derived_from_canonical_relationships(
+    sample_build: HubBuild,
+) -> None:
+    theme = replace(
+        sample_build.sources.themes[0],
+        title="Candidate-side evidence",
+    )
+    question = sample_build.sources.questions[0]
+    second_question = replace(
+        question,
+        record_id="secondary-question",
+        title="Secondary question",
+        metadata={
+            **question.metadata,
+            "question_id": "secondary-question",
+            "primary_theme_id": "candidate-evidence",
+            "theme_ids": ["candidate-evidence"],
+            "study_ids": ["secondary-study"],
+            "open_subquestions": ["What transfers to held-out requests?"],
+        },
+    )
+    study = sample_build.sources.studies[0]
+    second_study = replace(
+        study,
+        record_id="secondary-study",
+        title="Secondary study",
+        metadata={
+            **study.metadata,
+            "study_id": "secondary-study",
+            "primary_theme_id": "candidate-evidence",
+            "theme_ids": ["candidate-evidence"],
+            "question_ids": ["secondary-question"],
+            "system_ids": [],
+            "representative_system_ids": [],
+            "comparison_system_ids": [],
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(
+            sample_build.sources,
+            themes=(theme,),
+            questions=(question, second_question),
+            studies=(study, second_study),
+        ),
+    )
+
+    outputs = render_hub_outputs(build)
+    summary = outputs[Path("research/hub/generated/summary.qmd")]
+    assert "## Studies" not in summary
+    assert "Candidate-side evidence" in summary
+    assert "Open across themes" in summary
+    assert "2 questions" in summary
+    assert "2 studies" in summary
+
+    theme_page = outputs[
+        Path("research/hub/generated/themes/candidate-evidence.qmd")
+    ]
+    assert "Current conclusion" in theme_page
+    assert "Practical decision" in theme_page
+    assert "Questions in this theme" in theme_page
+    assert "Evidence behind this position" in theme_page
+    assert "Which signals matter?" in theme_page
+    assert "What transfers to held-out requests?" in theme_page
+    assert "2 studies" in theme_page
+    assert (
+        "../../studies/index.html?theme=candidate-evidence"
+        in theme_page
+    )
+
+    question_index = outputs[Path("research/hub/generated/questions-index.qmd")]
+    assert "hub-question-row" in question_index
+    assert "candidate-evidence" in question_index
+    assert "secondary-question" in question_index
+
+    study_index = outputs[Path("research/hub/generated/studies-index.qmd")]
+    assert "hub-study-row" in study_index
+    assert "dense-baseline" in study_index
+    assert "secondary-study" in study_index
+    assert "artifact" not in study_index.lower()
+    assert "receipt" not in study_index.lower()
 
 
 def test_catalog_collects_sorted_related_ids_and_run_study_links(
@@ -528,4 +615,6 @@ def test_summary_navigation_resolves_from_each_output_location(
     assert "(../research/hub/generated/coverage.qmd)" in report
     assert "(../research/hub/generated/summary.qmd)" in report
     assert "(evidence/coverage.qmd)" in generated
-    assert "(catalog.json)" in generated
+    assert "(questions/index.qmd)" in generated
+    assert "(studies/index.qmd)" in generated
+    assert "Generated summary" not in generated

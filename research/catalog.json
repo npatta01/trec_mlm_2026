@@ -2409,6 +2409,57 @@
       ],
       "title": "Semantic failure clusters",
       "type": "test"
+    },
+    {
+      "canonical_path": "research/hub/themes/candidate-evidence.qmd",
+      "id": "candidate-evidence",
+      "related_ids": [
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "generated/themes/candidate-evidence.html",
+      "summary": "Use semantic evidence about candidate models to improve ranking beyond query-only controls.",
+      "tags": [],
+      "title": "Candidate evidence",
+      "type": "theme"
+    },
+    {
+      "canonical_path": "research/hub/themes/evidence-reliability.qmd",
+      "id": "evidence-reliability",
+      "related_ids": [
+        "failure-aware-fusion",
+        "reference-review-trigger",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "generated/themes/evidence-reliability.html",
+      "summary": "Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.",
+      "tags": [],
+      "title": "Evidence reliability",
+      "type": "theme"
+    },
+    {
+      "canonical_path": "research/hub/themes/query-only-routing.qmd",
+      "id": "query-only-routing",
+      "related_ids": [
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "generated/themes/query-only-routing.html",
+      "summary": "Route a new request using evidence from historical requests before using candidate responses.",
+      "tags": [],
+      "title": "Query-only routing",
+      "type": "theme"
+    },
+    {
+      "canonical_path": "research/hub/themes/responses-references.qmd",
+      "id": "responses-references",
+      "related_ids": [
+        "failure-aware-fusion",
+        "reference-review-trigger"
+      ],
+      "rendered_path": "generated/themes/responses-references.html",
+      "summary": "Use candidate responses or generated reference answers as evidence for choosing models.",
+      "tags": [],
+      "title": "Responses and references",
+      "type": "theme"
     }
   ],
   "version": 1

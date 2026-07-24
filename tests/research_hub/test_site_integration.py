@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from trec_mlm.research_hub.build import build_research_hub
+from trec_mlm.research_hub.render import render_hub_outputs
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +20,10 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert config["project"]["output-dir"] == "_site"
     assert config["project"]["resources"] == ["assets/ledger.js", "catalog.json"]
     assert "generated/runs/*.qmd" in config["project"]["render"]
+    assert "generated/themes/*.qmd" in config["project"]["render"]
+    assert {
+        row["text"] for row in config["website"]["navbar"]["left"]
+    } >= {"Themes"}
     assert config["execute"]["enabled"] is False
     assert build.validation.record_counts == {
         "theme": 4,
@@ -68,9 +73,37 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
 
     assert "hub-task-flow" in problem
     assert "hub-example" in problem
-    assert "hub-question-list" in questions
-    assert "current bounded answer" in questions.lower()
+    studies = (ROOT / "research/hub/studies/index.qmd").read_text()
+    summary = (ROOT / "research/hub/index.qmd").read_text()
+    ledger_script = (ROOT / "research/hub/assets/ledger.js").read_text()
+
+    assert "{{< include ../generated/questions-index.qmd >}}" in questions
+    assert "{{< include ../generated/studies-index.qmd >}}" in studies
+    assert "include-after-body: ../assets/ledger-script.html" in studies
+    assert "{{< include generated/summary.qmd >}}" in summary
+    assert 'searchParams.get("theme")' in ledger_script
+    assert "[data-themes]" in ledger_script
     assert "hub-data-groups" in data
     assert "Organizer-provided" in data
     assert "listing:" not in questions
+    assert "listing:" not in studies
     assert "listing:" not in data
+
+
+def test_generated_navigation_contains_every_canonical_record() -> None:
+    build = build_research_hub(ROOT)
+    outputs = render_hub_outputs(build)
+
+    summary = outputs[Path("research/hub/generated/summary.qmd")]
+    questions = outputs[Path("research/hub/generated/questions-index.qmd")]
+    studies = outputs[Path("research/hub/generated/studies-index.qmd")]
+
+    for theme in build.sources.themes:
+        assert theme.record_id in summary
+        assert (
+            Path(f"research/hub/generated/themes/{theme.record_id}.qmd") in outputs
+        )
+    for question in build.sources.questions:
+        assert question.record_id in questions
+    for study in build.sources.studies:
+        assert study.record_id in studies

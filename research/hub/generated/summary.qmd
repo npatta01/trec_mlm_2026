@@ -1,44 +1,50 @@
----
-title: "TREC 2026 Research Hub"
-description: "Current conclusions, decisions, open questions, and next tests."
-toc: false
----
-
 ::: {.hub-evidence-notice}
 **Development evidence only.** Promotion labels do not imply held-out results.
 :::
 
-::: {.hub-summary-panel .hub-decisions}
-## Current position
+## Current position by theme
 
-- **Grounded reference data-quality audit** (`grounded-data-quality-audit`; `iterate`): Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth.
-- **Four-model reference-answer review** (`four-model-reference-review`; `adopt`): Use Gemini as the default reference generator while retaining Perplexity evidence and escalation.
-- **Gemini grounding failure review** (`gemini-grounding-failure-review`; `iterate`): Develop a two-pass disagreement trigger rather than grounding every request.
+<a class="hub-theme-row" href="generated/themes/candidate-evidence.qmd">
+<strong>Candidate evidence</strong>
+<span>Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.</span>
+<span>Adopt · Moderate confidence · 3 questions · 5 studies</span>
+</a>
 
-:::
+<a class="hub-theme-row" href="generated/themes/evidence-reliability.qmd">
+<strong>Evidence reliability</strong>
+<span>Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.</span>
+<span>Iterate · Low confidence · 3 questions · 8 studies</span>
+</a>
 
-::: {.hub-summary-panel .hub-questions}
-## Open questions
+<a class="hub-theme-row" href="generated/themes/query-only-routing.qmd">
+<strong>Query-only routing</strong>
+<span>Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.</span>
+<span>Retain control · Moderate confidence · 2 questions · 3 studies</span>
+</a>
 
-- **When do promising signals fail?** (`failure-conditions`; `open`; confidence `low`): Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists. **Confidence boundary:** Observed development and audit failures are diagnostic; they do not estimate hidden-test prevalence.
-- **Can candidate-side semantic evidence improve query-only retrieval?** (`candidate-evidence`; `partially_answered`; confidence `moderate`): Yes on development evidence, subject to the evidence limits below. **Confidence boundary:** Development-only evidence; candidate artifacts have mixed custody and the hidden test is unavailable.
-- **How far can query-only routing go?** (`query-only-routing`; `partially_answered`; confidence `moderate`): Dense query neighbors are a useful stable control, but candidate-side evidence improved development results. **Confidence boundary:** Development-only evidence; repeated tuning on the same queries may overfit and the hidden test is unavailable.
+<a class="hub-theme-row" href="generated/themes/responses-references.qmd">
+<strong>Responses and references</strong>
+<span>Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.</span>
+<span>Iterate · Low confidence · 3 questions · 7 studies</span>
+</a>
 
-:::
+## Open across themes
 
-::: {.hub-summary-panel .hub-next-tests}
-## Next tests
+- [When do promising signals fail?](questions/failure-conditions.qmd): Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists.
+- [How far can query-only routing go?](questions/query-only-routing.qmd): Dense query neighbors are a useful stable control, but candidate-side evidence improved development results.
+- [How reliable must a generated reference be?](questions/reference-reliability.qmd): Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.
+- [Can model responses provide useful ranking evidence?](questions/response-evidence.qmd): Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.
+
+## Highest-value next tests
 
 - **Failure-aware evidence fusion** (`failure-aware-fusion`; `idea`; priority `high`): Select evidence sources using a query-level reliability signal.
 - **Reference review trigger** (`reference-review-trigger`; `idea`; priority `high`): Predict which generated references need grounding or human review.
 - **Semantic failure clusters** (`semantic-failure-clusters`; `idea`; priority `medium`): Group development failures to test whether recurring query types predict method weakness.
 
-:::
+## Explore
 
-## Navigation
-
-- [Generated summary](generated/summary.qmd)
+- [All research questions](questions/index.qmd)
+- [Study library](studies/index.qmd)
 - [Research question coverage](evidence/coverage.qmd)
 - [Decision history](evidence/history.qmd)
 - [Experiment runs](evidence/runs.qmd)
-- [Machine-readable catalog](catalog.json)

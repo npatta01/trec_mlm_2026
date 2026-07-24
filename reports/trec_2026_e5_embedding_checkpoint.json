@@ -10,11 +10,14 @@
   },
   "durable_remote": {
     "bucket_private": true,
-    "file_count": 8,
+    "file_count": 17,
     "hf_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/artifacts/e5-raw-response-refinement-2026-07-23",
-    "total_byte_size": 3129275817,
+    "loader_ready_byte_size": 3412801099,
+    "loader_ready_file_count": 13,
+    "restore_documentation": "reports/trec_2026_e5_embedding_restore.md",
     "uploaded": true,
-    "verified_by_fresh_download": true
+    "verified_by_fresh_download": true,
+    "verified_by_project_loader": true
   },
   "inference_manifest": {
     "aggregate_sha256": "d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054",
@@ -78,6 +81,8 @@
     "all_values_finite": true,
     "construction_validation_status": "passed",
     "e5_test_result": "129 passed",
-    "remote_sha256sum_result": "8 files passed"
+    "remote_sha256sum_result": "13 loader files passed through the inference manifest",
+    "restored_aggregate_sha256": "d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054",
+    "restored_record_count": 182764
   }
 }

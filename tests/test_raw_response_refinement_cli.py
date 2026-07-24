@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 from types import ModuleType, SimpleNamespace
 
 import numpy as np
@@ -15,7 +16,7 @@ from trec_mlm.profile_inference_artifact import validate_profile_smoke_receipt
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / ".venv" / "bin" / "python"
+PYTHON = Path(sys.executable)
 
 
 def _load_script(name: str) -> ModuleType:

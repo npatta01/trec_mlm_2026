@@ -49,9 +49,10 @@ query and every usable historical record. Before the expensive run, execute two
 fresh representative smoke encodings on `gfx1151` and write a repeat receipt.
 The full inference stage has no qrel mount and no network access.
 
-Persist the complete inference artifact atomically under:
+Persist the complete inference artifact atomically under the repository-owned
+shared-data root:
 
-`/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/inference`
+`$TREC_SHARED_ROOT/e5_raw_response_refinement/inference`
 
 The directory must contain query and record arrays, ordered record metadata,
 formatted-input hashes, source hashes, runtime/model identity, a file manifest,

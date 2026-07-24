@@ -27,8 +27,7 @@ PyTorch/Transformers in the pinned rootless ROCm Podman image, pytest, Ruff.
   equal RRF uses `k=60`.
 - No parameter sweep or post-result variant.
 - Preserve unrelated dirty worktree changes.
-- Durable root is
-  `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement`.
+- Durable root is `$TREC_SHARED_ROOT/e5_raw_response_refinement`.
 
 ---
 
@@ -64,7 +63,7 @@ mismatch, fixed float64 `0.8/0.2` arithmetic, and candidate-ID score ties.
 - [x] **Step 2: Run RED**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement.py -q
+python -m pytest tests/test_raw_response_refinement.py -q
 ```
 
 Expected: collection fails because `trec_mlm.raw_response_refinement` does not
@@ -112,8 +111,8 @@ final ranking tie-break.
 - [x] **Step 4: Run GREEN and focused lint**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement.py -q
-.venv/bin/ruff check trec_mlm/raw_response_refinement.py tests/test_raw_response_refinement.py
+python -m pytest tests/test_raw_response_refinement.py -q
+python -m ruff check trec_mlm/raw_response_refinement.py tests/test_raw_response_refinement.py
 ```
 
 Expected: all focused tests pass and Ruff exits 0.
@@ -149,7 +148,7 @@ tamper rejection, and absence of any `qrel` field in `RawRefinementConfig`.
 - [x] **Step 2: Run RED**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement_artifact.py -q
+python -m pytest tests/test_raw_response_refinement_artifact.py -q
 ```
 
 Expected: imports fail for the missing artifact API.
@@ -180,7 +179,7 @@ hashed manifest through existing `artifact_io` helpers. Refuse overwrite.
 - [x] **Step 4: Run GREEN, then block-size invariance**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement.py tests/test_raw_response_refinement_artifact.py -q
+python -m pytest tests/test_raw_response_refinement.py tests/test_raw_response_refinement_artifact.py -q
 ```
 
 Expected: all tests pass; repeated fixture construction has identical selected
@@ -225,7 +224,7 @@ mismatch, and construction hash mutation.
 - [x] **Step 2: Run RED**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement_evaluation.py -q
+python -m pytest tests/test_raw_response_refinement_evaluation.py -q
 ```
 
 - [x] **Step 3: Implement by composing existing evaluation primitives**
@@ -238,8 +237,8 @@ tracked values within `1e-12` before comparing the new systems.
 - [x] **Step 4: Run GREEN and focused lint**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement_evaluation.py -q
-.venv/bin/ruff check trec_mlm/raw_response_refinement_evaluation.py tests/test_raw_response_refinement_evaluation.py
+python -m pytest tests/test_raw_response_refinement_evaluation.py -q
+python -m ruff check trec_mlm/raw_response_refinement_evaluation.py tests/test_raw_response_refinement_evaluation.py
 ```
 
 - [x] **Step 5: Commit Task 3 files only**
@@ -278,7 +277,7 @@ artifacts after the sealed smoke and inference stages.
 - [x] **Step 2: Run RED**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement_cli.py -q
+python -m pytest tests/test_raw_response_refinement_cli.py -q
 ```
 
 - [x] **Step 3: Implement thin wrappers and deterministic report builder**
@@ -294,8 +293,8 @@ evidence.
 - [x] **Step 4: Run GREEN**
 
 ```bash
-.venv/bin/pytest tests/test_raw_response_refinement_cli.py -q
-.venv/bin/ruff check scripts/run_raw_response_refinement.py scripts/evaluate_raw_response_refinement.py scripts/build_raw_response_refinement_report.py scripts/run_profile_inference_smoke.py
+python -m pytest tests/test_raw_response_refinement_cli.py -q
+python -m ruff check scripts/run_raw_response_refinement.py scripts/evaluate_raw_response_refinement.py scripts/build_raw_response_refinement_report.py scripts/run_profile_inference_smoke.py
 ```
 
 - [x] **Step 5: Commit Task 4 files only**
@@ -311,15 +310,27 @@ git commit -m "feat: expose raw response refinement workflow"
 - Update this plan with exact receipts and commands after each check.
 - Create durable artifacts under the shared-data root; do not commit arrays.
 
+The commands below use stable, caller-provided paths rather than a particular
+checkout or worktree:
+
+```bash
+TREC_REPO_ROOT="${TREC_REPO_ROOT:-$PWD}"
+TREC_SHARED_ROOT="${TREC_SHARED_ROOT:?set the repository-owned shared-data root}"
+HF_CACHE_ROOT="${HF_CACHE_ROOT:?set the Hugging Face cache root}"
+CONTEXTUAL_E5_ARTIFACT="${CONTEXTUAL_E5_ARTIFACT:?set the frozen contextual-E5 artifact}"
+DENSE_KNN_ARTIFACT="${DENSE_KNN_ARTIFACT:?set the frozen dense query-kNN artifact}"
+TREC_PYTHON="${TREC_PYTHON:-$(command -v python3)}"
+```
+
 - [x] **Step 1: Run the complete preflight**
 
 ```bash
 git diff --check
-.venv/bin/pytest -q
-.venv/bin/ruff check trec_mlm tests scripts
+"$TREC_PYTHON" -m pytest -q
+"$TREC_PYTHON" -m ruff check trec_mlm tests scripts
 podman image inspect docker.io/vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28
 rocminfo | rg 'gfx1151'
-df -h /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data
+df -h "$TREC_SHARED_ROOT"
 ```
 
 Require zero test/lint failures, the pinned image, `gfx1151`, and at least
@@ -336,12 +347,12 @@ Require finite normalized `(4,4096)` matrices and maximum repeat difference
 ```bash
 podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --security-opt label=disable \
   --network none -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONPATH=/code \
-  -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/trec_mlm:/code/trec_mlm:ro \
-  -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/scripts:/code/scripts:ro \
-  -v /home/npatta01/.cache/huggingface:/root/.cache/huggingface:ro \
-  -v /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/llm_discovery_data.json:/inputs/discovery.json:ro \
-  -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/reports/trec_2026_discovery_profile_audit.json:/inputs/candidates.json:ro \
-  -v /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement:/outputs:rw \
+  -v "$TREC_REPO_ROOT/trec_mlm:/code/trec_mlm:ro" \
+  -v "$TREC_REPO_ROOT/scripts:/code/scripts:ro" \
+  -v "$HF_CACHE_ROOT:/root/.cache/huggingface:ro" \
+  -v "$TREC_SHARED_ROOT/llm_discovery_data.json:/inputs/discovery.json:ro" \
+  -v "$TREC_REPO_ROOT/reports/trec_2026_discovery_profile_audit.json:/inputs/candidates.json:ro" \
+  -v "$TREC_SHARED_ROOT/e5_raw_response_refinement:/outputs:rw" \
   docker.io/vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28 \
   python /code/scripts/run_profile_inference_smoke.py run \
   --discovery /inputs/discovery.json --candidates /inputs/candidates.json \
@@ -351,10 +362,10 @@ podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --securi
 Repeat with `--output /outputs/receipts/smoke2`, then run:
 
 ```bash
-.venv/bin/python scripts/run_profile_inference_smoke.py compare \
-  --first /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/smoke1 \
-  --second /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/smoke2 \
-  --receipt /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/smoke_repeat_receipt.json
+"$TREC_PYTHON" scripts/run_profile_inference_smoke.py compare \
+  --first "$TREC_SHARED_ROOT/e5_raw_response_refinement/receipts/smoke1" \
+  --second "$TREC_SHARED_ROOT/e5_raw_response_refinement/receipts/smoke2" \
+  --receipt "$TREC_SHARED_ROOT/e5_raw_response_refinement/receipts/smoke_repeat_receipt.json"
 ```
 
 - [x] **Step 3: Re-run the sealed workflow canaries**
@@ -368,9 +379,9 @@ official qrels during construction canaries.
 ### Task 6: Full E5 inference and deterministic centroid reconstruction
 
 **Files:**
-- Durable inference: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/inference`
-- Durable construction: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction`
-- Durable execution logs/receipts: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/`
+- Durable inference: `$TREC_SHARED_ROOT/e5_raw_response_refinement/inference`
+- Durable construction: `$TREC_SHARED_ROOT/e5_raw_response_refinement/construction`
+- Durable execution logs/receipts: `$TREC_SHARED_ROOT/e5_raw_response_refinement/receipts/`
 
 - [x] **Step 1: Record exact input hashes and isolation receipt**
 
@@ -386,13 +397,13 @@ durable root. Preserve the console log separately. Expected official counts:
 ```bash
 podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --security-opt label=disable \
   --network none -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONPATH=/code \
-  -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/trec_mlm:/code/trec_mlm:ro \
-  -v /home/npatta01/.cache/huggingface:/root/.cache/huggingface:ro \
-  -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/data/dev/llm_dev_data.tsv:/inputs/queries.tsv:ro \
-  -v /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/llm_discovery_data.json:/inputs/discovery.json:ro \
-  -v /home/npatta01/.codex/worktrees/28f304c6-3d64-4618-a7eb-4e626ca11605/trec_mlm_2026/reports/trec_2026_discovery_profile_audit.json:/inputs/candidates.json:ro \
-  -v /home/npatta01/.codex/worktrees/expert-label-results-only/trec_mlm_2026/artifacts/contextual_e5_clean/final_run1:/inputs/contextual_e5:ro \
-  -v /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement:/outputs:rw \
+  -v "$TREC_REPO_ROOT/trec_mlm:/code/trec_mlm:ro" \
+  -v "$HF_CACHE_ROOT:/root/.cache/huggingface:ro" \
+  -v "$TREC_REPO_ROOT/data/dev/llm_dev_data.tsv:/inputs/queries.tsv:ro" \
+  -v "$TREC_SHARED_ROOT/llm_discovery_data.json:/inputs/discovery.json:ro" \
+  -v "$TREC_REPO_ROOT/reports/trec_2026_discovery_profile_audit.json:/inputs/candidates.json:ro" \
+  -v "$CONTEXTUAL_E5_ARTIFACT:/inputs/contextual_e5:ro" \
+  -v "$TREC_SHARED_ROOT/e5_raw_response_refinement:/outputs:rw" \
   docker.io/vllm/vllm-openai-rocm@sha256:3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28 \
   python -m trec_mlm.cli profile-infer \
   --queries /inputs/queries.tsv --discovery /inputs/discovery.json \
@@ -400,15 +411,15 @@ podman run --rm --entrypoint python --device /dev/kfd --device /dev/dri --securi
   --smoke-repeat-receipt /outputs/receipts/smoke_repeat_receipt.json \
   --output-dir /outputs/inference \
   --execution-receipt /outputs/receipts/inference_execution_receipt.json \
-  2>&1 | tee /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/receipts/inference.log
+  2>&1 | tee "$TREC_SHARED_ROOT/e5_raw_response_refinement/receipts/inference.log"
 ```
 
 - [x] **Step 3: Reload and hash-verify the inference artifact**
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
-.venv/bin/python -c 'from trec_mlm.profile_inference_artifact import load_profile_inference_artifacts; import sys; a=load_profile_inference_artifacts(sys.argv[1]); print(a.query_embeddings.shape, a.record_embeddings.shape, a.manifest["aggregate_sha256"])' \
-/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/inference
+"$TREC_PYTHON" -c 'from trec_mlm.profile_inference_artifact import load_profile_inference_artifacts; import sys; a=load_profile_inference_artifacts(sys.argv[1]); print(a.query_embeddings.shape, a.record_embeddings.shape, a.manifest["aggregate_sha256"])' \
+"$TREC_SHARED_ROOT/e5_raw_response_refinement/inference"
 ```
 
 Expected shapes: `(322, 4096)` and `(182764, 4096)`.
@@ -421,23 +432,23 @@ their tracked identities before raw refinement evaluation.
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
-.venv/bin/python -m trec_mlm.cli profile-construct \
+"$TREC_PYTHON" -m trec_mlm.cli profile-construct \
   --queries data/dev/llm_dev_data.tsv \
-  --discovery /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/llm_discovery_data.json \
+  --discovery "$TREC_SHARED_ROOT/llm_discovery_data.json" \
   --candidates reports/trec_2026_discovery_profile_audit.json \
-  --dense-artifact /home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/dense_query_knn_baseline \
-  --inference-artifact /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/inference \
-  --output-dir /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction
+  --dense-artifact "$DENSE_KNN_ARTIFACT" \
+  --inference-artifact "$TREC_SHARED_ROOT/e5_raw_response_refinement/inference" \
+  --output-dir "$TREC_SHARED_ROOT/e5_raw_response_refinement/construction"
 
-.venv/bin/python -m trec_mlm.cli profile-validate \
-  --construction /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction
+"$TREC_PYTHON" -m trec_mlm.cli profile-validate \
+  --construction "$TREC_SHARED_ROOT/e5_raw_response_refinement/construction"
 ```
 
 ### Task 7: Freeze, repeat, evaluate once, and report
 
 **Files:**
-- Durable runs: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1` and `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run2`
-- Durable receipt/evaluation: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/repeat_receipt.json` and `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/`
+- Durable runs: `$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1` and `$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run2`
+- Durable receipt/evaluation: `$TREC_SHARED_ROOT/e5_raw_response_refinement/repeat_receipt.json` and `$TREC_SHARED_ROOT/e5_raw_response_refinement/evaluation/`
 - Create tracked results:
   `reports/trec_2026_e5_raw_response_refinement_results.md`
   and `.json`
@@ -446,11 +457,11 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
-.venv/bin/python scripts/run_raw_response_refinement.py construct \
-  --inference /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/inference \
-  --profiles /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction \
-  --dense /home/npatta01/.codex/worktrees/88a454dd-e8be-4b89-923b-57f896689cf9/trec_mlm_2026/artifacts/dense_query_knn_baseline \
-  --output-dir /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1
+"$TREC_PYTHON" scripts/run_raw_response_refinement.py construct \
+  --inference "$TREC_SHARED_ROOT/e5_raw_response_refinement/inference" \
+  --profiles "$TREC_SHARED_ROOT/e5_raw_response_refinement/construction" \
+  --dense "$DENSE_KNN_ARTIFACT" \
+  --output-dir "$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1"
 ```
 
 Repeat the exact command with `refinement_run2` as the output directory.
@@ -461,10 +472,10 @@ Require identical selected record IDs, complete rankings, byte-identical TREC
 runs, and maximum component-score difference `<=1e-12`.
 
 ```bash
-.venv/bin/python scripts/run_raw_response_refinement.py compare \
-  --first /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1 \
-  --second /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run2 \
-  --receipt /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/repeat_receipt.json
+"$TREC_PYTHON" scripts/run_raw_response_refinement.py compare \
+  --first "$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1" \
+  --second "$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run2" \
+  --receipt "$TREC_SHARED_ROOT/e5_raw_response_refinement/repeat_receipt.json"
 ```
 
 - [x] **Step 3: Apply the pre-qrel no-op gate**
@@ -479,23 +490,23 @@ Confirm qrel SHA/inventory, construction immutability before/after, and emit the
 sole primary comparison plus secondary diagnostics.
 
 ```bash
-.venv/bin/python scripts/evaluate_raw_response_refinement.py \
-  --construction /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1 \
-  --repeat-receipt /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/repeat_receipt.json \
+"$TREC_PYTHON" scripts/evaluate_raw_response_refinement.py \
+  --construction "$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1" \
+  --repeat-receipt "$TREC_SHARED_ROOT/e5_raw_response_refinement/repeat_receipt.json" \
   --qrels data/dev/llm_dev_qrels.txt \
-  --output-dir /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation
+  --output-dir "$TREC_SHARED_ROOT/e5_raw_response_refinement/evaluation"
 ```
 
 - [x] **Step 5: Build and verify the tracked report**
 
 ```bash
-.venv/bin/python scripts/build_raw_response_refinement_report.py \
-  --evaluation /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/evaluation.json \
+"$TREC_PYTHON" scripts/build_raw_response_refinement_report.py \
+  --evaluation "$TREC_SHARED_ROOT/e5_raw_response_refinement/evaluation/evaluation.json" \
   --markdown reports/trec_2026_e5_raw_response_refinement_results.md \
   --json reports/trec_2026_e5_raw_response_refinement_results.json
 git diff --check
-.venv/bin/pytest -q
-.venv/bin/ruff check trec_mlm tests scripts
+"$TREC_PYTHON" -m pytest -q
+"$TREC_PYTHON" -m ruff check trec_mlm tests scripts
 ```
 
 Read the fresh outputs, verify zero failures, audit the report against the

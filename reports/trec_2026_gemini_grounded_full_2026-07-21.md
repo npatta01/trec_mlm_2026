@@ -5,7 +5,7 @@
 - **The grounded corpus is complete:** 7,759 records for 7,759 unique IDs, with zero missing IDs and 0 unresolved failures.
 - **Provenance is retained privately:** Search ran on 6,274 responses; all Search-using records passed the source-URL capture check. The report contains no URLs or answer passages.
 - **Uncertainty remains explicit:** 529 responses are non-`answered`; 1,485 did not invoke Search and 1 matched the refusal detector. These sets may overlap.
-- **Spend stayed within the gate:** estimated standard total is $124.44; the deliberately doubled-token-price upper projection is $136.06, below $150.
+- **Cost accounting is now separated:** private run-time receipts recorded an $87.87 upper-bound estimate, not a provider-billed actual. Repricing the recorded usage at Google's 2026-07-21 rates gives $79.33 if the monthly Gemini 3 Search allowance was fresh, or $169.47 if it was already exhausted.
 
 ## Scope and validation contract
 
@@ -19,7 +19,7 @@ The full 7,759-question corpus has not been manually quality-reviewed question b
 
 ## The 50-question canary unlocked the full run
 
-The canary required 50/50 unique completions, valid statuses, non-empty and non-truncated answers, normal finishes, matching evidence records, URLs for Search-using responses, and a conservative projected cost below $150. It passed with 39 Search invocations, 11 manually inspected non-search responses, zero failures, and a $73.40 conservative projection. The full run was resumable and retried isolated format failures without duplicating valid records.
+The canary required 50/50 unique completions, valid statuses, non-empty and non-truncated answers, normal finishes, matching evidence records, URLs for Search-using responses, and the run-time cost gate then in force. It passed with 39 Search invocations, 11 manually inspected non-search responses, zero failures. Its old price projection is superseded by the current repricing scenarios above; neither estimate is a Cloud Billing invoice. The full run was resumable and retried isolated format failures without duplicating valid records.
 
 ## Completeness is not correctness
 

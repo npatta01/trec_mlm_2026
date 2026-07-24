@@ -82,7 +82,9 @@ def main() -> None:
             :100
         ]
     ]
-    cost = audit["projected_cost_usd"]
+    cost = audit["cost_audit"]
+    historical_cost = cost["historical_recorded_spend"]
+    current_cost = cost["current_repricing_estimate_usd"]
     generated_at = (
         datetime.now(timezone.utc)
         .replace(microsecond=0)
@@ -101,9 +103,13 @@ def main() -> None:
         f"- **Uncertainty remains explicit:** {counts['uncertain']:,} responses are "
         f"non-`answered`; {counts['non_search']:,} did not invoke Search and "
         f"{counts['refusals']:,} matched the refusal detector. These sets may overlap.\n"
-        f"- **Spend stayed within the gate:** estimated standard total is "
-        f"${cost['estimated_standard_total']:.2f}; the deliberately doubled-token-price "
-        f"upper projection is ${cost['conservative_total']:.2f}, below $150."
+        f"- **Cost accounting is now separated:** private run-time receipts recorded "
+        f"an ${historical_cost['maximum_tracked_spend_usd']:.2f} upper-bound estimate, "
+        "not a provider-billed actual. Repricing the recorded usage at Google's "
+        f"2026-07-21 rates gives ${current_cost['total_with_fresh_monthly_allowance']:.2f} "
+        "if the monthly Gemini 3 Search allowance was fresh, or "
+        f"${current_cost['total_if_allowance_already_exhausted']:.2f} if it was already "
+        "exhausted."
     )
     definitions = (
         "## Scope and validation contract\n\n"
@@ -134,9 +140,10 @@ def main() -> None:
         "## The 50-question canary unlocked the full run\n\n"
         "The canary required 50/50 unique completions, valid statuses, non-empty and "
         "non-truncated answers, normal finishes, matching evidence records, URLs for "
-        "Search-using responses, and a conservative projected cost below $150. It passed "
+        "Search-using responses, and the run-time cost gate then in force. It passed "
         "with 39 Search invocations, 11 manually inspected non-search responses, zero "
-        "failures, and a $73.40 conservative projection. The full run was resumable and "
+        "failures. Its old price projection is superseded by the current repricing "
+        "scenarios above; neither estimate is a Cloud Billing invoice. The full run was resumable and "
         "retried isolated format failures without duplicating valid records."
     )
     limitation = (

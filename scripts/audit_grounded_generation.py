@@ -16,6 +16,12 @@ VALID_STATUSES = {
     "insufficient_evidence",
     "conflicting_evidence",
 }
+GEMINI_36_PRICING_AS_OF = "2026-07-21"
+GEMINI_36_INPUT_PER_MILLION_USD = 1.50
+GEMINI_36_OUTPUT_PER_MILLION_USD = 7.50
+GEMINI_3_MONTHLY_FREE_GROUNDED_PROMPTS = 5_000
+GEMINI_3_SEARCH_PER_THOUSAND_QUERIES_USD = 14.0
+GEMINI_PRICING_SOURCE = "https://ai.google.dev/gemini-api/docs/pricing"
 REFUSAL_RE = re.compile(
     r"\b(?:i (?:can(?:not|'t)|am unable to)|cannot (?:answer|help)|unable to answer)\b",
     re.IGNORECASE,
@@ -38,7 +44,8 @@ def audit_generation(
     *,
     projected_question_count: int,
     cost_cap_usd: float = 150.0,
-    free_grounded_prompts: int = 1_500,
+    monthly_free_grounded_prompts: int = GEMINI_3_MONTHLY_FREE_GROUNDED_PROMPTS,
+    historical_spend_receipts: Sequence[Mapping[str, Any]] = (),
     search_reviews: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic integrity, provenance, and cost audit."""
@@ -170,16 +177,57 @@ def audit_generation(
     average_queries = (
         search_queries / completed_count if completed_count else float("inf")
     )
-    # Deliberately use twice the published $0.50/$3.00 standard token prices.
-    model_cost = projected_input / 1_000_000 + projected_output * 6 / 1_000_000
-    standard_model_cost = (
-        projected_input * 0.5 / 1_000_000 + projected_output * 3 / 1_000_000
+    current_model_cost = (
+        projected_input * GEMINI_36_INPUT_PER_MILLION_USD / 1_000_000
+        + projected_output * GEMINI_36_OUTPUT_PER_MILLION_USD / 1_000_000
     )
-    if free_grounded_prompts < 0:
-        raise ValueError("free_grounded_prompts must be non-negative")
-    billed_search_queries = max(0, projected_question_count - free_grounded_prompts) * average_queries
-    search_cost = billed_search_queries * 14 / 1_000
-    conservative_total = model_cost + search_cost
+    if monthly_free_grounded_prompts < 0:
+        raise ValueError("monthly_free_grounded_prompts must be non-negative")
+    projected_search_queries = search_queries * scale
+    billed_search_queries_with_fresh_allowance = (
+        max(0, projected_question_count - monthly_free_grounded_prompts)
+        * average_queries
+    )
+    search_cost_with_fresh_allowance = (
+        billed_search_queries_with_fresh_allowance
+        * GEMINI_3_SEARCH_PER_THOUSAND_QUERIES_USD
+        / 1_000
+    )
+    search_cost_if_allowance_exhausted = (
+        projected_search_queries
+        * GEMINI_3_SEARCH_PER_THOUSAND_QUERIES_USD
+        / 1_000
+    )
+    total_with_fresh_allowance = (
+        current_model_cost + search_cost_with_fresh_allowance
+    )
+    total_if_allowance_exhausted = (
+        current_model_cost + search_cost_if_allowance_exhausted
+    )
+
+    recorded_spend_values = [
+        _number(receipt, "overall_maximum_tracked_spend_usd")
+        for receipt in historical_spend_receipts
+        if _number(receipt, "overall_maximum_tracked_spend_usd") > 0
+    ]
+    historical_recorded_spend = {
+        "status": (
+            "run_time_upper_bound_recorded"
+            if recorded_spend_values
+            else "not_supplied"
+        ),
+        "maximum_tracked_spend_usd": (
+            round(max(recorded_spend_values), 6)
+            if recorded_spend_values
+            else None
+        ),
+        "interpretation": (
+            "Run-time upper-bound estimate preserved in private per-credential "
+            "receipts; not a Google Cloud Billing charge."
+        ),
+        "provider_billed_actual_usd": None,
+        "provider_billed_actual_status": "not_verified_from_google_cloud_billing",
+    }
 
     blockers = {
         "duplicate_expected_ids": duplicate_expected_ids,
@@ -194,7 +242,10 @@ def audit_generation(
         "missing_source_url_ids": missing_source_url_ids,
         "expected_search_not_used_ids": expected_search_not_used_ids,
     }
-    gate_passed = not any(blockers.values()) and conservative_total < cost_cap_usd
+    gate_passed = (
+        not any(blockers.values())
+        and total_with_fresh_allowance < cost_cap_usd
+    )
     return {
         "gate_passed": gate_passed,
         "cost_cap_usd": cost_cap_usd,
@@ -214,20 +265,42 @@ def audit_generation(
         "non_search_ids": non_search_ids,
         "search_reviewed_not_required_ids": search_reviewed_not_required_ids,
         "uncertain_ids": uncertain_ids,
-        "projected_cost_usd": {
-            "estimated_standard_model": round(standard_model_cost, 4),
-            "estimated_standard_total": round(standard_model_cost + search_cost, 4),
-            "conservative_model": round(model_cost, 4),
-            "search": round(search_cost, 4),
-            "conservative_total": round(conservative_total, 4),
-            "average_search_queries_per_request": round(average_queries, 4),
-            "assumptions": {
-                "standard_input_per_million_tokens": 0.5,
-                "standard_output_per_million_tokens": 3.0,
-                "conservative_input_per_million_tokens": 1.0,
-                "conservative_output_per_million_tokens": 6.0,
-                "free_grounded_prompts": free_grounded_prompts,
-                "search_per_thousand_queries_after_free_allowance": 14.0,
+        "cost_audit": {
+            "historical_recorded_spend": historical_recorded_spend,
+            "current_repricing_estimate_usd": {
+                "model_tokens": round(current_model_cost, 4),
+                "search_with_fresh_monthly_allowance": round(
+                    search_cost_with_fresh_allowance, 4
+                ),
+                "search_if_allowance_already_exhausted": round(
+                    search_cost_if_allowance_exhausted, 4
+                ),
+                "total_with_fresh_monthly_allowance": round(
+                    total_with_fresh_allowance, 4
+                ),
+                "total_if_allowance_already_exhausted": round(
+                    total_if_allowance_exhausted, 4
+                ),
+                "projected_search_queries": round(projected_search_queries, 4),
+                "average_search_queries_per_request": round(average_queries, 4),
+                "assumptions": {
+                    "model": "gemini-3.6-flash",
+                    "pricing_as_of": GEMINI_36_PRICING_AS_OF,
+                    "standard_input_per_million_tokens": (
+                        GEMINI_36_INPUT_PER_MILLION_USD
+                    ),
+                    "standard_output_per_million_tokens_including_thinking": (
+                        GEMINI_36_OUTPUT_PER_MILLION_USD
+                    ),
+                    "monthly_free_grounded_prompts_shared_across_gemini_3": (
+                        monthly_free_grounded_prompts
+                    ),
+                    "search_per_thousand_queries_after_free_allowance": (
+                        GEMINI_3_SEARCH_PER_THOUSAND_QUERIES_USD
+                    ),
+                    "allowance_scope": "per project, shared across Gemini 3",
+                    "source": GEMINI_PRICING_SOURCE,
+                },
             },
         },
     }
@@ -241,10 +314,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--projected-question-count", type=int, default=7_759)
     parser.add_argument("--cost-cap-usd", type=float, default=150.0)
     parser.add_argument(
+        "--monthly-free-grounded-prompts",
         "--free-grounded-prompts",
+        dest="monthly_free_grounded_prompts",
         type=int,
-        default=1_500,
-        help="Free grounded prompts used for projection (Gemini 3 project default: 1,500).",
+        default=GEMINI_3_MONTHLY_FREE_GROUNDED_PROMPTS,
+        help=(
+            "Monthly free grounded prompts shared across Gemini 3 used for "
+            "current repricing (default: 5,000)."
+        ),
+    )
+    parser.add_argument(
+        "--spend-receipt",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "Private historical run-time spend receipt. May be repeated; only the "
+            "maximum tracked estimate is emitted, never credential metadata."
+        ),
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
@@ -260,7 +348,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.loads(args.evidence_cache.read_text(encoding="utf-8")),
         projected_question_count=args.projected_question_count,
         cost_cap_usd=args.cost_cap_usd,
-        free_grounded_prompts=args.free_grounded_prompts,
+        monthly_free_grounded_prompts=args.monthly_free_grounded_prompts,
+        historical_spend_receipts=[
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in args.spend_receipt
+        ],
         search_reviews=(
             json.loads(args.search_review.read_text(encoding="utf-8"))["reviews"]
             if args.search_review is not None

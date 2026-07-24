@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import gzip
 from html import unescape
 from html.parser import HTMLParser
+import io
 import os
 from pathlib import Path
 import re
@@ -40,23 +44,26 @@ _COMPRESSED_TEMPLATE = re.compile(
     r"""
     <template\b
     (?=[^>]*\bdata-compression\s*=\s*["']gzip-base64["'])
-    [^>]*>.*?</template\s*>
+    [^>]*>(?P<payload>.*?)</template\s*>
     """,
     flags=re.IGNORECASE | re.DOTALL | re.VERBOSE,
 )
-_JAVASCRIPT_REGEX_LITERAL = re.compile(
+_SCRIPT_ELEMENT = re.compile(
+    r"(?P<open><script\b[^>]*>)(?P<body>.*?)(?P<close></script\s*>)",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_JAVASCRIPT_QUOTED_ABSOLUTE_PATH = re.compile(
     r"""
-    (?<=[(=,:;!\[{}])
-    /
-    (?:\\.|[^/\\\r\n])+
-    /[dgimsuvy]*
-    (?=[\s,.;:)\]}]|$)
+    ["'`]
+    \s*
+    (?P<path>(?:\\/|/)[A-Za-z0-9._-]{2,}[^"'`\r\n]*)
     """,
     flags=re.VERBOSE,
 )
+_CSS_COMMENT = re.compile(r"/\*.*?\*/", flags=re.DOTALL)
 _POSIX_ABSOLUTE_PATH = re.compile(
     r"""
-    (?<![A-Za-z0-9_./:<])
+    (?<![A-Za-z0-9_./:<}])
     /
     (?P<root>[^/\\\s<>"'\?#]+)
     (?:/[^/\\\s<>"'\?#]+)*
@@ -80,7 +87,12 @@ _CSS_EXTERNAL_IMPORT = re.compile(
     r"""@import\s+(?:url\(\s*)?["']?(?:https?:)?//""",
     flags=re.IGNORECASE,
 )
-_MAX_SRCDOC_DEPTH = 16
+_MAX_EMBEDDED_DEPTH = 16
+_MAX_COMPRESSED_TEMPLATE_BYTES = 2 * 1024 * 1024
+_MAX_DECOMPRESSED_TEMPLATE_BYTES = 4 * 1024 * 1024
+_MAX_COMPRESSED_TEMPLATE_BASE64_CHARS = (
+    (_MAX_COMPRESSED_TEMPLATE_BYTES + 2) // 3
+) * 4
 
 
 def _contains_local_filesystem_path(value: str) -> bool:
@@ -91,6 +103,61 @@ def _contains_local_filesystem_path(value: str) -> bool:
     ):
         return True
     return bool(_WINDOWS_LOCAL_FILESYSTEM_PATH.search(value))
+
+
+def _script_strings_for_path_scan(match: re.Match[str]) -> str:
+    for candidate in _JAVASCRIPT_QUOTED_ABSOLUTE_PATH.finditer(
+        match.group("body")
+    ):
+        value = candidate.group("path").replace("\\/", "/")
+        if _contains_local_filesystem_path(value):
+            raise ValueError("staged HTML contains a local filesystem path")
+    return match.group("open") + match.group("close")
+
+
+def _scan_compressed_template(
+    source: Path,
+    match: re.Match[str],
+    *,
+    depth: int,
+) -> str:
+    compact_payload = "".join(match.group("payload").split())
+    if len(compact_payload) > _MAX_COMPRESSED_TEMPLATE_BASE64_CHARS:
+        raise ValueError(
+            "staged HTML contains a compressed gzip-base64 template "
+            "that exceeds the size limit"
+        )
+    try:
+        compressed = base64.b64decode(compact_payload, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError(
+            "staged HTML contains an invalid gzip-base64 template payload"
+        ) from exc
+    if len(compressed) > _MAX_COMPRESSED_TEMPLATE_BYTES:
+        raise ValueError(
+            "staged HTML contains a compressed gzip-base64 template "
+            "that exceeds the size limit"
+        )
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as stream:
+            content = stream.read(_MAX_DECOMPRESSED_TEMPLATE_BYTES + 1)
+    except (EOFError, gzip.BadGzipFile, OSError) as exc:
+        raise ValueError(
+            "staged HTML contains an invalid gzip template payload"
+        ) from exc
+    if len(content) > _MAX_DECOMPRESSED_TEMPLATE_BYTES:
+        raise ValueError(
+            "staged HTML contains a decompressed gzip-base64 template "
+            "that exceeds the size limit"
+        )
+    try:
+        decoded = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            "staged HTML gzip-base64 template content must be UTF-8"
+        ) from exc
+    _scan_text(source, decoded, depth=depth + 1)
+    return ""
 
 
 def _is_external_url(value: str) -> bool:
@@ -150,8 +217,10 @@ class _ExecutableAssetScanner(HTMLParser):
 
 
 def _scan_text(source: Path, text: str, *, depth: int = 0) -> None:
-    if depth > _MAX_SRCDOC_DEPTH:
-        raise ValueError("staged HTML contains excessively nested iframe srcdoc")
+    if depth > _MAX_EMBEDDED_DEPTH:
+        raise ValueError(
+            "staged HTML contains excessively nested embedded content"
+        )
     decoded = unescape(text)
     lowered = decoded.lower()
     for marker, label in _PRIVATE_MARKERS:
@@ -159,8 +228,16 @@ def _scan_text(source: Path, text: str, *, depth: int = 0) -> None:
             raise ValueError(f"staged HTML contains a {label}")
     if _FILE_URL.search(decoded):
         raise ValueError("staged HTML contains a file URL")
-    path_text = _COMPRESSED_TEMPLATE.sub("", decoded)
-    path_text = _JAVASCRIPT_REGEX_LITERAL.sub("", path_text)
+    path_text = _COMPRESSED_TEMPLATE.sub(
+        lambda match: _scan_compressed_template(
+            source,
+            match,
+            depth=depth,
+        ),
+        decoded,
+    )
+    path_text = _SCRIPT_ELEMENT.sub(_script_strings_for_path_scan, path_text)
+    path_text = _CSS_COMMENT.sub("", path_text)
     slash_normalized = path_text.replace("\\/", "/")
     path_candidates = (
         slash_normalized,

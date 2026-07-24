@@ -302,3 +302,82 @@ two real allowlisted reports and both byte-for-byte comparisons also exited 0.
 
 This categorical follow-up remains confined to the staging script, its
 resource tests, and this report.
+
+## Follow-up: recursively scan compressed templates
+
+A final review found that omitting declared gzip/base64 template payloads
+from classification allowed private content inside those payloads to bypass
+the staging audit. The scanner now strictly base64-decodes and gzip-expands
+every `<template data-compression="gzip-base64">` payload, requires UTF-8,
+and recursively applies the complete content scan before masking the encoded
+template from its enclosing document.
+
+The decoder rejects malformed base64, invalid gzip streams, non-UTF-8
+content, compressed inputs over 2 MiB, decompressed content over 4 MiB, and
+more than 16 levels of recursively embedded content. The decompressed-size
+check reads at most one byte beyond the limit, preventing highly compressible
+payloads from expanding without a bound.
+
+Decompressed HTML receives the same private-key, `file:`, executable-asset,
+and path checks as top-level HTML. Script bodies use a deliberately narrow
+lexical rule: filesystem-like absolute paths at the start of quoted string
+values are classified, while the rest of minified JavaScript is removed from
+generic POSIX classification. This preserves detection of quoted paths such
+as `"/workspace/private/results.json"` without treating division, regular
+expressions, template interpolation, or framework sentinel strings as paths.
+CSS comments are likewise removed before generic POSIX classification.
+Visible HTML text, attributes, and non-comment CSS remain fully classified.
+
+### Compressed-template TDD evidence
+
+Initial RED:
+
+```text
+7 failed, 49 passed, 2 deselected
+```
+
+The failures covered a compressed local path, compressed private-key marker,
+malformed base64/gzip/UTF-8 payloads, the decompression-size guard, and the
+recursive-depth guard.
+
+After bounded recursive decoding, the focused staging tests reached:
+
+```text
+56 passed, 2 deselected
+```
+
+Direct production staging then exposed slash-heavy minified JavaScript and
+CSS comments. Focused accepted regressions were added before the contextual
+masking changes. Final focused GREEN:
+
+```text
+58 passed, 2 deselected
+```
+
+### Compressed-template verification
+
+```bash
+uv run --extra dev pytest tests/research_hub -q
+```
+
+```text
+150 passed in 3.19s
+```
+
+```bash
+uv run --extra dev ruff check \
+  trec_mlm/research_hub \
+  scripts/stage_research_hub_resources.py \
+  tests/research_hub
+```
+
+```text
+All checks passed!
+```
+
+Direct staging of both real allowlisted reports exited 0, and `cmp` confirmed
+that both staged copies are byte-for-byte identical to their sources.
+`git diff --check` also exited 0.
+
+This follow-up remains confined to the staging script, its resource tests,
+and this report.

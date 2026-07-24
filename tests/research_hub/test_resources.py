@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import gzip
 from pathlib import Path
 
 import pytest
@@ -76,6 +78,12 @@ def _write_allowlisted_sources(root: Path, html: str = "<!doctype html><p>safe</
         path = root / source
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(html, encoding="utf-8")
+
+
+def _gzip_base64_template(content: str | bytes) -> str:
+    raw = content.encode("utf-8") if isinstance(content, str) else content
+    payload = base64.b64encode(gzip.compress(raw, mtime=0)).decode("ascii")
+    return f'<template data-compression="gzip-base64">{payload}</template>'
 
 
 def test_stage_resources_copies_only_the_exact_allowlist(tmp_path: Path) -> None:
@@ -230,7 +238,10 @@ def test_stage_resources_rejects_absolute_posix_filesystem_paths(
 def test_stage_resources_allows_relative_and_site_absolute_paths(
     tmp_path: Path,
 ) -> None:
-    html = """
+    compressed_template = _gzip_base64_template(
+        '{"endpoint":"/api/results.json","status":"safe"}'
+    )
+    html = f"""
     <script src="assets/app.js"></script>
     <link rel="stylesheet" href="./assets/app.css">
     <img src="../images/chart.svg" alt="">
@@ -260,9 +271,7 @@ def test_stage_resources_allows_relative_and_site_absolute_paths(
     </a>
     <script>const docs = "https:\\/\\/docs.example\\/home\\/alice";</script>
     <script>const tokens = value.split(/\\s+/u);</script>
-    <template data-compression="gzip-base64">
-      abc123/HCOV6hglfnydro7Ok+yOlUPssy/KW79t7YVJWZn6y9+ae
-    </template>
+    {compressed_template}
     """
     _write_allowlisted_sources(tmp_path, html)
 
@@ -270,6 +279,107 @@ def test_stage_resources_allows_relative_and_site_absolute_paths(
 
     assert len(staged) == len(RESOURCE_ALLOWLIST)
     assert all(path.read_text(encoding="utf-8") == html for path in staged)
+
+
+@pytest.mark.parametrize(
+    ("decoded_content", "message"),
+    [
+        ("/workspace/private/results.json", "local filesystem path"),
+        ("-----BEGIN PRIVATE KEY-----", "private-key"),
+        (
+            '<script>const path = "/workspace/private/results.json";</script>',
+            "local filesystem path",
+        ),
+    ],
+)
+def test_stage_resources_recursively_rejects_private_compressed_content(
+    tmp_path: Path,
+    decoded_content: str,
+    message: str,
+) -> None:
+    _write_allowlisted_sources(
+        tmp_path,
+        _gzip_base64_template(decoded_content),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+    assert not (tmp_path / "research/hub/_site/library").exists()
+
+
+def test_stage_resources_allows_compressed_html_javascript_operators(
+    tmp_path: Path,
+) -> None:
+    _write_allowlisted_sources(
+        tmp_path,
+        _gzip_base64_template(
+            (
+                "<!doctype html><script>"
+                "const ratio = total/Math.max(1, count);"
+                "const marker = `$&/`;"
+                "const key = `${left}/${right}`;"
+                """const escaped = value.replace(/["']/g, "");"""
+                "</script><style>"
+                "/* chart-frame layout */"
+                ".chart-frame { width: 100%; }"
+                "</style>"
+            )
+        ),
+    )
+
+    staged = stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+    assert len(staged) == len(RESOURCE_ALLOWLIST)
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ("not-valid-base64!!!", "invalid gzip-base64"),
+        (base64.b64encode(b"not gzip").decode("ascii"), "invalid gzip"),
+        (
+            base64.b64encode(gzip.compress(b"\xff", mtime=0)).decode("ascii"),
+            "UTF-8",
+        ),
+    ],
+)
+def test_stage_resources_rejects_malformed_compressed_templates(
+    tmp_path: Path,
+    payload: str,
+    message: str,
+) -> None:
+    _write_allowlisted_sources(
+        tmp_path,
+        f'<template data-compression="gzip-base64">{payload}</template>',
+    )
+
+    with pytest.raises(ValueError, match=message):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+
+def test_stage_resources_limits_decompressed_template_size(
+    tmp_path: Path,
+) -> None:
+    _write_allowlisted_sources(
+        tmp_path,
+        _gzip_base64_template("x" * 5_000_000),
+    )
+
+    with pytest.raises(ValueError, match="decompressed gzip-base64.*size limit"):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+
+def test_stage_resources_limits_compressed_template_nesting(
+    tmp_path: Path,
+) -> None:
+    nested = "<p>safe</p>"
+    for _ in range(18):
+        nested = _gzip_base64_template(nested)
+    _write_allowlisted_sources(tmp_path, nested)
+
+    with pytest.raises(ValueError, match="excessively nested"):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
 
 
 def test_stage_resources_rejects_external_base_for_relative_script(

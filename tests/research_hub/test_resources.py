@@ -74,6 +74,35 @@ def test_stage_resources_rejects_output_outside_hub_site(tmp_path: Path) -> None
         stage_resources(tmp_path, tmp_path / "elsewhere")
 
 
+def test_stage_resources_rejects_symlinked_site_root(tmp_path: Path) -> None:
+    _write_allowlisted_sources(tmp_path)
+    outside = tmp_path / "outside-site"
+    outside.mkdir()
+    site = tmp_path / "research/hub/_site"
+    site.parent.mkdir(parents=True)
+    site.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        stage_resources(tmp_path, site)
+
+    assert not (outside / "library").exists()
+
+
+def test_stage_resources_rejects_symlinked_destination_component(
+    tmp_path: Path,
+) -> None:
+    _write_allowlisted_sources(tmp_path)
+    site = tmp_path / "research/hub/_site"
+    real_library = site / "real-library"
+    real_library.mkdir(parents=True)
+    (site / "library").symlink_to(real_library, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        stage_resources(tmp_path, site)
+
+    assert not tuple(real_library.iterdir())
+
+
 @pytest.mark.parametrize(
     ("unsafe_html", "message"),
     [
@@ -95,3 +124,31 @@ def test_stage_resources_rejects_private_or_executable_content(
         stage_resources(tmp_path, tmp_path / "research/hub/_site")
 
     assert not (tmp_path / "research/hub/_site/library").exists()
+
+
+def test_stage_resources_rejects_external_base_for_relative_script(
+    tmp_path: Path,
+) -> None:
+    _write_allowlisted_sources(
+        tmp_path,
+        '<base href="https://cdn.example/assets/"><script src="app.js"></script>',
+    )
+
+    with pytest.raises(ValueError, match="external base"):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+
+def test_stage_resources_recursively_rejects_executable_iframe_srcdoc(
+    tmp_path: Path,
+) -> None:
+    _write_allowlisted_sources(
+        tmp_path,
+        (
+            '<iframe srcdoc="&lt;script '
+            'src=&quot;https://cdn.example/app.js&quot;&gt;&lt;/script&gt;">'
+            "</iframe>"
+        ),
+    )
+
+    with pytest.raises(ValueError, match="external executable"):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")

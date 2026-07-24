@@ -1,5 +1,33 @@
 {
   "abnormal_finish_ids": [],
+  "cost_audit": {
+    "current_repricing_estimate_usd": {
+      "assumptions": {
+        "allowance_scope": "per project, shared across Gemini 3",
+        "model": "gemini-3.6-flash",
+        "monthly_free_grounded_prompts_shared_across_gemini_3": 5000,
+        "pricing_as_of": "2026-07-21",
+        "search_per_thousand_queries_after_free_allowance": 14.0,
+        "source": "https://ai.google.dev/gemini-api/docs/pricing",
+        "standard_input_per_million_tokens": 1.5,
+        "standard_output_per_million_tokens_including_thinking": 7.5
+      },
+      "average_search_queries_per_request": 1.2877,
+      "model_tokens": 29.595,
+      "projected_search_queries": 9991.0,
+      "search_if_allowance_already_exhausted": 139.874,
+      "search_with_fresh_monthly_allowance": 49.7374,
+      "total_if_allowance_already_exhausted": 169.469,
+      "total_with_fresh_monthly_allowance": 79.3324
+    },
+    "historical_recorded_spend": {
+      "interpretation": "Run-time upper-bound estimate preserved in private per-credential receipts; not a Google Cloud Billing charge.",
+      "maximum_tracked_spend_usd": 87.872091,
+      "provider_billed_actual_status": "not_verified_from_google_cloud_billing",
+      "provider_billed_actual_usd": null,
+      "status": "run_time_upper_bound_recorded"
+    }
+  },
   "cost_cap_usd": 150.0,
   "counts": {
     "expected": 7759,
@@ -1508,22 +1536,6 @@
     "Q981",
     "Q995"
   ],
-  "projected_cost_usd": {
-    "assumptions": {
-      "conservative_input_per_million_tokens": 1.0,
-      "conservative_output_per_million_tokens": 6.0,
-      "free_grounded_prompts": 1500,
-      "search_per_thousand_queries_after_free_allowance": 14.0,
-      "standard_input_per_million_tokens": 0.5,
-      "standard_output_per_million_tokens": 3.0
-    },
-    "average_search_queries_per_request": 1.2877,
-    "conservative_model": 23.2227,
-    "conservative_total": 136.0557,
-    "estimated_standard_model": 11.6114,
-    "estimated_standard_total": 124.4444,
-    "search": 112.833
-  },
   "refusal_ids": [
     "344873"
   ],

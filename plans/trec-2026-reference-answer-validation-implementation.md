@@ -1078,7 +1078,9 @@ Pre-spend gate:
   truncations, abnormal finishes, or missing source URLs on Search-using responses.
 - [x] Search ran on 39/50. The 11 non-search responses were inspected; six broad
   keyword flags were documented as false positives in a separate review ledger.
-- [x] Conservative full-run projection: **$73.40**, below the hard **$150** cap.
+- [x] The canary cleared the run-time cost gate then in force. Its original
+  **$73.40** projection used stale pricing assumptions and is superseded by the
+  dated cost audit; it was not a provider-billed actual.
 - [x] Complete the full grounded run and verify exactly 7,759 unique IDs with zero
   missing records.
 - [x] Publish a sanitized progressive-disclosure summary listing failures,
@@ -1091,9 +1093,11 @@ Execution receipt at the 2026-07-21 quota boundary:
 - Raising concurrency to 64 workers exposed a provider quota boundary. Google returned
   `RESOURCE_EXHAUSTED` without naming the quota metric; 454 HTTP 429 receipts are
   resumable and do not replace valid records.
-- The likely exhausted bucket is the 5,000/day Search-grounding quota visible in AI
-  Studio. This is an inference: concurrent requests plus four automatic retries
-  amplified request attempts, but Google's error did not include a quota identifier.
+- The exhausted bucket was not identified by Google's error. Contemporary AI Studio
+  screenshots showed an operational grounding limit, but current official pricing
+  instead documents a 5,000-per-month Gemini 3 allowance. Concurrent requests plus
+  four automatic retries amplified attempts, so no specific quota should be inferred
+  from the 429s.
 - Recovery: after the daily reset, resume at the previously stable 12 workers and 120
   RPM using a capped 4,500-question pending tranche. Finish the remaining tranche after
   the next reset, then run the exact-ID/provenance/cost audit and build the sanitized

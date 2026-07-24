@@ -17,7 +17,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert config["quarto-required"] == "1.9.38"
     assert config["project"]["type"] == "website"
     assert config["project"]["output-dir"] == "_site"
-    assert config["project"]["resources"] == ["assets/ledger.js"]
+    assert config["project"]["resources"] == ["assets/ledger.js", "catalog.json"]
     assert "generated/runs/*.qmd" in config["project"]["render"]
     assert config["execute"]["enabled"] is False
     assert build.validation.record_counts == {

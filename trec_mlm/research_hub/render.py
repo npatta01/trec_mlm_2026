@@ -303,7 +303,7 @@ def _summary_navigation(*, generated_qmd: bool) -> list[str]:
         coverage = "evidence/coverage.qmd"
         history = "evidence/history.qmd"
         runs = "evidence/runs.qmd"
-        catalog = "../catalog.json"
+        catalog = "catalog.json"
     else:
         summary = "../research/hub/generated/summary.qmd"
         coverage = "../research/hub/generated/coverage.qmd"
@@ -823,6 +823,7 @@ def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
     return _validated_output_mapping(
         {
             Path("research/catalog.json"): render_catalog(build),
+            Path("research/hub/catalog.json"): render_catalog(build),
             Path("reports/trec_2026_research_hub_summary.md"): render_summary_markdown(
                 build
             ),

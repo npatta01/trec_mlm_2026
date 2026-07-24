@@ -519,4 +519,4 @@ def test_summary_navigation_resolves_from_each_output_location(
     assert "(../research/hub/generated/coverage.qmd)" in report
     assert "(../research/hub/generated/summary.qmd)" in report
     assert "(evidence/coverage.qmd)" in generated
-    assert "(../catalog.json)" in generated
+    assert "(catalog.json)" in generated

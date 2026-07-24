@@ -16,6 +16,7 @@ project:
     - "generated/runs/*.qmd"
   resources:
     - assets/ledger.js
+    - catalog.json
 website:
   title: "TREC 2026 Research Hub"
   search: true

@@ -41,4 +41,4 @@ toc: false
 - [Research question coverage](evidence/coverage.qmd)
 - [Decision history](evidence/history.qmd)
 - [Experiment runs](evidence/runs.qmd)
-- [Machine-readable catalog](../catalog.json)
+- [Machine-readable catalog](catalog.json)

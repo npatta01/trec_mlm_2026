@@ -1,0 +1,91 @@
+{
+  "artifact_type": "e5_raw_response_embedding_checkpoint",
+  "checkpoint_date": "2026-07-23",
+  "code_revision": "8c78f865261ec53b97f8df835cdde0b4cc080dbb",
+  "storage": {
+    "kind": "repository_shared_data",
+    "logical_path": ".git/shared-data/trec-2026/e5_raw_response_refinement/inference",
+    "payload_committed_to_git": false,
+    "reason": "The 2.99 GB record matrix is an immutable generated artifact and is too large for ordinary Git storage."
+  },
+  "durable_remote": {
+    "authorization": "The user explicitly requested a private Hugging Face backup on 2026-07-23 after the qrel-free experiment had completed.",
+    "bucket_private": true,
+    "data_boundary": "Post-experiment durability copy only; it was not read during construction, ranking, or evaluation.",
+    "file_count": 17,
+    "hf_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/artifacts/e5-raw-response-refinement-2026-07-23",
+    "loader_ready_byte_size": 3412801099,
+    "loader_ready_file_count": 13,
+    "restore_documentation": "reports/trec_2026_e5_embedding_restore.md",
+    "transferred_content": "The 13-file loader artifact includes embeddings, ordered record metadata, and the full historical question/response text in records.json; four additional checkpoint/construction metadata files were also copied.",
+    "uploaded": true,
+    "verified_by_fresh_download": true,
+    "verified_by_project_loader": true
+  },
+  "inference_manifest": {
+    "aggregate_sha256": "d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054",
+    "qrel_free": true,
+    "version": 2
+  },
+  "construction_manifest": {
+    "aggregate_sha256": "67c66f5bdca6c113ddc936051f8b10db8ae77fa770a9588290bf248ef8568780",
+    "qrel_free": true,
+    "version": 2
+  },
+  "embeddings": [
+    {
+      "file": "query_embeddings.npy",
+      "byte_size": 5275776,
+      "dtype": "float32",
+      "finite": true,
+      "shape": [
+        322,
+        4096
+      ],
+      "sha256": "bd44d4c0c6f79679134d2c4c1d92829244db5f4b11466d0496bb788dbe712f27"
+    },
+    {
+      "file": "label_embeddings.npy",
+      "byte_size": 2457728,
+      "dtype": "float32",
+      "finite": true,
+      "shape": [
+        150,
+        4096
+      ],
+      "sha256": "1687b0e80a17cb2fc38977405881041e1bfdb0016936f67f9ef46a8aeb51c36a"
+    },
+    {
+      "file": "label_question_embeddings.npy",
+      "byte_size": 127123584,
+      "dtype": "float32",
+      "finite": true,
+      "shape": [
+        7759,
+        4096
+      ],
+      "sha256": "d5e96e9dc2fd22d7ce78e176ea0ea10f43ffb24080e63718b5ac53f9afc3823f"
+    },
+    {
+      "file": "record_embeddings.npy",
+      "byte_size": 2994405504,
+      "dtype": "float32",
+      "finite": true,
+      "shape": [
+        182764,
+        4096
+      ],
+      "sha256": "0e8dc671380238db8ff01558e88d4d5e06e8a42549ed09fcbc8596ba929ba65d"
+    }
+  ],
+  "verification": {
+    "hashes_recomputed": true,
+    "numpy_headers_loaded_without_pickle": true,
+    "all_values_finite": true,
+    "construction_validation_status": "passed",
+    "e5_test_result": "129 passed",
+    "remote_sha256sum_result": "13 loader files passed through the inference manifest",
+    "restored_aggregate_sha256": "d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054",
+    "restored_record_count": 182764
+  }
+}

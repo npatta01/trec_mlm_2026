@@ -10,11 +10,11 @@ import heapq
 import json
 import math
 import re
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping, Sequence
-
+from typing import Any, Collection, Iterable, Iterator, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 QUERY_ALIASES = ("target_query_id", "query_id", "outer_query_id", "qid")
@@ -108,8 +108,20 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Optional post-run ground-truth labels in four-column TREC qrels format.",
     )
+    parser.add_argument(
+        "--evidence-bundle",
+        type=Path,
+        help="Optional validated grounded-evidence JSON; requires complete qrels.",
+    )
     parser.add_argument("--profiles", type=Path)
-    parser.add_argument("--discovery", type=Path)
+    parser.add_argument(
+        "--discovery",
+        type=Path,
+        help=(
+            "Optional legacy lexical-response source; cannot be combined "
+            "with --evidence-bundle."
+        ),
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--title", default="Query Results Explorer")
     parser.add_argument("--top-candidates", type=positive_int, default=10)
@@ -352,6 +364,7 @@ def validate_and_group_rows(
     rows: Sequence[Mapping[str, Any]],
     *,
     top_candidates: int,
+    retain_all: bool = False,
 ) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     seen_pairs: set[tuple[str, str]] = set()
@@ -384,8 +397,26 @@ def validate_and_group_rows(
             raise ExplorerInputError(
                 f"ranks for query {query_id!r} are not contiguous from 1"
             )
-        grouped[query_id] = values[:top_candidates]
+        grouped[query_id] = values if retain_all else values[:top_candidates]
     return dict(grouped), warnings
+
+
+def select_display_rows(
+    values: Sequence[Mapping[str, Any]],
+    *,
+    top_candidates: int,
+    positive_ids: Collection[str] = (),
+) -> list[dict[str, Any]]:
+    """Select top-ranked rows and positives without changing frozen order."""
+
+    wanted = {
+        str(item["candidate_id"]) for item in values[:top_candidates]
+    } | set(positive_ids)
+    return [
+        dict(item)
+        for item in values
+        if str(item["candidate_id"]) in wanted
+    ]
 
 
 def load_queries(path: Path) -> tuple[dict[str, str], list[str]]:
@@ -394,16 +425,17 @@ def load_queries(path: Path) -> tuple[dict[str, str], list[str]]:
     queries: dict[str, str] = {}
     order: list[str] = []
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle, delimiter="\t")
-        rows = list(reader)
-    if not rows:
+        lines = [raw_line.rstrip("\r\n") for raw_line in handle]
+    if not lines:
         raise ExplorerInputError(f"query file is empty: {path}")
 
     start = 0
     query_index = 0
     text_index = 1
-    lowered = [value.strip().lower() for value in rows[0]]
-    if any(value in QUERY_HEADER_ALIASES for value in lowered):
+    header = lines[0].split("\t")
+    lowered = [value.strip().lower() for value in header]
+    headered = any(value in QUERY_HEADER_ALIASES for value in lowered)
+    if headered:
         start = 1
         query_index = next(
             index for index, value in enumerate(lowered) if value in QUERY_HEADER_ALIASES
@@ -417,7 +449,8 @@ def load_queries(path: Path) -> tuple[dict[str, str], list[str]]:
             )
         text_index = matches[0]
 
-    for row_number, row in enumerate(rows[start:], start=start + 1):
+    for row_number, line in enumerate(lines[start:], start=start + 1):
+        row = line.split("\t") if headered else line.split("\t", maxsplit=1)
         if len(row) <= max(query_index, text_index):
             raise ExplorerInputError(f"query row {row_number} has too few columns")
         query_id = row[query_index].strip()
@@ -513,6 +546,163 @@ def load_qrels(path: Path) -> dict[str, dict[str, float]]:
     if not qrels:
         raise ExplorerInputError(f"qrels file has no judgments: {path}")
     return dict(qrels)
+
+
+def _validate_authoritative_evidence_bundle(
+    payload: Any,
+    *,
+    expected_query_ids: Collection[str],
+    final_component_metrics: (
+        Mapping[str, Mapping[str, Any]] | None
+    ) = None,
+) -> None:
+    """Use the producer's validator so bundle semantics cannot drift."""
+
+    source_root = str(REPO_ROOT)
+    inserted_source_root = source_root not in sys.path
+    if inserted_source_root:
+        sys.path.insert(0, source_root)
+    try:
+        from trec_mlm.grounded_evidence_explorer import (
+            EvidenceBundleError,
+            validate_evidence_bundle,
+        )
+    except ImportError as error:
+        raise ExplorerInputError(
+            "could not load authoritative grounded-evidence validator"
+        ) from error
+    try:
+        validate_evidence_bundle(
+            payload,
+            expected_query_ids=expected_query_ids,
+            final_component_metrics=final_component_metrics,
+        )
+    except EvidenceBundleError as error:
+        raise ExplorerInputError(str(error)) from error
+    finally:
+        if inserted_source_root:
+            sys.path.remove(source_root)
+
+
+def load_evidence_bundle(
+    path: Path, query_ids: Collection[str]
+) -> dict[str, Any]:
+    """Load and validate a renderer-neutral grounded-evidence bundle."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ExplorerInputError(
+            f"could not read evidence bundle: {path}"
+        ) from error
+    _validate_authoritative_evidence_bundle(
+        payload,
+        expected_query_ids=query_ids,
+    )
+    return payload
+
+
+def validate_grounded_contract(
+    evidence_bundle: Mapping[str, Any],
+    *,
+    grouped: Mapping[str, Sequence[Mapping[str, Any]]],
+    qrels: Mapping[str, Mapping[str, float]],
+    queries: Mapping[str, str],
+    top_candidates: int,
+    evaluation: Mapping[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    """Bind grounded evidence to frozen rows, complete qrels, and query text."""
+
+    _validate_authoritative_evidence_bundle(
+        evidence_bundle,
+        expected_query_ids=grouped,
+        final_component_metrics={
+            query_id: {
+                "ndcg_at_10": metric["ndcg_at_10"],
+                "reciprocal_rank": metric["reciprocal_rank"],
+            }
+            for query_id, metric in evaluation["per_query"].items()
+        },
+    )
+
+    if set(qrels) != set(grouped):
+        raise ExplorerInputError("evidence bundle requires complete qrels")
+    selected: dict[str, list[dict[str, Any]]] = {}
+    for query_id, values in grouped.items():
+        candidate_ids = {
+            str(value["candidate_id"]) for value in values
+        }
+        if (
+            query_id not in qrels
+            or set(qrels[query_id]) != candidate_ids
+        ):
+            raise ExplorerInputError(
+                "evidence bundle requires complete qrels"
+            )
+        grounded = evidence_bundle["queries"][query_id]
+        candidates = grounded["candidates"]
+        if set(candidates) != candidate_ids:
+            raise ExplorerInputError(
+                f"evidence candidate inventory differs for {query_id}"
+            )
+        if grounded["query_text"] != queries[query_id]:
+            raise ExplorerInputError(
+                f"evidence query text differs for {query_id}"
+            )
+        for value in values:
+            candidate_id = str(value["candidate_id"])
+            candidate = candidates[candidate_id]
+            grade = float(qrels[query_id][candidate_id])
+            if (
+                float(candidate["qrel_grade"]) != grade
+                or candidate["is_positive"] != (grade > 0.0)
+                or candidate["ranks"]["raw_hierarchical_dense_equal"]
+                != int(value["rank"])
+            ):
+                raise ExplorerInputError(
+                    f"evidence candidate contract differs for {query_id}"
+                )
+        positive_ids = {
+            candidate_id
+            for candidate_id, grade in qrels[query_id].items()
+            if float(grade) > 0.0
+        }
+        required_depth = min(10, len(values))
+        if top_candidates < required_depth:
+            raise ExplorerInputError(
+                "grounded evidence requires --top-candidates of at least "
+                f"{required_depth}"
+            )
+        required_evidence_ids = [
+            str(value["candidate_id"])
+            for value in values
+            if int(value["rank"]) <= 10
+            or str(value["candidate_id"]) in positive_ids
+        ]
+        if grounded["evidence_candidate_ids"] != required_evidence_ids:
+            raise ExplorerInputError(
+                f"evidence candidate ordering differs for {query_id}"
+            )
+        if any(
+            len(candidates[candidate_id]["evidence"]) != 3
+            for candidate_id in required_evidence_ids
+        ):
+            raise ExplorerInputError(
+                f"evidence record coverage differs for {query_id}"
+            )
+        selected[query_id] = select_display_rows(
+            values,
+            top_candidates=top_candidates,
+            positive_ids=positive_ids,
+        )
+        actual_ids = [
+            str(value["candidate_id"]) for value in selected[query_id]
+        ]
+        if actual_ids != grounded["display_candidate_ids"]:
+            raise ExplorerInputError(
+                f"evidence display ordering differs for {query_id}"
+            )
+    return selected
 
 
 def build_evaluation(
@@ -942,6 +1132,7 @@ def build_payload(
     warnings: Sequence[str],
     candidate_limit: int,
     evaluation: Mapping[str, Any] | None,
+    evidence_bundle: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     missing_queries = sorted(set(grouped) - set(queries))
     if missing_queries:
@@ -963,6 +1154,11 @@ def build_payload(
         }
         for query_id in ordered_ids
     ]
+    if evidence_bundle is not None:
+        for query in query_rows:
+            query["grounded"] = dict(
+                evidence_bundle["queries"][query["id"]]
+            )
     embedded_candidates = sorted(
         {
             str(result["candidate_id"])
@@ -994,43 +1190,44 @@ def build_payload(
         notes.append(
             "No historical responses met the relatedness and usability thresholds."
         )
+    payload_meta = {
+        "title": title,
+        "input": display_path(input_path, root),
+        "input_sha256": file_sha256(input_path),
+        "queries_source": display_path(query_path, root),
+        "qrels_source": display_path(qrels_path, root) if qrels_path else None,
+        "profiles_source": display_path(profile_path, root)
+        if profile_path and profile_path.is_file()
+        else None,
+        "discovery_source": display_path(discovery_path, root)
+        if discovery_path
+        else None,
+        "score_field": schema["score_column"],
+        "input_kind": schema["input_kind"],
+        "query_count": len(query_rows),
+        "candidate_count": len(embedded_candidates),
+        "candidate_limit": candidate_limit,
+        "displayed_result_count": sum(
+            len(query["results"]) for query in query_rows
+        ),
+        "profile_count": len(selected_profiles),
+        "profile_version": profile_version,
+        "discovery_query_count": source_count,
+        "embedded_response_count": embedded_response_count,
+        "labels_included": bool(evaluation),
+        "evaluated_query_count": evaluation["query_count"] if evaluation else 0,
+        "macro_ndcg_at_10": evaluation["macro_ndcg_at_10"]
+        if evaluation
+        else None,
+        "mean_reciprocal_rank": evaluation["mean_reciprocal_rank"]
+        if evaluation
+        else None,
+        "notes": notes,
+    }
+    if evidence_bundle is not None:
+        payload_meta["grounded_evidence"] = dict(evidence_bundle["meta"])
     return {
-        "meta": {
-            "title": title,
-            "input": display_path(input_path, root),
-            "input_sha256": file_sha256(input_path),
-            "queries_source": display_path(query_path, root),
-            "qrels_source": display_path(qrels_path, root) if qrels_path else None,
-            "profiles_source": display_path(profile_path, root)
-            if profile_path and profile_path.is_file()
-            else None,
-            "discovery_source": display_path(discovery_path, root)
-            if discovery_path
-            else None,
-            "score_field": schema["score_column"],
-            "input_kind": schema["input_kind"],
-            "query_count": len(query_rows),
-            "candidate_count": len(embedded_candidates),
-            "candidate_limit": candidate_limit,
-            "displayed_result_count": sum(
-                len(query["results"]) for query in query_rows
-            ),
-            "profile_count": len(selected_profiles),
-            "profile_version": profile_version,
-            "discovery_query_count": source_count,
-            "embedded_response_count": embedded_response_count,
-            "labels_included": bool(evaluation),
-            "evaluated_query_count": evaluation["query_count"]
-            if evaluation
-            else 0,
-            "macro_ndcg_at_10": evaluation["macro_ndcg_at_10"]
-            if evaluation
-            else None,
-            "mean_reciprocal_rank": evaluation["mean_reciprocal_rank"]
-            if evaluation
-            else None,
-            "notes": notes,
-        },
+        "meta": payload_meta,
         "queries": query_rows,
         "profiles": selected_profiles,
         "responses": related_responses,
@@ -1079,7 +1276,7 @@ HTML_TEMPLATE = r'''<!doctype html>
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.5;
     }
-    button, input { font: inherit; }
+    button, input, select { font: inherit; }
     button { color: inherit; }
     .shell { max-width: 1440px; margin: 0 auto; padding: 24px; }
     .page-head { margin-bottom: 20px; }
@@ -1098,7 +1295,7 @@ HTML_TEMPLATE = r'''<!doctype html>
     .search { width: 100%; margin-top: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); color: var(--ink); padding: 10px 11px; }
     .evaluation-control { display: grid; gap: 5px; margin-top: 11px; }
     .evaluation-select { width: 100%; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); color: var(--ink); padding: 8px 10px; }
-    .search:focus, button:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 38%, transparent); outline-offset: 2px; }
+    .search:focus, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 38%, transparent); outline-offset: 2px; }
     .query-list { overflow-y: auto; padding: 8px; }
     .query-button { width: 100%; border: 1px solid transparent; border-radius: 9px; background: transparent; padding: 10px; text-align: left; cursor: pointer; }
     .query-button:hover { background: var(--panel-soft); }
@@ -1125,10 +1322,12 @@ HTML_TEMPLATE = r'''<!doctype html>
     }
     .mono { color: var(--muted); font: .78rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
     .results-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 18px; align-items: start; }
+    .results-grid.grounded { grid-template-columns: minmax(0, 1fr); }
     .section { padding: 18px; }
     .section-note { margin: 5px 0 14px; color: var(--muted); font-size: .86rem; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; }
+    .results-grid.grounded table { min-width: 1060px; }
     th { color: var(--muted); font-size: .72rem; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
     th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; vertical-align: middle; }
     th:first-child, td:first-child { width: 54px; text-align: right; }
@@ -1145,6 +1344,17 @@ HTML_TEMPLATE = r'''<!doctype html>
     }
     tr.selected { background: var(--accent-soft); }
     .score { white-space: nowrap; font: 700 .84rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .mechanism-summary { display: grid; gap: 7px; margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); padding: 12px; }
+    .mechanism-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+    .mechanism-tag, .context-risk { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: .78rem; font-weight: 720; }
+    .context-risk { border-color: #b45309; color: #92400e; }
+    .mechanism-summary p { margin: 0; color: var(--muted); font-size: .84rem; }
+    .cohort-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cohort-tag { border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; color: var(--muted); font-size: .74rem; }
+    .evidence-row td { padding: 0 8px 12px; text-align: left; }
+    .evidence-drawer { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); padding: 9px 11px; }
+    .evidence-drawer summary { color: var(--accent); cursor: pointer; font-weight: 750; }
+    .evidence-drawer[open] summary { margin-bottom: 8px; }
     .candidate-title { margin: 7px 0 0; font-size: 1.32rem; overflow-wrap: anywhere; }
     .candidate-summary { margin: 9px 0 0; color: var(--muted); }
     .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
@@ -1161,6 +1371,7 @@ HTML_TEMPLATE = r'''<!doctype html>
     .history-response { margin: 7px 0 0; color: var(--muted); font-size: .88rem; }
     .history-meta { margin-top: 7px; color: var(--muted); font-size: .72rem; }
     .empty { border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); padding: 12px; font-size: .86rem; }
+    .main-empty { padding: 18px; }
     .warning-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: .82rem; }
     .foot { margin-top: 18px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
     @media (max-width: 920px) {
@@ -1210,7 +1421,7 @@ HTML_TEMPLATE = r'''<!doctype html>
             <input class="search" id="querySearch" type="search" autocomplete="off">
           </label>
           <label class="evaluation-control" id="evaluationControl">
-            <span class="mono">Ground-truth query ordering</span>
+            <span class="mono" id="evaluationLabel">Ground-truth query ordering</span>
             <select class="evaluation-select" id="evaluationFilter">
               <option value="weakest">Weakest nDCG@10 first</option>
               <option value="failures">Zero nDCG@10 only</option>
@@ -1222,24 +1433,26 @@ HTML_TEMPLATE = r'''<!doctype html>
         <div class="query-list" id="queryList"></div>
       </aside>
       <div class="main">
-        <section class="panel query-card" aria-labelledby="queryHeading">
+        <section class="panel query-card" id="queryCard" aria-labelledby="queryHeading">
           <span class="mono" id="activeQueryId"></span>
           <h2 id="queryHeading"></h2>
           <div class="query-evaluation" id="queryEvaluation"></div>
+          <div id="groundedSummary"></div>
         </section>
-        <div class="results-grid">
-          <section class="panel section" aria-labelledby="resultsHeading">
+        <div class="panel empty main-empty" id="mainEmpty" role="status" hidden>No queries match this filter.</div>
+        <div class="results-grid" id="resultsGrid">
+          <section class="panel section" id="resultsSection" aria-labelledby="resultsHeading">
             <h2 id="resultsHeading">Top candidates</h2>
             <p class="section-note"><span id="resultLimit"></span> Select a candidate to inspect its history.<span id="labelLegend"> G0/G1/G2 badges are development ground-truth grades.</span> Scores belong to this run only and should not be compared with scores from another approach.</p>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Rank</th><th>Candidate</th><th>System score</th></tr></thead>
+                <thead><tr id="resultsHead"><th>Rank</th><th>Candidate</th><th>System score</th></tr></thead>
                 <tbody id="resultsBody"></tbody>
               </table>
             </div>
             <div class="oracle-reference" id="oracleReference"></div>
           </section>
-          <section class="panel section" aria-labelledby="candidateHeading">
+          <section class="panel section" id="candidateSection" aria-labelledby="candidateHeading">
             <span class="mono" id="candidateRank"></span>
             <h2 class="candidate-title" id="candidateHeading"></h2>
             <p class="candidate-summary" id="candidateSummary"></p>
@@ -1248,7 +1461,7 @@ HTML_TEMPLATE = r'''<!doctype html>
               <h3>Observed attempted-query terms</h3>
               <div class="terms" id="candidateTerms"></div>
             </div>
-            <div class="subsection">
+            <div class="subsection" id="responseSection">
               <h3>Related past responses</h3>
               <p class="section-note">Selected by simple lexical overlap for context. These responses are not verified correctness and are not claimed as the ranking explanation.</p>
               <div id="responseList"></div>
@@ -1268,14 +1481,29 @@ HTML_TEMPLATE = r'''<!doctype html>
   <script>
     "use strict";
     const data = JSON.parse(document.getElementById("explorerData").textContent);
+    const groundedMode = data.queries.some((query) => Boolean(query.grounded));
+    const rankColumns = [
+      ["dense_reference", "Dense rank"],
+      ["profile_only", "Profile rank"],
+      ["dense_profile_equal", "Prior fusion rank"],
+      ["raw_hierarchical", "Raw hierarchical rank"],
+      ["raw_hierarchical_dense_equal", "New fusion rank"],
+    ];
     const weakestQuery = data.meta.labels_included
       ? [...data.queries].filter((query) => query.evaluation).sort((left, right) => left.evaluation.ndcg_at_10 - right.evaluation.ndcg_at_10)[0]
       : null;
+    const firstTop1Failure = groundedMode
+      ? data.queries.find((query) => query.grounded?.retrieval_outcome !== "top-1 success")
+      : null;
     const state = {
-      queryId: weakestQuery ? weakestQuery.id : (data.queries[0] ? data.queries[0].id : null),
+      queryId: firstTop1Failure
+        ? firstTop1Failure.id
+        : (weakestQuery ? weakestQuery.id : (data.queries[0] ? data.queries[0].id : null)),
       candidateId: null,
       search: "",
-      evaluationFilter: data.meta.labels_included ? "weakest" : "source"
+      evaluationFilter: groundedMode
+        ? "top_1_failure"
+        : (data.meta.labels_included ? "weakest" : "source")
     };
     const byId = (id) => document.getElementById(id);
     const el = (tag, className, text) => {
@@ -1314,7 +1542,9 @@ HTML_TEMPLATE = r'''<!doctype html>
       byId("labelLegend").hidden = !data.meta.labels_included;
       byId("summary").replaceChildren();
       addPill(number(data.meta.query_count) + " queries");
-      addPill("Top " + number(data.meta.candidate_limit) + " candidates per query");
+      addPill(groundedMode
+        ? "Top " + number(data.meta.candidate_limit) + " plus development-positive candidates"
+        : "Top " + number(data.meta.candidate_limit) + " candidates per query");
       addPill(number(data.meta.candidate_count) + " unique candidates represented");
       if (data.meta.profile_count) addPill(number(data.meta.profile_count) + " candidate profiles");
       if (data.meta.discovery_query_count) addPill(number(data.meta.discovery_query_count) + " historical questions scanned");
@@ -1323,13 +1553,57 @@ HTML_TEMPLATE = r'''<!doctype html>
       byId("footer").textContent = "Source: " + data.meta.input + " · Score field: " + data.meta.score_field + "." + note;
     }
 
+    function configureEvaluationFilters() {
+      if (!groundedMode) return;
+      byId("evaluationLabel").textContent = "Grounded diagnostic filter";
+      const groundedFilters = [
+        ["top_1_failure", "Top-1 failures"],
+        ["top_1_success", "Top-1 success"],
+        ["top_10_miss", "Top-10 but not top-1"],
+        ["top_10_absent", "No relevant candidate in top 10"],
+        ["zero_fused", "Zero fused nDCG@10"],
+        ["persistent_zero", "Persistent all-system zero"],
+        ["fusion_suppressed", "Raw success / fusion suppressed"],
+        ["new_zero_regression", "New zero regression"],
+        ["rescued", "Rescued prior zero"],
+        ["context_risk", "Context-risk flag"],
+      ];
+      groundedFilters.forEach(([value, label]) => {
+        const option = el("option", "", label);
+        option.value = value;
+        byId("evaluationFilter").appendChild(option);
+      });
+    }
+
+    function legacyEvaluationMatch(query) {
+      if (state.evaluationFilter === "failures") {
+        return query.evaluation && query.evaluation.ndcg_at_10 === 0;
+      }
+      return true;
+    }
+
+    function matchesEvaluationFilter(query) {
+      if (!query.grounded) return legacyEvaluationMatch(query);
+      const tags = new Set(query.grounded.cohorts || []);
+      if (state.evaluationFilter === "zero_fused") return tags.has("zero fused nDCG@10");
+      if (state.evaluationFilter === "persistent_zero") return tags.has("persistent all-system zero");
+      if (state.evaluationFilter === "fusion_suppressed") return tags.has("raw-success/fusion-suppressed");
+      if (state.evaluationFilter === "new_zero_regression") return tags.has("new zero regression");
+      if (state.evaluationFilter === "rescued") return tags.has("rescued prior zero");
+      if (state.evaluationFilter === "context_risk") return query.grounded.context_risk === true;
+      if (state.evaluationFilter === "top_1_failure") return query.grounded.retrieval_outcome !== "top-1 success";
+      if (state.evaluationFilter === "top_1_success") return query.grounded.retrieval_outcome === "top-1 success";
+      if (state.evaluationFilter === "top_10_miss") return query.grounded.retrieval_outcome === "top-10 but not top-1";
+      if (state.evaluationFilter === "top_10_absent") return query.grounded.retrieval_outcome === "no relevant candidate in top 10";
+      return legacyEvaluationMatch(query);
+    }
+
     function visibleQueries() {
       const needle = state.search.trim().toLowerCase();
       let queries = data.queries.filter((query) => !needle || (query.id + " " + query.text).toLowerCase().includes(needle));
       if (!data.meta.labels_included) return queries;
-      if (state.evaluationFilter === "failures") {
-        queries = queries.filter((query) => query.evaluation && query.evaluation.ndcg_at_10 === 0);
-      } else if (state.evaluationFilter === "weakest") {
+      queries = queries.filter(matchesEvaluationFilter);
+      if (state.evaluationFilter === "weakest") {
         queries = [...queries].sort((left, right) => (left.evaluation?.ndcg_at_10 ?? Infinity) - (right.evaluation?.ndcg_at_10 ?? Infinity));
       } else if (state.evaluationFilter === "strongest") {
         queries = [...queries].sort((left, right) => (right.evaluation?.ndcg_at_10 ?? -Infinity) - (left.evaluation?.ndcg_at_10 ?? -Infinity));
@@ -1337,10 +1611,10 @@ HTML_TEMPLATE = r'''<!doctype html>
       return queries;
     }
 
-    function renderQueryList() {
+    function renderQueryList(queries) {
       const list = byId("queryList");
       list.replaceChildren();
-      visibleQueries().forEach((query) => {
+      queries.forEach((query) => {
         const button = el("button", "query-button");
         button.type = "button";
         button.setAttribute("aria-current", query.id === state.queryId ? "true" : "false");
@@ -1358,10 +1632,126 @@ HTML_TEMPLATE = r'''<!doctype html>
       if (!list.childElementCount) list.appendChild(el("div", "empty", "No queries match this search."));
     }
 
+    function synchronizeSelection(queries) {
+      if (!queries.length) {
+        state.queryId = null;
+        state.candidateId = null;
+        return;
+      }
+      let query = queries.find((item) => item.id === state.queryId);
+      if (!query) {
+        query = queries[0];
+        state.queryId = query.id;
+        state.candidateId = null;
+      }
+      if (!query.results.some((result) => result.candidate_id === state.candidateId)) {
+        state.candidateId = query.results[0] ? query.results[0].candidate_id : null;
+      }
+    }
+
+    function renderEmptyMain() {
+      byId("mainEmpty").hidden = false;
+      byId("queryCard").hidden = true;
+      byId("resultsGrid").hidden = true;
+      byId("resultsSection").hidden = true;
+      byId("candidateSection").hidden = true;
+      byId("activeQueryId").textContent = "";
+      byId("queryHeading").textContent = "";
+      byId("queryEvaluation").replaceChildren();
+      byId("groundedSummary").replaceChildren();
+      byId("resultsBody").replaceChildren();
+      byId("oracleReference").replaceChildren();
+      byId("candidateRank").textContent = "";
+      byId("candidateHeading").textContent = "";
+      byId("candidateSummary").textContent = "";
+      byId("candidateStats").replaceChildren();
+      byId("candidateTerms").replaceChildren();
+      byId("responseList").replaceChildren();
+      byId("candidateWarnings").replaceChildren();
+    }
+
+    function showMain() {
+      byId("mainEmpty").hidden = true;
+      byId("queryCard").hidden = false;
+      byId("resultsGrid").hidden = false;
+      byId("resultsSection").hidden = false;
+      byId("candidateSection").hidden = false;
+    }
+
+    function renderBestPositiveSummary(query) {
+      const candidates = Object.values(query.grounded.candidates);
+      const best = candidates
+        .filter((candidate) => candidate.is_positive)
+        .sort((left, right) => left.ranks.raw_hierarchical_dense_equal - right.ranks.raw_hierarchical_dense_equal)[0] || null;
+      const summary = el("div", "mechanism-summary");
+      const tags = el("div", "mechanism-tags");
+      tags.appendChild(el("strong", "mechanism-tag", "Retrieval outcome · " + query.grounded.retrieval_outcome));
+      tags.appendChild(el("strong", "mechanism-tag", "Mechanism (noncausal) · " + query.grounded.mechanism));
+      if (query.grounded.context_risk) {
+        tags.appendChild(el("span", "context-risk", "Context-risk flag · surface wording only"));
+      }
+      summary.appendChild(tags);
+      if (best) {
+        summary.appendChild(el("p", "", "Best development-positive candidate: " + best.candidate_id));
+        summary.appendChild(el("p", "", rankColumns.map(([key, label]) =>
+          label + " " + best.ranks[key]).join(" · ")));
+        summary.appendChild(el("p", "", "Best-record E5 cosine similarity " + formatMetric(best.best_record_cosine) +
+          " · Mean top-10 E5 cosine similarity " + formatMetric(best.mean_top_10_cosine)));
+      } else {
+        summary.appendChild(el("p", "", "Best development-positive candidate: none in complete development qrels"));
+      }
+      const cohorts = el("div", "cohort-list");
+      (query.grounded.cohorts || []).forEach((cohort) =>
+        cohorts.appendChild(el("span", "cohort-tag", cohort)));
+      summary.appendChild(cohorts);
+      return summary;
+    }
+
+    function renderGroundedEvidence(candidate) {
+      const details = el("details", "evidence-drawer");
+      details.appendChild(el("summary", "", "Nearest historical behavior"));
+      details.appendChild(el("p", "section-note",
+        "Similarity and substantive output do not establish correctness."));
+      candidate.evidence.forEach((item) => {
+        const card = el("article", "history-card");
+        card.appendChild(el("div", "history-meta",
+          "E5 cosine similarity " + formatMetric(item.similarity) +
+          " · Historical query " + item.source_query_id + " · " + item.behavior));
+        card.appendChild(el("p", "history-question", item.question));
+        card.appendChild(el("p", "history-response", item.response));
+        details.appendChild(card);
+      });
+      return details;
+    }
+
+    function renderResultHeaders(query) {
+      const header = byId("resultsHead");
+      header.replaceChildren();
+      header.appendChild(el("th", "", query.grounded ? "Final rank" : "Rank"));
+      header.appendChild(el("th", "", "Candidate"));
+      if (query.grounded) {
+        rankColumns.forEach(([_key, label]) =>
+          header.appendChild(el("th", "", label)));
+        header.appendChild(el("th", "", "Best-record E5 cosine similarity"));
+        header.appendChild(el("th", "", "Mean top-10 E5 cosine similarity"));
+      }
+      header.appendChild(el("th", "", "System score"));
+    }
+
+    function appendGroundedCells(row, groundedCandidate) {
+      rankColumns.forEach(([key]) =>
+        row.appendChild(el("td", "score", groundedCandidate.ranks[key])));
+      row.appendChild(el("td", "score", formatMetric(groundedCandidate.best_record_cosine)));
+      row.appendChild(el("td", "score", formatMetric(groundedCandidate.mean_top_10_cosine)));
+    }
+
     function renderResults() {
       const query = activeQuery();
       if (!query) return;
-      byId("resultLimit").textContent = "Showing up to " + number(data.meta.candidate_limit) + " candidates for this query.";
+      byId("resultsGrid").classList.toggle("grounded", Boolean(query.grounded));
+      byId("resultLimit").textContent = query.grounded
+        ? "Showing final top " + number(data.meta.candidate_limit) + " plus development-positive candidates in frozen order."
+        : "Showing up to " + number(data.meta.candidate_limit) + " candidates for this query.";
       byId("activeQueryId").textContent = query.id;
       byId("queryHeading").textContent = query.text;
       const evaluationBox = byId("queryEvaluation");
@@ -1373,10 +1763,16 @@ HTML_TEMPLATE = r'''<!doctype html>
         evaluationBox.appendChild(el("span", "evaluation-pill", "First relevant rank " + (query.evaluation.first_relevant_rank ?? "none")));
         evaluationBox.appendChild(el("span", "evaluation-pill", query.evaluation.relevant_in_top_10 + " of " + query.evaluation.relevant_total + " relevant candidates in top 10"));
       }
+      const groundedSummary = byId("groundedSummary");
+      groundedSummary.replaceChildren();
+      groundedSummary.hidden = !query.grounded;
+      if (query.grounded) groundedSummary.appendChild(renderBestPositiveSummary(query));
       if (!state.candidateId && query.results[0]) state.candidateId = query.results[0].candidate_id;
+      renderResultHeaders(query);
       const body = byId("resultsBody");
       body.replaceChildren();
       query.results.forEach((result) => {
+        const groundedCandidate = query.grounded?.candidates[result.candidate_id] || null;
         const row = el("tr", result.candidate_id === state.candidateId ? "selected" : "");
         row.appendChild(el("td", "score", result.rank));
         const candidateCell = el("td");
@@ -1395,15 +1791,27 @@ HTML_TEMPLATE = r'''<!doctype html>
         button.addEventListener("click", () => {
           state.candidateId = result.candidate_id;
           renderResults();
+          document.querySelector(
+            '#resultsBody .candidate-button[aria-pressed="true"]'
+          )?.focus();
           renderCandidate();
         });
         candidateCell.appendChild(button);
         row.appendChild(candidateCell);
+        if (groundedCandidate) appendGroundedCells(row, groundedCandidate);
         const scoreCell = el("td", "score", formatScore(result.score_text));
         scoreCell.title = "Exact system score: " + result.score_text;
         scoreCell.setAttribute("aria-label", "Exact system score " + result.score_text);
         row.appendChild(scoreCell);
         body.appendChild(row);
+        if (groundedCandidate && groundedCandidate.evidence.length) {
+          const evidenceRow = el("tr", "evidence-row");
+          const evidenceCell = el("td");
+          evidenceCell.colSpan = row.childElementCount;
+          evidenceCell.appendChild(renderGroundedEvidence(groundedCandidate));
+          evidenceRow.appendChild(evidenceCell);
+          body.appendChild(evidenceRow);
+        }
       });
       const oracle = byId("oracleReference");
       oracle.replaceChildren();
@@ -1464,15 +1872,18 @@ HTML_TEMPLATE = r'''<!doctype html>
 
       const responseList = byId("responseList");
       responseList.replaceChildren();
-      const responses = (((data.responses || {})[query.id] || {})[result.candidate_id] || []);
-      responses.forEach((item) => {
-        const card = el("article", "history-card");
-        card.appendChild(el("p", "history-question", item.source_query));
-        card.appendChild(el("p", "history-response", item.response));
-        card.appendChild(el("div", "history-meta", "Historical query " + item.source_query_id + " · lexical overlap " + percent(item.similarity)));
-        responseList.appendChild(card);
-      });
-      if (!responses.length) responseList.appendChild(el("div", "empty", "No usable related response was embedded for this candidate."));
+      byId("responseSection").hidden = Boolean(query.grounded);
+      if (!query.grounded) {
+        const responses = (((data.responses || {})[query.id] || {})[result.candidate_id] || []);
+        responses.forEach((item) => {
+          const card = el("article", "history-card");
+          card.appendChild(el("p", "history-question", item.source_query));
+          card.appendChild(el("p", "history-response", item.response));
+          card.appendChild(el("div", "history-meta", "Historical query " + item.source_query_id + " · lexical overlap " + percent(item.similarity)));
+          responseList.appendChild(card);
+        });
+        if (!responses.length) responseList.appendChild(el("div", "empty", "No usable related response was embedded for this candidate."));
+      }
 
       byId("candidateWarnings").replaceChildren();
       const warnings = profile && Array.isArray(profile.warnings) ? profile.warnings : [];
@@ -1481,22 +1892,24 @@ HTML_TEMPLATE = r'''<!doctype html>
     }
 
     function renderAll() {
-      renderQueryList();
+      const queries = visibleQueries();
+      synchronizeSelection(queries);
+      renderQueryList(queries);
+      if (!queries.length) {
+        renderEmptyMain();
+        return;
+      }
+      showMain();
       renderResults();
       renderCandidate();
     }
 
     byId("querySearch").addEventListener("input", (event) => {
       state.search = event.target.value;
-      renderQueryList();
+      renderAll();
     });
     byId("evaluationFilter").addEventListener("change", (event) => {
       state.evaluationFilter = event.target.value;
-      const first = visibleQueries()[0];
-      if (first) {
-        state.queryId = first.id;
-        state.candidateId = first.results[0] ? first.results[0].candidate_id : null;
-      }
       renderAll();
     });
     byId("queryToggle").addEventListener("click", () => {
@@ -1504,6 +1917,7 @@ HTML_TEMPLATE = r'''<!doctype html>
     });
     mobileQueryLayout.addEventListener("change", () => setQueryPanelCollapsed(mobileQueryLayout.matches));
     byId("evaluationControl").hidden = !data.meta.labels_included;
+    configureEvaluationFilters();
     byId("evaluationFilter").value = state.evaluationFilter;
     const initialQuery = activeQuery();
     if (initialQuery && initialQuery.results[0]) state.candidateId = initialQuery.results[0].candidate_id;
@@ -1601,8 +2015,20 @@ def main() -> int:
             score_column=args.score_column,
         )
     grouped, warnings = validate_and_group_rows(
-        rows, top_candidates=args.top_candidates
+        rows,
+        top_candidates=args.top_candidates,
+        retain_all=True,
     )
+    evidence_path = resolve_path(args.evidence_bundle, root)
+    evidence_bundle = (
+        load_evidence_bundle(evidence_path, grouped)
+        if evidence_path is not None
+        else None
+    )
+    if evidence_bundle is not None and args.discovery is not None:
+        raise ExplorerInputError(
+            "--discovery cannot be combined with --evidence-bundle"
+        )
 
     qrels_path = infer_qrels_path(
         root,
@@ -1615,6 +2041,10 @@ def main() -> int:
         qrels = load_qrels(qrels_path)
         evaluation = build_evaluation(rows, qrels)
         attach_qrel_labels(grouped, qrels)
+    else:
+        qrels = {}
+    if evidence_bundle is not None and qrels_path is None:
+        raise ExplorerInputError("evidence bundle requires complete qrels")
 
     query_path = infer_query_path(root, run_dir, args.queries)
     queries, query_order = load_queries(query_path)
@@ -1628,6 +2058,26 @@ def main() -> int:
     selected_query_texts = {
         query_id: queries[query_id] for query_id in grouped
     }
+    if evidence_bundle is not None:
+        if evaluation is None:
+            raise ExplorerInputError(
+                "evidence bundle requires complete qrels"
+            )
+        grouped = validate_grounded_contract(
+            evidence_bundle,
+            grouped=grouped,
+            qrels=qrels,
+            queries=queries,
+            top_candidates=args.top_candidates,
+            evaluation=evaluation,
+        )
+    else:
+        grouped = {
+            query_id: select_display_rows(
+                values, top_candidates=args.top_candidates
+            )
+            for query_id, values in grouped.items()
+        }
 
     profile_path = resolve_path(args.profiles, root)
     if args.profiles is not None and (profile_path is None or not profile_path.is_file()):
@@ -1640,7 +2090,7 @@ def main() -> int:
     related_responses: dict[str, dict[str, list[dict[str, Any]]]] = {}
     source_count = 0
     discovery_path: Path | None = None
-    if not args.no_responses:
+    if not args.no_responses and evidence_bundle is None:
         discovery_path = resolve_path(args.discovery, root)
         if args.discovery is not None and (
             discovery_path is None or not discovery_path.is_file()
@@ -1686,11 +2136,19 @@ def main() -> int:
         warnings=warnings,
         candidate_limit=args.top_candidates,
         evaluation=evaluation,
+        evidence_bundle=evidence_bundle,
     )
     output_path = resolve_path(args.output, root) or run_dir / "query_explorer.html"
     validate_output_path(
         output_path,
-        input_paths=(input_path, query_path, qrels_path, profile_path, discovery_path),
+        input_paths=(
+            input_path,
+            query_path,
+            qrels_path,
+            profile_path,
+            discovery_path,
+            evidence_path,
+        ),
     )
     write_html_atomically(output_path, render_html(payload))
 

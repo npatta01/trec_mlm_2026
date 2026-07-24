@@ -63,3 +63,54 @@ render, Ruff, whitespace validation, and explicit canonical invariant checks.
 - The lowercase slug grammar is deliberately narrower than the ledger
   `system_id` grammar. Existing canonical hub records all conform; ledger run
   IDs retain their separate portable filename-component grammar.
+
+## Follow-up: approach and dataset reciprocity
+
+A whole-feature re-review found that reciprocity stopped at question-study
+links even though approaches and datasets also declare `study_ids`.
+
+### Design and canonical corrections
+
+- Generalized reciprocal-pair validation and applied it to question-study,
+  approach-study, and dataset-study relationships. Missing links on either side
+  now report the exact pair and field.
+- Treated study `approach_ids` and `dataset_ids` as the controlling existing
+  evidence. The audit found 21 study-to-approach pairs versus 20 reverse pairs,
+  and 62 study-to-dataset pairs versus no reverse pairs.
+- Added `label-ranker-pilots` to the `candidate-profiles` approach. No approach
+  pairs were removed or invented.
+- Populated all six dataset `study_ids` lists with the exact sorted reverse of
+  canonical study metadata. This changes relationship navigation only; it does
+  not add datasets, studies, results, or evidence claims.
+- Regenerated both catalog copies. Approach and dataset `related_ids` now expose
+  the same canonical study relationships used by validation and study records.
+
+### TDD evidence
+
+Four focused tests were written first and observed failing because validation
+accepted each one-sided approach-study or dataset-study relation. After the
+generic reciprocity check was implemented, all four passed together with the
+existing question-study reciprocity tests.
+
+Final verification for the integrated follow-up:
+
+```text
+uv run --extra dev pytest tests/research_hub -q
+137 passed
+```
+
+The handoff also records fresh generator build/check, Quarto render, Ruff,
+whitespace, clean-worktree, and exact pair-set invariant results.
+
+### Commit
+
+- Subject: `fix: enforce reciprocal study metadata`
+- Scope: reciprocal validation and tests, one approach record, six dataset
+  records, the two generated catalogs, and this appended report.
+- The commit hash is reported in the parent-agent handoff.
+
+### Follow-up concerns
+
+- Dataset reverse lists are intentionally high fan-out because shared
+  development inputs and run evidence support many studies. Contributors must
+  update both sides atomically; validation now prevents partial updates.

@@ -162,6 +162,31 @@ def _unknown_ids(values: Sequence[str], known_ids: set[str]) -> set[str]:
     return set(values) - known_ids
 
 
+def _require_reciprocal_relationships(
+    relationship: str,
+    left_records: Sequence[HubRecord],
+    left_field: str,
+    right_records: Sequence[HubRecord],
+    right_field: str,
+) -> None:
+    left_links = {
+        (record.record_id, target_id)
+        for record in left_records
+        for target_id in require_string_list(record, left_field)
+    }
+    right_links = {
+        (source_id, record.record_id)
+        for record in right_records
+        for source_id in require_string_list(record, right_field)
+    }
+    if left_links != right_links:
+        raise ValueError(
+            f"{relationship} relationships must be reciprocal; "
+            f"missing from {left_field}: {sorted(right_links - left_links)}; "
+            f"missing from {right_field}: {sorted(left_links - right_links)}"
+        )
+
+
 def validate_question(root: Path, record: HubRecord) -> None:
     require_string(record, "primary_theme_id")
     require_string_list(record, "theme_ids")
@@ -374,24 +399,13 @@ def _validate_relationships(
         _require_known_ids(record, "dataset_ids", dataset_ids)
         _require_known_ids(record, "supersedes", study_ids)
         _require_known_ids(record, "superseded_by", study_ids)
-    question_study_links = {
-        (record.record_id, study_id)
-        for record in sources.questions
-        for study_id in require_string_list(record, "study_ids")
-    }
-    study_question_links = {
-        (question_id, record.record_id)
-        for record in sources.studies
-        for question_id in require_string_list(record, "question_ids")
-    }
-    if question_study_links != study_question_links:
-        missing_from_questions = sorted(study_question_links - question_study_links)
-        missing_from_studies = sorted(question_study_links - study_question_links)
-        raise ValueError(
-            "question-study relationships must be reciprocal; "
-            f"missing from question study_ids: {missing_from_questions}; "
-            f"missing from study question_ids: {missing_from_studies}"
-        )
+    _require_reciprocal_relationships(
+        "question-study",
+        sources.questions,
+        "study_ids",
+        sources.studies,
+        "question_ids",
+    )
     for record in sources.tests:
         _require_known_ids(record, "linked_question_ids", question_ids)
         if record.metadata.get("stage") == "completed":
@@ -405,6 +419,20 @@ def _validate_relationships(
         _require_known_ids(record, "study_ids", study_ids)
     for record in sources.datasets:
         _require_known_ids(record, "study_ids", study_ids)
+    _require_reciprocal_relationships(
+        "approach-study",
+        sources.approaches,
+        "study_ids",
+        sources.studies,
+        "approach_ids",
+    )
+    _require_reciprocal_relationships(
+        "dataset-study",
+        sources.datasets,
+        "study_ids",
+        sources.studies,
+        "dataset_ids",
+    )
     for record in sources.background:
         _require_known_ids(record, "question_ids", question_ids)
     linked_system_ids = {

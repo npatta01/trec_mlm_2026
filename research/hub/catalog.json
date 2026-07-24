@@ -8,6 +8,7 @@
         "candidate-evidence",
         "candidate-label-matching",
         "failure-conditions",
+        "label-ranker-pilots",
         "multiresolution-profiles",
         "semantic-profiles"
       ],
@@ -217,7 +218,20 @@
     {
       "canonical_path": "research/hub/data/candidate-inventory.qmd",
       "id": "candidate-inventory",
-      "related_ids": [],
+      "related_ids": [
+        "behavior-profile",
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
       "rendered_path": "data/candidate-inventory.html",
       "summary": "The identifiers of the 150 LLMs that each query must rank.",
       "tags": [
@@ -231,7 +245,19 @@
     {
       "canonical_path": "research/hub/data/dev-qrels.qmd",
       "id": "dev-qrels",
-      "related_ids": [],
+      "related_ids": [
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
       "rendered_path": "data/dev-qrels.html",
       "summary": "Organizer labels indicating which candidate models suited each development request.",
       "tags": [
@@ -245,7 +271,19 @@
     {
       "canonical_path": "research/hub/data/dev-queries.qmd",
       "id": "dev-queries",
-      "related_ids": [],
+      "related_ids": [
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
       "rendered_path": "data/dev-queries.html",
       "summary": "Historical user requests used for development.",
       "tags": [
@@ -259,7 +297,16 @@
     {
       "canonical_path": "research/hub/data/discovery-responses.qmd",
       "id": "discovery-responses",
-      "related_ids": [],
+      "related_ids": [
+        "behavior-profile",
+        "e5-raw-response-refinement",
+        "four-model-reference-review",
+        "gemini-grounding-failure-review",
+        "grounded-data-quality-audit",
+        "response-retrieval",
+        "response-volume-normalization",
+        "source-query-first"
+      ],
       "rendered_path": "data/discovery-responses.html",
       "summary": "Collected model responses used as candidate-side evidence in bounded studies.",
       "tags": [
@@ -273,7 +320,15 @@
     {
       "canonical_path": "research/hub/data/generated-embeddings.qmd",
       "id": "generated-embeddings",
-      "related_ids": [],
+      "related_ids": [
+        "behavior-profile",
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "semantic-profiles"
+      ],
       "rendered_path": "data/generated-embeddings.html",
       "summary": "Machine-generated vectors and summaries used to compare queries or describe candidates.",
       "tags": [
@@ -287,7 +342,21 @@
     {
       "canonical_path": "research/hub/data/run-artifacts.qmd",
       "id": "run-artifacts",
-      "related_ids": [],
+      "related_ids": [
+        "behavior-profile",
+        "candidate-label-matching",
+        "dense-query-knn",
+        "four-model-reference-review",
+        "gemini-grounding-failure-review",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
       "rendered_path": "data/run-artifacts.html",
       "summary": "Rankings, metrics, per-query tables, and receipts supporting technical runs.",
       "tags": [

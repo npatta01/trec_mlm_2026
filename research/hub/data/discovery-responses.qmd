@@ -11,7 +11,7 @@ repository_path: data/llm_discovery/manifest.json
 sensitivity: restricted
 leakage_constraints: "Do not copy private raw responses into reports or use development qrels to generate them."
 permitted_use: "bounded candidate evidence construction and audit"
-study_ids: []
+study_ids: [behavior-profile, e5-raw-response-refinement, four-model-reference-review, gemini-grounding-failure-review, grounded-data-quality-audit, response-retrieval, response-volume-normalization, source-query-first]
 availability: "metadata tracked; raw content may be local-only"
 reproducibility: "Manifest-backed where source artifacts remain available."
 representative_sample: "No raw response sample is included."

@@ -330,6 +330,86 @@ def test_validation_rejects_question_missing_from_linked_study(
         )
 
 
+def test_validation_rejects_study_missing_from_linked_approach(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    approach = minimal_sources.approaches[0]
+    approach = replace(
+        approach,
+        metadata={**approach.metadata, "study_ids": []},
+    )
+
+    with pytest.raises(ValueError, match="approach-study relationships.*dense-baseline"):
+        validate_hub_sources(
+            replace(minimal_sources, approaches=(approach,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_rejects_approach_missing_from_linked_study(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    study = minimal_sources.studies[0]
+    study = replace(
+        study,
+        metadata={**study.metadata, "approach_ids": []},
+    )
+
+    with pytest.raises(
+        ValueError, match="approach-study relationships.*dense-retrieval"
+    ):
+        validate_hub_sources(
+            replace(minimal_sources, studies=(study,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_rejects_study_missing_from_linked_dataset(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    dataset = minimal_sources.datasets[0]
+    dataset = replace(
+        dataset,
+        metadata={**dataset.metadata, "study_ids": []},
+    )
+
+    with pytest.raises(ValueError, match="dataset-study relationships.*dense-baseline"):
+        validate_hub_sources(
+            replace(minimal_sources, datasets=(dataset,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_rejects_dataset_missing_from_linked_study(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    study = minimal_sources.studies[0]
+    study = replace(
+        study,
+        metadata={**study.metadata, "dataset_ids": []},
+    )
+
+    with pytest.raises(
+        ValueError, match="dataset-study relationships.*development-set"
+    ):
+        validate_hub_sources(
+            replace(minimal_sources, studies=(study,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
 def test_validation_requires_reconstructed_rationale_evidence(
     minimal_sources: HubSources,
     ledger_build: LedgerBuild,

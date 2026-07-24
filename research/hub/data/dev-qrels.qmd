@@ -11,7 +11,7 @@ repository_path: data/dev/llm_dev_qrels.txt
 sensitivity: project_internal
 leakage_constraints: "Development evaluation only; never use a held-out query's qrels to construct its ranking."
 permitted_use: development_evaluation
-study_ids: []
+study_ids: [candidate-label-matching, dense-query-knn, e5-raw-response-refinement, label-ranker-pilots, multiresolution-profiles, query-cluster-aggregation, query-controls, response-retrieval, response-volume-normalization, semantic-profiles, source-query-first]
 availability: tracked_complete
 reproducibility: "Verified by data/dev/file_manifest.tsv."
 tags: [qrels, development, provided]

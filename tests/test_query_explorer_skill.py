@@ -982,6 +982,30 @@ report.summaryPills = [...document.querySelectorAll("#summary .pill")]
             legacy_report,
         )
 
+    def test_grounded_default_prioritizes_top_1_failures_and_preserves_focus(
+        self,
+    ) -> None:
+        html = self.build_and_read_grounded_html()
+        report = self.execute_browser_probe(
+            html,
+            """
+report.initialFilter = document.getElementById("evaluationFilter").value;
+const buttons = [...document.querySelectorAll(".candidate-button")];
+const target = buttons[1];
+report.targetLabel = target.getAttribute("aria-label");
+target.focus();
+target.click();
+report.focusedLabel =
+  document.activeElement?.getAttribute("aria-label") || "";
+report.focusedPressed =
+  document.activeElement?.getAttribute("aria-pressed") || "";
+""",
+        )
+
+        self.assertEqual("top_1_failure", report["initialFilter"])
+        self.assertEqual(report["targetLabel"], report["focusedLabel"])
+        self.assertEqual("true", report["focusedPressed"])
+
     def test_no_bundle_preserves_existing_payload_shape(self) -> None:
         self.write_fixture()
         completed = self.run_builder(

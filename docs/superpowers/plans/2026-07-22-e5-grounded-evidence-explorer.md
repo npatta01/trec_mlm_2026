@@ -8,6 +8,14 @@
 
 **Tech Stack:** Python 3.11+, NumPy, stdlib JSON/HTML/JavaScript, pytest, Ruff, static tailnet-only Tailscale Serve.
 
+Portable command examples use:
+
+```bash
+TREC_SHARED_ROOT="${TREC_SHARED_ROOT:?set the shared-data root}"
+TREC_RENDER_ROOT="${TREC_RENDER_ROOT:?set the private rendered-artifact root}"
+E5_PRIVATE_OUTPUT_ROOT="${E5_PRIVATE_OUTPUT_ROOT:?set a private output root outside Git and the sealed parent artifacts}"
+```
+
 ## Global Constraints
 
 - Development qrels may annotate only already-frozen rankings; they must never affect candidate ordering, evidence selection, or similarity.
@@ -29,11 +37,11 @@
 - Create `tests/test_grounded_evidence_explorer.py`: focused unit fixtures for bundle semantics and all fail-closed conditions.
 - Modify `.agents/skills/inspect-query-results/scripts/build_query_explorer.py`: optional evidence-bundle loading, top-20-plus-positive union, bundle merge, and accessible UI rendering.
 - Modify `tests/test_query_explorer_skill.py`: generic compatibility, bundle integration, escaping, UI labels, and atomic-failure coverage.
-- Create `scripts/build_e5_grounded_evidence_explorer.py`: one reproducible CLI that builds the private bundle and invokes the generic renderer atomically.
+- Create `scripts/build_e5_grounded_evidence_explorer.py`: one reproducible CLI that builds the private bundle and invokes the generic renderer with rollback on handled failures.
 - Create `tests/test_build_e5_grounded_evidence_explorer.py`: CLI orchestration and redaction/logging assertions.
 - Modify `reports/trec_2026_e5_raw_response_failure_ledger.md`: replace the old “raw responses excluded” statement with the verified private explorer description.
-- Modify `/home/npatta01/codex-rendered/index.html`: update only the existing E5 explorer entry after the final artifact passes local verification.
-- Replace `/home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html`: sanitized derived artifact containing the approved evidence subset.
+- Modify `$TREC_RENDER_ROOT/index.html`: update only the existing E5 explorer entry after the final artifact passes local verification.
+- Replace `$TREC_RENDER_ROOT/plans/e5-raw-response-failure-explorer.html`: sanitized derived artifact containing the approved evidence subset.
 
 ---
 
@@ -639,7 +647,7 @@ git commit -m "feat: render grounded ranking diagnostics"
 
 ---
 
-### Task 5: Add the task-specific atomic build command
+### Task 5: Add the task-specific rollback-safe build command
 
 **Files:**
 - Create: `scripts/build_e5_grounded_evidence_explorer.py`
@@ -747,9 +755,9 @@ git commit -m "feat: build private E5 evidence explorer"
 
 **Files:**
 - Modify: `reports/trec_2026_e5_raw_response_failure_ledger.md`
-- Modify: `/home/npatta01/codex-rendered/index.html`
-- Replace: `/home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html`
-- Create outside Git: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/explorer/evidence_bundle.json`
+- Modify: `$TREC_RENDER_ROOT/index.html`
+- Replace: `$TREC_RENDER_ROOT/plans/e5-raw-response-failure-explorer.html`
+- Create outside Git and the sealed parent artifacts: `$E5_PRIVATE_OUTPUT_ROOT/evidence_bundle.json`
 
 **Interfaces:**
 - Consumes: all code and tests from Tasks 1–5 plus the sealed official artifacts.
@@ -788,14 +796,14 @@ Expected: `All checks passed!`
 
 ```bash
 uv run python scripts/build_e5_grounded_evidence_explorer.py \
-  --refinement /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1 \
-  --construction /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction \
-  --evaluation /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/evaluation.json \
+  --refinement "$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1" \
+  --construction "$TREC_SHARED_ROOT/e5_raw_response_refinement/construction" \
+  --evaluation "$TREC_SHARED_ROOT/e5_raw_response_refinement/evaluation/evaluation.json" \
   --queries data/dev/llm_dev_data.tsv \
   --qrels data/dev/llm_dev_qrels.txt \
   --profiles reports/trec_2026_llm_profiles.json \
-  --bundle-output /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/explorer/evidence_bundle.candidate.json \
-  --html-output /home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.candidate.html
+  --bundle-output "$E5_PRIVATE_OUTPUT_ROOT/evidence_bundle.candidate.json" \
+  --html-output "$TREC_RENDER_ROOT/plans/e5-raw-response-failure-explorer.candidate.html"
 ```
 
 Expected: JSON summary reports `query_count: 322` and `evidence_per_candidate: 3` without printing raw questions or answers.
@@ -804,10 +812,10 @@ Expected: JSON summary reports `query_count: 322` and `evidence_per_candidate: 3
 
 ```bash
 uv run python - <<'PY'
-import json, re
+import json, os, re
 from pathlib import Path
 
-path = Path('/home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.candidate.html')
+path = Path(os.environ["TREC_RENDER_ROOT"]) / "plans/e5-raw-response-failure-explorer.candidate.html"
 html = path.read_text(encoding='utf-8')
 match = re.search(r'<script id="explorerData" type="application/json">(.*?)</script>', html, re.S)
 assert match
@@ -844,18 +852,20 @@ Expected: assertions pass and only aggregate query/byte counts print.
 
 ```bash
 uv run python scripts/build_e5_grounded_evidence_explorer.py \
-  --refinement /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1 \
-  --construction /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/construction \
-  --evaluation /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/evaluation.json \
+  --refinement "$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1" \
+  --construction "$TREC_SHARED_ROOT/e5_raw_response_refinement/construction" \
+  --evaluation "$TREC_SHARED_ROOT/e5_raw_response_refinement/evaluation/evaluation.json" \
   --queries data/dev/llm_dev_data.tsv \
   --qrels data/dev/llm_dev_qrels.txt \
   --profiles reports/trec_2026_llm_profiles.json \
-  --bundle-output /home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/explorer/evidence_bundle.json \
-  --html-output /home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html
+  --bundle-output "$E5_PRIVATE_OUTPUT_ROOT/evidence_bundle.json" \
+  --html-output "$TREC_RENDER_ROOT/plans/e5-raw-response-failure-explorer.html"
 ```
 
 Expected: the CLI stages and validates both artifacts, then promotes the stable
-pair together. A failure leaves both prior stable paths byte-for-byte unchanged.
+pair with rollback on handled exceptions. A handled failure leaves both prior
+stable paths byte-for-byte unchanged; process termination between replacements
+is not crash-atomic and requires the documented rollback files.
 Remove the `.candidate` files only after the stable outputs pass the same
 artifact audit.
 
@@ -870,7 +880,7 @@ final top-ten or positive candidate. Historical answers are embedded in the
 private HTML; similarity and substantive output do not establish correctness.
 ```
 
-The `/home/npatta01/codex-rendered/index.html` entry must say: `Private: embeds selected full historical answers; tailnet access only.`
+The `$TREC_RENDER_ROOT/index.html` entry must say: `Private: embeds selected full historical answers; tailnet access only.`
 
 - [ ] **Step 6: Verify the live HTTPS artifact and tailnet-only mapping**
 

@@ -109,7 +109,9 @@ large.
 
 ### Query list and filters
 
-Keep weakest-first navigation and add filters for:
+Default to the combined top-1-failure view: every query whose frozen final
+ranking does not place a development-positive candidate at rank 1 is a primary
+failure. Keep weakest/strongest metric ordering available and add filters for:
 
 - zero fused nDCG@10;
 - persistent all-system zero;
@@ -118,9 +120,10 @@ Keep weakest-first navigation and add filters for:
 - rescued prior zero; and
 - possible missing-context wording.
 
-The query list also filters the independent retrieval outcome: `top-1 success`,
-`top-10 but not top-1`, or `no relevant candidate in top 10`. The latter two
-remain failures even when a positive candidate is in the final fused top ten.
+The query list also filters the independent retrieval outcome: combined
+`top-1 failures`, `top-1 success`, `top-10 but not top-1`, or `no relevant
+candidate in top 10`. The latter two are secondary partitions of the combined
+failure view.
 
 The missing-context flag is a deterministic surface heuristic for pronouns or
 deictic wording without an explicit antecedent. It must be labeled `context-risk
@@ -212,8 +215,13 @@ Focused fixture tests must cover:
 - preservation of frozen candidate ordering;
 - refusal, empty, and substantive behavior tags;
 - rejection of false derivable semantics and out-of-range metrics;
-- both-output failure atomicity; and
+- both-output rollback on handled failures; and
 - unchanged generic explorer behavior without an evidence bundle.
+
+The two stable files are promoted sequentially with rollback for handled
+exceptions. This is not crash-atomic: process termination or power loss between
+the two replacements can leave a torn pair. Operators should retain the
+sibling rollback files until the post-publication audit succeeds.
 
 Full verification must additionally confirm:
 

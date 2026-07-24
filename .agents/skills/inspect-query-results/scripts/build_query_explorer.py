@@ -1492,11 +1492,18 @@ HTML_TEMPLATE = r'''<!doctype html>
     const weakestQuery = data.meta.labels_included
       ? [...data.queries].filter((query) => query.evaluation).sort((left, right) => left.evaluation.ndcg_at_10 - right.evaluation.ndcg_at_10)[0]
       : null;
+    const firstTop1Failure = groundedMode
+      ? data.queries.find((query) => query.grounded?.retrieval_outcome !== "top-1 success")
+      : null;
     const state = {
-      queryId: weakestQuery ? weakestQuery.id : (data.queries[0] ? data.queries[0].id : null),
+      queryId: firstTop1Failure
+        ? firstTop1Failure.id
+        : (weakestQuery ? weakestQuery.id : (data.queries[0] ? data.queries[0].id : null)),
       candidateId: null,
       search: "",
-      evaluationFilter: data.meta.labels_included ? "weakest" : "source"
+      evaluationFilter: groundedMode
+        ? "top_1_failure"
+        : (data.meta.labels_included ? "weakest" : "source")
     };
     const byId = (id) => document.getElementById(id);
     const el = (tag, className, text) => {
@@ -1550,6 +1557,7 @@ HTML_TEMPLATE = r'''<!doctype html>
       if (!groundedMode) return;
       byId("evaluationLabel").textContent = "Grounded diagnostic filter";
       const groundedFilters = [
+        ["top_1_failure", "Top-1 failures"],
         ["top_1_success", "Top-1 success"],
         ["top_10_miss", "Top-10 but not top-1"],
         ["top_10_absent", "No relevant candidate in top 10"],
@@ -1583,6 +1591,7 @@ HTML_TEMPLATE = r'''<!doctype html>
       if (state.evaluationFilter === "new_zero_regression") return tags.has("new zero regression");
       if (state.evaluationFilter === "rescued") return tags.has("rescued prior zero");
       if (state.evaluationFilter === "context_risk") return query.grounded.context_risk === true;
+      if (state.evaluationFilter === "top_1_failure") return query.grounded.retrieval_outcome !== "top-1 success";
       if (state.evaluationFilter === "top_1_success") return query.grounded.retrieval_outcome === "top-1 success";
       if (state.evaluationFilter === "top_10_miss") return query.grounded.retrieval_outcome === "top-10 but not top-1";
       if (state.evaluationFilter === "top_10_absent") return query.grounded.retrieval_outcome === "no relevant candidate in top 10";
@@ -1782,6 +1791,9 @@ HTML_TEMPLATE = r'''<!doctype html>
         button.addEventListener("click", () => {
           state.candidateId = result.candidate_id;
           renderResults();
+          document.querySelector(
+            '#resultsBody .candidate-button[aria-pressed="true"]'
+          )?.focus();
           renderCandidate();
         });
         candidateCell.appendChild(button);

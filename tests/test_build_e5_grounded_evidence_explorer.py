@@ -562,6 +562,11 @@ def test_cli_builds_bundle_and_html_without_printing_raw_text(
     assert json.loads(bundle.read_text(encoding="utf-8"))["meta"]["query_count"] == 2
     assert '"candidate_limit":20' in html.read_text(encoding="utf-8")
 
+    repeated = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert repeated.returncode == 0, repeated.stderr
+    assert json.loads(bundle.read_text(encoding="utf-8"))["meta"]["query_count"] == 2
+
 
 def test_cli_validation_failure_preserves_prior_outputs(
     e5_fixture: E5Fixture, tmp_path: Path
@@ -709,7 +714,7 @@ def test_cli_rejects_html_output_symlink_before_writing_bundle(
     assert not bundle.exists()
 
 
-def test_cli_allows_private_bundle_beneath_refinement_root(
+def test_cli_rejects_output_beneath_sealed_refinement_root(
     e5_fixture: E5Fixture, tmp_path: Path
 ) -> None:
     bundle = e5_fixture["refinement"] / "explorer" / "evidence.json"
@@ -717,9 +722,40 @@ def test_cli_allows_private_bundle_beneath_refinement_root(
 
     completed = run_cli(e5_fixture, bundle=bundle, html=html)
 
-    assert completed.returncode == 0, completed.stderr
-    assert bundle.is_file()
-    assert html.is_file()
+    assert completed.returncode == 2
+    assert "error: output path must be outside sealed artifact roots" in completed.stderr
+    assert not bundle.exists()
+    assert not html.exists()
+
+
+def test_cli_cannot_replace_sealed_refinement_manifest(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    bundle = e5_fixture["refinement"] / "manifest.json"
+    manifest_before = bundle.read_bytes()
+    html = tmp_path / "explorer.html"
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: output path must be outside sealed artifact roots" in completed.stderr
+    assert bundle.read_bytes() == manifest_before
+    assert not html.exists()
+
+
+def test_cli_rejects_private_output_inside_git_worktree(
+    e5_fixture: E5Fixture, tmp_path: Path
+) -> None:
+    bundle = ROOT / "reports" / ".e5-private-output-must-not-exist.json"
+    html = tmp_path / "explorer.html"
+    assert not bundle.exists()
+
+    completed = run_cli(e5_fixture, bundle=bundle, html=html)
+
+    assert completed.returncode == 2
+    assert "error: private outputs must be outside the Git worktree" in completed.stderr
+    assert not bundle.exists()
+    assert not html.exists()
 
 
 def test_cli_rejects_canonical_html_alias_to_run_validation_before_bundle_write(

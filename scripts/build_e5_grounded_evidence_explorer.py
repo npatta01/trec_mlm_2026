@@ -326,6 +326,29 @@ def _validate_output_aliases(
         raise E5ExplorerBuildError("output path aliases a source input")
 
 
+def _validate_output_locations(
+    *,
+    bundle: Path,
+    html: Path,
+    refinement: Path,
+    construction: Path,
+) -> None:
+    outputs = (bundle, html)
+    sealed_roots = (refinement, construction)
+    if any(
+        output == root or root in output.parents
+        for output in outputs
+        for root in sealed_roots
+    ):
+        raise E5ExplorerBuildError(
+            "output path must be outside sealed artifact roots"
+        )
+    if any(output == REPO_ROOT or REPO_ROOT in output.parents for output in outputs):
+        raise E5ExplorerBuildError(
+            "private outputs must be outside the Git worktree"
+        )
+
+
 def main() -> int:
     args = parse_args()
     requested_bundle = args.bundle_output
@@ -354,6 +377,12 @@ def main() -> int:
         bundle=bundle_output,
         html=html_output,
         sources=sources,
+    )
+    _validate_output_locations(
+        bundle=bundle_output,
+        html=html_output,
+        refinement=refinement,
+        construction=construction,
     )
     _validate_html_destination(html_output)
 

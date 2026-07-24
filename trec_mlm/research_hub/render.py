@@ -7,6 +7,7 @@ from datetime import date
 import html
 import json
 from pathlib import Path
+import re
 import tempfile
 
 from trec_mlm.experiment_ledger import SystemRecord
@@ -28,16 +29,88 @@ _STATIC_OUTPUT_PATHS = (
     Path("research/hub/generated/runs.qmd"),
     Path("research/hub/generated/summary.qmd"),
 )
-_RESTRICTED_SCOPES = frozenset(
-    {"restricted_12x20", "restricted_6", "invalid_unscored"}
-)
+_RESTRICTED_SCOPES = frozenset({"restricted_12x20", "restricted_6", "invalid_unscored"})
+_SAFE_SYSTEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*\Z")
 
 
-def _markdown_text(value: object) -> str:
-    """Render front-matter text safely inside a Markdown table cell."""
+def _yaml_scalar(value: object) -> str:
+    """Serialize a string as a quoted YAML-compatible scalar."""
+
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+def _markdown_table_text(value: object) -> str:
+    """Escape untrusted text for a Markdown table cell."""
 
     flattened = " ".join(str(value).split())
-    return html.escape(flattened, quote=False).replace("|", "\\|")
+    escaped = html.escape(flattened, quote=True)
+    return escaped.replace("\\", "\\\\").replace("`", "\\`").replace("|", "\\|")
+
+
+def _inline_code(value: object) -> str:
+    """Render text as a Markdown inline-code span with a safe delimiter."""
+
+    flattened = " ".join(str(value).split())
+    runs = [len(run) for run in re.findall(r"`+", flattened)]
+    delimiter = "`" * (max(runs, default=0) + 1)
+    return f"{delimiter}{flattened}{delimiter}"
+
+
+def _validate_system_id(system_id: str) -> str:
+    """Require a ledger ID that is exactly one portable filename component."""
+
+    if (
+        not isinstance(system_id, str)
+        or system_id in {".", ".."}
+        or not _SAFE_SYSTEM_ID.fullmatch(system_id)
+    ):
+        raise ValueError(
+            f"system_id must be one safe filename component: {system_id!r}"
+        )
+    return system_id
+
+
+def _validate_output_path(path: Path) -> Path:
+    """Require a normalized repository-relative output path."""
+
+    path = Path(path)
+    if (
+        path.is_absolute()
+        or not path.parts
+        or path == Path(".")
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or "\\" in path.as_posix()
+    ):
+        raise ValueError(f"output path must be normalized repository-relative: {path}")
+    return path
+
+
+def _confined_destination(root: Path, relative_path: Path) -> Path:
+    """Resolve a destination and reject symlink or lexical repository escapes."""
+
+    relative_path = _validate_output_path(relative_path)
+    destination = root / relative_path
+    try:
+        destination.resolve(strict=False).relative_to(root.resolve())
+    except ValueError as exc:
+        raise ValueError(
+            f"output path must remain repository-relative: {relative_path}"
+        ) from exc
+    return destination
+
+
+def _validated_output_mapping(
+    outputs: Mapping[Path, str],
+) -> dict[Path, str]:
+    validated: dict[Path, str] = {}
+    for raw_path, content in outputs.items():
+        path = _validate_output_path(raw_path)
+        if path in validated:
+            raise ValueError(f"duplicate normalized output path: {path}")
+        if not isinstance(content, str):
+            raise TypeError(f"output content must be text: {path}")
+        validated[path] = content
+    return validated
 
 
 def _metadata_list(record: HubRecord, field: str) -> tuple[str, ...]:
@@ -56,11 +129,7 @@ def _related_ids(record: HubRecord) -> list[str]:
         "dataset_ids",
     )
     return sorted(
-        {
-            value
-            for field in fields
-            for value in _metadata_list(record, field)
-        }
+        {value for field in fields for value in _metadata_list(record, field)}
     )
 
 
@@ -98,16 +167,17 @@ def render_catalog(build: HubBuild) -> str:
         for record in build.sources.all_records()
     ]
     for system in build.ledger.systems:
+        system_id = _validate_system_id(system.system_id)
         study_ids = sorted(
             study.record_id
             for study in build.sources.studies
-            if system.system_id in _metadata_list(study, "system_ids")
+            if system_id in _metadata_list(study, "system_ids")
         )
         resources.append(
             {
-                "id": system.system_id,
+                "id": system_id,
                 "type": "run",
-                "title": system.system_id,
+                "title": system_id,
                 "summary": system.method_summary,
                 "tags": sorted(
                     {
@@ -118,16 +188,19 @@ def render_catalog(build: HubBuild) -> str:
                     }
                 ),
                 "canonical_path": "experiments/ledger.json",
-                "rendered_path": f"generated/runs/{system.system_id}.html",
+                "rendered_path": f"generated/runs/{system_id}.html",
                 "related_ids": study_ids,
             }
         )
     resources.sort(key=lambda row: (row["type"], row["id"]))
-    return json.dumps(
-        {"version": 1, "resources": resources},
-        indent=2,
-        sort_keys=True,
-    ) + "\n"
+    return (
+        json.dumps(
+            {"version": 1, "resources": resources},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
 
 
 def _summary_current_position(build: HubBuild) -> list[str]:
@@ -137,25 +210,34 @@ def _summary_current_position(build: HubBuild) -> list[str]:
             study
             for study in build.sources.studies
             if study.metadata.get("decision") != "pending"
+            and not _metadata_list(study, "superseded_by")
         ),
-        key=lambda row: row.record_id,
-    )
+        key=lambda row: (
+            *_date_sort_value(row.metadata.get("concluded_on")),
+            row.record_id,
+        ),
+    )[:3]
     if not studies:
         return [*lines, "No decisions have been recorded yet."]
     for study in studies:
-        decision = _markdown_text(study.metadata.get("decision", "unknown"))
-        summary = _markdown_text(study.metadata.get("decision_summary", ""))
+        decision = _inline_code(study.metadata.get("decision", "unknown"))
+        summary = _markdown_table_text(study.metadata.get("decision_summary", ""))
         lines.append(
-            f"- **{_markdown_text(study.title)}** "
-            f"(`{_markdown_text(study.record_id)}`; `{decision}`): {summary}"
+            f"- **{_markdown_table_text(study.title)}** "
+            f"({_inline_code(study.record_id)}; {decision}): {summary}"
         )
     return lines
 
 
 def _ordered_questions(build: HubBuild) -> list[HubRecord]:
     return sorted(
-        build.sources.questions,
+        (
+            question
+            for question in build.sources.questions
+            if question.metadata.get("status") in {"open", "partially_answered"}
+        ),
         key=lambda row: (
+            *_date_sort_value(row.metadata.get("updated_on")),
             _QUESTION_STATUS_PRIORITY.get(
                 str(row.metadata.get("status")),
                 len(_QUESTION_STATUS_PRIORITY),
@@ -167,55 +249,76 @@ def _ordered_questions(build: HubBuild) -> list[HubRecord]:
 
 def _summary_open_questions(build: HubBuild) -> list[str]:
     lines = ["", "## Open questions", ""]
-    questions = _ordered_questions(build)
+    questions = _ordered_questions(build)[:3]
     if not questions:
         return [*lines, "No research questions have been recorded."]
     for question in questions:
-        status = _markdown_text(question.metadata.get("status", "unknown"))
-        answer = _markdown_text(question.metadata.get("current_answer", ""))
+        status = _inline_code(question.metadata.get("status", "unknown"))
+        confidence = _inline_code(question.metadata.get("confidence", "unknown"))
+        answer = _markdown_table_text(question.metadata.get("current_answer", ""))
+        boundary = _markdown_table_text(
+            question.metadata.get("confidence_boundary", "")
+        )
         lines.append(
-            f"- **{_markdown_text(question.title)}** "
-            f"(`{_markdown_text(question.record_id)}`; `{status}`): {answer}"
+            f"- **{_markdown_table_text(question.title)}** "
+            f"({_inline_code(question.record_id)}; {status}; confidence {confidence}): "
+            f"{answer} **Confidence boundary:** {boundary}"
         )
     return lines
 
 
 def _summary_next_tests(build: HubBuild) -> list[str]:
     lines = ["", "## Next tests", ""]
+    stage_priority = {"running": 0, "ready": 1, "idea": 2}
+    priority = {"high": 0, "medium": 1, "low": 2}
     tests = sorted(
         (
             test
             for test in build.sources.tests
-            if test.metadata.get("stage") not in {"completed", "parked"}
+            if test.metadata.get("stage") in stage_priority
         ),
         key=lambda row: (
-            0 if row.metadata.get("stage") == "running" else
-            1 if row.metadata.get("stage") == "ready" else
-            2,
+            priority.get(str(row.metadata.get("priority")), len(priority)),
+            stage_priority[str(row.metadata.get("stage"))],
             row.record_id,
         ),
-    )
+    )[:3]
     if not tests:
         return [*lines, "No active tests have been recorded."]
     for test in tests:
-        stage = _markdown_text(test.metadata.get("stage", "unknown"))
-        summary = _markdown_text(test.metadata.get("summary", ""))
+        stage = _inline_code(test.metadata.get("stage", "unknown"))
+        test_priority = _inline_code(test.metadata.get("priority", "unspecified"))
+        summary = _markdown_table_text(test.metadata.get("summary", ""))
         lines.append(
-            f"- **{_markdown_text(test.title)}** "
-            f"(`{_markdown_text(test.record_id)}`; `{stage}`): {summary}"
+            f"- **{_markdown_table_text(test.title)}** "
+            f"({_inline_code(test.record_id)}; {stage}; priority {test_priority}): "
+            f"{summary}"
         )
     return lines
 
 
-def _summary_navigation() -> list[str]:
+def _summary_navigation(*, generated_qmd: bool) -> list[str]:
+    if generated_qmd:
+        summary = "summary.qmd"
+        coverage = "coverage.qmd"
+        history = "history.qmd"
+        runs = "runs.qmd"
+        catalog = "../../catalog.json"
+    else:
+        summary = "../research/hub/generated/summary.qmd"
+        coverage = "../research/hub/generated/coverage.qmd"
+        history = "../research/hub/generated/history.qmd"
+        runs = "../research/hub/generated/runs.qmd"
+        catalog = "../research/catalog.json"
     return [
         "",
         "## Navigation",
         "",
-        "- [Research question coverage](research/hub/generated/coverage.qmd)",
-        "- [Decision history](research/hub/generated/history.qmd)",
-        "- [Experiment runs](research/hub/generated/runs.qmd)",
-        "- [Machine-readable catalog](research/catalog.json)",
+        f"- [Generated summary]({summary})",
+        f"- [Research question coverage]({coverage})",
+        f"- [Decision history]({history})",
+        f"- [Experiment runs]({runs})",
+        f"- [Machine-readable catalog]({catalog})",
     ]
 
 
@@ -226,7 +329,7 @@ def render_summary_markdown(build: HubBuild) -> str:
     lines.extend(_summary_current_position(build))
     lines.extend(_summary_open_questions(build))
     lines.extend(_summary_next_tests(build))
-    lines.extend(_summary_navigation())
+    lines.extend(_summary_navigation(generated_qmd=False))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -244,6 +347,7 @@ def _render_summary_cards(build: HubBuild) -> str:
     lines.extend(_summary_current_position(build))
     lines.extend(_summary_open_questions(build))
     lines.extend(_summary_next_tests(build))
+    lines.extend(_summary_navigation(generated_qmd=True))
     return "\n".join(lines)
 
 
@@ -252,6 +356,7 @@ def render_summary_qmd(build: HubBuild) -> str:
 
 
 def _render_coverage_matrix(build: HubBuild) -> str:
+    approaches = sorted(build.sources.approaches, key=lambda row: row.record_id)
     lines = [
         "---",
         'title: "Research Question Coverage"',
@@ -261,26 +366,81 @@ def _render_coverage_matrix(build: HubBuild) -> str:
         "",
         "Development evidence only.",
         "",
-        "| Question | Status | Confidence | Studies | Next tests |",
-        "|---|---|---|---|---|",
+        "| Question | "
+        + " | ".join(_inline_code(approach.record_id) for approach in approaches)
+        + " |",
+        "|---|" + "---|" * len(approaches),
     ]
-    for question in _ordered_questions(build):
-        studies = ", ".join(
-            f"`{_markdown_text(value)}`"
-            for value in sorted(_metadata_list(question, "study_ids"))
-        ) or "—"
-        next_tests = ", ".join(
-            f"`{_markdown_text(value)}`"
-            for value in sorted(_metadata_list(question, "next_test_ids"))
-        ) or "—"
+    questions = sorted(
+        build.sources.questions,
+        key=lambda row: (
+            _QUESTION_STATUS_PRIORITY.get(
+                str(row.metadata.get("status")),
+                len(_QUESTION_STATUS_PRIORITY),
+            ),
+            row.record_id,
+        ),
+    )
+    for question in questions:
+        cells = [
+            _coverage_cell(build, question.record_id, approach.record_id)
+            for approach in approaches
+        ]
         lines.append(
-            f"| **{_markdown_text(question.title)}** "
-            f"(`{_markdown_text(question.record_id)}`) | "
-            f"`{_markdown_text(question.metadata.get('status', 'unknown'))}` | "
-            f"`{_markdown_text(question.metadata.get('confidence', 'unknown'))}` | "
-            f"{studies} | {next_tests} |"
+            f"| **{_markdown_table_text(question.title)}** "
+            f"({_inline_code(question.record_id)}) | " + " | ".join(cells) + " |"
         )
     return "\n".join(lines)
+
+
+def _study_evidence_states(build: HubBuild, study: HubRecord) -> set[str]:
+    outcome = str(study.metadata.get("outcome", "unknown"))
+    if outcome in {"invalid", "unscored"}:
+        return {outcome}
+    system_by_id = {system.system_id: system for system in build.ledger.systems}
+    systems = [
+        system_by_id[system_id]
+        for system_id in _metadata_list(study, "system_ids")
+        if system_id in system_by_id
+    ]
+    if not systems:
+        return {outcome}
+    states: set[str] = set()
+    for system in systems:
+        if system.evidence_status == "invalid":
+            states.add("invalid")
+        elif system.evidence_status == "unscored":
+            states.add("unscored")
+        elif system.evaluation_scope in _RESTRICTED_SCOPES:
+            states.add(f"restricted {outcome}")
+        else:
+            states.add(outcome)
+    return states
+
+
+def _coverage_cell(
+    build: HubBuild,
+    question_id: str,
+    approach_id: str,
+) -> str:
+    studies = [
+        study
+        for study in build.sources.studies
+        if question_id in _metadata_list(study, "question_ids")
+        and approach_id in _metadata_list(study, "approach_ids")
+    ]
+    if not studies:
+        return "uncovered"
+    states = sorted(
+        {state for study in studies for state in _study_evidence_states(build, study)}
+    )
+    count = len(studies)
+    noun = "study" if count == 1 else "studies"
+    if len(states) == 1:
+        return f"{_markdown_table_text(states[0])} ({count} {noun})"
+    return f"mixed ({count} {noun}): " + ", ".join(
+        _markdown_table_text(state) for state in states
+    )
 
 
 def render_coverage_qmd(build: HubBuild) -> str:
@@ -307,28 +467,87 @@ def _render_decision_history(build: HubBuild) -> str:
         "# Decision History",
         "",
         "Development evidence only.",
-        "",
-        "| Date | Study | Outcome | Decision | Rationale provenance |",
-        "|---|---|---|---|---|",
     ]
-    studies = sorted(
-        build.sources.studies,
-        key=lambda row: (*_date_sort_value(row.metadata.get("concluded_on")), row.record_id),
+    dated = sorted(
+        (
+            study
+            for study in build.sources.studies
+            if _date_sort_value(study.metadata.get("concluded_on"))[0] == 0
+        ),
+        key=lambda row: (
+            *_date_sort_value(row.metadata.get("concluded_on")),
+            row.record_id,
+        ),
     )
+    unknown = sorted(
+        (
+            study
+            for study in build.sources.studies
+            if _date_sort_value(study.metadata.get("concluded_on"))[0] == 1
+        ),
+        key=lambda row: row.record_id,
+    )
+    lines.extend(_history_section(build, "Dated decisions", dated))
+    lines.extend(_history_section(build, "Unknown-date decisions", unknown))
+    return "\n".join(lines)
+
+
+def _history_section(
+    build: HubBuild,
+    title: str,
+    studies: Sequence[HubRecord],
+) -> list[str]:
+    lines = [
+        "",
+        f"## {title}",
+        "",
+        "| Date | Study | Active questions | What changed | Decision | Next study |",
+        "|---|---|---|---|---|---|",
+    ]
     for study in studies:
         concluded = study.metadata.get("concluded_on") or "—"
         if isinstance(concluded, date):
             concluded = concluded.isoformat()
-        lines.append(
-            f"| {_markdown_text(concluded)} | "
-            f"**{_markdown_text(study.title)}** "
-            f"(`{_markdown_text(study.record_id)}`) | "
-            f"`{_markdown_text(study.metadata.get('outcome', 'unknown'))}` | "
-            f"`{_markdown_text(study.metadata.get('decision', 'unknown'))}`: "
-            f"{_markdown_text(study.metadata.get('decision_summary', ''))} | "
-            f"`{_markdown_text(study.metadata.get('rationale_provenance', 'unknown'))}` |"
+        active_question_ids = {
+            question.record_id
+            for question in build.sources.questions
+            if question.metadata.get("status") in {"open", "partially_answered"}
+        }
+        active = sorted(
+            set(_metadata_list(study, "question_ids")) & active_question_ids
         )
-    return "\n".join(lines)
+        active_text = ", ".join(_inline_code(value) for value in active) or "—"
+        next_text = _supported_next_studies(build, study)
+        lines.append(
+            f"| {_markdown_table_text(concluded)} | "
+            f"**{_markdown_table_text(study.title)}** "
+            f"({_inline_code(study.record_id)}) | "
+            f"{active_text} | "
+            f"{_markdown_table_text(study.metadata.get('conclusion', ''))} | "
+            f"{_inline_code(study.metadata.get('decision', 'unknown'))}: "
+            f"{_markdown_table_text(study.metadata.get('decision_summary', ''))} | "
+            f"{next_text} |"
+        )
+    if not studies:
+        lines.append("| — | — | — | — | — | — |")
+    return lines
+
+
+def _supported_next_studies(build: HubBuild, study: HubRecord) -> str:
+    by_id = {candidate.record_id: candidate for candidate in build.sources.studies}
+    supported = [
+        by_id[next_id]
+        for next_id in sorted(_metadata_list(study, "superseded_by"))
+        if next_id in by_id
+        and study.record_id in _metadata_list(by_id[next_id], "supersedes")
+    ]
+    if not supported:
+        return "—"
+    return "; ".join(
+        f"Next study {_inline_code(candidate.record_id)}: "
+        f"{_markdown_table_text(candidate.metadata.get('rationale', ''))}"
+        for candidate in supported
+    )
 
 
 def render_history_qmd(build: HubBuild) -> str:
@@ -348,20 +567,59 @@ def _render_run_index(build: HubBuild) -> str:
         "# Experiment Runs",
         "",
         "Development evidence only. Compare metrics only within the same evaluation scope.",
-        "",
-        "| Run | Family | Evaluation scope | Promotion | nDCG@10 | MRR |",
-        "|---|---|---|---|---:|---:|",
     ]
-    for system in sorted(build.ledger.systems, key=lambda row: row.system_id):
-        run_path = f"runs/{system.system_id}.qmd"
-        lines.append(
-            f"| [`{_markdown_text(system.system_id)}`]({run_path}) | "
-            f"`{_markdown_text(system.experiment_family)}` | "
-            f"`{_markdown_text(system.evaluation_scope)}` | "
-            f"`{_markdown_text(system.promotion_status)}` | "
-            f"{_format_metric(system.ndcg_at_10)} | "
-            f"{_format_metric(system.mrr)} |"
+    scopes = sorted({system.evaluation_scope for system in build.ledger.systems})
+    for scope in scopes:
+        lines.extend(["", f"## Evaluation scope: {_inline_code(scope)}"])
+        evidence_classes = sorted(
+            {
+                system.evidence_status
+                for system in build.ledger.systems
+                if system.evaluation_scope == scope
+            }
         )
+        for evidence_status in evidence_classes:
+            systems = sorted(
+                (
+                    system
+                    for system in build.ledger.systems
+                    if system.evaluation_scope == scope
+                    and system.evidence_status == evidence_status
+                ),
+                key=lambda row: row.system_id,
+            )
+            lines.extend(["", f"### Evidence: {_inline_code(evidence_status)}", ""])
+            suppress_effectiveness = evidence_status in {"invalid", "unscored"}
+            if suppress_effectiveness:
+                lines.extend(
+                    [
+                        "| Run | Promotion | Evidence status | Method |",
+                        "|---|---|---|---|",
+                    ]
+                )
+            else:
+                lines.extend(
+                    [
+                        "| Run | Promotion | nDCG@10 | MRR | Method |",
+                        "|---|---|---:|---:|---|",
+                    ]
+                )
+            for system in systems:
+                system_id = _validate_system_id(system.system_id)
+                link = f"[{_inline_code(system_id)}](runs/{system_id}.qmd)"
+                promotion = _inline_code(system.promotion_status)
+                method = _markdown_table_text(system.method_summary)
+                if suppress_effectiveness:
+                    lines.append(
+                        f"| {link} | {promotion} | "
+                        f"{_inline_code(system.evidence_status)} | {method} |"
+                    )
+                else:
+                    lines.append(
+                        f"| {link} | {promotion} | "
+                        f"{_format_metric(system.ndcg_at_10)} | "
+                        f"{_format_metric(system.mrr)} | {method} |"
+                    )
     return "\n".join(lines)
 
 
@@ -389,24 +647,30 @@ def _scope_guard(system: SystemRecord) -> str:
 
 
 def _render_run_page(build: HubBuild, system: SystemRecord) -> str:
+    system_id = _validate_system_id(system.system_id)
     lines = [
         "---",
-        f'title: "{_markdown_text(system.system_id)}"',
+        f"title: {_yaml_scalar(system_id)}",
         "---",
         "",
-        f"# `{_markdown_text(system.system_id)}`",
+        f"# {_inline_code(system_id)}",
         "",
         _scope_guard(system),
         "",
         "## Evidence contract",
         "",
-        f"- **Method:** {_markdown_text(system.method_summary)}",
-        f"- **Experiment family:** `{_markdown_text(system.experiment_family)}`",
-        f"- **Evaluation scope:** `{_markdown_text(system.evaluation_scope)}`",
-        f"- **Evidence status:** `{_markdown_text(system.evidence_status)}`",
-        f"- **Promotion status:** `{_markdown_text(system.promotion_status)}`",
-        f"- **Artifact state:** `{_markdown_text(system.artifact_state)}`",
-        f"- **Qrel usage:** `{_markdown_text(system.qrel_usage)}`",
+        f"- **Method:** {_markdown_table_text(system.method_summary)}",
+        f"- **source_system_id:** {_inline_code(system.source_system_id)}",
+        f"- **Experiment family:** {_inline_code(system.experiment_family)}",
+        f"- **Evaluation scope:** {_inline_code(system.evaluation_scope)}",
+        f"- **Evidence status:** {_inline_code(system.evidence_status)}",
+        f"- **Promotion status:** {_inline_code(system.promotion_status)}",
+        f"- **Artifact state:** {_inline_code(system.artifact_state)}",
+        f"- **Qrel usage:** {_inline_code(system.qrel_usage)}",
+        (
+            "- **per_query_available:** "
+            f"{_inline_code(str(system.per_query_available).lower())}"
+        ),
         "",
         "## Evaluation",
         "",
@@ -425,9 +689,9 @@ def _render_run_page(build: HubBuild, system: SystemRecord) -> str:
         "## Linked studies",
         "",
     ]
-    linked_studies = _linked_study_ids(build, system.system_id)
+    linked_studies = _linked_study_ids(build, system_id)
     if linked_studies:
-        lines.extend(f"- `{_markdown_text(study_id)}`" for study_id in linked_studies)
+        lines.extend(f"- {_inline_code(study_id)}" for study_id in linked_studies)
     else:
         lines.append("No canonical study currently links this run.")
     lines.extend(
@@ -435,45 +699,73 @@ def _render_run_page(build: HubBuild, system: SystemRecord) -> str:
             "",
             "## Evidence receipt",
             "",
-            f"- **Source:** `{_markdown_text(system.source_path)}`",
-            f"- **SHA-256:** `{_markdown_text(system.source_sha256)}`",
-            f"- **Ranking coverage:** `{_markdown_text(system.ranking_coverage)}`",
+            f"- **Source:** {_inline_code(system.source_path)}",
+            f"- **SHA-256:** {_inline_code(system.source_sha256)}",
+            f"- **Ranking coverage:** {_inline_code(system.ranking_coverage)}",
         ]
     )
     if system.blocker:
-        lines.append(f"- **Blocker:** {_markdown_text(system.blocker)}")
+        lines.append(f"- **Blocker:** {_markdown_table_text(system.blocker)}")
+    evidence_links = _run_evidence_links(build, system)
+    if evidence_links:
+        lines.extend(["", "## Evidence indexes", "", *evidence_links])
     lines.extend(["", "## Caveats", ""])
     if system.caveat_ids:
         lines.extend(
-            f"- `{_markdown_text(caveat_id)}`"
-            for caveat_id in sorted(system.caveat_ids)
+            f"- {_inline_code(caveat_id)}" for caveat_id in sorted(system.caveat_ids)
         )
     else:
         lines.append("No ledger caveats are attached.")
     return "\n".join(lines)
 
 
+def _run_evidence_links(build: HubBuild, system: SystemRecord) -> list[str]:
+    links: list[str] = []
+    if system.per_query_available:
+        links.append(
+            "- [Per-query evidence]"
+            "(../../../../reports/trec_2026_experiment_per_query.tsv)"
+        )
+    if any(row.system_id == system.system_id for row in build.ledger.topic_slices):
+        links.append(
+            "- [Relevant-candidate slice evidence]"
+            "(../../../../reports/trec_2026_experiment_topic_slices.tsv)"
+        )
+    if any(row.system_id == system.system_id for row in build.ledger.density_slices):
+        links.append(
+            "- [Positive-density slice evidence]"
+            "(../../../../reports/trec_2026_experiment_density_slices.tsv)"
+        )
+    return links
+
+
 def render_run_pages(build: HubBuild) -> dict[Path, str]:
-    return {
-        Path(f"research/hub/generated/runs/{system.system_id}.qmd"):
-            _render_run_page(build, system).rstrip() + "\n"
-        for system in sorted(build.ledger.systems, key=lambda row: row.system_id)
-    }
+    pages: dict[Path, str] = {}
+    for system in sorted(build.ledger.systems, key=lambda row: row.system_id):
+        system_id = _validate_system_id(system.system_id)
+        path = _validate_output_path(
+            Path(f"research/hub/generated/runs/{system_id}.qmd")
+        )
+        pages[path] = _render_run_page(build, system).rstrip() + "\n"
+    return pages
 
 
 def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
     """Render every tracked generated output without touching the filesystem."""
 
-    return {
-        Path("research/catalog.json"): render_catalog(build),
-        Path("reports/trec_2026_research_hub_summary.md"):
-            render_summary_markdown(build),
-        Path("research/hub/generated/summary.qmd"): render_summary_qmd(build),
-        Path("research/hub/generated/coverage.qmd"): render_coverage_qmd(build),
-        Path("research/hub/generated/history.qmd"): render_history_qmd(build),
-        Path("research/hub/generated/runs.qmd"): render_runs_qmd(build),
-        **render_run_pages(build),
-    }
+    return _validated_output_mapping(
+        {
+            Path("research/catalog.json"): render_catalog(build),
+            Path("reports/trec_2026_research_hub_summary.md"): render_summary_markdown(
+                build
+            ),
+            Path("research/hub/generated/summary.qmd"): render_summary_qmd(build),
+            Path("research/hub/generated/coverage.qmd"): render_coverage_qmd(build),
+            Path("research/hub/generated/history.qmd"): render_history_qmd(build),
+            Path("research/hub/generated/runs.qmd"): render_runs_qmd(build),
+            **render_run_pages(build),
+        }
+    )
 
 
 def _verified_staged_outputs(
@@ -481,8 +773,9 @@ def _verified_staged_outputs(
     staging_dir: Path,
 ) -> dict[Path, Path]:
     staged_paths: dict[Path, Path] = {}
-    for relative_path in sorted(outputs):
-        content = outputs[relative_path]
+    validated = _validated_output_mapping(outputs)
+    for relative_path in sorted(validated):
+        content = validated[relative_path]
         staged = staging_dir / relative_path
         staged.parent.mkdir(parents=True, exist_ok=True)
         staged.write_text(content, encoding="utf-8", newline="")
@@ -495,13 +788,13 @@ def _verified_staged_outputs(
 def write_hub_outputs(build: HubBuild, root: Path) -> tuple[Path, ...]:
     """Atomically publish all hub outputs, rolling back a partial promotion."""
 
-    outputs = render_hub_outputs(build)
+    outputs = _validated_output_mapping(render_hub_outputs(build))
     root = Path(root)
     relative_paths = tuple(sorted(outputs))
-    destinations = tuple(root / path for path in relative_paths)
-    unexpected_paths = tuple(
-        sorted(_tracked_output_paths(root) - set(relative_paths))
-    )
+    destinations = tuple(_confined_destination(root, path) for path in relative_paths)
+    unexpected_paths = tuple(sorted(_tracked_output_paths(root) - set(relative_paths)))
+    for path in unexpected_paths:
+        _confined_destination(root, path)
 
     with tempfile.TemporaryDirectory(prefix=".research-hub-", dir=root) as temporary:
         staging_dir = Path(temporary)
@@ -511,13 +804,13 @@ def write_hub_outputs(build: HubBuild, root: Path) -> tuple[Path, ...]:
         removed: list[Path] = []
         try:
             for relative_path in unexpected_paths:
-                source = root / relative_path
+                source = _confined_destination(root, relative_path)
                 backup = backup_dir / relative_path
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 source.replace(backup)
                 removed.append(relative_path)
             for relative_path in relative_paths:
-                destination = root / relative_path
+                destination = _confined_destination(root, relative_path)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 backup = backup_dir / relative_path
                 if destination.exists():
@@ -532,14 +825,14 @@ def write_hub_outputs(build: HubBuild, root: Path) -> tuple[Path, ...]:
                 installed.append(relative_path)
         except Exception:
             for relative_path in reversed(installed):
-                destination = root / relative_path
+                destination = _confined_destination(root, relative_path)
                 destination.unlink(missing_ok=True)
                 backup = backup_dir / relative_path
                 if backup.exists():
                     backup.replace(destination)
             for relative_path in reversed(removed):
                 backup = backup_dir / relative_path
-                destination = root / relative_path
+                destination = _confined_destination(root, relative_path)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 backup.replace(destination)
             raise
@@ -561,13 +854,15 @@ def _tracked_output_paths(root: Path) -> set[Path]:
 def assert_hub_outputs_current(build: HubBuild, root: Path) -> None:
     """Report every missing, unexpected, or byte-different generated output."""
 
-    outputs = render_hub_outputs(build)
+    outputs = _validated_output_mapping(render_hub_outputs(build))
     root = Path(root)
+    for path in outputs:
+        _confined_destination(root, path)
     expected_paths = set(outputs)
     tracked_paths = _tracked_output_paths(root)
-    missing = sorted(
-        path for path in expected_paths if not (root / path).is_file()
-    )
+    for path in tracked_paths:
+        _confined_destination(root, path)
+    missing = sorted(path for path in expected_paths if not (root / path).is_file())
     unexpected = sorted(tracked_paths - expected_paths)
     different = sorted(
         path
@@ -582,6 +877,4 @@ def assert_hub_outputs_current(build: HubBuild, root: Path) -> None:
             details.append(f"unexpected: {', '.join(map(str, unexpected))}")
         if different:
             details.append(f"different: {', '.join(map(str, different))}")
-        raise ValueError(
-            "research hub outputs are not current; " + "; ".join(details)
-        )
+        raise ValueError("research hub outputs are not current; " + "; ".join(details))

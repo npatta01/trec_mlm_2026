@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -166,3 +167,57 @@ def test_write_removes_an_unexpected_stale_run_page(
 
     assert not unexpected.exists()
     assert_hub_outputs_current(sample_build, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "system_id",
+    ["../escaped", "../../escaped", "nested/run", r"nested\run", "/absolute"],
+)
+def test_malicious_system_id_cannot_write_outside_repository(
+    sample_build: HubBuild,
+    tmp_path: Path,
+    system_id: str,
+) -> None:
+    malicious = replace(sample_build.ledger.systems[0], system_id=system_id)
+    build = replace(
+        sample_build,
+        ledger=replace(sample_build.ledger, systems=(malicious,)),
+    )
+    outside = tmp_path.parent / "escaped.qmd"
+
+    with pytest.raises(ValueError, match="safe filename component"):
+        write_hub_outputs(build, tmp_path)
+
+    assert not outside.exists()
+    assert not list(tmp_path.rglob("*.qmd"))
+
+
+def test_output_mapping_path_must_be_normalized_and_repository_relative(
+    sample_build: HubBuild,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outside = tmp_path.parent / "outside.txt"
+    monkeypatch.setattr(
+        "trec_mlm.research_hub.render.render_hub_outputs",
+        lambda build: {Path("../outside.txt"): "escaped\n"},
+    )
+
+    with pytest.raises(ValueError, match="repository-relative"):
+        write_hub_outputs(sample_build, tmp_path)
+
+    assert not outside.exists()
+
+
+def test_output_destination_cannot_escape_through_repository_symlink(
+    sample_build: HubBuild,
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    (tmp_path / "research").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="remain repository-relative"):
+        write_hub_outputs(sample_build, tmp_path)
+
+    assert not list(outside.iterdir())

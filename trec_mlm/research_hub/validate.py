@@ -158,11 +158,14 @@ def validate_question(root: Path, record: HubRecord) -> None:
     require_choice(record, "status", QUESTION_STATUSES)
     require_string(record, "current_answer")
     require_choice(record, "confidence", CONFIDENCE_LEVELS)
+    require_string(record, "confidence_boundary")
     require_string_list(record, "study_ids")
     require_string_list(record, "open_subquestions")
     require_string_list(record, "next_test_ids")
     require_date_or_unknown(record, "updated_on")
-    _require_references(root, record, "evidence_refs")
+    evidence_refs = _require_references(root, record, "evidence_refs")
+    if not evidence_refs:
+        raise ValueError(f"{record.source_path}: evidence_refs must not be empty")
 
 
 def validate_study(root: Path, record: HubRecord) -> None:
@@ -186,7 +189,7 @@ def validate_study(root: Path, record: HubRecord) -> None:
     require_string(record, "decision_summary")
     require_string_list(record, "system_ids")
     require_string_list(record, "representative_system_ids")
-    _require_references(root, record, "evidence_refs")
+    evidence_refs = _require_references(root, record, "evidence_refs")
     require_string_list(record, "dataset_ids")
     require_date_or_unknown(record, "started_on")
     if "concluded_on" not in record.metadata:
@@ -200,8 +203,10 @@ def validate_study(root: Path, record: HubRecord) -> None:
     require_string_list(record, "supersedes")
     require_string_list(record, "superseded_by")
     require_string(record, "limitations")
-    if provenance == "reconstructed" and not record.metadata["evidence_refs"]:
+    if provenance == "reconstructed" and not evidence_refs:
         raise ValueError(f"{record.source_path}: reconstructed rationale requires evidence_refs")
+    if decision != "pending" and not evidence_refs:
+        raise ValueError(f"{record.source_path}: decision requires evidence_refs")
     if status == "concluded":
         if outcome == "pending":
             raise ValueError(f"{record.source_path}: concluded study cannot have pending outcome")

@@ -40,6 +40,7 @@ def minimal_sources(tmp_path: Path) -> HubSources:
                 status="open",
                 current_answer="Evidence is insufficient.",
                 confidence="low",
+                confidence_boundary="No held-out evaluation supports this answer.",
                 study_ids=["dense-baseline"],
                 open_subquestions=["Which signals matter?"],
                 next_test_ids=["test-candidate-evidence"],

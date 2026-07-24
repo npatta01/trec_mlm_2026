@@ -49,6 +49,63 @@ def test_validation_requires_plain_english_question(
         )
 
 
+def test_validation_requires_question_confidence_boundary(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = replace(
+        minimal_sources.questions[0],
+        metadata={
+            **minimal_sources.questions[0].metadata,
+            "confidence_boundary": "",
+        },
+    )
+
+    with pytest.raises(ValueError, match="confidence_boundary"):
+        validate_hub_sources(
+            replace(minimal_sources, questions=(question,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_requires_question_evidence_refs(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = replace(
+        minimal_sources.questions[0],
+        metadata={
+            **minimal_sources.questions[0].metadata,
+            "evidence_refs": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="evidence_refs"):
+        validate_hub_sources(
+            replace(minimal_sources, questions=(question,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_requires_evidence_for_study_decision(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    study = replace(
+        minimal_sources.studies[0],
+        metadata={
+            **minimal_sources.studies[0].metadata,
+            "evidence_refs": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="decision.*evidence_refs"):
+        validate_hub_sources(
+            replace(minimal_sources, studies=(study,)), ledger_build, tmp_path
+        )
+
+
 def test_validation_rejects_ready_test_without_decision_rule(
     minimal_sources: HubSources,
     ledger_build: LedgerBuild,

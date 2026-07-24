@@ -685,7 +685,8 @@ class GenerationRunner:
             and record.get("model") == self.model
             and record.get("prompt_sha256") == self.prompt_sha256
             and isinstance(record.get("answer"), str)
-            and record.get("finish_reason") != "length"
+            and bool(record.get("answer", "").strip())
+            and record.get("finish_reason") == "stop"
             and has_evidence
         )
 

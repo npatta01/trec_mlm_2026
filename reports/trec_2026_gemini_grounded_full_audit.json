@@ -1512,16 +1512,17 @@
     "assumptions": {
       "conservative_input_per_million_tokens": 1.0,
       "conservative_output_per_million_tokens": 6.0,
-      "search_per_thousand_queries_after_5000_grounded_prompts": 14.0,
+      "free_grounded_prompts": 1500,
+      "search_per_thousand_queries_after_free_allowance": 14.0,
       "standard_input_per_million_tokens": 0.5,
       "standard_output_per_million_tokens": 3.0
     },
     "average_search_queries_per_request": 1.2877,
     "conservative_model": 23.2227,
-    "conservative_total": 72.9601,
+    "conservative_total": 136.0557,
     "estimated_standard_model": 11.6114,
-    "estimated_standard_total": 61.3487,
-    "search": 49.7374
+    "estimated_standard_total": 124.4444,
+    "search": 112.833
   },
   "refusal_ids": [
     "344873"

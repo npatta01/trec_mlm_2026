@@ -5,7 +5,7 @@
     "surface": "report",
     "title": "Gemini 3.6 grounded references: full-corpus audit",
     "description": "Integrity, provenance, uncertainty, and cost audit for all 7,759 grounded reference answers.",
-    "generatedAt": "2026-07-23T09:57:15Z",
+    "generatedAt": "2026-07-24T01:18:36Z",
     "charts": [
       {
         "id": "audit_categories",
@@ -140,7 +140,7 @@
       {
         "id": "summary",
         "type": "markdown",
-        "body": "## Technical summary\n\n- **The grounded corpus is complete:** 7,759 records for 7,759 unique IDs, with zero missing IDs and 0 unresolved failures.\n- **Provenance is retained privately:** Search ran on 6,274 responses; all Search-using records passed the source-URL capture check. The report contains no URLs or answer passages.\n- **Uncertainty remains explicit:** 529 responses are non-`answered`; 1,485 did not invoke Search and 1 matched the refusal detector. These sets may overlap.\n- **Spend stayed within the gate:** estimated standard total is $61.35; the deliberately doubled-token-price upper projection is $72.96, below $150.",
+        "body": "## Technical summary\n\n- **The grounded corpus is complete:** 7,759 records for 7,759 unique IDs, with zero missing IDs and 0 unresolved failures.\n- **Provenance is retained privately:** Search ran on 6,274 responses; all Search-using records passed the source-URL capture check. The report contains no URLs or answer passages.\n- **Uncertainty remains explicit:** 529 responses are non-`answered`; 1,485 did not invoke Search and 1 matched the refusal detector. These sets may overlap.\n- **Spend stayed within the gate:** estimated standard total is $124.44; the deliberately doubled-token-price upper projection is $136.06, below $150.",
         "sourceId": "full_audit"
       },
       {
@@ -199,7 +199,7 @@
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-07-23T09:57:15Z",
+    "generatedAt": "2026-07-24T01:18:36Z",
     "status": "ready",
     "datasets": {
       "audit_categories": [

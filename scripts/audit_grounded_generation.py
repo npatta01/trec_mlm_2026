@@ -38,6 +38,7 @@ def audit_generation(
     *,
     projected_question_count: int,
     cost_cap_usd: float = 150.0,
+    free_grounded_prompts: int = 1_500,
     search_reviews: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic integrity, provenance, and cost audit."""
@@ -174,7 +175,9 @@ def audit_generation(
     standard_model_cost = (
         projected_input * 0.5 / 1_000_000 + projected_output * 3 / 1_000_000
     )
-    billed_search_queries = max(0, projected_question_count - 5_000) * average_queries
+    if free_grounded_prompts < 0:
+        raise ValueError("free_grounded_prompts must be non-negative")
+    billed_search_queries = max(0, projected_question_count - free_grounded_prompts) * average_queries
     search_cost = billed_search_queries * 14 / 1_000
     conservative_total = model_cost + search_cost
 
@@ -223,7 +226,8 @@ def audit_generation(
                 "standard_output_per_million_tokens": 3.0,
                 "conservative_input_per_million_tokens": 1.0,
                 "conservative_output_per_million_tokens": 6.0,
-                "search_per_thousand_queries_after_5000_grounded_prompts": 14.0,
+                "free_grounded_prompts": free_grounded_prompts,
+                "search_per_thousand_queries_after_free_allowance": 14.0,
             },
         },
     }
@@ -236,6 +240,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--evidence-cache", type=Path, required=True)
     parser.add_argument("--projected-question-count", type=int, default=7_759)
     parser.add_argument("--cost-cap-usd", type=float, default=150.0)
+    parser.add_argument(
+        "--free-grounded-prompts",
+        type=int,
+        default=1_500,
+        help="Free grounded prompts used for projection (Gemini 3 project default: 1,500).",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--search-review",
@@ -250,6 +260,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.loads(args.evidence_cache.read_text(encoding="utf-8")),
         projected_question_count=args.projected_question_count,
         cost_cap_usd=args.cost_cap_usd,
+        free_grounded_prompts=args.free_grounded_prompts,
         search_reviews=(
             json.loads(args.search_review.read_text(encoding="utf-8"))["reviews"]
             if args.search_review is not None

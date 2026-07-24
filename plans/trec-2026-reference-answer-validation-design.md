@@ -1,6 +1,6 @@
 # TREC 2026 reference-answer validation design
 
-**Status:** 400-question blind pilot complete; remaining 7,359-answer Gemini run pending a higher cost cap
+**Status:** 400-question blind pilot and 7,759-question grounded Gemini run complete; reference corpus preserved as v1
 
 **Date:** 2026-07-20
 
@@ -126,8 +126,9 @@ Perplexity was second at 249/400 (62.3%) and 86/400 (21.5%). Qwen3.6-27B and
 Gemma 4 31B were materially worse on the difficult slices. The default next
 step is therefore to reuse the 400 cached Gemini answers and generate the
 remaining 7,359 without grounding. Actual pilot token use projects to about
-$27.35 for that remaining run at standard pricing, which exceeds the current
-$10 Gemini authorization and has not been started.
+  $27.35 for that remaining run at standard pricing. The full grounded run
+  subsequently completed at 7,759/7,759 records and is preserved in the private
+  `reference-corpus-v1` archive; the $10 authorization is historical pre-run context.
 
 ### Grounding failure-rescue addendum (2026-07-21)
 

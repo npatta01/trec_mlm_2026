@@ -76,3 +76,37 @@ def test_canary_audit_fails_closed_on_integrity_errors() -> None:
     assert audit["empty_answer_ids"] == ["q1"]
     assert audit["truncated_ids"] == ["q1"]
     assert audit["expected_search_not_used_ids"] == ["q1"]
+
+
+def test_audit_uses_configured_grounding_allowance() -> None:
+    questions = [{"question_id": "q1", "question": "latest news", "search_expected": True}]
+    record = {
+        "question_id": "q1",
+        "answer": "A complete answer.",
+        "uncertainty_status": "answered",
+        "uncertainty_reason": "none",
+        "finish_reason": "stop",
+        "usage": {"promptTokenCount": 100, "candidatesTokenCount": 400},
+        "request_metadata": {"grounding_query_count": 1},
+    }
+    private = {
+        "records": {
+            "q1": {
+                "search_invoked": True,
+                "web_search_queries": ["query"],
+                "sources": [{"url": "https://example.com", "title": "Example"}],
+            }
+        },
+        "failures": {},
+    }
+
+    audit = audit_generation(
+        questions,
+        {"records": {"q1": record}, "failures": {}},
+        private,
+        projected_question_count=7_759,
+        free_grounded_prompts=0,
+    )
+
+    assert audit["projected_cost_usd"]["search"] > 0
+    assert "free_grounded_prompts" in audit["projected_cost_usd"]["assumptions"]

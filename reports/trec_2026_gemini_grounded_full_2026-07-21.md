@@ -5,7 +5,7 @@
 - **The grounded corpus is complete:** 7,759 records for 7,759 unique IDs, with zero missing IDs and 0 unresolved failures.
 - **Provenance is retained privately:** Search ran on 6,274 responses; all Search-using records passed the source-URL capture check. The report contains no URLs or answer passages.
 - **Uncertainty remains explicit:** 529 responses are non-`answered`; 1,485 did not invoke Search and 1 matched the refusal detector. These sets may overlap.
-- **Spend stayed within the gate:** estimated standard total is $61.35; the deliberately doubled-token-price upper projection is $72.96, below $150.
+- **Spend stayed within the gate:** estimated standard total is $124.44; the deliberately doubled-token-price upper projection is $136.06, below $150.
 
 ## Scope and validation contract
 

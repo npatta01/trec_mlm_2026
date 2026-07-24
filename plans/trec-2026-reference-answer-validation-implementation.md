@@ -67,9 +67,10 @@
   serious-error rate, versus Perplexity at 62.3% and 21.5%, Qwen at 58.8% and
   31.3%, and Gemma at 50.8% and 36.3%. The result remains first in every
   inspected challenge slice.
-- Actual Gemini token use projects to $28.84 for all 7,759 or about $27.35 for
-  the 7,359 uncached questions. The full run is pending an increase from the
-  explicit $10 Gemini cap; it has not been started.
+- Actual Gemini token use projected to $28.84 for all 7,759 or about $27.35 for
+  the 7,359 uncached questions. The full grounded run subsequently completed at
+  7,759/7,759 records and is preserved in the private `reference-corpus-v1`
+  archive. The earlier $10-cap statement is historical pre-run context.
 - Canonical report:
   `reports/trec_2026_four_model_reference_review_2026-07-21.md`. Portable
   report artifact:
@@ -1078,10 +1079,11 @@ Pre-spend gate:
 - [x] Search ran on 39/50. The 11 non-search responses were inspected; six broad
   keyword flags were documented as false positives in a separate review ledger.
 - [x] Conservative full-run projection: **$73.40**, below the hard **$150** cap.
-- [ ] Complete the full grounded run and verify exactly 7,759 unique IDs with zero
+- [x] Complete the full grounded run and verify exactly 7,759 unique IDs with zero
   missing records.
-- [ ] Publish only a sanitized progressive-disclosure summary listing failures,
-  refusals, non-search responses, and uncertain cases; retain raw provenance locally.
+- [x] Publish a sanitized progressive-disclosure summary listing failures,
+  refusals, non-search responses, and uncertain cases; retain raw provenance in
+  the private reference-corpus archive.
 
 Execution receipt at the 2026-07-21 quota boundary:
 

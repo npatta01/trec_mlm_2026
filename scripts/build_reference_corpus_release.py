@@ -34,19 +34,6 @@ PRIVATE_FILES = {
     "receipts/tanwir_new_key_spend_receipt.json": ROOT / "artifacts/reference_answer_validation/private/tanwir_new_key_spend_receipt.json",
 }
 
-CODE_FILES = [
-    "trec_mlm/reference_generation.py",
-    "scripts/generate_reference_challengers.py",
-    "scripts/build_grounded_generation_manifests.py",
-    "scripts/build_grounded_resume_tranche.py",
-    "scripts/audit_grounded_generation.py",
-    "scripts/build_grounded_full_report.py",
-    "tests/test_reference_generation.py",
-    "tests/test_grounded_generation_audit.py",
-    "plans/trec-2026-reference-answer-validation-design.md",
-    "plans/trec-2026-reference-answer-validation-implementation.md",
-]
-
 SECRET_PATTERNS = [
     re.compile(r"(?<![A-Za-z0-9])AQ\.[A-Za-z0-9_-]{20,}"),
     re.compile(r"(?<![A-Za-z0-9])AIza[A-Za-z0-9_-]{20,}"),

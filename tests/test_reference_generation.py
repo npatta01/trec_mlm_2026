@@ -610,6 +610,39 @@ def test_resume_does_not_skip_a_record_from_a_different_model(tmp_path: Path) ->
     assert calls == ["question", "question"]
 
 
+def test_resume_regenerates_blank_or_unknown_finish_record(tmp_path: Path) -> None:
+    cache_path = tmp_path / "cache.json"
+    calls: list[str] = []
+
+    def call(question: str):
+        calls.append(question)
+        return "valid answer", {}, "STOP", {}
+
+    generate_missing(
+        [("q1", "question")],
+        cache_path=cache_path,
+        provider="gemini",
+        model="gemini-3.6-flash",
+        call=call,
+        workers=1,
+    )
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    cache["records"]["q1"]["answer"] = ""
+    cache["records"]["q1"]["finish_reason"] = "unknown"
+    cache_path.write_text(json.dumps(cache), encoding="utf-8")
+
+    generate_missing(
+        [("q1", "question")],
+        cache_path=cache_path,
+        provider="gemini",
+        model="gemini-3.6-flash",
+        call=call,
+        workers=1,
+    )
+
+    assert calls == ["question", "question"]
+
+
 def test_gemini_retries_retriable_status_with_injected_sleep() -> None:
     attempts = 0
     sleeps: list[float] = []

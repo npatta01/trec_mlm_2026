@@ -176,6 +176,8 @@ def test_post_render_normalizes_only_local_index_links(tmp_path: Path) -> None:
         '<a href="../background/index.html">Background</a>'
         '<a href="index.html?view=all">Home</a>'
         '<a href="https://example.test/index.html">External</a>'
+        '<a href="&sol;&sol;evil.example/index.html">Encoded external</a>'
+        '<a href="https&colon;//evil.example/index.html">Encoded scheme</a>'
     )
 
     changed = normalize_links(tmp_path, output)
@@ -185,6 +187,8 @@ def test_post_render_normalizes_only_local_index_links(tmp_path: Path) -> None:
     assert 'href="../background/"' in rendered
     assert 'href="./?view=all"' in rendered
     assert 'href="https://example.test/index.html"' in rendered
+    assert 'href="&sol;&sol;evil.example/index.html"' in rendered
+    assert 'href="https&colon;//evil.example/index.html"' in rendered
 
 
 def test_post_render_rejects_symlinked_output(tmp_path: Path) -> None:

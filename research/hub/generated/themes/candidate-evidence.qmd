@@ -4,8 +4,6 @@ description: "Use semantic evidence about candidate models to improve ranking be
 toc: false
 ---
 
-Use semantic evidence about candidate models to improve ranking beyond query-only controls.
-
 ::: {.hub-conclusion}
 ## Current conclusion
 

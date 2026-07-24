@@ -4,8 +4,6 @@ description: "Use candidate responses or generated reference answers as evidence
 toc: false
 ---
 
-Use candidate responses or generated reference answers as evidence for choosing models.
-
 ::: {.hub-conclusion}
 ## Current conclusion
 

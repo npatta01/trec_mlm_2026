@@ -570,8 +570,6 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
         "toc: false",
         "---",
         "",
-        str(theme.metadata.get("plain_english", "")),
-        "",
         "::: {.hub-conclusion}",
         "## Current conclusion",
         "",

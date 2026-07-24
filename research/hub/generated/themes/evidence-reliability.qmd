@@ -4,8 +4,6 @@ description: "Identify when ranking and reference evidence is trustworthy enough
 toc: false
 ---
 
-Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.
-
 ::: {.hub-conclusion}
 ## Current conclusion
 

@@ -138,6 +138,7 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
     assert "Practical decision" in theme_page
     assert "Questions in this theme" in theme_page
     assert "Evidence behind this position" in theme_page
+    assert theme_page.count(str(theme.metadata["plain_english"])) == 1
     assert "Which signals matter?" in theme_page
     assert "What transfers to held-out requests?" in theme_page
     assert "2 studies" in theme_page

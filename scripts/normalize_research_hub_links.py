@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+from html import unescape
 import os
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 _INDEX_HREF = re.compile(
     r"""(?P<prefix>\bhref\s*=\s*(?P<quote>["']))
@@ -36,6 +38,15 @@ def _assert_output_dir(root: Path, output_dir: Path) -> Path:
 
 def _normalize_html(text: str) -> str:
     def replace(match: re.Match[str]) -> str:
+        raw_value = (
+            f"{match.group('path')}index.html{match.group('suffix')}"
+        )
+        try:
+            decoded = urlsplit(unescape(raw_value).strip())
+        except ValueError:
+            return match.group(0)
+        if decoded.scheme or decoded.netloc:
+            return match.group(0)
         path = match.group("path") or "./"
         return (
             f"{match.group('prefix')}{path}{match.group('suffix')}"

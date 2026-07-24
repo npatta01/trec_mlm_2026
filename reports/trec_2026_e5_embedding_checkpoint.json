@@ -8,6 +8,14 @@
     "payload_committed_to_git": false,
     "reason": "The 2.99 GB record matrix is an immutable generated artifact and is too large for ordinary Git storage."
   },
+  "durable_remote": {
+    "bucket_private": true,
+    "file_count": 8,
+    "hf_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/artifacts/e5-raw-response-refinement-2026-07-23",
+    "total_byte_size": 3129275817,
+    "uploaded": true,
+    "verified_by_fresh_download": true
+  },
   "inference_manifest": {
     "aggregate_sha256": "d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054",
     "qrel_free": true,
@@ -69,6 +77,7 @@
     "numpy_headers_loaded_without_pickle": true,
     "all_values_finite": true,
     "construction_validation_status": "passed",
-    "e5_test_result": "129 passed"
+    "e5_test_result": "129 passed",
+    "remote_sha256sum_result": "8 files passed"
   }
 }

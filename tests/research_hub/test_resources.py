@@ -134,7 +134,12 @@ def test_stage_resources_rejects_symlinked_destination_component(
     ("unsafe_html", "message"),
     [
         ('<a href="file:///tmp/private">local</a>', "file URL"),
+        ('<a href="file:/home/alice/private">local</a>', "file URL"),
         ("<p>/home/npatta01/private</p>", "local filesystem path"),
+        (
+            "<p>&#x2f;home&#x2f;alice&#x2f;private&#x2f;results.json</p>",
+            "local filesystem path",
+        ),
         ("-----BEGIN PRIVATE KEY-----", "private-key"),
         ('<script src="https://cdn.example/app.js"></script>', "external executable"),
         ('<link rel="stylesheet" href="//cdn.example/app.css">', "external executable"),
@@ -178,6 +183,46 @@ def test_stage_resources_rejects_portable_local_filesystem_paths(
     assert not (tmp_path / "research/hub/_site/library").exists()
 
 
+@pytest.mark.parametrize(
+    "local_path",
+    [
+        "/root/private/results.json",
+        "/opt/project/results.json",
+        "/var/lib/private/results.json",
+        "/srv/research/results.json",
+        "/mnt/work/results.json",
+        "/etc/trec/secrets.conf",
+        "/usr/local/share/results.json",
+        "/bin/private-tool",
+        "/boot/private/config",
+        "/dev/shm/private-results",
+        "/lib/private/module.so",
+        "/lib64/private/module.so",
+        "/media/alice/private/results.json",
+        "/proc/self/environ",
+        "/run/user/1000/private",
+        "/sbin/private-tool",
+        "/sys/kernel/private",
+        "/nix/store/private-results",
+        "/Applications/Private/Results.json",
+        "/Library/Application Support/private/results.json",
+        "/System/Library/private/results.json",
+        "/Volumes/Research/private/results.json",
+        "/private/var/private/results.json",
+    ],
+)
+def test_stage_resources_rejects_common_unix_filesystem_roots(
+    tmp_path: Path,
+    local_path: str,
+) -> None:
+    _write_allowlisted_sources(tmp_path, f"<p>{local_path}</p>")
+
+    with pytest.raises(ValueError, match="local filesystem path"):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+    assert not (tmp_path / "research/hub/_site/library").exists()
+
+
 def test_stage_resources_allows_relative_and_site_absolute_paths(
     tmp_path: Path,
 ) -> None:
@@ -189,6 +234,16 @@ def test_stage_resources_allows_relative_and_site_absolute_paths(
     <a href="/research/hub/library/index.html">Library</a>
     <a href="https://docs.example/home/alice/guide">Documentation</a>
     <a href="//docs.example/tmp/guide">Protocol-relative documentation</a>
+    <a href="https://docs.example/root/private">Root documentation</a>
+    <a href="https://docs.example/opt/project">Project documentation</a>
+    <a href="//docs.example/var/lib/guide">Variable-data documentation</a>
+    <a href="/api/v1/root/private">Root API route</a>
+    <a href="/api/v1/opt/project">Project API route</a>
+    <a href="/research/var/lib/results">Research site route</a>
+    <a href="/static/mnt/work.svg">Static site route</a>
+    <a href="https:&#x2f;&#x2f;docs.example&#x2f;root&#x2f;private">
+      Entity-encoded documentation
+    </a>
     <script>const docs = "https:\\/\\/docs.example\\/home\\/alice";</script>
     """
     _write_allowlisted_sources(tmp_path, html)

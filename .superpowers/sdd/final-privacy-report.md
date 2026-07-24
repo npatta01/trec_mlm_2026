@@ -117,3 +117,89 @@ This privacy commit includes only:
 
 It does not include relationship, data, background, UI, portal, progress, or
 other concurrent changes.
+
+## Follow-up: common Unix roots and encoded paths
+
+A whole-feature re-review found that the first portable detector still
+recognized only Unix home and temporary roots. Paths rooted at standard Unix
+filesystem locations such as `/root`, `/opt`, `/var`, `/srv`, and `/mnt`
+therefore remained stageable. Raw-text scanning also allowed HTML
+entity-encoded local paths and the noncanonical but valid `file:/...` URL form.
+
+The detector now covers the common Linux/FHS, Nix, and macOS root families:
+
+```text
+/Applications /Library /System /Volumes
+/bin /boot /dev /etc /home /lib /lib32 /lib64 /libx32
+/media /mnt /nix /opt /private /proc /root /run
+/sbin /srv /sys /tmp /usr /Users /var
+```
+
+It decodes HTML character references before private marker, file URL, local
+path, and external CSS import checks. A scheme-specific check rejects `file:`
+URLs with one or more slash/backslash separators instead of relying on the
+former exact `file:///` marker.
+
+The existing path-start boundary is retained. Absolute local roots do not
+match when they occur inside `https://...`, protocol-relative web URLs,
+prefixed API routes such as `/api/v1/root/...`, or site paths such as
+`/research/var/...` and `/static/mnt/...`. The accepted-path regression also
+covers an entity-encoded HTTPS URL.
+
+### Follow-up TDD evidence
+
+RED, with tests added before production changes:
+
+```bash
+uv run --extra dev pytest tests/research_hub/test_resources.py \
+  -q -k stage_resources
+```
+
+```text
+25 failed, 20 passed, 2 deselected
+```
+
+The failures were the noncanonical `file:/` case, one entity-encoded Unix home
+path, and 23 representative common Unix-root paths. All prior staging cases
+and the expanded accepted URL/site-path case already passed.
+
+GREEN:
+
+```text
+45 passed, 2 deselected
+```
+
+### Follow-up verification
+
+```bash
+uv run --extra dev pytest tests/research_hub/test_resources.py -q
+```
+
+```text
+47 passed in 0.22s
+```
+
+```bash
+uv run --extra dev pytest tests/research_hub -q
+```
+
+```text
+137 passed in 3.11s
+```
+
+```bash
+uv run --extra dev ruff check \
+  trec_mlm/research_hub \
+  scripts/stage_research_hub_resources.py \
+  tests/research_hub
+```
+
+```text
+All checks passed!
+```
+
+Direct staging of both real allowlisted reports and byte-for-byte comparisons
+against their staged copies exited 0. `git diff --check` also exited 0.
+
+The follow-up remains confined to the staging script, its resource tests, and
+this report.

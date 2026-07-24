@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from html import unescape
 from html.parser import HTMLParser
 import os
 from pathlib import Path
@@ -22,11 +23,14 @@ RESOURCE_ALLOWLIST = {
 
 
 _PRIVATE_MARKERS = (
-    ("file:///", "file URL"),
     ("-----begin private key-----", "private-key header"),
     ("-----begin rsa private key-----", "private-key header"),
     ("-----begin openssh private key-----", "private-key header"),
     ("-----begin ec private key-----", "private-key header"),
+)
+_FILE_URL = re.compile(
+    r"(?<![A-Za-z0-9+.-])file:[/\\]",
+    flags=re.IGNORECASE,
 )
 _LOCAL_FILESYSTEM_PATH = re.compile(
     r"""
@@ -36,7 +40,12 @@ _LOCAL_FILESYSTEM_PATH = re.compile(
         (?:
             (?:home|Users)/[^/\s<>"']+
             |
-            (?:var/)?tmp
+            (?:
+                Applications|Library|System|Volumes
+                |bin|boot|dev|etc|lib(?:32|64|x32)?
+                |media|mnt|nix|opt|private|proc|root|run
+                |sbin|srv|sys|tmp|usr|var
+            )
         )
         (?=/|[\s<>"']|$)
         |
@@ -115,18 +124,21 @@ class _ExecutableAssetScanner(HTMLParser):
 def _scan_text(source: Path, text: str, *, depth: int = 0) -> None:
     if depth > _MAX_SRCDOC_DEPTH:
         raise ValueError("staged HTML contains excessively nested iframe srcdoc")
-    lowered = text.lower()
+    decoded = unescape(text)
+    lowered = decoded.lower()
     for marker, label in _PRIVATE_MARKERS:
         if marker in lowered:
             raise ValueError(f"staged HTML contains a {label}")
-    slash_normalized = text.replace("\\/", "/")
+    if _FILE_URL.search(decoded):
+        raise ValueError("staged HTML contains a file URL")
+    slash_normalized = decoded.replace("\\/", "/")
     path_candidates = (
         slash_normalized,
         slash_normalized.replace("\\\\", "\\"),
     )
     if any(_LOCAL_FILESYSTEM_PATH.search(value) for value in path_candidates):
         raise ValueError("staged HTML contains a local filesystem path")
-    if _CSS_EXTERNAL_IMPORT.search(text):
+    if _CSS_EXTERNAL_IMPORT.search(decoded):
         raise ValueError(
             "staged HTML contains an external executable asset"
         )

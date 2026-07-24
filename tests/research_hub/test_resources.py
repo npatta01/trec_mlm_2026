@@ -209,9 +209,13 @@ def test_stage_resources_rejects_portable_local_filesystem_paths(
         "/System/Library/private/results.json",
         "/Volumes/Research/private/results.json",
         "/private/var/private/results.json",
+        "/workspace/private/results.json",
+        "/data/private/results.json",
+        "/custom-root/project/file",
+        "/arbitrary-root",
     ],
 )
-def test_stage_resources_rejects_common_unix_filesystem_roots(
+def test_stage_resources_rejects_absolute_posix_filesystem_paths(
     tmp_path: Path,
     local_path: str,
 ) -> None:
@@ -231,7 +235,10 @@ def test_stage_resources_allows_relative_and_site_absolute_paths(
     <link rel="stylesheet" href="./assets/app.css">
     <img src="../images/chart.svg" alt="">
     <a href="/api/results.json">API results</a>
+    <a href="/api">API root</a>
     <a href="/research/hub/library/index.html">Library</a>
+    <a href="/research">Research root</a>
+    <a href="/static">Static root</a>
     <a href="https://docs.example/home/alice/guide">Documentation</a>
     <a href="//docs.example/tmp/guide">Protocol-relative documentation</a>
     <a href="https://docs.example/root/private">Root documentation</a>
@@ -241,10 +248,21 @@ def test_stage_resources_allows_relative_and_site_absolute_paths(
     <a href="/api/v1/opt/project">Project API route</a>
     <a href="/research/var/lib/results">Research site route</a>
     <a href="/static/mnt/work.svg">Static site route</a>
+    <a href="/api/custom-root/project/file">Custom-root API route</a>
+    <a href="/research/custom-root/project/file">Custom-root research route</a>
+    <a href="/static/custom-root/project/file">Custom-root static route</a>
+    <a href="https://docs.example/custom-root/project/file">
+      Custom-root documentation
+    </a>
+    <a href="//docs.example/data/private/results.json">Data documentation</a>
     <a href="https:&#x2f;&#x2f;docs.example&#x2f;root&#x2f;private">
       Entity-encoded documentation
     </a>
     <script>const docs = "https:\\/\\/docs.example\\/home\\/alice";</script>
+    <script>const tokens = value.split(/\\s+/u);</script>
+    <template data-compression="gzip-base64">
+      abc123/HCOV6hglfnydro7Ok+yOlUPssy/KW79t7YVJWZn6y9+ae
+    </template>
     """
     _write_allowlisted_sources(tmp_path, html)
 

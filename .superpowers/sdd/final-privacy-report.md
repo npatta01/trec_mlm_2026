@@ -203,3 +203,102 @@ against their staged copies exited 0. `git diff --check` also exited 0.
 
 The follow-up remains confined to the staging script, its resource tests, and
 this report.
+
+## Follow-up: categorical POSIX path detection
+
+A further whole-feature review showed that any finite root-family list could
+be bypassed with another valid absolute root, including `/workspace`,
+`/data`, or an arbitrary `/custom-root`. The POSIX detector no longer uses a
+root blocklist.
+
+It now classifies any boundary-delimited absolute path with a named first
+segment as local, including single named roots. Three exact first-segment
+exceptions permit the Research Hub's intentional root-relative site routes:
+
+```text
+/api
+/research
+/static
+```
+
+The exceptions cover each route root and all descendants, but not lookalikes
+such as `/apiary`. Relative paths remain permitted. Complete HTTP(S) and
+protocol-relative URLs are removed from the candidate text before path
+classification, and the left-boundary rule excludes HTML closing tags such as
+`</script>`.
+
+The real approaches guide also contains two legitimate slash-heavy contexts:
+JavaScript regular-expression literals and gzip/base64 payloads in explicitly
+declared `<template data-compression="gzip-base64">` elements. Regex literals
+are ignored only when their surrounding syntax and closing flags identify a
+JavaScript regex expression. Only the contents of templates explicitly marked
+with that compression format are omitted from path classification. Ordinary
+visible text, attributes, and script strings remain subject to categorical
+path detection.
+
+Entity decoding, `file:` URL rejection, Windows drive paths, UNC paths,
+external executable/base checks, recursive `srcdoc` scanning, and symlink
+confinement are unchanged.
+
+### Categorical TDD evidence
+
+Initial RED:
+
+```text
+3 failed, 45 passed, 2 deselected
+```
+
+The failures were `/workspace/private/results.json`,
+`/data/private/results.json`, and `/custom-root/project/file`. Exact
+`/api`, `/research`, and `/static` descendant routes plus arbitrary external
+URL paths already passed.
+
+A second RED proved a named single-root path also needed classification:
+
+```text
+1 failed, 48 passed, 2 deselected
+```
+
+The failing case was `/arbitrary-root`; exact `/api`, `/research`, and
+`/static` roots remained accepted.
+
+The first whole-suite run then found one real-report false positive:
+
+```text
+1 failed, 140 passed
+```
+
+The copied-repository Quarto render identified slash-heavy JavaScript regex
+and compressed-template content in the allowlisted approaches guide. A
+focused accepted regression reproduced that context before its narrow
+contextual handling was added.
+
+Final focused GREEN:
+
+```text
+49 passed, 2 deselected
+```
+
+### Categorical verification
+
+```bash
+uv run --extra dev pytest tests/research_hub/test_resources.py -q
+```
+
+```text
+51 passed in 0.29s
+```
+
+```bash
+uv run --extra dev pytest tests/research_hub -q
+```
+
+```text
+141 passed in 3.04s
+```
+
+Full Research Hub Ruff and `git diff --check` exited 0. Direct staging of the
+two real allowlisted reports and both byte-for-byte comparisons also exited 0.
+
+This categorical follow-up remains confined to the staging script, its
+resource tests, and this report.

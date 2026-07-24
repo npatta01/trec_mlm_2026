@@ -32,23 +32,41 @@ _FILE_URL = re.compile(
     r"(?<![A-Za-z0-9+.-])file:[/\\]",
     flags=re.IGNORECASE,
 )
-_LOCAL_FILESYSTEM_PATH = re.compile(
+_WEB_URL = re.compile(
+    r"(?:https?:)?//[^\s<>'\"]+",
+    flags=re.IGNORECASE,
+)
+_COMPRESSED_TEMPLATE = re.compile(
+    r"""
+    <template\b
+    (?=[^>]*\bdata-compression\s*=\s*["']gzip-base64["'])
+    [^>]*>.*?</template\s*>
+    """,
+    flags=re.IGNORECASE | re.DOTALL | re.VERBOSE,
+)
+_JAVASCRIPT_REGEX_LITERAL = re.compile(
+    r"""
+    (?<=[(=,:;!\[{}])
+    /
+    (?:\\.|[^/\\\r\n])+
+    /[dgimsuvy]*
+    (?=[\s,.;:)\]}]|$)
+    """,
+    flags=re.VERBOSE,
+)
+_POSIX_ABSOLUTE_PATH = re.compile(
+    r"""
+    (?<![A-Za-z0-9_./:<])
+    /
+    (?P<root>[^/\\\s<>"'\?#]+)
+    (?:/[^/\\\s<>"'\?#]+)*
+    """,
+    flags=re.VERBOSE,
+)
+_PERMITTED_SITE_PATH_ROOTS = frozenset({"api", "research", "static"})
+_WINDOWS_LOCAL_FILESYSTEM_PATH = re.compile(
     r"""
     (?:
-        (?<![A-Za-z0-9_./:-])
-        /
-        (?:
-            (?:home|Users)/[^/\s<>"']+
-            |
-            (?:
-                Applications|Library|System|Volumes
-                |bin|boot|dev|etc|lib(?:32|64|x32)?
-                |media|mnt|nix|opt|private|proc|root|run
-                |sbin|srv|sys|tmp|usr|var
-            )
-        )
-        (?=/|[\s<>"']|$)
-        |
         (?<![A-Za-z0-9_/\\])
         [A-Za-z]:[\\/]
         |
@@ -63,6 +81,16 @@ _CSS_EXTERNAL_IMPORT = re.compile(
     flags=re.IGNORECASE,
 )
 _MAX_SRCDOC_DEPTH = 16
+
+
+def _contains_local_filesystem_path(value: str) -> bool:
+    without_web_urls = _WEB_URL.sub("", value)
+    if any(
+        match.group("root") not in _PERMITTED_SITE_PATH_ROOTS
+        for match in _POSIX_ABSOLUTE_PATH.finditer(without_web_urls)
+    ):
+        return True
+    return bool(_WINDOWS_LOCAL_FILESYSTEM_PATH.search(value))
 
 
 def _is_external_url(value: str) -> bool:
@@ -131,12 +159,14 @@ def _scan_text(source: Path, text: str, *, depth: int = 0) -> None:
             raise ValueError(f"staged HTML contains a {label}")
     if _FILE_URL.search(decoded):
         raise ValueError("staged HTML contains a file URL")
-    slash_normalized = decoded.replace("\\/", "/")
+    path_text = _COMPRESSED_TEMPLATE.sub("", decoded)
+    path_text = _JAVASCRIPT_REGEX_LITERAL.sub("", path_text)
+    slash_normalized = path_text.replace("\\/", "/")
     path_candidates = (
         slash_normalized,
         slash_normalized.replace("\\\\", "\\"),
     )
-    if any(_LOCAL_FILESYSTEM_PATH.search(value) for value in path_candidates):
+    if any(_contains_local_filesystem_path(value) for value in path_candidates):
         raise ValueError("staged HTML contains a local filesystem path")
     if _CSS_EXTERNAL_IMPORT.search(decoded):
         raise ValueError(

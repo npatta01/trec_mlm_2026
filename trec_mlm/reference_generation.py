@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
+from datetime import datetime, timezone
 import hashlib
 import ipaddress
 import json
@@ -23,13 +24,38 @@ SYSTEM_PROMPT = (
     "context to serve as a useful reference answer, but do not pad the response. "
     "State important ambiguity or uncertainty. If the question is underspecified and "
     "cannot be answered responsibly, say what context is missing. Do not guess, invent "
-    "facts, or mention other models, evaluation, or this instruction."
+    "facts, or mention other models, evaluation, or this instruction.\n\n"
+    "Begin with exactly one status:\n"
+    "ANSWERED, AMBIGUOUS, INSUFFICIENT_EVIDENCE, or CONFLICTING_EVIDENCE.\n\n"
+    "On the second line write UNCERTAINTY_REASON: followed by one short reason, "
+    "or 'none' when answered without material uncertainty. Begin the clean answer "
+    "on the third line.\n\n"
+    "If the question admits multiple plausible interpretations, state them and do not "
+    "silently choose one. If authoritative sources conflict, describe the conflict. "
+    "Do not mark ANSWERED unless the central claims are supported by the retrieved "
+    "evidence. For time-sensitive claims, state the relevant date."
 )
+
+UNCERTAINTY_STATUSES = {
+    "ANSWERED": "answered",
+    "AMBIGUOUS": "ambiguous",
+    "INSUFFICIENT_EVIDENCE": "insufficient_evidence",
+    "CONFLICTING_EVIDENCE": "conflicting_evidence",
+}
 
 GEMINI_ENDPOINT_TEMPLATE = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
-GEMINI_MODEL = "gemini-3.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
+GEMMA_MODEL = "gemma-4-31b-it"
+GOOGLE_GENERATION_MODELS = frozenset({GEMINI_MODEL, GEMMA_MODEL})
+GOOGLE_MAX_OUTPUT_TOKENS = 16_384
+DEEPINFRA_ENDPOINT = "https://api.deepinfra.com/v1/openai/chat/completions"
+DEEPINFRA_QWEN_MODEL = "Qwen/Qwen3.6-27B"
+DEEPINFRA_GEMMA_MODEL = "google/gemma-4-31B-it"
+DEEPINFRA_MODELS = frozenset({DEEPINFRA_QWEN_MODEL, DEEPINFRA_GEMMA_MODEL})
+DEEPINFRA_MAX_OUTPUT_TOKENS = 16_384
+PROVIDER_TIMEOUT_SECONDS = 300
 RETRIABLE_STATUS_CODES = {408, 429, *range(500, 600)}
 RequestFunction = Callable[[str, dict[str, Any], dict[str, str]], Mapping[str, Any]]
 SleepFunction = Callable[[float], None]
@@ -38,6 +64,9 @@ GenerationCall = Callable[
 ]
 SAFE_REQUEST_METADATA_FIELDS = {
     "attempts": int,
+    "grounding_chunk_count": int,
+    "grounding_query_count": int,
+    "grounding_support_count": int,
     "max_output_tokens": int,
     "temperature": (int, float),
 }
@@ -96,18 +125,30 @@ class ProviderRequestError(RuntimeError):
 
 
 def build_gemini_request(
-    question: str, *, max_output_tokens: int = 768
+    question: str,
+    *,
+    model: str = GEMINI_MODEL,
+    max_output_tokens: int = GOOGLE_MAX_OUTPUT_TOKENS,
+    grounding: bool = False,
 ) -> dict[str, Any]:
-    """Build a Gemini generateContent body without challenger-answer context."""
+    """Build a Google generateContent body without challenger-answer context."""
 
-    return {
+    if model not in GOOGLE_GENERATION_MODELS:
+        raise ValueError(f"model is not an approved Google challenger: {model}")
+    thinking_level = "high" if model == GEMMA_MODEL else "low"
+
+    body: dict[str, Any] = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": question}]}],
         "generationConfig": {
-            "temperature": 0.0,
+            "temperature": 1.0,
             "maxOutputTokens": max_output_tokens,
+            "thinkingConfig": {"thinkingLevel": thinking_level},
         },
     }
+    if grounding:
+        body["tools"] = [{"google_search": {}}]
+    return body
 
 
 def build_openai_request(
@@ -156,6 +197,83 @@ def parse_gemini_response(
     )
 
 
+def parse_structured_answer(text: str) -> tuple[str, str, str]:
+    """Separate the required status envelope from a clean reference answer."""
+
+    lines = text.strip().splitlines()
+    if len(lines) < 3 or lines[0] not in UNCERTAINTY_STATUSES:
+        raise ValueError("structured answer has an invalid or missing status")
+    reason_prefix = "UNCERTAINTY_REASON:"
+    if not lines[1].startswith(reason_prefix):
+        raise ValueError("structured answer has no uncertainty reason")
+    reason = lines[1][len(reason_prefix) :].strip()
+    answer = "\n".join(lines[2:]).strip()
+    if not reason or not answer:
+        raise ValueError("structured answer has an empty reason or answer")
+    return answer, UNCERTAINTY_STATUSES[lines[0]], reason
+
+
+def _grounding_evidence(grounding_metadata: object) -> dict[str, Any]:
+    """Extract only structured Search provenance returned by Gemini."""
+
+    metadata = grounding_metadata if isinstance(grounding_metadata, Mapping) else {}
+    raw_queries = metadata.get("webSearchQueries")
+    queries = (
+        [value for value in raw_queries if isinstance(value, str)]
+        if isinstance(raw_queries, list)
+        else []
+    )
+    sources: list[dict[str, Any]] = []
+    raw_chunks = metadata.get("groundingChunks")
+    if isinstance(raw_chunks, list):
+        for index, chunk in enumerate(raw_chunks):
+            web = chunk.get("web") if isinstance(chunk, Mapping) else None
+            if not isinstance(web, Mapping):
+                continue
+            uri, title = web.get("uri"), web.get("title")
+            if isinstance(uri, str) or isinstance(title, str):
+                sources.append(
+                    {
+                        "index": index,
+                        "url": uri if isinstance(uri, str) else "",
+                        "title": title if isinstance(title, str) else "",
+                    }
+                )
+    supports: list[dict[str, Any]] = []
+    raw_supports = metadata.get("groundingSupports")
+    if isinstance(raw_supports, list):
+        for support in raw_supports:
+            if not isinstance(support, Mapping):
+                continue
+            segment = support.get("segment")
+            indices = support.get("groundingChunkIndices")
+            if not isinstance(segment, Mapping):
+                continue
+            supports.append(
+                {
+                    "answer_passage": str(segment.get("text") or ""),
+                    "start_index": segment.get("startIndex")
+                    if isinstance(segment.get("startIndex"), int)
+                    else None,
+                    "end_index": segment.get("endIndex")
+                    if isinstance(segment.get("endIndex"), int)
+                    else None,
+                    "source_indices": [
+                        value for value in indices if isinstance(value, int)
+                    ]
+                    if isinstance(indices, list)
+                    else [],
+                }
+            )
+    return {
+        "search_invoked": bool(queries or sources or supports),
+        "web_search_queries": queries,
+        "sources": sources,
+        "supports": supports,
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+
 def parse_openai_response(
     response: Mapping[str, Any],
 ) -> tuple[str, Mapping[str, Any], str | None]:
@@ -186,7 +304,7 @@ def _post_json(
         headers={"Content-Type": "application/json", **headers},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
+    with urllib.request.urlopen(request, timeout=PROVIDER_TIMEOUT_SECONDS) as response:
         payload = json.load(response)
     if not isinstance(payload, Mapping):
         raise ValueError("provider response must be a JSON object")
@@ -205,7 +323,14 @@ def _request_with_retries(
         try:
             return request_fn(url, body, headers), attempt
         except urllib.error.HTTPError as exc:
-            if exc.code not in RETRIABLE_STATUS_CODES or attempt == 4:
+            # A 429 is already a request-rate signal. Immediate per-thread retries
+            # bypass the outer rate limiter and amplify the overload; checkpoint it
+            # once and let the resumable runner retry in a later controlled pass.
+            if (
+                exc.code == 429
+                or exc.code not in RETRIABLE_STATUS_CODES
+                or attempt == 4
+            ):
                 raise ProviderRequestError(
                     category="http",
                     http_status=exc.code,
@@ -227,18 +352,24 @@ def call_gemini(
     *,
     api_key: str,
     model: str = GEMINI_MODEL,
-    max_output_tokens: int = 768,
+    max_output_tokens: int = GOOGLE_MAX_OUTPUT_TOKENS,
+    grounding: bool = False,
     request_fn: RequestFunction = _post_json,
     sleep_fn: SleepFunction = time.sleep,
 ) -> tuple[str, Mapping[str, Any], str | None, Mapping[str, Any]]:
-    """Call Gemini through its legacy REST endpoint using injected I/O hooks."""
+    """Call an approved Gemini-API model using injected I/O hooks."""
 
     if not api_key:
         raise ValueError("GEMINI_API_KEY is required")
-    if model != GEMINI_MODEL:
-        raise ValueError(f"Gemini model is frozen to {GEMINI_MODEL}")
-    endpoint = GEMINI_ENDPOINT_TEMPLATE.format(model=GEMINI_MODEL)
-    body = build_gemini_request(question, max_output_tokens=max_output_tokens)
+    if model not in GOOGLE_GENERATION_MODELS:
+        raise ValueError(f"model is not an approved Google challenger: {model}")
+    endpoint = GEMINI_ENDPOINT_TEMPLATE.format(model=model)
+    body = build_gemini_request(
+        question,
+        model=model,
+        max_output_tokens=max_output_tokens,
+        grounding=grounding,
+    )
     response, attempts = _request_with_retries(
         endpoint,
         body,
@@ -249,10 +380,31 @@ def call_gemini(
     answer, usage, finish_reason = parse_gemini_response(response)
     metadata: dict[str, Any] = {
         "endpoint": endpoint,
-        "temperature": 0.0,
+        "temperature": 1.0,
         "max_output_tokens": max_output_tokens,
         "attempts": attempts,
+        "grounding": grounding,
     }
+    if grounding:
+        candidate = response.get("candidates", [{}])[0]
+        grounding_metadata = (
+            candidate.get("groundingMetadata")
+            if isinstance(candidate, Mapping)
+            else None
+        )
+        if isinstance(grounding_metadata, Mapping):
+            for source_field, target_field in (
+                ("webSearchQueries", "grounding_query_count"),
+                ("groundingChunks", "grounding_chunk_count"),
+                ("groundingSupports", "grounding_support_count"),
+            ):
+                values = grounding_metadata.get(source_field)
+                if isinstance(values, list):
+                    metadata[target_field] = len(values)
+        answer, status, uncertainty_reason = parse_structured_answer(answer)
+        metadata["uncertainty_status"] = status
+        metadata["uncertainty_reason"] = uncertainty_reason
+        metadata["_private_evidence"] = _grounding_evidence(grounding_metadata)
     request_id = response.get("responseId")
     if isinstance(request_id, str):
         metadata["request_id_sha256"] = hashlib.sha256(
@@ -278,7 +430,9 @@ def validate_openai_compatible_url(base_url: str) -> str:
     if hostname == "localhost":
         return base_url
     try:
-        is_loopback = hostname is not None and ipaddress.ip_address(hostname).is_loopback
+        is_loopback = (
+            hostname is not None and ipaddress.ip_address(hostname).is_loopback
+        )
     except ValueError:
         is_loopback = False
     if not is_loopback:
@@ -319,6 +473,46 @@ def call_openai_compatible(
     return answer, usage, finish_reason, metadata
 
 
+def call_deepinfra(
+    question: str,
+    *,
+    api_token: str,
+    model: str = DEEPINFRA_QWEN_MODEL,
+    max_output_tokens: int = DEEPINFRA_MAX_OUTPUT_TOKENS,
+    request_fn: RequestFunction = _post_json,
+    sleep_fn: SleepFunction = time.sleep,
+) -> tuple[str, Mapping[str, Any], str | None, Mapping[str, Any]]:
+    """Call the pinned Qwen challenger through DeepInfra's OpenAI endpoint."""
+
+    if not api_token:
+        raise ValueError("DEEPINFRA_API_TOKEN is required")
+    if model not in DEEPINFRA_MODELS:
+        raise ValueError(f"model is not an approved DeepInfra challenger: {model}")
+    body = build_openai_request(
+        question, model=model, max_output_tokens=max_output_tokens
+    )
+    response, attempts = _request_with_retries(
+        DEEPINFRA_ENDPOINT,
+        body,
+        {"Authorization": f"Bearer {api_token}"},
+        request_fn=request_fn,
+        sleep_fn=sleep_fn,
+    )
+    answer, usage, finish_reason = parse_openai_response(response)
+    metadata: dict[str, Any] = {
+        "endpoint": DEEPINFRA_ENDPOINT,
+        "temperature": 0.0,
+        "max_output_tokens": max_output_tokens,
+        "attempts": attempts,
+    }
+    request_id = response.get("id")
+    if isinstance(request_id, str):
+        metadata["request_id_sha256"] = hashlib.sha256(
+            request_id.encode("utf-8")
+        ).hexdigest()
+    return answer, usage, finish_reason, metadata
+
+
 def _safe_request_metadata(
     metadata: Mapping[str, Any], *, provider: str
 ) -> dict[str, Any]:
@@ -331,9 +525,16 @@ def _safe_request_metadata(
             safe[field] = value
     endpoint = metadata.get("endpoint")
     if isinstance(endpoint, str):
-        if provider == "gemini" and endpoint == GEMINI_ENDPOINT_TEMPLATE.format(
-            model=GEMINI_MODEL
+        approved_google_endpoints = {
+            GEMINI_ENDPOINT_TEMPLATE.format(model=model)
+            for model in GOOGLE_GENERATION_MODELS
+        }
+        if (
+            provider in {"gemini", "gemini-grounded"}
+            and endpoint in approved_google_endpoints
         ):
+            safe["endpoint"] = endpoint
+        elif provider == "deepinfra" and endpoint == DEEPINFRA_ENDPOINT:
             safe["endpoint"] = endpoint
         elif provider == "openai-compatible":
             try:
@@ -347,15 +548,17 @@ def _safe_request_metadata(
         and all(character in "0123456789abcdef" for character in request_id_sha256)
     ):
         safe["request_id_sha256"] = request_id_sha256
+    if metadata.get("grounding") is True:
+        safe["grounding"] = True
     return safe
 
 
 def _safe_usage(usage: Mapping[str, Any], *, provider: str) -> dict[str, Any]:
     schema = (
         GEMINI_USAGE_SCHEMA
-        if provider == "gemini"
+        if provider in {"gemini", "gemini-grounded"}
         else OPENAI_USAGE_SCHEMA
-        if provider == "openai-compatible"
+        if provider in {"openai-compatible", "deepinfra"}
         else {}
     )
 
@@ -433,7 +636,9 @@ def _load_cache(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _write_cache(path: Path, payload: Mapping[str, Any]) -> None:
+def _write_cache(
+    path: Path, payload: Mapping[str, Any], *, private: bool = False
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(
@@ -441,6 +646,8 @@ def _write_cache(path: Path, payload: Mapping[str, Any]) -> None:
         encoding="utf-8",
     )
     temporary.replace(path)
+    if private:
+        path.chmod(0o600)
 
 
 class GenerationRunner:
@@ -456,6 +663,7 @@ class GenerationRunner:
         call: GenerationCall,
         workers: int,
         checkpoint_every: int = 10,
+        evidence_cache_path: Path | None = None,
     ) -> None:
         if workers < 1:
             raise ValueError("workers must be at least one")
@@ -468,14 +676,17 @@ class GenerationRunner:
         self.call = call
         self.workers = workers
         self.checkpoint_every = checkpoint_every
+        self.evidence_cache_path = evidence_cache_path
 
-    def _is_complete(self, record: object) -> bool:
+    def _is_complete(self, record: object, *, has_evidence: bool = True) -> bool:
         return (
             isinstance(record, Mapping)
             and record.get("provider") == self.provider
             and record.get("model") == self.model
             and record.get("prompt_sha256") == self.prompt_sha256
             and isinstance(record.get("answer"), str)
+            and record.get("finish_reason") != "length"
+            and has_evidence
         )
 
     def run(self, questions: list[tuple[str, str]]) -> dict[str, Any]:
@@ -490,9 +701,45 @@ class GenerationRunner:
         )
         records = cache["records"]
         failures = cache["failures"]
+        evidence_cache = (
+            _load_cache(self.evidence_cache_path)
+            if self.evidence_cache_path is not None
+            else None
+        )
+        evidence_records: dict[str, Any] = (
+            evidence_cache["records"] if evidence_cache is not None else {}
+        )
+        if evidence_cache is not None:
+            evidence_cache.update(
+                {
+                    "cache_version": 1,
+                    "provider": self.provider,
+                    "model": self.model,
+                    "prompt_sha256": self.prompt_sha256,
+                }
+            )
+
+        def has_current_evidence(question_id: str) -> bool:
+            if evidence_cache is None:
+                return True
+            evidence = evidence_records.get(question_id)
+            return (
+                isinstance(evidence, Mapping)
+                and evidence.get("provider") == self.provider
+                and evidence.get("model") == self.model
+                and evidence.get("prompt_sha256") == self.prompt_sha256
+            )
+
+        def write_all() -> None:
+            _write_cache(self.cache_path, cache)
+            if self.evidence_cache_path is not None and evidence_cache is not None:
+                _write_cache(self.evidence_cache_path, evidence_cache, private=True)
+
         cache_changed = False
         for question_id, _ in questions:
-            if question_id in records and not self._is_complete(records[question_id]):
+            if question_id in records and not self._is_complete(
+                records[question_id], has_evidence=has_current_evidence(question_id)
+            ):
                 del records[question_id]
                 cache_changed = True
             failure = failures.get(question_id)
@@ -504,11 +751,13 @@ class GenerationRunner:
                 del failures[question_id]
                 cache_changed = True
         if cache_changed:
-            _write_cache(self.cache_path, cache)
+            write_all()
         pending = [
             (question_id, question)
             for question_id, question in questions
-            if not self._is_complete(records.get(question_id))
+            if not self._is_complete(
+                records.get(question_id), has_evidence=has_current_evidence(question_id)
+            )
         ]
         if not pending:
             return cache
@@ -540,8 +789,32 @@ class GenerationRunner:
                         metadata, provider=self.provider
                     ),
                 }
+                status = metadata.get("uncertainty_status")
+                reason = metadata.get("uncertainty_reason")
+                if status in UNCERTAINTY_STATUSES.values() and isinstance(reason, str):
+                    records[question_id]["uncertainty_status"] = status
+                    records[question_id]["uncertainty_reason"] = reason
+                if evidence_cache is not None:
+                    private_evidence = metadata.get("_private_evidence")
+                    if not isinstance(private_evidence, Mapping):
+                        raise ValueError(
+                            "grounded response contains no private evidence"
+                        )
+                    evidence_records[question_id] = {
+                        "question_id": question_id,
+                        "provider": self.provider,
+                        "model": self.model,
+                        "prompt_sha256": self.prompt_sha256,
+                        "uncertainty_status": status,
+                        "uncertainty_reason": reason,
+                        "usage": _safe_usage(usage, provider=self.provider),
+                        "finish_reason": _safe_finish_reason(finish_reason),
+                        **dict(private_evidence),
+                    }
                 failures.pop(question_id, None)
             except Exception as exc:
+                records.pop(question_id, None)
+                evidence_records.pop(question_id, None)
                 failures[question_id] = _failure_payload(
                     exc,
                     provider=self.provider,
@@ -550,7 +823,7 @@ class GenerationRunner:
                 )
             completed_since_checkpoint += 1
             if completed_since_checkpoint >= self.checkpoint_every:
-                _write_cache(self.cache_path, cache)
+                write_all()
                 completed_since_checkpoint = 0
 
         executor = ThreadPoolExecutor(max_workers=self.workers)
@@ -583,12 +856,12 @@ class GenerationRunner:
                         store_future(question_id, future)
                     except BaseException:
                         pass
-            _write_cache(self.cache_path, cache)
+            write_all()
             raise
         else:
             executor.shutdown(wait=True)
         finally:
-            _write_cache(self.cache_path, cache)
+            write_all()
         return cache
 
 
@@ -601,6 +874,7 @@ def generate_missing(
     call: GenerationCall,
     workers: int,
     checkpoint_every: int = 10,
+    evidence_cache_path: Path | None = None,
 ) -> dict[str, Any]:
     runner = GenerationRunner(
         cache_path=cache_path,
@@ -610,6 +884,7 @@ def generate_missing(
         call=call,
         workers=workers,
         checkpoint_every=checkpoint_every,
+        evidence_cache_path=evidence_cache_path,
     )
     return runner.run(questions)
 

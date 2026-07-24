@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and run a reproducible rough-pass comparison of the 7,759-answer Perplexity cache against Gemini 3.5 Flash, Qwen3.6-35B-A3B, and Qwen3.6-27B on approximately 400 discovery questions, with Codex qualitative review of every comparison and deeper adjudication of informative disagreements.
+**Goal:** Build and run a reproducible rough-pass comparison of the 7,759-answer Perplexity cache against Gemini 3.6 Flash, Qwen3.6-27B, and Gemma 4 31B on 400 discovery questions, with Codex qualitative review of every comparison and deeper adjudication of informative disagreements.
 
 **Architecture:** Keep raw provider outputs in resumable, provider-specific caches; derive a deterministic clustered sample, blinded comparison packet, Codex review ledger, selected-reference artifact, and summarized report. Pure validation and selection logic lives in small `trec_mlm` modules, while scripts provide checkpointed CLIs. Candidate responses and organizer qrels never enter reference generation or selection.
 
@@ -22,6 +22,59 @@
 - Run local LLMs through rootless Podman with ROCm when compatible. Do not expose inference services beyond loopback.
 - Raw caches and full review packets stay under ignored `artifacts/`; only sanitized summaries and representative examples may be copied to the tailnet-only rendered portal.
 - The Perplexity full-cache deadline is already satisfied. Challenger pilot execution must remain resumable and must not jeopardize the existing source cache.
+
+## Current execution status (2026-07-21)
+
+- Gemini was repinned from 3.5 Flash to stable `gemini-3.6-flash` after its
+  2026-07-21 release. Requests use temperature `1.0`, low thinking, a
+  16,384-token output/reasoning ceiling, and no grounding or tool field.
+- A two-question corrected smoke and a 20-question representative canary
+  completed without failures or grounding metadata.
+- The 400-question cache is complete by ID at
+  `artifacts/reference_answer_validation/generations/gemini36_low_400.json`:
+  400 expected/400 observed, no missing or extra IDs, no provider failures,
+  400 `STOP` responses after the four original `MAX_TOKENS` records were
+  retried at the larger ceiling. Length-terminated cache records are now
+  automatically considered incomplete and resumable.
+- Final observed usage was 37,890 prompt tokens, 92,018 candidate tokens, and
+  98,623 thinking tokens. Estimated standard API cost is $1.487. The final
+  cache SHA-256 is
+  `1d80b8d870207f63611c87f0ee65f2ab99b5aa15cd311863bf23dee5289d5860`.
+- Gemma 4 31B passed Google's two-question high-thinking canary. The Google
+  free-tier run produced 131 successful records but stalled under quota; that
+  partial cache is preserved and excluded from the comparison. The fresh exact
+  `google/gemma-4-31B-it` DeepInfra comparison source completed 400/400 with
+  zero failures.
+- DeepInfra's exact `Qwen/Qwen3.6-27B` run produced 396 normal-stop answers.
+  Six multi-hop/entity questions required a 32,768-token retry; two recovered
+  and four remained explicit generation failures after the bounded retry. The
+  final records used 42,384 input and 628,249 completion tokens, for an
+  estimated $2.024 at the verified listed rates. The final cache SHA-256 is
+  `786a9cd2d0c798fbb3fe4618f0a7fec3614694b101f199b673d93fe893292264`.
+- DeepInfra Gemma used 45,077 input and 81,643 completion tokens, for an
+  estimated $0.037 at the verified listed rates. The original Gemini run and
+  four repairs remain below the authorized $10 cap; its prior receipt estimated
+  $1.48 before the small repair increment.
+- The 400-row blind four-model packet and strict all-six-pairs review
+  validation are implemented. The packet contains four explicit anonymous
+  failure slots, and the sealed provider map is mode 0600. Advisor methodology is
+  recorded in `reports/trec_2026_four_model_review_advisor_2026-07-21.md`.
+- The independent advisor completed 400/400 blind reviews. Codex then
+  inspected all 400 and revised 34 judgments, primarily replacing forced
+  fine-grained ordering with substantive ties. Exact review coverage passed
+  before the provider map was opened.
+- The unblinded result selects Gemini 3.6 Flash: 82.3% top-tier share and 7.0%
+  serious-error rate, versus Perplexity at 62.3% and 21.5%, Qwen at 58.8% and
+  31.3%, and Gemma at 50.8% and 36.3%. The result remains first in every
+  inspected challenge slice.
+- Actual Gemini token use projects to $28.84 for all 7,759 or about $27.35 for
+  the 7,359 uncached questions. The full run is pending an increase from the
+  explicit $10 Gemini cap; it has not been started.
+- Canonical report:
+  `reports/trec_2026_four_model_reference_review_2026-07-21.md`. Portable
+  report artifact:
+  `reports/trec_2026_four_model_reference_review.artifact.json`. The sanitized
+  generated HTML is listed in the private tailnet portal.
 
 ---
 
@@ -48,9 +101,9 @@ artifacts/reference_answer_validation/
 ├── sample_manifest.json
 ├── cluster_assignments.tsv
 ├── generations/
-│   ├── gemini35.json
-│   ├── qwen35.json
-│   └── qwen27.json
+│   ├── gemini36_low_400.json
+│   ├── qwen36_27b_400.json
+│   └── gemma4_31b_deepinfra_400.json
 ├── blind_system_map.json
 ├── blind_comparisons.jsonl
 ├── automatic_comparisons.jsonl
@@ -381,11 +434,12 @@ def test_prompt_forbids_guessing_and_requests_direct_answer() -> None:
 
 
 def test_gemini_request_contains_question_but_no_other_answers() -> None:
-    body = build_gemini_request("Who wrote Hamlet?", max_output_tokens=768)
+    body = build_gemini_request("Who wrote Hamlet?", max_output_tokens=2048)
     encoded = json.dumps(body)
     assert "Who wrote Hamlet?" in encoded
     assert "Perplexity" not in encoded
-    assert body["generationConfig"]["temperature"] == 0.0
+    assert body["generationConfig"]["temperature"] == 1.0
+    assert body["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "low"}
 
 
 def test_openai_request_uses_the_same_prompt() -> None:
@@ -423,11 +477,11 @@ SYSTEM_PROMPT = (
 Implement Gemini REST calls using the stable model code and endpoint verified in Google's Gemini API documentation on 2026-07-20:
 
 ```text
-POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent
+POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent
 Header: x-goog-api-key: $GEMINI_API_KEY
 ```
 
-Do not enable Google Search grounding in this challenger pass. Implement local Qwen through an explicitly supplied URL ending in `/v1/chat/completions`; reject non-loopback hosts unless a future user authorization changes this constraint. Both adapters use temperature `0.0`, `max_output_tokens=768`, four retry attempts for 408/429/5xx, exponential backoff, and injectable request/sleep functions for tests.
+Do not enable Google Search grounding in this challenger pass. Implement local Qwen through an explicitly supplied URL ending in `/v1/chat/completions`; reject non-loopback hosts unless a future user authorization changes this constraint. Gemini 3.6 uses Google's recommended temperature `1.0`, low thinking, and `max_output_tokens=2048`; the local adapter retains temperature `0.0` and `max_output_tokens=768`. Both use four retry attempts for 408/429/5xx, exponential backoff, and injectable request/sleep functions for tests.
 
 - [ ] **Step 4: Implement atomic resume semantics**
 
@@ -466,7 +520,7 @@ Supported commands:
 uv run python scripts/generate_reference_challengers.py gemini \
   --sample artifacts/reference_answer_validation/sample_manifest.json \
   --cache artifacts/reference_answer_validation/generations/gemini35.json \
-  --model gemini-3.5-flash --workers 8 --requests-per-minute 120
+  --model gemini-3.6-flash --workers 8 --requests-per-minute 120
 
 uv run python scripts/generate_reference_challengers.py openai-compatible \
   --sample artifacts/reference_answer_validation/sample_manifest.json \
@@ -979,3 +1033,90 @@ Invoke `superpowers:requesting-code-review` against the implementation range. Ad
 ## Completion definition
 
 The implementation is complete only when the reproducible sample, three challenger caches, blind comparisons, 400 Codex reviews, deeper adjudications, selected references, manifests, sanitized report, full local explorer, tests, and tailnet-only handoff have all been verified. A partial model run or automatic comparison without the all-400 Codex review is not completion.
+
+## Grounding experiment status (2026-07-21)
+
+- [x] Added opt-in Google Search grounding with a distinct provider/cache
+  identity and safe count-only grounding metadata.
+- [x] Added and passed focused tests for request construction, metadata
+  extraction, and cache sanitization.
+- [x] Ran all 28 originally flagged Gemini serious-error cases: 28/28 complete,
+  26 Search-using requests, 53 queries, 116 chunks, and 110 supports.
+- [x] Manually reviewed all 28 paired answers and recorded 12 clear rescues,
+  six partial rescues, six no-rescues, one no-Search regeneration rescue, and
+  three original-review false positives.
+- [x] Built and browser-verified the sanitized progressive-disclosure report.
+- [ ] Run the same grounded comparison on the 33 non-failure controls selected
+  by the proposed disagreement route before adopting that route at corpus
+  scale.
+- [ ] Calibrate a local comparison judge against all 400 locked
+  Gemini–Perplexity labels; the manual trigger result is an upper bound, not an
+  operational classifier result.
+
+## Full grounded-reference run (2026-07-21)
+
+Objective: generate a grounded Gemini 3.6 Flash reference for every one of the
+7,759 discovery questions while retaining auditable provenance privately.
+
+Approved data contract:
+
+- The model begins every response with one of `ANSWERED`, `AMBIGUOUS`,
+  `INSUFFICIENT_EVIDENCE`, or `CONFLICTING_EVIDENCE`, followed by a short
+  `UNCERTAINTY_REASON`.
+- The public generation cache stores the normalized status and reason separately
+  from the clean answer.
+- A separate owner-readable (`0600`) evidence ledger stores returned source URLs
+  and titles, supported answer passages, Search queries and invocation state,
+  model, prompt hash, UTC timestamp, finish reason, and token usage.
+- Raw evidence is excluded from sanitized reports and the rendered portal.
+
+Pre-spend gate:
+
+- [x] Built a deterministic 50-question canary and a 7,759-question full manifest.
+- [x] Canary completed 50/50 with zero failures, malformed statuses, empty answers,
+  truncations, abnormal finishes, or missing source URLs on Search-using responses.
+- [x] Search ran on 39/50. The 11 non-search responses were inspected; six broad
+  keyword flags were documented as false positives in a separate review ledger.
+- [x] Conservative full-run projection: **$73.40**, below the hard **$150** cap.
+- [ ] Complete the full grounded run and verify exactly 7,759 unique IDs with zero
+  missing records.
+- [ ] Publish only a sanitized progressive-disclosure summary listing failures,
+  refusals, non-search responses, and uncertain cases; retain raw provenance locally.
+
+Execution receipt at the 2026-07-21 quota boundary:
+
+- 1,906 valid records and matching private evidence records are checkpointed.
+- Raising concurrency to 64 workers exposed a provider quota boundary. Google returned
+  `RESOURCE_EXHAUSTED` without naming the quota metric; 454 HTTP 429 receipts are
+  resumable and do not replace valid records.
+- The likely exhausted bucket is the 5,000/day Search-grounding quota visible in AI
+  Studio. This is an inference: concurrent requests plus four automatic retries
+  amplified request attempts, but Google's error did not include a quota identifier.
+- Recovery: after the daily reset, resume at the previously stable 12 workers and 120
+  RPM using a capped 4,500-question pending tranche. Finish the remaining tranche after
+  the next reset, then run the exact-ID/provenance/cost audit and build the sanitized
+  report.
+
+Follow-up diagnosis on 2026-07-22:
+
+- The reset tranche admitted 1,740 additional valid grounded responses, reaching 3,646,
+  before sustained 429s resumed.
+- One isolated request succeeded after the tranche, but a controlled 20-RPM run produced
+  no sustained progress. Three subsequent requests spaced at 1 RPM all returned 429.
+- Therefore lowering RPM does not reopen throughput after the active quota/capacity
+  window is exhausted. The precise limiting dimension remains unidentified because the
+  provider omits the quota metric from its `RESOURCE_EXHAUSTED` response.
+- Fixed local retry amplification: HTTP 429 is now checkpointed after one attempt rather
+  than retried four times outside the rate limiter. HTTP 503 and transport retries remain
+  bounded as before.
+- Google documents that only requests-per-day (RPD) resets at midnight Pacific;
+  RPM/TPM use minute windows, and the separate spend-rate limit uses a rolling
+  ten-minute window. Because the observed 429 omits its quota metric, it must not
+  automatically be classified as an RPD exhaustion.
+- Ravi's final independent receipt is frozen at a conservative maximum of
+  **$40.90945**. The run then switched to Tanwir's working project with separate
+  credential-fingerprint accounting.
+- Tanwir authorized an independent maximum of **$25**. The durable runner enforces
+  that limit against the conservative total that counts every Search query as
+  billable. At the cap it checkpoints and stops; the owner's key may be retried
+  after the next midnight-Pacific RPD boundary.

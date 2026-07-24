@@ -13,17 +13,35 @@ from scripts.preflight_reference_models import (
     preflight_exit_code,
 )
 from trec_mlm.reference_generation import (
+    DEEPINFRA_GEMMA_MODEL,
+    GEMMA_MODEL,
     GEMINI_ENDPOINT_TEMPLATE,
+    GEMINI_MODEL,
+    GOOGLE_MAX_OUTPUT_TOKENS,
     SYSTEM_PROMPT,
     build_gemini_request,
     build_openai_request,
+    call_deepinfra,
     call_gemini,
     call_openai_compatible,
     generate_missing,
     parse_gemini_response,
+    parse_structured_answer,
     validate_openai_compatible_url,
 )
 from scripts.generate_reference_challengers import main
+
+
+def test_gemini_model_is_pinned_to_stable_3_6_flash() -> None:
+    assert GEMINI_MODEL == "gemini-3.6-flash"
+
+
+def test_gemma_model_is_pinned_to_stable_4_31b() -> None:
+    assert GEMMA_MODEL == "gemma-4-31b-it"
+
+
+def test_google_generation_ceiling_allows_long_reasoning() -> None:
+    assert GOOGLE_MAX_OUTPUT_TOKENS == 16_384
 
 
 def _commands(*, rocminfo: str = "GPU agent gfx1151") -> dict[str, str]:
@@ -431,6 +449,43 @@ def test_preflight_requires_explicit_rootless_podman_evidence() -> None:
 def test_prompt_forbids_guessing_and_requests_direct_answer() -> None:
     assert "Do not guess" in SYSTEM_PROMPT
     assert "underspecified" in SYSTEM_PROMPT
+    assert "Begin with exactly one status" in SYSTEM_PROMPT
+    assert "CONFLICTING_EVIDENCE" in SYSTEM_PROMPT
+    assert "For time-sensitive claims, state the relevant date" in SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize(
+    ("raw_status", "expected_status"),
+    [
+        ("ANSWERED", "answered"),
+        ("AMBIGUOUS", "ambiguous"),
+        ("INSUFFICIENT_EVIDENCE", "insufficient_evidence"),
+        ("CONFLICTING_EVIDENCE", "conflicting_evidence"),
+    ],
+)
+def test_parse_structured_answer_separates_status_reason_and_clean_answer(
+    raw_status: str, expected_status: str
+) -> None:
+    answer, status, reason = parse_structured_answer(
+        f"{raw_status}\nUNCERTAINTY_REASON: Source scope is limited.\n\nClean answer."
+    )
+
+    assert answer == "Clean answer."
+    assert status == expected_status
+    assert reason == "Source scope is limited."
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "MAYBE\nUNCERTAINTY_REASON: unclear\nanswer",
+        "ANSWERED\nanswer without reason field",
+        "ANSWERED\nUNCERTAINTY_REASON: none",
+    ],
+)
+def test_parse_structured_answer_rejects_invalid_contract(text: str) -> None:
+    with pytest.raises(ValueError, match="structured answer"):
+        parse_structured_answer(text)
 
 
 def test_gemini_request_contains_question_but_no_other_answers() -> None:
@@ -438,7 +493,23 @@ def test_gemini_request_contains_question_but_no_other_answers() -> None:
     encoded = json.dumps(body)
     assert "Who wrote Hamlet?" in encoded
     assert "Perplexity" not in encoded
-    assert body["generationConfig"]["temperature"] == 0.0
+    assert "tools" not in body
+    assert body["generationConfig"]["temperature"] == 1.0
+    assert body["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "low"}
+
+
+def test_grounded_gemini_request_enables_google_search_only_when_requested() -> None:
+    grounded = build_gemini_request("Who wrote Hamlet?", grounding=True)
+    ungrounded = build_gemini_request("Who wrote Hamlet?")
+
+    assert grounded["tools"] == [{"google_search": {}}]
+    assert "tools" not in ungrounded
+
+
+def test_gemma_request_uses_high_thinking_and_large_default_ceiling() -> None:
+    body = build_gemini_request("Who wrote Hamlet?", model=GEMMA_MODEL)
+    assert body["generationConfig"]["maxOutputTokens"] == 16_384
+    assert body["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "high"}
 
 
 def test_openai_request_uses_the_same_prompt() -> None:
@@ -483,7 +554,7 @@ def test_generate_missing_resumes_and_never_serializes_secrets(tmp_path: Path) -
         [("q1", "first"), ("q2", "second")],
         cache_path=cache_path,
         provider="gemini",
-        model="gemini-3.5-flash",
+        model="gemini-3.6-flash",
         call=first_call,
         workers=1,
         checkpoint_every=1,
@@ -499,7 +570,7 @@ def test_generate_missing_resumes_and_never_serializes_secrets(tmp_path: Path) -
         [("q1", "first"), ("q2", "second")],
         cache_path=cache_path,
         provider="gemini",
-        model="gemini-3.5-flash",
+        model="gemini-3.6-flash",
         call=resumed_call,
         workers=1,
         checkpoint_every=1,
@@ -546,11 +617,11 @@ def test_gemini_retries_retriable_status_with_injected_sleep() -> None:
     def request(url: str, body: dict, headers: dict[str, str]):
         nonlocal attempts
         attempts += 1
-        assert url == GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.5-flash")
+        assert url == GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.6-flash")
         assert headers["x-goog-api-key"] == "secret"
-        assert body["generationConfig"]["maxOutputTokens"] == 768
+        assert body["generationConfig"]["maxOutputTokens"] == 16_384
         if attempts < 3:
-            raise urllib.error.HTTPError(url, 429, "limited", {}, None)
+            raise urllib.error.HTTPError(url, 503, "unavailable", {}, None)
         return {
             "candidates": [
                 {"content": {"parts": [{"text": "answer"}]}, "finishReason": "STOP"}
@@ -561,7 +632,7 @@ def test_gemini_retries_retriable_status_with_injected_sleep() -> None:
     answer, usage, finish_reason, metadata = call_gemini(
         "question",
         api_key="secret",
-        model="gemini-3.5-flash",
+        model="gemini-3.6-flash",
         request_fn=request,
         sleep_fn=sleeps.append,
     )
@@ -572,6 +643,193 @@ def test_gemini_retries_retriable_status_with_injected_sleep() -> None:
     )
     assert metadata["attempts"] == 3
     assert sleeps == [1.0, 2.0]
+
+
+def test_gemini_does_not_amplify_429_with_immediate_retries() -> None:
+    attempts = 0
+
+    def request(url: str, body: dict, headers: dict[str, str]):
+        nonlocal attempts
+        attempts += 1
+        raise urllib.error.HTTPError(url, 429, "limited", {}, None)
+
+    with pytest.raises(Exception) as caught:
+        call_gemini(
+            "question",
+            api_key="secret",
+            request_fn=request,
+            sleep_fn=lambda _: None,
+        )
+
+    assert type(caught.value).__name__ == "ProviderRequestError"
+    assert attempts == 1
+
+
+def test_grounded_gemini_call_records_private_structured_provenance() -> None:
+    def request(url: str, body: dict, headers: dict[str, str]):
+        assert body["tools"] == [{"google_search": {}}]
+        return {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": (
+                                    "ANSWERED\nUNCERTAINTY_REASON: none\n\n"
+                                    "grounded answer"
+                                )
+                            }
+                        ]
+                    },
+                    "finishReason": "STOP",
+                    "groundingMetadata": {
+                        "webSearchQueries": ["query one", "query two"],
+                        "groundingChunks": [
+                            {"web": {"uri": "https://example.com/secret", "title": "A"}}
+                        ],
+                        "groundingSupports": [
+                            {
+                                "segment": {
+                                    "startIndex": 0,
+                                    "endIndex": 15,
+                                    "text": "grounded answer",
+                                },
+                                "groundingChunkIndices": [0],
+                            }
+                        ],
+                    },
+                }
+            ],
+            "usageMetadata": {"totalTokenCount": 9},
+        }
+
+    answer, _, _, metadata = call_gemini(
+        "question",
+        api_key="secret",
+        grounding=True,
+        request_fn=request,
+        sleep_fn=lambda _: None,
+    )
+
+    assert answer == "grounded answer"
+    assert metadata["grounding"] is True
+    assert metadata["grounding_query_count"] == 2
+    assert metadata["grounding_chunk_count"] == 1
+    assert metadata["grounding_support_count"] == 1
+    assert "groundingMetadata" not in metadata
+    assert metadata["uncertainty_status"] == "answered"
+    assert metadata["uncertainty_reason"] == "none"
+    evidence = metadata["_private_evidence"]
+    assert evidence["search_invoked"] is True
+    assert evidence["web_search_queries"] == ["query one", "query two"]
+    assert evidence["sources"] == [
+        {"index": 0, "url": "https://example.com/secret", "title": "A"}
+    ]
+    assert evidence["supports"] == [
+        {
+            "answer_passage": "grounded answer",
+            "start_index": 0,
+            "end_index": 15,
+            "source_indices": [0],
+        }
+    ]
+
+
+def test_grounded_generation_cache_preserves_only_safe_grounding_receipt(
+    tmp_path: Path,
+) -> None:
+    cache = generate_missing(
+        [("q1", "question")],
+        cache_path=tmp_path / "grounded.json",
+        provider="gemini-grounded",
+        model=GEMINI_MODEL,
+        call=lambda _: (
+            "answer",
+            {"totalTokenCount": 9},
+            "STOP",
+            {
+                "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model=GEMINI_MODEL),
+                "attempts": 1,
+                "grounding": True,
+                "grounding_query_count": 2,
+                "grounding_chunk_count": 3,
+                "grounding_support_count": 4,
+                "unsafe_grounding_uri": "https://example.com/private",
+            },
+        ),
+        workers=1,
+    )
+
+    assert cache["records"]["q1"]["request_metadata"] == {
+        "attempts": 1,
+        "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model=GEMINI_MODEL),
+        "grounding": True,
+        "grounding_query_count": 2,
+        "grounding_chunk_count": 3,
+        "grounding_support_count": 4,
+    }
+
+
+def test_grounded_generation_writes_private_evidence_ledger_only(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "public" / "grounded.json"
+    evidence_path = tmp_path / "private" / "grounded.evidence.json"
+    private_evidence = {
+        "search_invoked": True,
+        "web_search_queries": ["query one"],
+        "sources": [
+            {"index": 0, "url": "https://example.com/private", "title": "Source"}
+        ],
+        "supports": [
+            {
+                "answer_passage": "answer",
+                "start_index": 0,
+                "end_index": 6,
+                "source_indices": [0],
+            }
+        ],
+        "generated_at": "2026-07-21T12:00:00Z",
+    }
+
+    cache = generate_missing(
+        [("q1", "question")],
+        cache_path=cache_path,
+        evidence_cache_path=evidence_path,
+        provider="gemini-grounded",
+        model=GEMINI_MODEL,
+        call=lambda _: (
+            "answer",
+            {"promptTokenCount": 2, "totalTokenCount": 5},
+            "STOP",
+            {
+                "grounding": True,
+                "grounding_query_count": 1,
+                "grounding_chunk_count": 1,
+                "grounding_support_count": 1,
+                "uncertainty_status": "answered",
+                "uncertainty_reason": "none",
+                "_private_evidence": private_evidence,
+            },
+        ),
+        workers=1,
+    )
+
+    record = cache["records"]["q1"]
+    assert record["uncertainty_status"] == "answered"
+    assert record["uncertainty_reason"] == "none"
+    assert "example.com" not in cache_path.read_text(encoding="utf-8")
+    ledger = json.loads(evidence_path.read_text(encoding="utf-8"))
+    private_record = ledger["records"]["q1"]
+    assert private_record["model"] == GEMINI_MODEL
+    assert private_record["prompt_sha256"] == cache["prompt_sha256"]
+    assert private_record["usage"] == {
+        "promptTokenCount": 2,
+        "totalTokenCount": 5,
+    }
+    assert private_record["finish_reason"] == "stop"
+    assert private_record["sources"][0]["url"] == "https://example.com/private"
+    assert evidence_path.stat().st_mode & 0o777 == 0o600
 
 
 @pytest.mark.parametrize(
@@ -607,6 +865,49 @@ def test_openai_compatible_call_parses_response_without_serializing_auth() -> No
         sleep_fn=lambda _: None,
     )
     assert result[:3] == ("local answer", {"total_tokens": 4}, "stop")
+
+
+def test_deepinfra_call_is_pinned_and_keeps_token_out_of_metadata() -> None:
+    secret = "deepinfra-test-token"
+
+    def request(url: str, body: dict, headers: dict[str, str]):
+        assert url == "https://api.deepinfra.com/v1/openai/chat/completions"
+        assert headers == {"Authorization": f"Bearer {secret}"}
+        assert body["model"] == "Qwen/Qwen3.6-27B"
+        assert body["max_tokens"] == 16_384
+        return {
+            "id": "request-id",
+            "choices": [{"message": {"content": "answer"}, "finish_reason": "stop"}],
+            "usage": {
+                "prompt_tokens": 3,
+                "completion_tokens": 4,
+                "total_tokens": 7,
+            },
+        }
+
+    result = call_deepinfra(
+        "question", api_token=secret, request_fn=request, sleep_fn=lambda _: None
+    )
+    assert result[0] == "answer"
+    assert secret not in json.dumps(result)
+
+
+def test_deepinfra_call_accepts_pinned_gemma_model() -> None:
+    def request(url: str, body: dict, headers: dict[str, str]):
+        assert body["model"] == DEEPINFRA_GEMMA_MODEL
+        return {
+            "choices": [{"message": {"content": "answer"}, "finish_reason": "stop"}],
+            "usage": {"total_tokens": 7},
+        }
+
+    result = call_deepinfra(
+        "question",
+        api_token="test-token",
+        model=DEEPINFRA_GEMMA_MODEL,
+        request_fn=request,
+        sleep_fn=lambda _: None,
+    )
+    assert result[0] == "answer"
 
 
 def test_cli_missing_gemini_key_fails_before_network(
@@ -648,7 +949,7 @@ def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) 
             {},
             "STOP",
             {
-                "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.5-flash"),
+                "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.6-flash"),
                 "attempts": 1,
                 "diagnostic_note": f"innocuous-looking field containing {secret}",
             },
@@ -658,7 +959,7 @@ def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) 
         [("q1", "success"), ("q2", "failure")],
         cache_path=cache_path,
         provider="gemini",
-        model="gemini-3.5-flash",
+        model="gemini-3.6-flash",
         call=call,
         workers=1,
         checkpoint_every=1,
@@ -666,13 +967,13 @@ def test_cache_drops_unapproved_metadata_and_raw_exception_text(tmp_path: Path) 
 
     assert cache["records"]["q1"]["request_metadata"] == {
         "attempts": 1,
-        "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.5-flash"),
+        "endpoint": GEMINI_ENDPOINT_TEMPLATE.format(model="gemini-3.6-flash"),
     }
     assert cache["failures"]["q2"] == {
         "category": "provider",
         "error_type": "RuntimeError",
         "http_status": None,
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3.6-flash",
         "prompt_sha256": cache["prompt_sha256"],
         "provider": "gemini",
         "retryable": False,
@@ -759,7 +1060,7 @@ def test_keyboard_interrupt_checkpoints_completed_ids_and_resume_skips_them(
             [("q1", "first"), ("q2", "second"), ("q3", "third")],
             cache_path=cache_path,
             provider="gemini",
-            model="gemini-3.5-flash",
+            model="gemini-3.6-flash",
             call=interrupted_call,
             workers=1,
             checkpoint_every=10,
@@ -773,7 +1074,7 @@ def test_keyboard_interrupt_checkpoints_completed_ids_and_resume_skips_them(
         [("q1", "first"), ("q2", "second"), ("q3", "third")],
         cache_path=cache_path,
         provider="gemini",
-        model="gemini-3.5-flash",
+        model="gemini-3.6-flash",
         call=interrupted_call,
         workers=1,
         checkpoint_every=10,
@@ -782,7 +1083,28 @@ def test_keyboard_interrupt_checkpoints_completed_ids_and_resume_skips_them(
     assert set(resumed["records"]) == {"q1", "q2", "q3"}
 
 
-def test_gemini_adapter_rejects_model_override_before_transport() -> None:
+def test_google_adapter_accepts_pinned_gemma_model() -> None:
+    def request(url: str, body: dict, headers: dict[str, str]):
+        assert url == GEMINI_ENDPOINT_TEMPLATE.format(model=GEMMA_MODEL)
+        assert body["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "high"}
+        return {
+            "candidates": [
+                {"content": {"parts": [{"text": "answer"}]}, "finishReason": "STOP"}
+            ],
+            "usageMetadata": {"totalTokenCount": 3},
+        }
+
+    answer, _, finish_reason, _ = call_gemini(
+        "question",
+        api_key="unused-test-key",
+        model=GEMMA_MODEL,
+        request_fn=request,
+        sleep_fn=lambda _: None,
+    )
+    assert (answer, finish_reason) == ("answer", "STOP")
+
+
+def test_google_adapter_rejects_unapproved_model_before_transport() -> None:
     transport_called = False
 
     def request(url: str, body: dict, headers: dict[str, str]):
@@ -790,7 +1112,7 @@ def test_gemini_adapter_rejects_model_override_before_transport() -> None:
         transport_called = True
         raise AssertionError("transport must not run")
 
-    with pytest.raises(ValueError, match="frozen"):
+    with pytest.raises(ValueError, match="approved"):
         call_gemini(
             "question",
             api_key="unused-test-key",
@@ -799,6 +1121,45 @@ def test_gemini_adapter_rejects_model_override_before_transport() -> None:
             sleep_fn=lambda _: None,
         )
     assert transport_called is False
+
+
+def test_resume_retries_length_truncated_record(tmp_path: Path) -> None:
+    cache_path = tmp_path / "cache.json"
+    answers = iter(
+        [
+            ("cut off", {}, "MAX_TOKENS", {}),
+            ("complete answer", {}, "STOP", {}),
+        ]
+    )
+    calls = 0
+
+    def call(question: str):
+        nonlocal calls
+        calls += 1
+        return next(answers)
+
+    questions = [("q1", "question")]
+    first = generate_missing(
+        questions,
+        cache_path=cache_path,
+        provider="gemini",
+        model=GEMINI_MODEL,
+        call=call,
+        workers=1,
+    )
+    assert first["records"]["q1"]["finish_reason"] == "length"
+
+    second = generate_missing(
+        questions,
+        cache_path=cache_path,
+        provider="gemini",
+        model=GEMINI_MODEL,
+        call=call,
+        workers=1,
+    )
+    assert calls == 2
+    assert second["records"]["q1"]["answer"] == "complete answer"
+    assert second["records"]["q1"]["finish_reason"] == "stop"
 
 
 def test_gemini_request_id_is_hashed_before_adapter_metadata() -> None:
@@ -832,7 +1193,7 @@ def test_gemini_request_id_is_hashed_before_adapter_metadata() -> None:
     [
         (
             "gemini",
-            "gemini-3.5-flash",
+            "gemini-3.6-flash",
             {
                 "totalTokenCount": 7,
                 "promptTokenCount": 3,

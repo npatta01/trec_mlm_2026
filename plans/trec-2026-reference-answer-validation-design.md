@@ -1,6 +1,6 @@
 # TREC 2026 reference-answer validation design
 
-**Status:** Approved rough-pass design
+**Status:** 400-question blind pilot complete; remaining 7,359-answer Gemini run pending a higher cost cap
 
 **Date:** 2026-07-20
 
@@ -25,9 +25,12 @@ The resulting references will support a later pairwise judge that compares candi
 The comparison includes:
 
 1. Existing Perplexity Sonar response.
-2. Gemini 3.5 Flash.
-3. Qwen3.6-35B-A3B.
-4. Qwen3.6-27B.
+2. Gemini 3.6 Flash (stable, selected on 2026-07-21 after its release; no
+   Search grounding in the blind challenger pass).
+3. Qwen3.6-27B (DeepInfra exact FP8 endpoint).
+4. Gemma 4 31B (`google/gemma-4-31B-it`, DeepInfra exact FP8 endpoint, no
+   grounding). Google's free endpoint was canaried first but not mixed into
+   this source after its quota stalled.
 
 Exact provider/model identifiers, licenses, context limits, local-runtime compatibility, and availability must be verified before execution. Large model downloads and paid calls require an explicit recorded preflight with projected cost and storage requirements.
 
@@ -63,16 +66,10 @@ Present responses under anonymized system labels and randomized order. Compare a
 - appropriate handling of ambiguity or insufficient context; and
 - material unsupported specificity.
 
-Allowed outcomes are:
-
-- `perplexity_best`
-- `gemini_best`
-- `qwen35_best`
-- `qwen27_best`
-- `equivalent`
-- `combine`
-- `uncertain_needs_check`
-- `unanswerable_or_underspecified`
+For each question, score every answer pointwise, compare all six pairs, and
+produce ordered tiers that preserve ties, cycles, unacceptable answers, and
+uncertainty. A ranking may therefore be `A > B = C > D`, all equivalent, or
+partially unresolved rather than a forced single winner.
 
 Automatic comparison is a triage signal, not ground truth. Record per-dimension reasons and uncertainty rather than only the winning label.
 
@@ -114,9 +111,46 @@ Report:
 - characteristic major and minor failures;
 - ambiguity and abstention behavior;
 - end-to-end throughput, peak memory, setup burden, and API cost; and
-- whether Qwen35's throughput advantage appears worth any observed quality difference from Gemini or Qwen27.
+- whether any challenger has a practical advantage over the already-complete
+  Perplexity source, using roughly five percentage points of top-tier share or
+  a clearly lower major-error rate as a decision threshold rather than a
+  nominal rank difference.
 
 The result is a pragmatic recommendation, not a statistically precise claim of model superiority.
+
+### Pilot decision (2026-07-21)
+
+Gemini 3.6 Flash cleared the practical decision threshold. It appeared in the
+top tier on 329/400 questions (82.3%) with 28/400 major-or-fatal errors (7.0%).
+Perplexity was second at 249/400 (62.3%) and 86/400 (21.5%). Qwen3.6-27B and
+Gemma 4 31B were materially worse on the difficult slices. The default next
+step is therefore to reuse the 400 cached Gemini answers and generate the
+remaining 7,359 without grounding. Actual pilot token use projects to about
+$27.35 for that remaining run at standard pricing, which exceeds the current
+$10 Gemini authorization and has not been started.
+
+### Grounding failure-rescue addendum (2026-07-21)
+
+The 28 Gemini answers labeled major or fatal were regenerated with Google
+Search enabled. All 28 calls completed; Gemini actually invoked Search on 26,
+issuing 53 search queries. Manual re-review found 12 clear rescues, six partial
+rescues, six cases with no rescue, one improvement caused by regeneration
+without Search, and three false positives in the original serious-error
+labels. The revised true-failure denominator is therefore 25, not 28.
+
+Question-shape routing is not selective enough: the best tested high-recall
+rule selected 272/400 pilot questions to catch 19/25 audited failures. The
+preferred design is a two-pass disagreement route using the answers already
+available: escalate when Perplexity is better than ungrounded Gemini or the
+comparison is unresolved. The locked manual comparisons select 52/400 and
+catch 19/25 true failures plus 14/18 clear-or-partial grounding rescues. Treat
+those figures as an upper bound until a local judge reproduces the manual
+labels. Validate the route on all 52 pilot questions—including the 33 selected
+non-failures—before scaling it.
+
+The sanitized analysis is in
+`reports/trec_2026_gemini_grounding_failure_review_2026-07-21.md`; its
+case-level ledger excludes question and answer text.
 
 ## Downstream pairwise judging
 
@@ -143,7 +177,7 @@ Organizer qrels may later evaluate whether this response-derived signal improves
 - Deep adjudication records for approximately 30–50 informative disagreements.
 - Selected or synthesized reference records with uncertainty.
 - Quality, failure-pattern, throughput, memory, and cost summary.
-- A deployment recommendation for Perplexity, Gemini, Qwen35, and Qwen27 roles.
+- A deployment recommendation for Perplexity, Gemini, Qwen27, and Gemma31 roles.
 
 ## Guardrails and success criteria
 

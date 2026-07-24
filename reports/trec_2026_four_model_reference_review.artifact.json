@@ -1,0 +1,4275 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "TREC 2026: choosing a reference-answer model",
+    "description": "Blind review of Perplexity, Gemini 3.6 Flash, Qwen3.6-27B, and Gemma 4 31B on 400 clustered discovery questions.",
+    "generatedAt": "2026-07-21T22:36:42Z",
+    "charts": [
+      {
+        "id": "top_tier",
+        "title": "Top-tier share by system",
+        "subtitle": "400-question purposive stratified sample; ties preserved.",
+        "type": "horizontalBar",
+        "dataset": "systems",
+        "sourceId": "ranking_summary",
+        "valueFormat": "percent",
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "System"
+          },
+          "y": {
+            "field": "top_tier_share",
+            "type": "quantitative",
+            "label": "Top-tier share"
+          },
+          "tooltip": [
+            {
+              "field": "mean_correctness",
+              "type": "quantitative",
+              "label": "Mean correctness (0-4)"
+            },
+            {
+              "field": "mean_tier",
+              "type": "quantitative",
+              "label": "Mean tier"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "ascending",
+          "showValues": true,
+          "palette": {
+            "kind": "single",
+            "root": "blue"
+          }
+        },
+        "layout": "full"
+      },
+      {
+        "id": "serious_errors",
+        "title": "Major-or-fatal error rate by system",
+        "subtitle": "Same 400 locked reviews; lower is better.",
+        "type": "horizontalBar",
+        "dataset": "systems",
+        "sourceId": "ranking_summary",
+        "valueFormat": "percent",
+        "encodings": {
+          "x": {
+            "field": "system",
+            "type": "nominal",
+            "label": "System"
+          },
+          "y": {
+            "field": "serious_error_rate",
+            "type": "quantitative",
+            "label": "Serious-error rate"
+          },
+          "tooltip": [
+            {
+              "field": "fractional_top_credit",
+              "type": "quantitative",
+              "label": "Fractional top credit"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "descending",
+          "showValues": true,
+          "palette": {
+            "kind": "single",
+            "root": "orange"
+          }
+        },
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "slice_results",
+        "title": "Performance remains separated in difficult slices",
+        "subtitle": "Top-tier share and serious-error rate; every row uses the same locked blind review.",
+        "dataset": "slices",
+        "sourceId": "per_question",
+        "defaultSort": {
+          "field": "questions",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "slice",
+            "label": "Slice",
+            "type": "text"
+          },
+          {
+            "field": "questions",
+            "label": "Questions",
+            "format": "number"
+          },
+          {
+            "field": "gemini_top",
+            "label": "Gemini top",
+            "format": "percent"
+          },
+          {
+            "field": "gemini_error",
+            "label": "Gemini error",
+            "format": "percent"
+          },
+          {
+            "field": "perplexity_top",
+            "label": "Perplexity top",
+            "format": "percent"
+          },
+          {
+            "field": "perplexity_error",
+            "label": "Perplexity error",
+            "format": "percent"
+          },
+          {
+            "field": "qwen_top",
+            "label": "Qwen top",
+            "format": "percent"
+          },
+          {
+            "field": "qwen_error",
+            "label": "Qwen error",
+            "format": "percent"
+          },
+          {
+            "field": "gemma_top",
+            "label": "Gemma top",
+            "format": "percent"
+          },
+          {
+            "field": "gemma_error",
+            "label": "Gemma error",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "costs",
+        "title": "Actual pilot cost and full-corpus projection",
+        "subtitle": "Projected from actual pilot token use at verified listed prices; USD.",
+        "dataset": "costs",
+        "sourceId": "generation_caches",
+        "defaultSort": {
+          "field": "pilot_cost",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "system",
+            "label": "System",
+            "type": "text"
+          },
+          {
+            "field": "completed",
+            "label": "Completed",
+            "type": "text"
+          },
+          {
+            "field": "pilot_cost",
+            "label": "Pilot cost",
+            "format": "currency"
+          },
+          {
+            "field": "projected_all",
+            "label": "Projected 7,759",
+            "format": "currency"
+          },
+          {
+            "field": "projected_remaining",
+            "label": "Remaining 7,359",
+            "format": "currency"
+          },
+          {
+            "field": "note",
+            "label": "Operational note",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "all_rankings",
+        "title": "All 400 locked per-question rankings",
+        "subtitle": "Sanitized audit table; question and answer text remain in private ignored artifacts.",
+        "dataset": "all_rankings",
+        "sourceId": "per_question",
+        "defaultSort": {
+          "field": "question_id",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "columns": [
+          {
+            "field": "question_id",
+            "label": "Question ID",
+            "type": "text"
+          },
+          {
+            "field": "cluster_id",
+            "label": "Cluster",
+            "format": "number"
+          },
+          {
+            "field": "strata",
+            "label": "Strata",
+            "type": "text"
+          },
+          {
+            "field": "challenge_count",
+            "label": "Challenge flags",
+            "format": "number"
+          },
+          {
+            "field": "confidence",
+            "label": "Confidence",
+            "type": "text"
+          },
+          {
+            "field": "ranking",
+            "label": "Tie-preserving ranking",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "ranking_summary",
+        "label": "Locked four-model ranking summary",
+        "path": "artifacts/reference_answer_validation/ranking_summary.json",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Aggregates the 400 locked, unblinded per-question rankings.",
+          "sql": "WITH systems(system, top_tier_share, serious_error_rate, fractional_top_credit, mean_correctness, mean_tier) AS (VALUES ('Gemini 3.6 Flash',0.8225,0.0700,0.3679,3.7275,1.2075),('Perplexity Sonar',0.6225,0.2150,0.2583,3.3000,1.5050),('Qwen3.6-27B',0.5875,0.3125,0.2075,2.9575,1.6075),('Gemma 4 31B',0.5075,0.3625,0.1663,2.7875,1.7175)) SELECT * FROM systems;",
+          "filters": [
+            "Frozen 400-question purposive stratified sample.",
+            "Provider identities unblinded only after all judgments were locked."
+          ],
+          "metric_definitions": [
+            "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+            "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+          ],
+          "tables_used": [
+            "artifacts/reference_answer_validation/ranking_summary.json"
+          ]
+        }
+      },
+      {
+        "id": "per_question",
+        "label": "Locked per-question rankings",
+        "path": "artifacts/reference_answer_validation/per_question_rankings.jsonl",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Supplies tie-preserving tiers, pointwise scores, pairwise outcomes, confidence, and the reviewed slice summary.",
+          "sql": "SELECT * FROM read_json_auto('artifacts/reference_answer_validation/per_question_rankings.jsonl', format='newline_delimited');",
+          "filters": [
+            "Frozen 400-question purposive stratified sample.",
+            "Provider identities unblinded only after all judgments were locked."
+          ],
+          "metric_definitions": [
+            "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+            "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+          ],
+          "tables_used": [
+            "artifacts/reference_answer_validation/per_question_rankings.jsonl"
+          ]
+        }
+      },
+      {
+        "id": "generation_caches",
+        "label": "Challenger generation caches",
+        "path": "artifacts/reference_answer_validation/generations",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Supplies exact coverage, token usage, finish reasons, elapsed time, provider/model identifiers, and the derived cost rows.",
+          "sql": "WITH costs(system, completed, pilot_cost, projected_all, projected_remaining, note) AS (VALUES ('Gemini 3.6 Flash','400 / 400',1.4867,28.84,27.35,'Zero final failures'),('Qwen3.6-27B','396 / 400',2.0240,39.26,NULL,'Four hard-case failures'),('Gemma 4 31B','400 / 400',0.0369,0.72,NULL,'Lowest cost; highest error rate')) SELECT * FROM costs;",
+          "filters": [
+            "Frozen 400-question purposive stratified sample.",
+            "Provider identities unblinded only after all judgments were locked."
+          ],
+          "metric_definitions": [
+            "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+            "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+          ],
+          "tables_used": [
+            "artifacts/reference_answer_validation/generations"
+          ]
+        }
+      },
+      {
+        "id": "sample_manifest",
+        "label": "Frozen clustered sample manifest",
+        "path": "artifacts/reference_answer_validation/sample_manifest.json",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Defines the 400-question sample, 192 clusters, strata, and challenge indicators.",
+          "sql": "SELECT * FROM read_json_auto('artifacts/reference_answer_validation/sample_manifest.json');",
+          "filters": [
+            "Frozen 400-question purposive stratified sample.",
+            "Provider identities unblinded only after all judgments were locked."
+          ],
+          "metric_definitions": [
+            "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+            "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+          ],
+          "tables_used": [
+            "artifacts/reference_answer_validation/sample_manifest.json"
+          ]
+        }
+      },
+      {
+        "id": "trec_2025_review",
+        "label": "TREC 2025 Million LLMs literature review",
+        "path": "reports/trec_2025_mllm_literature_review.md"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# TREC 2026: choosing a reference-answer model"
+      },
+      {
+        "id": "summary",
+        "type": "markdown",
+        "sourceId": "ranking_summary",
+        "body": "## Technical summary\n\n- **Choose Gemini 3.6 Flash.** It reached the top tier on **329/400 (82.3%)** questions and had **28/400 (7.0%)** major-or-fatal errors.\n- **The margin is decision-sized.** Perplexity was second at 62.3% top-tier and 21.5% serious errors; Qwen and Gemma were worse.\n- **Run the remaining 7,359 without blanket grounding.** Actual pilot tokens project to about **$27.35 standard**, above the current $10 authorization.\n- **Keep an escalation path.** On the 43 highest-risk questions, every system still made frequent serious errors."
+      },
+      {
+        "id": "quality_heading",
+        "type": "markdown",
+        "body": "## Gemini leads on both selection and failure avoidance\n\nTop-tier share preserves substantive ties instead of forcing one winner. The error chart is the stricter safety view: it counts major and fatal factual failures."
+      },
+      {
+        "id": "top_chart",
+        "type": "chart",
+        "chartId": "top_tier"
+      },
+      {
+        "id": "top_readout",
+        "type": "markdown",
+        "sourceId": "ranking_summary",
+        "body": "Gemini's 20.0-point top-tier advantage over Perplexity exceeds the predeclared five-point practical threshold. There were 118 all-system ties and 100 sole-winner questions; Gemini had 49 sole wins."
+      },
+      {
+        "id": "error_chart",
+        "type": "chart",
+        "chartId": "serious_errors"
+      },
+      {
+        "id": "error_readout",
+        "type": "markdown",
+        "sourceId": "ranking_summary",
+        "body": "Gemini's serious-error rate was 14.5 points below Perplexity and more than 24 points below either local-weight challenger. The dominant errors were wrong entities, dates, places, titles, and counts\u2014not cosmetic style differences."
+      },
+      {
+        "id": "slices_heading",
+        "type": "markdown",
+        "body": "## The advantage grows where reference generation is hardest\n\nThe sample intentionally overweights difficult questions, so these are sample diagnostics rather than population accuracy estimates. Qwen is competitive on the easier slice but degrades sharply on multi-hop, numeric, and time-sensitive questions."
+      },
+      {
+        "id": "slices",
+        "type": "table",
+        "tableId": "slice_results"
+      },
+      {
+        "id": "cost_heading",
+        "type": "markdown",
+        "body": "## Cost favors Gemini once quality is included\n\nGemma is nearly free but too error-prone. Qwen cost more than Gemini in the pilot because it generated 628k completion tokens and still failed on four hard questions. Standard Gemini generation remains under the user's original $50 budget."
+      },
+      {
+        "id": "cost_table",
+        "type": "table",
+        "tableId": "costs"
+      },
+      {
+        "id": "method",
+        "type": "markdown",
+        "sourceId": "sample_manifest",
+        "body": "## What was tested\n\nThe frozen sample contains 400 of 7,759 questions across 192 non-overlapping semantic clusters. It deliberately includes numeric, time-sensitive, entity-dense, underspecified, high-disagreement, and known-failure-analogue questions. Provider identities were deterministically blinded per question. The advisor reviewed all 400, Codex inspected all 400 and revised 34 judgments, and the map was opened only after exact coverage and schema validation."
+      },
+      {
+        "id": "limits",
+        "type": "markdown",
+        "body": "## What this does not prove\n\n- Discovery has no organizer answer-correctness or relevance judgments. This is a disciplined rough pass, not gold-label accuracy.\n- The purposive sample overweights hard questions; do not extrapolate its error rates to all 7,759.\n- The 43-case high-risk queue has not received a new source-by-source web verification pass. Existing Perplexity citations can support selective resolution.\n- A selected reference is a pivot for later pairwise judging, not an oracle."
+      },
+      {
+        "id": "ranking_detail_heading",
+        "type": "markdown",
+        "body": "## Per-question audit detail\n\nThe table below exposes every locked ranking without publishing question or answer text. Ties are shown with `=` and tier boundaries with `>`."
+      },
+      {
+        "id": "ranking_detail",
+        "type": "table",
+        "tableId": "all_rankings"
+      },
+      {
+        "id": "prior_teams",
+        "type": "markdown",
+        "sourceId": "trec_2025_review",
+        "body": "## The remaining gap is downstream judging, not another generator\n\nThe repository has already tried query retrieval, response BM25/RM3, semantic profiles, and fusion. Competitive TREC 2025 teams also used several pieces we have not completed: strong-judge pseudo-labels over candidate answers, pairwise or Quicksort-like ranking, log-probability confidence features, learned hybrid routers, and neural reranking of retrieved responses. The next meaningful experiment is to turn the new references into leakage-safe pointwise and selective pairwise signals, then test whether they improve held-out model ranking."
+      },
+      {
+        "id": "next",
+        "type": "markdown",
+        "body": "## Recommended next steps\n\n1. Raise the Gemini standard-API cap to **$35** and generate the remaining 7,359 answers, reusing the 400 cached outputs.\n2. Keep Perplexity answers and citations beside Gemini rather than overwriting them.\n3. Escalate time-sensitive, low-confidence, and material Gemini\u2013Perplexity disagreements; avoid blanket paid search.\n4. Calibrate the later pairwise judge on these 400 locked reviews, preserve ties, randomize A/B order, and reverse close comparisons."
+      },
+      {
+        "id": "questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Can a cheap local model identify the escalation set without missing Gemini's serious errors?\n- Does synthesis improve the 43-case high-risk queue or only make unsupported answers more persuasive?\n- How stable are candidate rankings when the reference is swapped for another top-tier answer or omitted?"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-21T22:36:42Z",
+    "status": "ready",
+    "datasets": {
+      "systems": [
+        {
+          "system": "Gemini 3.6 Flash",
+          "top_tier_share": 0.8225,
+          "serious_error_rate": 0.07,
+          "fractional_top_credit": 0.3679,
+          "mean_correctness": 3.7275,
+          "mean_tier": 1.2075
+        },
+        {
+          "system": "Perplexity Sonar",
+          "top_tier_share": 0.6225,
+          "serious_error_rate": 0.215,
+          "fractional_top_credit": 0.2583,
+          "mean_correctness": 3.3,
+          "mean_tier": 1.505
+        },
+        {
+          "system": "Qwen3.6-27B",
+          "top_tier_share": 0.5875,
+          "serious_error_rate": 0.3125,
+          "fractional_top_credit": 0.2075,
+          "mean_correctness": 2.9575,
+          "mean_tier": 1.6075
+        },
+        {
+          "system": "Gemma 4 31B",
+          "top_tier_share": 0.5075,
+          "serious_error_rate": 0.3625,
+          "fractional_top_credit": 0.1663,
+          "mean_correctness": 2.7875,
+          "mean_tier": 1.7175
+        }
+      ],
+      "slices": [
+        {
+          "slice": "Challenge score >=2",
+          "questions": 253,
+          "gemini_top": 0.87,
+          "gemini_error": 0.075,
+          "perplexity_top": 0.66,
+          "perplexity_error": 0.225,
+          "qwen_top": 0.51,
+          "qwen_error": 0.407,
+          "gemma_top": 0.451,
+          "gemma_error": 0.458
+        },
+        {
+          "slice": "Long or multi-hop",
+          "questions": 75,
+          "gemini_top": 0.907,
+          "gemini_error": 0.08,
+          "perplexity_top": 0.76,
+          "perplexity_error": 0.173,
+          "qwen_top": 0.573,
+          "qwen_error": 0.4,
+          "gemma_top": 0.547,
+          "gemma_error": 0.427
+        },
+        {
+          "slice": "Numeric",
+          "questions": 113,
+          "gemini_top": 0.867,
+          "gemini_error": 0.062,
+          "perplexity_top": 0.646,
+          "perplexity_error": 0.248,
+          "qwen_top": 0.487,
+          "qwen_error": 0.442,
+          "gemma_top": 0.469,
+          "gemma_error": 0.451
+        },
+        {
+          "slice": "Time-sensitive",
+          "questions": 22,
+          "gemini_top": 0.864,
+          "gemini_error": 0.091,
+          "perplexity_top": 0.545,
+          "perplexity_error": 0.364,
+          "qwen_top": 0.318,
+          "qwen_error": 0.591,
+          "gemma_top": 0.409,
+          "gemma_error": 0.364
+        },
+        {
+          "slice": "Known failure analogue",
+          "questions": 14,
+          "gemini_top": 0.929,
+          "gemini_error": 0.071,
+          "perplexity_top": 0.714,
+          "perplexity_error": 0.143,
+          "qwen_top": 0.357,
+          "qwen_error": 0.5,
+          "gemma_top": 0.5,
+          "gemma_error": 0.5
+        },
+        {
+          "slice": "Challenge score <2",
+          "questions": 147,
+          "gemini_top": 0.741,
+          "gemini_error": 0.061,
+          "perplexity_top": 0.558,
+          "perplexity_error": 0.197,
+          "qwen_top": 0.721,
+          "qwen_error": 0.15,
+          "gemma_top": 0.605,
+          "gemma_error": 0.197
+        }
+      ],
+      "costs": [
+        {
+          "system": "Gemini 3.6 Flash",
+          "completed": "400 / 400",
+          "pilot_cost": 1.4867,
+          "projected_all": 28.84,
+          "projected_remaining": 27.35,
+          "note": "Zero final failures"
+        },
+        {
+          "system": "Qwen3.6-27B",
+          "completed": "396 / 400",
+          "pilot_cost": 2.024,
+          "projected_all": 39.26,
+          "projected_remaining": null,
+          "note": "Four hard-case failures"
+        },
+        {
+          "system": "Gemma 4 31B",
+          "completed": "400 / 400",
+          "pilot_cost": 0.0369,
+          "projected_all": 0.72,
+          "projected_remaining": null,
+          "note": "Lowest cost; highest error rate"
+        }
+      ],
+      "all_rankings": [
+        {
+          "question_id": "100691",
+          "cluster_id": 81,
+          "strata": "other, time_sensitive",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 > perplexity",
+          "top_tier": "gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "101710",
+          "cluster_id": 65,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "107367",
+          "cluster_id": 66,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 > perplexity",
+          "top_tier": "gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "132780",
+          "cluster_id": 21,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 = qwen27 > perplexity",
+          "top_tier": "gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "134755",
+          "cluster_id": 130,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "147847",
+          "cluster_id": 176,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 > qwen27 > gemini > perplexity",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "14926",
+          "cluster_id": 97,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity = gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "161490",
+          "cluster_id": 113,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 > gemma31 > gemini > perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "181210",
+          "cluster_id": 11,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "186789",
+          "cluster_id": 9,
+          "strata": "explanation, time_sensitive",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "202328",
+          "cluster_id": 50,
+          "strata": "explanation",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 = qwen27 > perplexity",
+          "top_tier": "gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "206486",
+          "cluster_id": 113,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity > gemma31",
+          "top_tier": "qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "209599",
+          "cluster_id": 105,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "239622",
+          "cluster_id": 67,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "258852",
+          "cluster_id": 32,
+          "strata": "factoid, numeric",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity > gemini = qwen27",
+          "top_tier": "gemma31 = perplexity"
+        },
+        {
+          "question_id": "264482",
+          "cluster_id": 33,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > qwen27 > perplexity > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "27551",
+          "cluster_id": 9,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 > qwen27 > perplexity",
+          "top_tier": "gemini = gemma31"
+        },
+        {
+          "question_id": "275608",
+          "cluster_id": 34,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "276298",
+          "cluster_id": 117,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 > perplexity > gemini",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "291511",
+          "cluster_id": 78,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > qwen27 > gemini > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "315567",
+          "cluster_id": 37,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 > gemma31 = gemini > perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "328744",
+          "cluster_id": 89,
+          "strata": "explanation",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 > gemini > gemma31 > perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "333947",
+          "cluster_id": 98,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "346869",
+          "cluster_id": 52,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "348099",
+          "cluster_id": 52,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "357707",
+          "cluster_id": 80,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "361615",
+          "cluster_id": 63,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "369301",
+          "cluster_id": 142,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemma31 = qwen27 > gemini > perplexity",
+          "top_tier": "gemma31 = qwen27"
+        },
+        {
+          "question_id": "369658",
+          "cluster_id": 36,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "372494",
+          "cluster_id": 184,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 > gemini > perplexity",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "378607",
+          "cluster_id": 175,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 = perplexity",
+          "top_tier": "gemini = qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "380050",
+          "cluster_id": 162,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "386126",
+          "cluster_id": 142,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini > perplexity > qwen27",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "410525",
+          "cluster_id": 24,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "455432",
+          "cluster_id": 33,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "482298",
+          "cluster_id": 137,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "491639",
+          "cluster_id": 157,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 > gemini > perplexity",
+          "top_tier": "gemma31 = qwen27"
+        },
+        {
+          "question_id": "521291",
+          "cluster_id": 154,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 > perplexity > gemini",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "533470",
+          "cluster_id": 61,
+          "strata": "explanation",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "541905",
+          "cluster_id": 66,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 > qwen27 > gemini > perplexity",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "547860",
+          "cluster_id": 105,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemma31 > gemini",
+          "top_tier": "perplexity = qwen27 = gemma31"
+        },
+        {
+          "question_id": "556079",
+          "cluster_id": 156,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 > gemini > perplexity",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "565074",
+          "cluster_id": 63,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "56cc60186d243a140015ef5c",
+          "cluster_id": 71,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "56cd5df262d2951400fa6546",
+          "cluster_id": 99,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "low",
+          "ranking": "qwen27 = gemma31 > gemini = perplexity",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "56cd779762d2951400fa65dc",
+          "cluster_id": 49,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "56cdaf0362d2951400fa680c",
+          "cluster_id": 77,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "56cf5433aab44d1400b88ff1",
+          "cluster_id": 116,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "56d265eb59d6e41400145f6d",
+          "cluster_id": 46,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "56db1cbee7c41114004b4d5e",
+          "cluster_id": 100,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "low",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "56dfb9fe231d4119001abd15",
+          "cluster_id": 95,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemma31 = gemini = perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini = perplexity"
+        },
+        {
+          "question_id": "56e039be231d4119001abff2",
+          "cluster_id": 49,
+          "strata": "numeric, other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > qwen27 = gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "56e0a4e7231d4119001ac312",
+          "cluster_id": 42,
+          "strata": "numeric, other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 > gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "56e1a28ee3433e1400423050",
+          "cluster_id": 30,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 > perplexity = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "56e9ed745a205f1900d6d32f",
+          "cluster_id": 100,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemma31 = gemini > perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "56f82bcfaef2371900625e9e",
+          "cluster_id": 150,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "56f86e91aef2371900626068",
+          "cluster_id": 15,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini = gemma31 = perplexity = qwen27",
+          "top_tier": "gemini = gemma31 = perplexity = qwen27"
+        },
+        {
+          "question_id": "56f8cb539b226e1400dd101d",
+          "cluster_id": 27,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = gemini > perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "56fc2fec2603e71400409ffe",
+          "cluster_id": 180,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemma31 = gemini",
+          "top_tier": "perplexity = qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "5705f12375f01819005e77b2",
+          "cluster_id": 94,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = perplexity = gemini",
+          "top_tier": "gemma31 = qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "5706924752bb891400689a77",
+          "cluster_id": 129,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = perplexity = gemma31",
+          "top_tier": "gemini = qwen27 = perplexity = gemma31"
+        },
+        {
+          "question_id": "5706b68e0eeca41400aa0d7c",
+          "cluster_id": 16,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = perplexity > gemini",
+          "top_tier": "gemma31 = qwen27 = perplexity"
+        },
+        {
+          "question_id": "570d3734fed7b91900d45d2b",
+          "cluster_id": 71,
+          "strata": "explanation",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "570d69bafed7b91900d46033",
+          "cluster_id": 88,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "low",
+          "ranking": "perplexity > gemma31 > gemini = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "570da2de16d0071400510c2b",
+          "cluster_id": 153,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > gemini = qwen27 > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "570fdcbb80d9841400ab36e7",
+          "cluster_id": 53,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity = qwen27 > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "571309",
+          "cluster_id": 97,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 > qwen27 = perplexity",
+          "top_tier": "gemini = gemma31"
+        },
+        {
+          "question_id": "57194aad3e985219001bc017",
+          "cluster_id": 14,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 = perplexity > qwen27",
+          "top_tier": "gemini = gemma31 = perplexity"
+        },
+        {
+          "question_id": "571a8a4e10f8ca14003050f7",
+          "cluster_id": 14,
+          "strata": "other, time_sensitive",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini = gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5723aae60dadf01500fa1f29",
+          "cluster_id": 62,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = perplexity = gemini",
+          "top_tier": "gemma31 = qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "5725ea6889a1e219009ac0a0",
+          "cluster_id": 101,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemma31 > gemini = qwen27 = perplexity",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "57262c8738643c19005ad29e",
+          "cluster_id": 26,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "57265956f1498d1400e8dcca",
+          "cluster_id": 82,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "perplexity = qwen27 > gemini > gemma31",
+          "top_tier": "perplexity = qwen27"
+        },
+        {
+          "question_id": "572670f2708984140094c617",
+          "cluster_id": 140,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "57268a1a708984140094c947",
+          "cluster_id": 136,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "57269e8a5951b619008f77f6",
+          "cluster_id": 6,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5726ba83dd62a815002e8e6a",
+          "cluster_id": 57,
+          "strata": "factoid, time_sensitive",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5726c717dd62a815002e9001",
+          "cluster_id": 50,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 > qwen27",
+          "top_tier": "perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5726d1bdf1498d1400e8ec3f",
+          "cluster_id": 96,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 > perplexity",
+          "top_tier": "gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "5726e671708984140094d547",
+          "cluster_id": 121,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 > qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5726e7725951b619008f81f0",
+          "cluster_id": 191,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "5726ebd5708984140094d605",
+          "cluster_id": 1,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "57273f6b5951b619008f8763",
+          "cluster_id": 144,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5727b0892ca10214002d93e9",
+          "cluster_id": 0,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "5727cc002ca10214002d9681",
+          "cluster_id": 83,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5727cd6e2ca10214002d96c9",
+          "cluster_id": 145,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "perplexity = qwen27 > gemma31 > gemini",
+          "top_tier": "perplexity = qwen27"
+        },
+        {
+          "question_id": "5727ce414b864d1900163d90",
+          "cluster_id": 147,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "low",
+          "ranking": "gemini > gemma31 > perplexity > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5727dff64b864d1900163f02",
+          "cluster_id": 60,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 = perplexity",
+          "top_tier": "gemini = qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5727e0032ca10214002d9886",
+          "cluster_id": 40,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "low",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5727e7822ca10214002d9925",
+          "cluster_id": 3,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "5727eb704b864d1900164032",
+          "cluster_id": 108,
+          "strata": "numeric, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5727ff7c2ca10214002d9b01",
+          "cluster_id": 164,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "572803c6ff5b5019007d9af6",
+          "cluster_id": 102,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "572824f13acd2414000df591",
+          "cluster_id": 166,
+          "strata": "factoid, numeric",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "572860e03acd2414000df978",
+          "cluster_id": 131,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "5729083a3f37b31900477fb5",
+          "cluster_id": 51,
+          "strata": "factoid, numeric, underspecified",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 > gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "572941bb1d04691400779204",
+          "cluster_id": 118,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "qwen27 > gemini = gemma31 > perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "5729429a6aef051400154c19",
+          "cluster_id": 30,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "5729600e6aef051400154db1",
+          "cluster_id": 185,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = qwen27 > gemini",
+          "top_tier": "perplexity = gemma31 = qwen27"
+        },
+        {
+          "question_id": "572972f46aef051400154ef6",
+          "cluster_id": 171,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemma31 > qwen27 > perplexity > gemini",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "57297608af94a219006aa474",
+          "cluster_id": 29,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "572ac2a9be1ee31400cb821d",
+          "cluster_id": 68,
+          "strata": "numeric, other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 > gemini > qwen27 > perplexity",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "572b8fff111d821400f38f1e",
+          "cluster_id": 56,
+          "strata": "explanation, numeric, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "low",
+          "ranking": "perplexity > gemma31 > gemini > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "572f6d0aa23a5019007fc605",
+          "cluster_id": 160,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 = perplexity",
+          "top_tier": "gemma31 = gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "572f7d20947a6a140053c9b8",
+          "cluster_id": 42,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "57301733947a6a140053d0bf",
+          "cluster_id": 167,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 > gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "57303143a23a5019007fcf48",
+          "cluster_id": 138,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "573076bd396df91900096132",
+          "cluster_id": 179,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 = perplexity",
+          "top_tier": "gemini = qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "573137fba5e9cc1400cdbd19",
+          "cluster_id": 126,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "57313cc0a5e9cc1400cdbd80",
+          "cluster_id": 126,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "573147d7e6313a140071cdb2",
+          "cluster_id": 23,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemma31 = gemini",
+          "top_tier": "perplexity = qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "5731cd430fdd8d15006c654d",
+          "cluster_id": 92,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini > qwen27 > perplexity",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "573233c1b9d445190005e8c1",
+          "cluster_id": 150,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "57325614e17f3d14004228ab",
+          "cluster_id": 26,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "57325823e17f3d14004228c0",
+          "cluster_id": 127,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = gemini > perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "57326324e17f3d1400422936",
+          "cluster_id": 124,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > qwen27 > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "57327ee0b3a91d1900202dc5",
+          "cluster_id": 22,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini > perplexity > qwen27",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "57337ea24776f41900660bd1",
+          "cluster_id": 44,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini = perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "573387494776f41900660caf",
+          "cluster_id": 32,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5733acebd058e614000b600c",
+          "cluster_id": 25,
+          "strata": "explanation",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > qwen27 > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "573402d3d058e614000b67a3",
+          "cluster_id": 128,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "573405584776f4190066170d",
+          "cluster_id": 128,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "low",
+          "ranking": "gemini > perplexity > gemma31 > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "573409bed058e614000b6839",
+          "cluster_id": 161,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > qwen27 > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "593166",
+          "cluster_id": 25,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 > perplexity = gemma31 = gemini",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "595163",
+          "cluster_id": 159,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini > perplexity = qwen27",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "597585",
+          "cluster_id": 190,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "5a710dae5542994082a3e529",
+          "cluster_id": 12,
+          "strata": "factoid, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini > qwen27 > perplexity > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a7148495542994082a3e75f",
+          "cluster_id": 28,
+          "strata": "factoid, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini > qwen27 > perplexity > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a714c585542994082a3e79a",
+          "cluster_id": 31,
+          "strata": "long_or_multihop, other, underspecified",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = gemma31 = qwen27",
+          "top_tier": "gemini = perplexity = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5a715e1e5542994082a3e7fd",
+          "cluster_id": 139,
+          "strata": "other, time_sensitive",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > gemma31 > qwen27 = perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a726b455542992359bc3092",
+          "cluster_id": 163,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a7329c65542992359bc3256",
+          "cluster_id": 127,
+          "strata": "factoid, underspecified",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemma31 > gemini > perplexity > qwen27",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "5a73ce1d55429908901be33d",
+          "cluster_id": 116,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > perplexity > gemma31",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "5a74bcd35542996c70cfadc4",
+          "cluster_id": 60,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > perplexity = gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a74eb3e5542993748c89736",
+          "cluster_id": 35,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > gemma31 = qwen27 > perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a7557435542996c70cfaee3",
+          "cluster_id": 152,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > qwen27 > gemma31 = perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a75f79155429976ec32bcc9",
+          "cluster_id": 129,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 > gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a7628e55542992d0ec06033",
+          "cluster_id": 35,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 > gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a764b715542992d0ec0608f",
+          "cluster_id": 141,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a764c325542992d0ec06092",
+          "cluster_id": 51,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a7705355542994aec3b71be",
+          "cluster_id": 35,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = qwen27 > gemma31",
+          "top_tier": "gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5a773df455429966f1a36cc6",
+          "cluster_id": 53,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a775e945542994aec3b72b7",
+          "cluster_id": 134,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a77666755429972597f1522",
+          "cluster_id": 28,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini > gemma31",
+          "top_tier": "qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a776cb955429972597f1529",
+          "cluster_id": 104,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 > qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a7781a655429967ab1051e4",
+          "cluster_id": 103,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a77842b55429949eeb29eb9",
+          "cluster_id": 143,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity > gemma31",
+          "top_tier": "qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5a7789e95542995d831811a8",
+          "cluster_id": 112,
+          "strata": "factoid, underspecified",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a77c76d55429967ab105293",
+          "cluster_id": 133,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini = perplexity = gemma31",
+          "top_tier": "qwen27 = gemini = perplexity = gemma31"
+        },
+        {
+          "question_id": "5a78a6cc554299148911f8fa",
+          "cluster_id": 121,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a78bc5e554299148911f978",
+          "cluster_id": 86,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > qwen27 > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a78c25b554299078472775e",
+          "cluster_id": 121,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "5a78cc09554299029c4b5e9a",
+          "cluster_id": 123,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "qwen27 = perplexity = gemma31 = gemini",
+          "top_tier": "qwen27 = perplexity = gemma31 = gemini"
+        },
+        {
+          "question_id": "5a78cdc3554299029c4b5e9e",
+          "cluster_id": 41,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5a79ab765542996c55b2dc30",
+          "cluster_id": 92,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 > gemini > perplexity > gemma31",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "5a7a2aff5542996a35c17115",
+          "cluster_id": 93,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini = gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a7a3f765542994f819ef191",
+          "cluster_id": 71,
+          "strata": "factoid",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "qwen27 > perplexity = gemini > gemma31",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "5a7a42d65542994f819ef19c",
+          "cluster_id": 28,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 > perplexity > qwen27",
+          "top_tier": "gemini = gemma31"
+        },
+        {
+          "question_id": "5a7a701c5542994f819ef1da",
+          "cluster_id": 55,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini = gemma31 = perplexity",
+          "top_tier": "qwen27 = gemini = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5a7bd39d554299294a54ab19",
+          "cluster_id": 48,
+          "strata": "factoid, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 > gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a7ca63255429907fabeefe4",
+          "cluster_id": 119,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini > qwen27",
+          "top_tier": "gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a7cb2305542996dd594b98e",
+          "cluster_id": 28,
+          "strata": "factoid",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "gemini = perplexity = qwen27 = gemma31",
+          "top_tier": "gemini = perplexity = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5a7cbd26554299452d57b9e1",
+          "cluster_id": 28,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity > gemma31",
+          "top_tier": "qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5a7cc803554299452d57ba57",
+          "cluster_id": 174,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = perplexity > gemma31",
+          "top_tier": "gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5a7cd205554299452d57ba7d",
+          "cluster_id": 111,
+          "strata": "factoid, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a7d00ac55429907fabef0a4",
+          "cluster_id": 151,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini > gemma31",
+          "top_tier": "perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a7d434c5542995f4f40224a",
+          "cluster_id": 19,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a7dafbb5542991319bc93f2",
+          "cluster_id": 28,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = gemini > perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "5a7e217b5542995ed0d166a3",
+          "cluster_id": 88,
+          "strata": "long_or_multihop, numeric, other, underspecified",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a7f4ef95542994857a766e5",
+          "cluster_id": 74,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a7f994355429969796c1adb",
+          "cluster_id": 102,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5a7f9ee855429969796c1af3",
+          "cluster_id": 46,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 > gemini = gemma31 = perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "5a7fada45542995d8a8ddef0",
+          "cluster_id": 19,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5a7fd39b55429969796c1b83",
+          "cluster_id": 117,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a8093e35542996402f6a571",
+          "cluster_id": 27,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 > gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a80b91c5542992bc0c4a7e3",
+          "cluster_id": 8,
+          "strata": "factoid, long_or_multihop",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > qwen27 = gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a80bb0c554299260e20a143",
+          "cluster_id": 121,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5a80bc3f5542992bc0c4a801",
+          "cluster_id": 58,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "perplexity > gemma31 = gemini > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a811273554299260e20a234",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a81e7df5542995ce29dcc70",
+          "cluster_id": 10,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a81fca3554299676cceb1b6",
+          "cluster_id": 135,
+          "strata": "explanation, underspecified",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 > qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a820f4c55429926c1cdae19",
+          "cluster_id": 85,
+          "strata": "numeric, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 > qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a82180b554299676cceb211",
+          "cluster_id": 54,
+          "strata": "long_or_multihop, other, underspecified",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 > gemma31",
+          "top_tier": "perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "5a83188155429954d2e2ec19",
+          "cluster_id": 151,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a8320735542990548d0b17d",
+          "cluster_id": 74,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini = gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a83a6c55542990548d0b20d",
+          "cluster_id": 149,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a84717c554299123d8c2254",
+          "cluster_id": 18,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 > perplexity = gemini",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "5a84919f5542997b5ce3febe",
+          "cluster_id": 177,
+          "strata": "factoid, long_or_multihop",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini > gemma31",
+          "top_tier": "qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a849b065542997175ce1ef6",
+          "cluster_id": 123,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini > gemma31",
+          "top_tier": "perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a84a2f95542990548d0b2d7",
+          "cluster_id": 158,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a84c1fd5542991dd0999de0",
+          "cluster_id": 169,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a84e13b5542994c784dda75",
+          "cluster_id": 41,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity > gemini > qwen27 = gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5a85b0db5542997b5ce40026",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a8618ae554299211dda2a6b",
+          "cluster_id": 75,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a8797bb5542993e715abfbd",
+          "cluster_id": 155,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a87ab255542994846c1cdc1",
+          "cluster_id": 38,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a88bd6955429938390d3fb6",
+          "cluster_id": 148,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini > gemma31",
+          "top_tier": "perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a89157355429951533612bc",
+          "cluster_id": 99,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5a89283c554299669944a4d1",
+          "cluster_id": 18,
+          "strata": "factoid, long_or_multihop, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 = gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a89332d554299669944a4fe",
+          "cluster_id": 108,
+          "strata": "factoid, long_or_multihop, numeric, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 > perplexity = qwen27",
+          "top_tier": "gemini = gemma31"
+        },
+        {
+          "question_id": "5a899e7855429946c8d6e96c",
+          "cluster_id": 181,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemma31 = gemini = qwen27 = perplexity",
+          "top_tier": "gemma31 = gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5a89f80b55429970aeb701c2",
+          "cluster_id": 91,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "gemini = gemma31 = qwen27 = perplexity",
+          "top_tier": "gemini = gemma31 = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5a8a02585542992d82986e4c",
+          "cluster_id": 7,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 > gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a8a12d45542992d82986e94",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "5a8a1d0855429970aeb70255",
+          "cluster_id": 15,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a8a28b55542996c9b8d5e23",
+          "cluster_id": 6,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 = gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5a8a381e55429970aeb70277",
+          "cluster_id": 10,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5a8a548a5542996c9b8d5eba",
+          "cluster_id": 39,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 > perplexity",
+          "top_tier": "gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "5a8b58875542995d1e6f1374",
+          "cluster_id": 82,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5a8b6ac05542997f31a41d1a",
+          "cluster_id": 75,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity = qwen27 = gemma31 = gemini",
+          "top_tier": "perplexity = qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "5a8b848d5542997f31a41d5c",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a8c45765542995e66a4758b",
+          "cluster_id": 143,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > qwen27 > gemma31 = perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a8c52d6554299240d9c2114",
+          "cluster_id": 93,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 > perplexity = gemini = qwen27",
+          "top_tier": "gemma31"
+        },
+        {
+          "question_id": "5a8c6f775542996e8ac88aab",
+          "cluster_id": 54,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a8cbc92554299653c1aa100",
+          "cluster_id": 8,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemini = qwen27 = gemma31 = perplexity",
+          "top_tier": "gemini = qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5a8cd4b8554299441c6b9f19",
+          "cluster_id": 110,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini > qwen27",
+          "top_tier": "gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a8dc809554299068b959df0",
+          "cluster_id": 139,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a8dd88355429917b4a5bccf",
+          "cluster_id": 115,
+          "strata": "numeric, other, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5a8edf365542995085b374ae",
+          "cluster_id": 72,
+          "strata": "numeric, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a8ef39a5542995b44241f11",
+          "cluster_id": 122,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini > gemma31",
+          "top_tier": "perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a8f0a325542995b44241f36",
+          "cluster_id": 91,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 = qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5a8f413355429918e830d1de",
+          "cluster_id": 77,
+          "strata": "explanation, long_or_multihop, time_sensitive, underspecified",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "gemini > gemma31 = qwen27 > perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5a8f6d1155429918e830d21f",
+          "cluster_id": 112,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5a8f7d905542995b44242053",
+          "cluster_id": 132,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 > qwen27",
+          "top_tier": "perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5a905cb455429916514e748a",
+          "cluster_id": 72,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "5a907dc85542990a98493662",
+          "cluster_id": 139,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini = perplexity = qwen27 = gemma31",
+          "top_tier": "gemini = perplexity = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5ab24e56554299449642c86a",
+          "cluster_id": 43,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 = qwen27 = perplexity = gemini",
+          "top_tier": "gemma31 = qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "5ab2da435542992953946880",
+          "cluster_id": 92,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5ab3b6e9554299753aec59c3",
+          "cluster_id": 106,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 > gemma31",
+          "top_tier": "perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "5ab3f1205542992ade7c6eed",
+          "cluster_id": 22,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemma31 = qwen27 = gemini = perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5ab4073b55429976abd1bd39",
+          "cluster_id": 141,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "5ab4083655429976abd1bd3b",
+          "cluster_id": 99,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity > gemma31 = gemini",
+          "top_tier": "qwen27 = perplexity"
+        },
+        {
+          "question_id": "5ab478435542990594ba9c28",
+          "cluster_id": 122,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini > gemma31",
+          "top_tier": "perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5ab4913b5542990594ba9c6a",
+          "cluster_id": 51,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity = qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ab515b75542991779162d74",
+          "cluster_id": 0,
+          "strata": "numeric, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 = perplexity = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ab54e2f554299494045ef76",
+          "cluster_id": 12,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 > qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5ab569b25542997d4ad1f112",
+          "cluster_id": 114,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity > qwen27",
+          "top_tier": "gemma31 = gemini = perplexity"
+        },
+        {
+          "question_id": "5ab57290554299488d4d9987",
+          "cluster_id": 123,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 = qwen27 = gemini = perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5ab59d95554299488d4d99fc",
+          "cluster_id": 76,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini > qwen27",
+          "top_tier": "perplexity = gemma31 = gemini"
+        },
+        {
+          "question_id": "5ab5d35d5542997d4ad1f1f4",
+          "cluster_id": 31,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 > gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5ab647b25542995eadeeff9a",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "5ab6bf90554299710c8d1f46",
+          "cluster_id": 13,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "5ab707c05542991d32223760",
+          "cluster_id": 149,
+          "strata": "factoid",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "gemini = perplexity = gemma31 = qwen27",
+          "top_tier": "gemini = perplexity = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5ab710225542993667793f23",
+          "cluster_id": 70,
+          "strata": "numeric, other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity = gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "5ab7da125542995dae37e9bb",
+          "cluster_id": 92,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini = gemma31 = qwen27 = perplexity",
+          "top_tier": "gemini = gemma31 = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5ab7f06d554299366779405b",
+          "cluster_id": 149,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemma31 > gemini",
+          "top_tier": "qwen27 = perplexity = gemma31"
+        },
+        {
+          "question_id": "5ab8a83755429919ba4e234b",
+          "cluster_id": 116,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "gemini = perplexity = qwen27 = gemma31",
+          "top_tier": "gemini = perplexity = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5ab8e15c55429919ba4e2376",
+          "cluster_id": 20,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 > qwen27",
+          "top_tier": "perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5ab8f05b5542991b5579f064",
+          "cluster_id": 135,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ab8f2f655429934fafe6e21",
+          "cluster_id": 149,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = perplexity > gemma31",
+          "top_tier": "gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5ab91f1d55429919ba4e23b7",
+          "cluster_id": 45,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = qwen27 = gemma31 = gemini",
+          "top_tier": "perplexity = qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "5ab973975542996be20204fc",
+          "cluster_id": 149,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "5ab976d55542996be202050b",
+          "cluster_id": 5,
+          "strata": "numeric, other, time_sensitive",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 = gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5ab9a9d5554299743d22eb90",
+          "cluster_id": 139,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini = perplexity = gemma31",
+          "top_tier": "qwen27 = gemini = perplexity = gemma31"
+        },
+        {
+          "question_id": "5ab9de8255429901930fa739",
+          "cluster_id": 111,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 = qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5aba3f9b55429901930fa78e",
+          "cluster_id": 99,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5aba86ed55429901930fa804",
+          "cluster_id": 93,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity = gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "5abb17e05542992ccd8e7f13",
+          "cluster_id": 109,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 = perplexity > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5abc50d2554299658360043c",
+          "cluster_id": 93,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5abcdbc755429965836004d7",
+          "cluster_id": 109,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini = perplexity = gemma31 = qwen27",
+          "top_tier": "gemini = perplexity = gemma31 = qwen27"
+        },
+        {
+          "question_id": "5abce6d4554299114383a185",
+          "cluster_id": 173,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = qwen27 > gemma31",
+          "top_tier": "gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5abd05e45542992ac4f381ab",
+          "cluster_id": 59,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity = qwen27 > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5abd2cb55542993062266bb0",
+          "cluster_id": 103,
+          "strata": "numeric, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5abd6c8755429933744ab7cc",
+          "cluster_id": 90,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = qwen27 > gemma31",
+          "top_tier": "gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5abd7e6b55429933744ab7fa",
+          "cluster_id": 72,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5abd811a55429924427fd027",
+          "cluster_id": 35,
+          "strata": "factoid",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = qwen27 > gemma31",
+          "top_tier": "gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5abda97855429965af743da8",
+          "cluster_id": 106,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "5abdc81a55429965af743e3c",
+          "cluster_id": 123,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini = perplexity = qwen27 = gemma31",
+          "top_tier": "gemini = perplexity = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5abea3c65542997ec76fd340",
+          "cluster_id": 115,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5abfd1e75542994516f45504",
+          "cluster_id": 80,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity = qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5abfdb6c5542997ec76fd461",
+          "cluster_id": 85,
+          "strata": "factoid, long_or_multihop, numeric, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ac01e4f5542990832d3a1f6",
+          "cluster_id": 121,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemma31 = qwen27 = gemini = perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5ac02a53554299012d1db5c4",
+          "cluster_id": 155,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini = gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5ac07c5f5542996f0d89cbf6",
+          "cluster_id": 93,
+          "strata": "other",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "5ac0d054554299294b21901a",
+          "cluster_id": 70,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5ac0fa46554299012d1db66f",
+          "cluster_id": 35,
+          "strata": "factoid",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ac10c135542996f0d89cc61",
+          "cluster_id": 90,
+          "strata": "long_or_multihop, numeric, other, underspecified",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini = gemma31 = perplexity",
+          "top_tier": "qwen27 = gemini = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5ac150045542994ab5c67ce1",
+          "cluster_id": 16,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ac1b54055429963665198f4",
+          "cluster_id": 108,
+          "strata": "numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity = gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "5ac2676f55429951e9e685a5",
+          "cluster_id": 45,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ac2bcc2554299218029db0b",
+          "cluster_id": 140,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ac2f9e4554299677310266a",
+          "cluster_id": 39,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5ac3906355429939154137d9",
+          "cluster_id": 20,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini > qwen27 = perplexity = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ac3a8065542993915413891",
+          "cluster_id": 79,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 > qwen27",
+          "top_tier": "perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5ac3b0b5554299204fd21e04",
+          "cluster_id": 76,
+          "strata": "long_or_multihop, other, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "gemma31 = gemini > perplexity > qwen27",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "5ac3ca28554299741d48a314",
+          "cluster_id": 95,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5ac416595542997ea680c9fd",
+          "cluster_id": 132,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "5ac4f82955429924173fb525",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 > gemma31",
+          "top_tier": "perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "5ac5083755429924173fb56a",
+          "cluster_id": 110,
+          "strata": "factoid, numeric",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemini > gemma31 > qwen27 = perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ac53f585542994611c8b46d",
+          "cluster_id": 43,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini > qwen27",
+          "top_tier": "perplexity = gemma31 = gemini"
+        },
+        {
+          "question_id": "5ac549a75542994611c8b496",
+          "cluster_id": 123,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini > qwen27",
+          "top_tier": "perplexity = gemma31 = gemini"
+        },
+        {
+          "question_id": "5ac5628c5542993e66e823c9",
+          "cluster_id": 38,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "5adbdbcb5542996e68525260",
+          "cluster_id": 138,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini = qwen27 > perplexity > gemma31",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "5adc04ed554299438c868d06",
+          "cluster_id": 123,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini > perplexity = qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5adc206155429944faac2433",
+          "cluster_id": 23,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "gemini = gemma31 > qwen27 > perplexity",
+          "top_tier": "gemini = gemma31"
+        },
+        {
+          "question_id": "5add37745542990dbb2f7dcc",
+          "cluster_id": 67,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > qwen27 = gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5add3e595542997545bbbcf9",
+          "cluster_id": 149,
+          "strata": "other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini > gemma31",
+          "top_tier": "qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "5ade2e4a55429939a52fe852",
+          "cluster_id": 158,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 > gemma31 = gemini > perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "5adf68b55542992d7e9f933c",
+          "cluster_id": 139,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5adf9dcd5542993344016d20",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = perplexity > gemma31",
+          "top_tier": "gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5adfc464554299603e4183a6",
+          "cluster_id": 146,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5adfe73355429925eb1afb1b",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 = gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5adff47955429925eb1afb8f",
+          "cluster_id": 79,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini > qwen27",
+          "top_tier": "gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5ae0bf375542993d6555ec36",
+          "cluster_id": 44,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "gemini = qwen27 = gemma31 = perplexity",
+          "top_tier": "gemini = qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5ae0d7c455429945ae95947e",
+          "cluster_id": 68,
+          "strata": "long_or_multihop, numeric, other, time_sensitive",
+          "challenge_count": 5,
+          "confidence": "medium",
+          "ranking": "gemini > gemma31 = qwen27 = perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ae0d81e55429945ae95947f",
+          "cluster_id": 98,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ae13e815542997b2ef7d15e",
+          "cluster_id": 136,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > qwen27 = gemma31",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5ae161d255429901ffe4ae8f",
+          "cluster_id": 57,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity > qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ae1810f5542990adbacf7a8",
+          "cluster_id": 174,
+          "strata": "explanation, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemini > perplexity = qwen27 = gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ae1aa33554299492dc91b58",
+          "cluster_id": 115,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemma31 = gemini > perplexity > qwen27",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "5ae1cf635542997f29b3c129",
+          "cluster_id": 79,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5ae1f6885542997f29b3c1c1",
+          "cluster_id": 186,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity > gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5ae20741554299234fd043b5",
+          "cluster_id": 146,
+          "strata": "explanation, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini = qwen27",
+          "top_tier": "gemma31 = perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "5ae257e15542992decbdccc8",
+          "cluster_id": 3,
+          "strata": "factoid, numeric, time_sensitive, underspecified",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini > gemma31 > qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ae2cc875542991a06ce98d8",
+          "cluster_id": 48,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 = qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ae30cee55429928c42395cb",
+          "cluster_id": 187,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > gemma31 = perplexity > qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ae341295542994393b9e669",
+          "cluster_id": 5,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5ae39c015542992f92d82317",
+          "cluster_id": 152,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "5ae4164b55429970de88d8f1",
+          "cluster_id": 134,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 = qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "5ae5144755429908b6326513",
+          "cluster_id": 59,
+          "strata": "long_or_multihop, other, underspecified",
+          "challenge_count": 5,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = gemini > perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "5ae5e8ad5542996de7b71a67",
+          "cluster_id": 40,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = perplexity > gemma31",
+          "top_tier": "gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5ae680d85542996d980e7ba6",
+          "cluster_id": 62,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "5ae6d9b95542996d980e7c96",
+          "cluster_id": 99,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity > gemma31",
+          "top_tier": "qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5ae6faa1554299572ea5465b",
+          "cluster_id": 38,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 > qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5ae709935542995703ce8bc0",
+          "cluster_id": 7,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = perplexity > gemma31 = qwen27",
+          "top_tier": "gemini = perplexity"
+        },
+        {
+          "question_id": "5ae744ee554299572ea547a4",
+          "cluster_id": 144,
+          "strata": "long_or_multihop, numeric, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = qwen27 = gemma31",
+          "top_tier": "perplexity = gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "5ae760eb5542991e8301cc77",
+          "cluster_id": 29,
+          "strata": "factoid, long_or_multihop, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "5ae767885542997b22f6a732",
+          "cluster_id": 69,
+          "strata": "explanation, long_or_multihop, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity > gemma31",
+          "top_tier": "qwen27 = gemini = perplexity"
+        },
+        {
+          "question_id": "5ae77843554299540e5a55ba",
+          "cluster_id": 114,
+          "strata": "factoid, numeric",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "gemini = gemma31 = perplexity > qwen27",
+          "top_tier": "gemini = gemma31 = perplexity"
+        },
+        {
+          "question_id": "5ae7872d5542994a481bbd5e",
+          "cluster_id": 131,
+          "strata": "long_or_multihop, other",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 = perplexity",
+          "top_tier": "gemma31 = gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "5ae7b9bf5542993210983f0d",
+          "cluster_id": 119,
+          "strata": "factoid, numeric",
+          "challenge_count": 4,
+          "confidence": "medium",
+          "ranking": "perplexity > gemma31 > gemini = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "5ae7e9555542994a481bbe0b",
+          "cluster_id": 58,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "gemini > qwen27 > gemma31 = perplexity",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ae7f15c5542994a481bbe47",
+          "cluster_id": 165,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity > gemma31 = qwen27",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "5ae82dc555429952e35eaa7a",
+          "cluster_id": 2,
+          "strata": "other",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 = qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "601861",
+          "cluster_id": 178,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini = qwen27 > gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "615934",
+          "cluster_id": 17,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "640273",
+          "cluster_id": 118,
+          "strata": "other",
+          "challenge_count": 0,
+          "confidence": "medium",
+          "ranking": "gemma31 = gemini > qwen27 > perplexity",
+          "top_tier": "gemma31 = gemini"
+        },
+        {
+          "question_id": "6437",
+          "cluster_id": 11,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity = gemma31",
+          "top_tier": "qwen27 = gemini = perplexity = gemma31"
+        },
+        {
+          "question_id": "645738",
+          "cluster_id": 148,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = gemma31 = qwen27",
+          "top_tier": "gemini = perplexity = gemma31 = qwen27"
+        },
+        {
+          "question_id": "652634",
+          "cluster_id": 55,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 > gemma31 = perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "663261",
+          "cluster_id": 81,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemma31 = gemini",
+          "top_tier": "perplexity = qwen27 = gemma31 = gemini"
+        },
+        {
+          "question_id": "667553",
+          "cluster_id": 89,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > perplexity = gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "679388",
+          "cluster_id": 47,
+          "strata": "explanation",
+          "challenge_count": 0,
+          "confidence": "medium",
+          "ranking": "qwen27 > gemma31 = gemini > perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "685422",
+          "cluster_id": 64,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "701179",
+          "cluster_id": 157,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "754129",
+          "cluster_id": 87,
+          "strata": "explanation",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 > gemini = perplexity",
+          "top_tier": "qwen27 = gemma31"
+        },
+        {
+          "question_id": "77944",
+          "cluster_id": 188,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "781550",
+          "cluster_id": 17,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 = perplexity",
+          "top_tier": "gemma31 = gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "78560",
+          "cluster_id": 159,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "810098",
+          "cluster_id": 24,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "867343",
+          "cluster_id": 137,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 > qwen27 = gemini",
+          "top_tier": "perplexity = gemma31"
+        },
+        {
+          "question_id": "87346",
+          "cluster_id": 107,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 > perplexity",
+          "top_tier": "gemini = qwen27 = gemma31"
+        },
+        {
+          "question_id": "881680",
+          "cluster_id": 170,
+          "strata": "other",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemma31 = gemini",
+          "top_tier": "qwen27 = perplexity = gemma31 = gemini"
+        },
+        {
+          "question_id": "889245",
+          "cluster_id": 4,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 > gemma31 = gemini = perplexity",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "906207",
+          "cluster_id": 168,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 = qwen27",
+          "top_tier": "perplexity = gemini = gemma31 = qwen27"
+        },
+        {
+          "question_id": "922081",
+          "cluster_id": 147,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "medium",
+          "ranking": "gemini = qwen27 > gemma31 > perplexity",
+          "top_tier": "gemini = qwen27"
+        },
+        {
+          "question_id": "923040",
+          "cluster_id": 21,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 = perplexity",
+          "top_tier": "qwen27 = gemini = gemma31 = perplexity"
+        },
+        {
+          "question_id": "94008",
+          "cluster_id": 94,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "948233",
+          "cluster_id": 172,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = gemma31 = perplexity",
+          "top_tier": "gemini = qwen27 = gemma31 = perplexity"
+        },
+        {
+          "question_id": "960131",
+          "cluster_id": 1,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini = gemma31",
+          "top_tier": "perplexity = qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "973493",
+          "cluster_id": 130,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini > gemma31 = perplexity",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "996902",
+          "cluster_id": 156,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = gemma31 = qwen27",
+          "top_tier": "gemini = perplexity = gemma31 = qwen27"
+        },
+        {
+          "question_id": "998256",
+          "cluster_id": 125,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini = gemma31",
+          "top_tier": "qwen27 = perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "998345",
+          "cluster_id": 4,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini = gemma31",
+          "top_tier": "perplexity = qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "Q1027",
+          "cluster_id": 153,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 = perplexity",
+          "top_tier": "gemma31 = gemini = qwen27 = perplexity"
+        },
+        {
+          "question_id": "Q1338",
+          "cluster_id": 84,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity = gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "Q1342",
+          "cluster_id": 189,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "Q1494",
+          "cluster_id": 182,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemma31 > gemini",
+          "top_tier": "qwen27 = perplexity = gemma31"
+        },
+        {
+          "question_id": "Q1610",
+          "cluster_id": 120,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = qwen27 = perplexity = gemma31",
+          "top_tier": "gemini = qwen27 = perplexity = gemma31"
+        },
+        {
+          "question_id": "Q1664",
+          "cluster_id": 101,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "Q1730",
+          "cluster_id": 125,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = perplexity = gemma31",
+          "top_tier": "qwen27 = gemini = perplexity = gemma31"
+        },
+        {
+          "question_id": "Q1815",
+          "cluster_id": 73,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity > qwen27 = gemini = gemma31",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "Q1891",
+          "cluster_id": 37,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = perplexity = gemini",
+          "top_tier": "qwen27 = gemma31 = perplexity = gemini"
+        },
+        {
+          "question_id": "Q209",
+          "cluster_id": 152,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "Q2146",
+          "cluster_id": 47,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = qwen27 = gemini > gemma31",
+          "top_tier": "perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "Q2168",
+          "cluster_id": 34,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = gemma31 = gemini = perplexity",
+          "top_tier": "qwen27 = gemma31 = gemini = perplexity"
+        },
+        {
+          "question_id": "Q2169",
+          "cluster_id": 61,
+          "strata": "factoid, underspecified",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > gemma31 = qwen27",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "Q217",
+          "cluster_id": 65,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemma31 = gemini",
+          "top_tier": "qwen27 = perplexity = gemma31 = gemini"
+        },
+        {
+          "question_id": "Q224",
+          "cluster_id": 73,
+          "strata": "explanation, numeric",
+          "challenge_count": 4,
+          "confidence": "high",
+          "ranking": "qwen27 = gemini = gemma31 > perplexity",
+          "top_tier": "qwen27 = gemini = gemma31"
+        },
+        {
+          "question_id": "Q2452",
+          "cluster_id": 2,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity = gemini > qwen27 > gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "Q2532",
+          "cluster_id": 56,
+          "strata": "factoid",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "perplexity > gemma31 = qwen27 = gemini",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "Q2641",
+          "cluster_id": 13,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "qwen27 = perplexity = gemini > gemma31",
+          "top_tier": "qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "Q2671",
+          "cluster_id": 83,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini = qwen27",
+          "top_tier": "gemma31 = perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "Q2774",
+          "cluster_id": 145,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini = qwen27",
+          "top_tier": "gemma31 = perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "Q2855",
+          "cluster_id": 69,
+          "strata": "factoid",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemini = perplexity = qwen27 = gemma31",
+          "top_tier": "gemini = perplexity = qwen27 = gemma31"
+        },
+        {
+          "question_id": "Q2888",
+          "cluster_id": 36,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "perplexity = gemini > qwen27 = gemma31",
+          "top_tier": "perplexity = gemini"
+        },
+        {
+          "question_id": "Q2920",
+          "cluster_id": 106,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "gemini = gemma31 > perplexity > qwen27",
+          "top_tier": "gemini = gemma31"
+        },
+        {
+          "question_id": "Q339",
+          "cluster_id": 183,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = qwen27 = gemini",
+          "top_tier": "gemma31 = perplexity = qwen27 = gemini"
+        },
+        {
+          "question_id": "Q401",
+          "cluster_id": 87,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "perplexity = gemma31 = gemini = qwen27",
+          "top_tier": "perplexity = gemma31 = gemini = qwen27"
+        },
+        {
+          "question_id": "Q539",
+          "cluster_id": 120,
+          "strata": "factoid",
+          "challenge_count": 3,
+          "confidence": "high",
+          "ranking": "perplexity = gemini = gemma31 > qwen27",
+          "top_tier": "perplexity = gemini = gemma31"
+        },
+        {
+          "question_id": "Q556",
+          "cluster_id": 104,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "perplexity > gemini > gemma31 = qwen27",
+          "top_tier": "perplexity"
+        },
+        {
+          "question_id": "Q578",
+          "cluster_id": 96,
+          "strata": "explanation, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "Q580",
+          "cluster_id": 64,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "medium",
+          "ranking": "qwen27 > perplexity = gemini > gemma31",
+          "top_tier": "qwen27"
+        },
+        {
+          "question_id": "Q663",
+          "cluster_id": 124,
+          "strata": "explanation, numeric",
+          "challenge_count": 3,
+          "confidence": "medium",
+          "ranking": "qwen27 = gemini > perplexity > gemma31",
+          "top_tier": "qwen27 = gemini"
+        },
+        {
+          "question_id": "Q676",
+          "cluster_id": 86,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = gemini > perplexity",
+          "top_tier": "gemma31 = qwen27 = gemini"
+        },
+        {
+          "question_id": "Q691",
+          "cluster_id": 78,
+          "strata": "factoid, numeric",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = qwen27 = perplexity = gemini",
+          "top_tier": "gemma31 = qwen27 = perplexity = gemini"
+        },
+        {
+          "question_id": "Q705",
+          "cluster_id": 84,
+          "strata": "factoid",
+          "challenge_count": 2,
+          "confidence": "high",
+          "ranking": "gemma31 = perplexity = gemini = qwen27",
+          "top_tier": "gemma31 = perplexity = gemini = qwen27"
+        },
+        {
+          "question_id": "Q776",
+          "cluster_id": 107,
+          "strata": "explanation",
+          "challenge_count": 2,
+          "confidence": "medium",
+          "ranking": "gemini > perplexity > qwen27 > gemma31",
+          "top_tier": "gemini"
+        },
+        {
+          "question_id": "Q863",
+          "cluster_id": 133,
+          "strata": "explanation",
+          "challenge_count": 0,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = perplexity = qwen27",
+          "top_tier": "gemma31 = gemini = perplexity = qwen27"
+        },
+        {
+          "question_id": "Q884",
+          "cluster_id": 154,
+          "strata": "explanation",
+          "challenge_count": 1,
+          "confidence": "high",
+          "ranking": "gemma31 = gemini = qwen27 = perplexity",
+          "top_tier": "gemma31 = gemini = qwen27 = perplexity"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "ranking_summary",
+      "label": "Locked four-model ranking summary",
+      "path": "artifacts/reference_answer_validation/ranking_summary.json",
+      "query": {
+        "engine": "duckdb",
+        "language": "sql",
+        "description": "Aggregates the 400 locked, unblinded per-question rankings.",
+        "sql": "WITH systems(system, top_tier_share, serious_error_rate, fractional_top_credit, mean_correctness, mean_tier) AS (VALUES ('Gemini 3.6 Flash',0.8225,0.0700,0.3679,3.7275,1.2075),('Perplexity Sonar',0.6225,0.2150,0.2583,3.3000,1.5050),('Qwen3.6-27B',0.5875,0.3125,0.2075,2.9575,1.6075),('Gemma 4 31B',0.5075,0.3625,0.1663,2.7875,1.7175)) SELECT * FROM systems;",
+        "filters": [
+          "Frozen 400-question purposive stratified sample.",
+          "Provider identities unblinded only after all judgments were locked."
+        ],
+        "metric_definitions": [
+          "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+          "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+        ],
+        "tables_used": [
+          "artifacts/reference_answer_validation/ranking_summary.json"
+        ]
+      }
+    },
+    {
+      "id": "per_question",
+      "label": "Locked per-question rankings",
+      "path": "artifacts/reference_answer_validation/per_question_rankings.jsonl",
+      "query": {
+        "engine": "duckdb",
+        "language": "sql",
+        "description": "Supplies tie-preserving tiers, pointwise scores, pairwise outcomes, confidence, and the reviewed slice summary.",
+        "sql": "SELECT * FROM read_json_auto('artifacts/reference_answer_validation/per_question_rankings.jsonl', format='newline_delimited');",
+        "filters": [
+          "Frozen 400-question purposive stratified sample.",
+          "Provider identities unblinded only after all judgments were locked."
+        ],
+        "metric_definitions": [
+          "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+          "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+        ],
+        "tables_used": [
+          "artifacts/reference_answer_validation/per_question_rankings.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "generation_caches",
+      "label": "Challenger generation caches",
+      "path": "artifacts/reference_answer_validation/generations",
+      "query": {
+        "engine": "duckdb",
+        "language": "sql",
+        "description": "Supplies exact coverage, token usage, finish reasons, elapsed time, provider/model identifiers, and the derived cost rows.",
+        "sql": "WITH costs(system, completed, pilot_cost, projected_all, projected_remaining, note) AS (VALUES ('Gemini 3.6 Flash','400 / 400',1.4867,28.84,27.35,'Zero final failures'),('Qwen3.6-27B','396 / 400',2.0240,39.26,NULL,'Four hard-case failures'),('Gemma 4 31B','400 / 400',0.0369,0.72,NULL,'Lowest cost; highest error rate')) SELECT * FROM costs;",
+        "filters": [
+          "Frozen 400-question purposive stratified sample.",
+          "Provider identities unblinded only after all judgments were locked."
+        ],
+        "metric_definitions": [
+          "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+          "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+        ],
+        "tables_used": [
+          "artifacts/reference_answer_validation/generations"
+        ]
+      }
+    },
+    {
+      "id": "sample_manifest",
+      "label": "Frozen clustered sample manifest",
+      "path": "artifacts/reference_answer_validation/sample_manifest.json",
+      "query": {
+        "engine": "duckdb",
+        "language": "sql",
+        "description": "Defines the 400-question sample, 192 clusters, strata, and challenge indicators.",
+        "sql": "SELECT * FROM read_json_auto('artifacts/reference_answer_validation/sample_manifest.json');",
+        "filters": [
+          "Frozen 400-question purposive stratified sample.",
+          "Provider identities unblinded only after all judgments were locked."
+        ],
+        "metric_definitions": [
+          "Top-tier share is the fraction of questions where a system appears in the first tie-preserving tier.",
+          "Serious-error rate is the fraction scored major or fatal in the locked pointwise review."
+        ],
+        "tables_used": [
+          "artifacts/reference_answer_validation/sample_manifest.json"
+        ]
+      }
+    },
+    {
+      "id": "trec_2025_review",
+      "label": "TREC 2025 Million LLMs literature review",
+      "path": "reports/trec_2025_mllm_literature_review.md"
+    }
+  ]
+}

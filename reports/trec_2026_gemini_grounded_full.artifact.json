@@ -1,0 +1,1096 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Gemini 3.6 grounded references: full-corpus audit",
+    "description": "Integrity, provenance, uncertainty, and cost audit for all 7,759 grounded reference answers.",
+    "generatedAt": "2026-07-23T09:57:15Z",
+    "charts": [
+      {
+        "id": "audit_categories",
+        "title": "Grounded-generation audit categories",
+        "subtitle": "Counts over 7,759 questions; categories can overlap.",
+        "type": "horizontalBar",
+        "dataset": "audit_categories",
+        "sourceId": "full_audit",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "category",
+            "type": "nominal",
+            "label": "Category"
+          },
+          "y": {
+            "field": "questions",
+            "type": "quantitative",
+            "label": "Questions"
+          }
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "ascending",
+          "showValues": true,
+          "palette": {
+            "kind": "single",
+            "root": "blue"
+          }
+        },
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "statuses",
+        "title": "Structured uncertainty statuses",
+        "subtitle": "Mutually exclusive first-line model statuses across all completed records.",
+        "dataset": "status_counts",
+        "sourceId": "full_audit",
+        "defaultSort": {
+          "field": "questions",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "text"
+          },
+          {
+            "field": "questions",
+            "label": "Questions",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "exceptions_preview",
+        "title": "Exception-ID preview",
+        "subtitle": "Up to 100 IDs per category; the supporting TSV contains every ID.",
+        "dataset": "exception_preview",
+        "sourceId": "exceptions",
+        "defaultSort": {
+          "field": "category",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "columns": [
+          {
+            "field": "category",
+            "label": "Category",
+            "type": "text"
+          },
+          {
+            "field": "question_id",
+            "label": "Question ID",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "full_audit",
+        "label": "Sanitized full grounded-generation audit",
+        "path": "reports/trec_2026_gemini_grounded_full_audit.json",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Reads aggregate counts and sanitized exception ID arrays from the final audit.",
+          "sql": "SELECT * FROM read_json_auto('reports/trec_2026_gemini_grounded_full_audit.json');",
+          "filters": [
+            "Exactly 7,759 frozen discovery question IDs"
+          ],
+          "metric_definitions": [
+            "Uncertain is any non-answered structured status.",
+            "No Search means grounding was enabled but Search was not invoked."
+          ],
+          "tables_used": [
+            "reports/trec_2026_gemini_grounded_full_audit.json"
+          ]
+        }
+      },
+      {
+        "id": "exceptions",
+        "label": "Sanitized full exception-ID ledger",
+        "path": "reports/trec_2026_gemini_grounded_full_exceptions.tsv",
+        "query": {
+          "engine": "python-csv",
+          "language": "tsv",
+          "description": "Reads the generated sanitized exception ledger containing category and question_id.",
+          "sql": "SELECT category, question_id FROM read_csv_auto('reports/trec_2026_gemini_grounded_full_exceptions.tsv', delim='\\t', header=true);",
+          "filters": [
+            "Exception categories emitted by the deterministic full-corpus audit"
+          ],
+          "metric_definitions": [
+            "Categories may overlap because a question can be uncertain and non-search."
+          ],
+          "tables_used": [
+            "reports/trec_2026_gemini_grounded_full_exceptions.tsv"
+          ]
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Gemini 3.6 grounded references: full-corpus audit"
+      },
+      {
+        "id": "summary",
+        "type": "markdown",
+        "body": "## Technical summary\n\n- **The grounded corpus is complete:** 7,759 records for 7,759 unique IDs, with zero missing IDs and 0 unresolved failures.\n- **Provenance is retained privately:** Search ran on 6,274 responses; all Search-using records passed the source-URL capture check. The report contains no URLs or answer passages.\n- **Uncertainty remains explicit:** 529 responses are non-`answered`; 1,485 did not invoke Search and 1 matched the refusal detector. These sets may overlap.\n- **Spend stayed within the gate:** estimated standard total is $61.35; the deliberately doubled-token-price upper projection is $72.96, below $150.",
+        "sourceId": "full_audit"
+      },
+      {
+        "id": "finding",
+        "type": "markdown",
+        "body": "## The final audit separates coverage from uncertainty\n\nThe chart is not a partition: an uncertain response may also be a non-search response. Zero final failures and refusals are retained as explicit categories so absence is visible rather than silently omitted.",
+        "sourceId": "full_audit"
+      },
+      {
+        "id": "category_chart",
+        "type": "chart",
+        "chartId": "audit_categories"
+      },
+      {
+        "id": "definitions",
+        "type": "markdown",
+        "body": "## Scope and validation contract\n\nThe population is the frozen TREC Million LLMs discovery set: exactly 7,759 question IDs. A valid record has a non-empty clean answer, one of four structured uncertainty statuses, a short reason, a normal `stop` finish, and a matching private provenance record. Search-using responses must retain at least one returned source URL. The full-ID audit is an integrity and provenance check; it does not establish factual correctness for every answer."
+      },
+      {
+        "id": "statuses_table",
+        "type": "table",
+        "tableId": "statuses"
+      },
+      {
+        "id": "method",
+        "type": "markdown",
+        "body": "## The 50-question canary unlocked the full run\n\nThe canary required 50/50 unique completions, valid statuses, non-empty and non-truncated answers, normal finishes, matching evidence records, URLs for Search-using responses, and a conservative projected cost below $150. It passed with 39 Search invocations, 11 manually inspected non-search responses, zero failures, and a $73.40 conservative projection. The full run was resumable and retried isolated format failures without duplicating valid records.",
+        "sourceId": "full_audit"
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "body": "## Completeness is not correctness\n\nGrounding provenance is insurance for later adjudication, not proof that each source entails each central claim. Organizer labels may also contain purposeful noise. The uncertain and conflicting subset should therefore be investigated first with the retained sources; a second blanket generation run is not justified by this audit. The refusal detector is deliberately narrow and may miss softer non-answers."
+      },
+      {
+        "id": "next",
+        "type": "markdown",
+        "body": "## Next actions\n\n1. Review all uncertain and conflicting responses against their private support mappings.\n2. Use the validated references as pivots for blinded, order-randomized candidate pairwise judgments with ties and reversal checks.\n3. Analyze whether non-search responses are concentrated by question cluster or ambiguity type before changing the grounding prompt.\n4. Rotate the Gemini key that appeared in chat after the run is archived."
+      },
+      {
+        "id": "further",
+        "type": "markdown",
+        "body": "## Further questions\n\n- How many uncertain answers become usable after source-level adjudication?\n- Do the retained support passages cover central claims or only peripheral facts?\n- Does reference-guided pairwise ranking improve recall for the 94 sparse zero-nDCG queries without overfitting organizer noise?"
+      },
+      {
+        "id": "audit_trail",
+        "type": "markdown",
+        "body": "## Sanitized exception audit trail\n\nThe preview contains IDs only. Full answers, URLs, search queries, and passage mappings remain in the private local evidence cache."
+      },
+      {
+        "id": "exceptions_table",
+        "type": "table",
+        "tableId": "exceptions_preview"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-23T09:57:15Z",
+    "status": "ready",
+    "datasets": {
+      "audit_categories": [
+        {
+          "category": "Uncertain",
+          "questions": 529,
+          "definition": "Status is ambiguous, insufficient_evidence, or conflicting_evidence."
+        },
+        {
+          "category": "No Search",
+          "questions": 1485,
+          "definition": "Google Search grounding was enabled but the model did not invoke Search."
+        },
+        {
+          "category": "Refusal",
+          "questions": 1,
+          "definition": "Answer matches the narrow refusal-language detector."
+        },
+        {
+          "category": "Failure",
+          "questions": 0,
+          "definition": "No valid final record after retries."
+        }
+      ],
+      "status_counts": [
+        {
+          "status": "ambiguous",
+          "questions": 473
+        },
+        {
+          "status": "answered",
+          "questions": 7230
+        },
+        {
+          "status": "conflicting_evidence",
+          "questions": 0
+        },
+        {
+          "status": "insufficient_evidence",
+          "questions": 56
+        }
+      ],
+      "exception_preview": [
+        {
+          "category": "refusal",
+          "question_id": "344873"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "169772"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "222052"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "23923"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "281914"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "293606"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "295815"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "307463"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "337754"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "385631"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "394477"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "425371"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "483399"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "498250"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "548740"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "564974"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56bec98e3aeaaa14008c9457"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56bfcd33a10cfb14005512f2"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56cd81df62d2951400fa6669"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56cdcfee62d2951400fa6877"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56ceccc7aab44d1400b88a80"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d097fb234ae51400d9c3b1"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d104d117492d1400aab73f"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d119ff17492d1400aab94d"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d1298217492d1400aabafb"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d131e817492d1400aabbe8"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d3726559d6e414001463eb"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d378f459d6e414001464ba"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d4fca52ccc5a1400d833e1"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d624261c85041400946f2d"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d62e501c85041400946f96"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d66f3e1c85041400947117"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d6f2000d65d2140019827c"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d7270c0d65d214001983f6"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d728a10d65d21400198413"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d96d01dc89441400fdb44e"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d9c455dc89441400fdb7c5"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56d9c5e7dc89441400fdb7db"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db0184e7c41114004b4c1c"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db1ae3e7c41114004b4d1f"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db1cbee7c41114004b4d5e"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db2190e7c41114004b4dd6"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db2a39e7c41114004b4e85"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db6621e7c41114004b5090"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56db6760e7c41114004b50ae"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dcf81e66d3e219004dab6c"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dddd9d66d3e219004dad4b"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dde17c9a695914005b9641"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56de66c1cffd8e1900b4b878"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56df5da88bc80c19004e4b28"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56df70c65ca0a614008f9a41"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56df70c65ca0a614008f9a44"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dfa7277aa994140058dfa2"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dfbeed7aa994140058e0f5"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dfc592231d4119001abdde"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56dfd68c231d4119001abe1e"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e031357aa994140058e337"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e039be231d4119001abff2"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e06a5e231d4119001ac0d7"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e06c87231d4119001ac0f5"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e078cb7aa994140058e532"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e0838f231d4119001ac234"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e084b77aa994140058e597"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e100b6cd28a01900c67404"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e102b7cd28a01900c6742c"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e10ddce3433e1400422b4a"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e10ed0cd28a01900c674f8"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e10fbacd28a01900c6750c"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e11a73e3433e1400422bf1"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e14ee1cd28a01900c67798"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e1b754cd28a01900c67abf"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e1c6d5cd28a01900c67b6e"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e4cfd839bdeb14003479e1"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e67fd76fe0821900b8ea70"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e6c9946fe0821900b8eb71"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e76d6537bdd419002c3f93"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e798c537bdd419002c41e1"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e7a13d00c9c71400d77433"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e8ebd40b45c0140094cd6c"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e8f9f90b45c0140094cdb0"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e962d799e8941900975f79"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56e963a699e8941900975f89"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56ea98980030b61400a34fc9"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f7144e711bf01900a44916"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f718d33d8e2e1400e37343"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f7e9caaef2371900625c5a"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f7f437aef2371900625cce"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f7f5fca6d7ea1400e17329"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f867e3a6d7ea1400e175d8"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8cb539b226e1400dd101d"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8ceed9b226e1400dd1049"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8ceed9b226e1400dd104a"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8dfe39b226e1400dd115a"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8e4d89b226e1400dd119f"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8e5f29e9bad19000a06c1"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8ec5d9e9bad19000a0702"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f8effd9e9bad19000a073f"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f957d89e9bad19000a0853"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f97afc9e9bad19000a09a2"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f985239e9bad19000a0a14"
+        },
+        {
+          "category": "uncertain",
+          "question_id": "56f98b729b226e1400dd154c"
+        },
+        {
+          "category": "non_search",
+          "question_id": "100017"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1000354"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1001323"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1001930"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1002270"
+        },
+        {
+          "category": "non_search",
+          "question_id": "100238"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1004736"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1006066"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1007416"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1009624"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1010000"
+        },
+        {
+          "category": "non_search",
+          "question_id": "101710"
+        },
+        {
+          "category": "non_search",
+          "question_id": "105183"
+        },
+        {
+          "category": "non_search",
+          "question_id": "105692"
+        },
+        {
+          "category": "non_search",
+          "question_id": "11206"
+        },
+        {
+          "category": "non_search",
+          "question_id": "112129"
+        },
+        {
+          "category": "non_search",
+          "question_id": "112458"
+        },
+        {
+          "category": "non_search",
+          "question_id": "113142"
+        },
+        {
+          "category": "non_search",
+          "question_id": "116886"
+        },
+        {
+          "category": "non_search",
+          "question_id": "118016"
+        },
+        {
+          "category": "non_search",
+          "question_id": "127578"
+        },
+        {
+          "category": "non_search",
+          "question_id": "127707"
+        },
+        {
+          "category": "non_search",
+          "question_id": "130360"
+        },
+        {
+          "category": "non_search",
+          "question_id": "130746"
+        },
+        {
+          "category": "non_search",
+          "question_id": "136540"
+        },
+        {
+          "category": "non_search",
+          "question_id": "138620"
+        },
+        {
+          "category": "non_search",
+          "question_id": "138924"
+        },
+        {
+          "category": "non_search",
+          "question_id": "142514"
+        },
+        {
+          "category": "non_search",
+          "question_id": "144381"
+        },
+        {
+          "category": "non_search",
+          "question_id": "151173"
+        },
+        {
+          "category": "non_search",
+          "question_id": "155065"
+        },
+        {
+          "category": "non_search",
+          "question_id": "15993"
+        },
+        {
+          "category": "non_search",
+          "question_id": "160167"
+        },
+        {
+          "category": "non_search",
+          "question_id": "16090"
+        },
+        {
+          "category": "non_search",
+          "question_id": "160991"
+        },
+        {
+          "category": "non_search",
+          "question_id": "161790"
+        },
+        {
+          "category": "non_search",
+          "question_id": "163688"
+        },
+        {
+          "category": "non_search",
+          "question_id": "167899"
+        },
+        {
+          "category": "non_search",
+          "question_id": "168711"
+        },
+        {
+          "category": "non_search",
+          "question_id": "169772"
+        },
+        {
+          "category": "non_search",
+          "question_id": "172895"
+        },
+        {
+          "category": "non_search",
+          "question_id": "173889"
+        },
+        {
+          "category": "non_search",
+          "question_id": "175158"
+        },
+        {
+          "category": "non_search",
+          "question_id": "176047"
+        },
+        {
+          "category": "non_search",
+          "question_id": "177430"
+        },
+        {
+          "category": "non_search",
+          "question_id": "178148"
+        },
+        {
+          "category": "non_search",
+          "question_id": "179022"
+        },
+        {
+          "category": "non_search",
+          "question_id": "1794"
+        },
+        {
+          "category": "non_search",
+          "question_id": "181080"
+        },
+        {
+          "category": "non_search",
+          "question_id": "181210"
+        },
+        {
+          "category": "non_search",
+          "question_id": "183734"
+        },
+        {
+          "category": "non_search",
+          "question_id": "186620"
+        },
+        {
+          "category": "non_search",
+          "question_id": "186789"
+        },
+        {
+          "category": "non_search",
+          "question_id": "187564"
+        },
+        {
+          "category": "non_search",
+          "question_id": "187696"
+        },
+        {
+          "category": "non_search",
+          "question_id": "18890"
+        },
+        {
+          "category": "non_search",
+          "question_id": "194047"
+        },
+        {
+          "category": "non_search",
+          "question_id": "196981"
+        },
+        {
+          "category": "non_search",
+          "question_id": "19787"
+        },
+        {
+          "category": "non_search",
+          "question_id": "198298"
+        },
+        {
+          "category": "non_search",
+          "question_id": "198471"
+        },
+        {
+          "category": "non_search",
+          "question_id": "200027"
+        },
+        {
+          "category": "non_search",
+          "question_id": "206486"
+        },
+        {
+          "category": "non_search",
+          "question_id": "209373"
+        },
+        {
+          "category": "non_search",
+          "question_id": "209599"
+        },
+        {
+          "category": "non_search",
+          "question_id": "2117"
+        },
+        {
+          "category": "non_search",
+          "question_id": "213163"
+        },
+        {
+          "category": "non_search",
+          "question_id": "21829"
+        },
+        {
+          "category": "non_search",
+          "question_id": "219413"
+        },
+        {
+          "category": "non_search",
+          "question_id": "220699"
+        },
+        {
+          "category": "non_search",
+          "question_id": "223513"
+        },
+        {
+          "category": "non_search",
+          "question_id": "231228"
+        },
+        {
+          "category": "non_search",
+          "question_id": "236625"
+        },
+        {
+          "category": "non_search",
+          "question_id": "23758"
+        },
+        {
+          "category": "non_search",
+          "question_id": "238003"
+        },
+        {
+          "category": "non_search",
+          "question_id": "24618"
+        },
+        {
+          "category": "non_search",
+          "question_id": "247298"
+        },
+        {
+          "category": "non_search",
+          "question_id": "248501"
+        },
+        {
+          "category": "non_search",
+          "question_id": "250740"
+        },
+        {
+          "category": "non_search",
+          "question_id": "251199"
+        },
+        {
+          "category": "non_search",
+          "question_id": "251953"
+        },
+        {
+          "category": "non_search",
+          "question_id": "252701"
+        },
+        {
+          "category": "non_search",
+          "question_id": "254659"
+        },
+        {
+          "category": "non_search",
+          "question_id": "255748"
+        },
+        {
+          "category": "non_search",
+          "question_id": "256206"
+        },
+        {
+          "category": "non_search",
+          "question_id": "257953"
+        },
+        {
+          "category": "non_search",
+          "question_id": "258852"
+        },
+        {
+          "category": "non_search",
+          "question_id": "259382"
+        },
+        {
+          "category": "non_search",
+          "question_id": "266072"
+        },
+        {
+          "category": "non_search",
+          "question_id": "267774"
+        },
+        {
+          "category": "non_search",
+          "question_id": "268461"
+        },
+        {
+          "category": "non_search",
+          "question_id": "269372"
+        },
+        {
+          "category": "non_search",
+          "question_id": "276298"
+        },
+        {
+          "category": "non_search",
+          "question_id": "28050"
+        },
+        {
+          "category": "non_search",
+          "question_id": "284966"
+        },
+        {
+          "category": "non_search",
+          "question_id": "285173"
+        },
+        {
+          "category": "non_search",
+          "question_id": "290473"
+        },
+        {
+          "category": "non_search",
+          "question_id": "291238"
+        },
+        {
+          "category": "non_search",
+          "question_id": "291511"
+        },
+        {
+          "category": "non_search",
+          "question_id": "293606"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "full_audit",
+      "label": "Sanitized full grounded-generation audit",
+      "path": "reports/trec_2026_gemini_grounded_full_audit.json",
+      "query": {
+        "engine": "duckdb",
+        "language": "sql",
+        "description": "Reads aggregate counts and sanitized exception ID arrays from the final audit.",
+        "sql": "SELECT * FROM read_json_auto('reports/trec_2026_gemini_grounded_full_audit.json');",
+        "filters": [
+          "Exactly 7,759 frozen discovery question IDs"
+        ],
+        "metric_definitions": [
+          "Uncertain is any non-answered structured status.",
+          "No Search means grounding was enabled but Search was not invoked."
+        ],
+        "tables_used": [
+          "reports/trec_2026_gemini_grounded_full_audit.json"
+        ]
+      }
+    },
+    {
+      "id": "exceptions",
+      "label": "Sanitized full exception-ID ledger",
+      "path": "reports/trec_2026_gemini_grounded_full_exceptions.tsv",
+      "query": {
+        "engine": "python-csv",
+        "language": "tsv",
+        "description": "Reads the generated sanitized exception ledger containing category and question_id.",
+        "sql": "SELECT category, question_id FROM read_csv_auto('reports/trec_2026_gemini_grounded_full_exceptions.tsv', delim='\\t', header=true);",
+        "filters": [
+          "Exception categories emitted by the deterministic full-corpus audit"
+        ],
+        "metric_definitions": [
+          "Categories may overlap because a question can be uncertain and non-search."
+        ],
+        "tables_used": [
+          "reports/trec_2026_gemini_grounded_full_exceptions.tsv"
+        ]
+      }
+    }
+  ]
+}

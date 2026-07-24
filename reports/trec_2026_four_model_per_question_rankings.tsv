@@ -1,0 +1,401 @@
+question_id	cluster_id	strata	challenge_count	confidence	ranking	top_tier
+100691	81	other, time_sensitive	2	high	gemma31 = gemini = qwen27 > perplexity	gemma31 = gemini = qwen27
+101710	65	explanation	1	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+107367	66	explanation	1	high	gemma31 = gemini = qwen27 > perplexity	gemma31 = gemini = qwen27
+132780	21	explanation, numeric	2	high	gemini = gemma31 = qwen27 > perplexity	gemini = gemma31 = qwen27
+134755	130	factoid	2	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+147847	176	explanation	1	high	gemma31 > qwen27 > gemini > perplexity	gemma31
+14926	97	explanation	1	high	qwen27 = gemini > perplexity = gemma31	qwen27 = gemini
+161490	113	factoid	1	high	qwen27 > gemma31 > gemini > perplexity	qwen27
+181210	11	explanation	1	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+186789	9	explanation, time_sensitive	2	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+202328	50	explanation	0	high	gemini = gemma31 = qwen27 > perplexity	gemini = gemma31 = qwen27
+206486	113	explanation	1	high	qwen27 = gemini = perplexity > gemma31	qwen27 = gemini = perplexity
+209599	105	factoid, numeric	2	medium	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+239622	67	explanation	1	high	qwen27 = gemini > gemma31 > perplexity	qwen27 = gemini
+258852	32	factoid, numeric	1	high	gemma31 = perplexity > gemini = qwen27	gemma31 = perplexity
+264482	33	explanation	2	high	gemini > qwen27 > perplexity > gemma31	gemini
+27551	9	factoid	1	high	gemini = gemma31 > qwen27 > perplexity	gemini = gemma31
+275608	34	explanation, numeric	2	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+276298	117	explanation	1	high	qwen27 = gemma31 > perplexity > gemini	qwen27 = gemma31
+291511	78	explanation	1	high	perplexity > qwen27 > gemini > gemma31	perplexity
+315567	37	explanation	1	high	qwen27 > gemma31 = gemini > perplexity	qwen27
+328744	89	explanation	0	high	qwen27 > gemini > gemma31 > perplexity	qwen27
+333947	98	factoid	1	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+346869	52	factoid, numeric	2	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+348099	52	factoid	0	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+357707	80	factoid	0	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+361615	63	explanation	1	high	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+369301	142	explanation	1	medium	gemma31 = qwen27 > gemini > perplexity	gemma31 = qwen27
+369658	36	factoid	1	high	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+372494	184	other	1	high	qwen27 = gemma31 > gemini > perplexity	qwen27 = gemma31
+378607	175	other	0	high	gemini = qwen27 = gemma31 = perplexity	gemini = qwen27 = gemma31 = perplexity
+380050	162	explanation	1	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+386126	142	factoid	1	high	gemma31 = gemini > perplexity > qwen27	gemma31 = gemini
+410525	24	explanation	1	high	gemini > perplexity > gemma31 > qwen27	gemini
+455432	33	explanation	1	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+482298	137	explanation	1	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+491639	157	explanation, numeric	2	high	gemma31 = qwen27 > gemini > perplexity	gemma31 = qwen27
+521291	154	explanation, numeric	2	high	qwen27 = gemma31 > perplexity > gemini	qwen27 = gemma31
+533470	61	explanation	0	high	gemini > perplexity > qwen27 > gemma31	gemini
+541905	66	explanation	2	medium	gemma31 > qwen27 > gemini > perplexity	gemma31
+547860	105	factoid	0	high	perplexity = qwen27 = gemma31 > gemini	perplexity = qwen27 = gemma31
+556079	156	explanation	1	high	qwen27 = gemma31 > gemini > perplexity	qwen27 = gemma31
+565074	63	factoid	1	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+56cc60186d243a140015ef5c	71	other	1	high	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+56cd5df262d2951400fa6546	99	other	3	low	qwen27 = gemma31 > gemini = perplexity	qwen27 = gemma31
+56cd779762d2951400fa65dc	49	factoid	2	high	gemini > perplexity > qwen27 = gemma31	gemini
+56cdaf0362d2951400fa680c	77	explanation	2	medium	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+56cf5433aab44d1400b88ff1	116	factoid	2	high	gemini > perplexity > gemma31 = qwen27	gemini
+56d265eb59d6e41400145f6d	46	other	1	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+56db1cbee7c41114004b4d5e	100	other	2	low	gemini > perplexity > gemma31 = qwen27	gemini
+56dfb9fe231d4119001abd15	95	factoid	1	medium	qwen27 = gemma31 = gemini = perplexity	qwen27 = gemma31 = gemini = perplexity
+56e039be231d4119001abff2	49	numeric, other	2	medium	perplexity > gemini > qwen27 = gemma31	perplexity
+56e0a4e7231d4119001ac312	42	numeric, other	2	high	perplexity = gemini > qwen27 > gemma31	perplexity = gemini
+56e1a28ee3433e1400423050	30	factoid	2	medium	gemini > qwen27 > perplexity = gemma31	gemini
+56e9ed745a205f1900d6d32f	100	other	1	medium	qwen27 = gemma31 = gemini > perplexity	qwen27 = gemma31 = gemini
+56f82bcfaef2371900625e9e	150	factoid	3	high	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+56f86e91aef2371900626068	15	factoid	2	medium	gemini = gemma31 = perplexity = qwen27	gemini = gemma31 = perplexity = qwen27
+56f8cb539b226e1400dd101d	27	factoid	0	high	qwen27 = gemma31 = gemini > perplexity	qwen27 = gemma31 = gemini
+56fc2fec2603e71400409ffe	180	factoid	0	high	perplexity = qwen27 = gemma31 = gemini	perplexity = qwen27 = gemma31 = gemini
+5705f12375f01819005e77b2	94	other	2	high	gemma31 = qwen27 = perplexity = gemini	gemma31 = qwen27 = perplexity = gemini
+5706924752bb891400689a77	129	factoid	1	high	gemini = qwen27 = perplexity = gemma31	gemini = qwen27 = perplexity = gemma31
+5706b68e0eeca41400aa0d7c	16	factoid	0	high	gemma31 = qwen27 = perplexity > gemini	gemma31 = qwen27 = perplexity
+570d3734fed7b91900d45d2b	71	explanation	3	medium	perplexity > gemini > gemma31 = qwen27	perplexity
+570d69bafed7b91900d46033	88	factoid	1	low	perplexity > gemma31 > gemini = qwen27	perplexity
+570da2de16d0071400510c2b	153	factoid	1	high	perplexity > gemini = qwen27 > gemma31	perplexity
+570fdcbb80d9841400ab36e7	53	factoid, numeric	2	medium	gemini > perplexity = qwen27 > gemma31	gemini
+571309	97	explanation	1	high	gemini = gemma31 > qwen27 = perplexity	gemini = gemma31
+57194aad3e985219001bc017	14	other	0	high	gemini = gemma31 = perplexity > qwen27	gemini = gemma31 = perplexity
+571a8a4e10f8ca14003050f7	14	other, time_sensitive	3	medium	perplexity > gemini = gemma31 > qwen27	perplexity
+5723aae60dadf01500fa1f29	62	other	1	high	gemma31 = qwen27 = perplexity = gemini	gemma31 = qwen27 = perplexity = gemini
+5725ea6889a1e219009ac0a0	101	factoid	1	medium	gemma31 > gemini = qwen27 = perplexity	gemma31
+57262c8738643c19005ad29e	26	factoid, numeric	3	high	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+57265956f1498d1400e8dcca	82	factoid	1	medium	perplexity = qwen27 > gemini > gemma31	perplexity = qwen27
+572670f2708984140094c617	140	factoid	3	high	gemini > perplexity > gemma31 > qwen27	gemini
+57268a1a708984140094c947	136	factoid, numeric	3	high	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+57269e8a5951b619008f77f6	6	factoid	1	high	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+5726ba83dd62a815002e8e6a	57	factoid, time_sensitive	3	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+5726c717dd62a815002e9001	50	other	3	high	perplexity = gemini = gemma31 > qwen27	perplexity = gemini = gemma31
+5726d1bdf1498d1400e8ec3f	96	explanation	1	high	gemma31 = gemini = qwen27 > perplexity	gemma31 = gemini = qwen27
+5726e671708984140094d547	121	factoid	3	high	perplexity = gemini > gemma31 > qwen27	perplexity = gemini
+5726e7725951b619008f81f0	191	factoid	1	high	qwen27 = gemini > gemma31 > perplexity	qwen27 = gemini
+5726ebd5708984140094d605	1	factoid	2	high	gemini > perplexity > gemma31 > qwen27	gemini
+57273f6b5951b619008f8763	144	factoid	1	high	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+5727b0892ca10214002d93e9	0	other	0	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+5727cc002ca10214002d9681	83	factoid	0	medium	gemini > qwen27 = gemma31 > perplexity	gemini
+5727cd6e2ca10214002d96c9	145	factoid	1	medium	perplexity = qwen27 > gemma31 > gemini	perplexity = qwen27
+5727ce414b864d1900163d90	147	factoid, numeric	2	low	gemini > gemma31 > perplexity > qwen27	gemini
+5727dff64b864d1900163f02	60	factoid	1	high	gemini = qwen27 = gemma31 = perplexity	gemini = qwen27 = gemma31 = perplexity
+5727e0032ca10214002d9886	40	factoid	2	low	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5727e7822ca10214002d9925	3	explanation, numeric	2	medium	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+5727eb704b864d1900164032	108	numeric, other	4	medium	perplexity > gemini > gemma31 > qwen27	perplexity
+5727ff7c2ca10214002d9b01	164	other	0	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+572803c6ff5b5019007d9af6	102	other	0	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+572824f13acd2414000df591	166	factoid, numeric	1	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+572860e03acd2414000df978	131	factoid	1	high	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+5729083a3f37b31900477fb5	51	factoid, numeric, underspecified	2	high	perplexity = gemini > qwen27 > gemma31	perplexity = gemini
+572941bb1d04691400779204	118	factoid	1	medium	qwen27 > gemini = gemma31 > perplexity	qwen27
+5729429a6aef051400154c19	30	factoid	2	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+5729600e6aef051400154db1	185	factoid	1	high	perplexity = gemma31 = qwen27 > gemini	perplexity = gemma31 = qwen27
+572972f46aef051400154ef6	171	explanation	1	medium	gemma31 > qwen27 > perplexity > gemini	gemma31
+57297608af94a219006aa474	29	factoid	1	high	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+572ac2a9be1ee31400cb821d	68	numeric, other	2	high	gemma31 > gemini > qwen27 > perplexity	gemma31
+572b8fff111d821400f38f1e	56	explanation, numeric, time_sensitive	5	low	perplexity > gemma31 > gemini > qwen27	perplexity
+572f6d0aa23a5019007fc605	160	other	1	high	gemma31 = gemini = qwen27 = perplexity	gemma31 = gemini = qwen27 = perplexity
+572f7d20947a6a140053c9b8	42	factoid	1	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+57301733947a6a140053d0bf	167	factoid, numeric	2	high	gemini = perplexity > qwen27 > gemma31	gemini = perplexity
+57303143a23a5019007fcf48	138	factoid	1	medium	perplexity > gemini > gemma31 > qwen27	perplexity
+573076bd396df91900096132	179	factoid	1	high	gemini = qwen27 = gemma31 = perplexity	gemini = qwen27 = gemma31 = perplexity
+573137fba5e9cc1400cdbd19	126	other	3	high	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+57313cc0a5e9cc1400cdbd80	126	factoid	0	high	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+573147d7e6313a140071cdb2	23	factoid	0	high	perplexity = qwen27 = gemma31 = gemini	perplexity = qwen27 = gemma31 = gemini
+5731cd430fdd8d15006c654d	92	factoid	2	high	gemma31 = gemini > qwen27 > perplexity	gemma31 = gemini
+573233c1b9d445190005e8c1	150	factoid	1	high	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+57325614e17f3d14004228ab	26	factoid	2	high	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+57325823e17f3d14004228c0	127	factoid, numeric	2	high	qwen27 = gemma31 = gemini > perplexity	qwen27 = gemma31 = gemini
+57326324e17f3d1400422936	124	explanation	1	high	perplexity > gemini > qwen27 > gemma31	perplexity
+57327ee0b3a91d1900202dc5	22	factoid	1	high	gemma31 = gemini > perplexity > qwen27	gemma31 = gemini
+57337ea24776f41900660bd1	44	factoid	0	high	gemma31 = qwen27 = gemini = perplexity	gemma31 = qwen27 = gemini = perplexity
+573387494776f41900660caf	32	factoid, numeric	3	high	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+5733acebd058e614000b600c	25	explanation	3	medium	perplexity > gemini > qwen27 > gemma31	perplexity
+573402d3d058e614000b67a3	128	factoid	0	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+573405584776f4190066170d	128	factoid	2	low	gemini > perplexity > gemma31 > qwen27	gemini
+573409bed058e614000b6839	161	factoid	1	high	perplexity > gemini > qwen27 > gemma31	perplexity
+593166	25	factoid	1	high	qwen27 > perplexity = gemma31 = gemini	qwen27
+595163	159	explanation, numeric	2	high	gemma31 = gemini > perplexity = qwen27	gemma31 = gemini
+597585	190	explanation	1	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+5a710dae5542994082a3e529	12	factoid, numeric	4	high	gemini > qwen27 > perplexity > gemma31	gemini
+5a7148495542994082a3e75f	28	factoid, numeric	4	high	gemini > qwen27 > perplexity > gemma31	gemini
+5a714c585542994082a3e79a	31	long_or_multihop, other, underspecified	4	high	gemini = perplexity = gemma31 = qwen27	gemini = perplexity = gemma31 = qwen27
+5a715e1e5542994082a3e7fd	139	other, time_sensitive	3	high	gemini > gemma31 > qwen27 = perplexity	gemini
+5a726b455542992359bc3092	163	factoid	1	high	gemini > perplexity > qwen27 > gemma31	gemini
+5a7329c65542992359bc3256	127	factoid, underspecified	4	high	gemma31 > gemini > perplexity > qwen27	gemma31
+5a73ce1d55429908901be33d	116	factoid	3	high	gemini = qwen27 > perplexity > gemma31	gemini = qwen27
+5a74bcd35542996c70cfadc4	60	other	3	high	gemini > perplexity = gemma31 = qwen27	gemini
+5a74eb3e5542993748c89736	35	factoid	3	high	gemini > gemma31 = qwen27 > perplexity	gemini
+5a7557435542996c70cfaee3	152	long_or_multihop, other	3	high	gemini > qwen27 > gemma31 = perplexity	gemini
+5a75f79155429976ec32bcc9	129	factoid	3	high	gemini = perplexity > qwen27 > gemma31	gemini = perplexity
+5a7628e55542992d0ec06033	35	factoid	3	high	perplexity = gemini > qwen27 > gemma31	perplexity = gemini
+5a764b715542992d0ec0608f	141	other	1	high	perplexity > gemini > gemma31 = qwen27	perplexity
+5a764c325542992d0ec06092	51	long_or_multihop, other	4	high	gemini > perplexity > gemma31 = qwen27	gemini
+5a7705355542994aec3b71be	35	factoid	2	high	gemini = perplexity = qwen27 > gemma31	gemini = perplexity = qwen27
+5a773df455429966f1a36cc6	53	long_or_multihop, other	3	medium	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+5a775e945542994aec3b72b7	134	factoid, numeric	2	high	gemini > perplexity > qwen27 = gemma31	gemini
+5a77666755429972597f1522	28	other	2	high	qwen27 = perplexity = gemini > gemma31	qwen27 = perplexity = gemini
+5a776cb955429972597f1529	104	factoid, long_or_multihop, numeric	3	high	gemini = perplexity > gemma31 > qwen27	gemini = perplexity
+5a7781a655429967ab1051e4	103	long_or_multihop, other	4	medium	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+5a77842b55429949eeb29eb9	143	factoid, long_or_multihop, numeric	5	high	qwen27 = gemini = perplexity > gemma31	qwen27 = gemini = perplexity
+5a7789e95542995d831811a8	112	factoid, underspecified	2	high	gemini > perplexity > gemma31 > qwen27	gemini
+5a77c76d55429967ab105293	133	factoid, long_or_multihop, numeric	3	medium	qwen27 = gemini = perplexity = gemma31	qwen27 = gemini = perplexity = gemma31
+5a78a6cc554299148911f8fa	121	factoid	3	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+5a78bc5e554299148911f978	86	factoid	3	high	perplexity > gemini > qwen27 > gemma31	perplexity
+5a78c25b554299078472775e	121	factoid	2	high	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+5a78cc09554299029c4b5e9a	123	factoid	2	medium	qwen27 = perplexity = gemma31 = gemini	qwen27 = perplexity = gemma31 = gemini
+5a78cdc3554299029c4b5e9e	41	factoid, long_or_multihop, numeric	5	high	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+5a79ab765542996c55b2dc30	92	factoid	3	high	qwen27 > gemini > perplexity > gemma31	qwen27
+5a7a2aff5542996a35c17115	93	factoid	2	medium	perplexity > gemini = gemma31 > qwen27	perplexity
+5a7a3f765542994f819ef191	71	factoid	4	medium	qwen27 > perplexity = gemini > gemma31	qwen27
+5a7a42d65542994f819ef19c	28	factoid	3	high	gemini = gemma31 > perplexity > qwen27	gemini = gemma31
+5a7a701c5542994f819ef1da	55	long_or_multihop, numeric, other, time_sensitive	4	medium	qwen27 = gemini = gemma31 = perplexity	qwen27 = gemini = gemma31 = perplexity
+5a7bd39d554299294a54ab19	48	factoid, numeric	4	high	perplexity = gemini > qwen27 > gemma31	perplexity = gemini
+5a7ca63255429907fabeefe4	119	long_or_multihop, numeric, other	3	high	gemma31 = perplexity = gemini > qwen27	gemma31 = perplexity = gemini
+5a7cb2305542996dd594b98e	28	factoid	4	medium	gemini = perplexity = qwen27 = gemma31	gemini = perplexity = qwen27 = gemma31
+5a7cbd26554299452d57b9e1	28	factoid	2	high	qwen27 = gemini = perplexity > gemma31	qwen27 = gemini = perplexity
+5a7cc803554299452d57ba57	174	factoid	1	high	gemini = qwen27 = perplexity > gemma31	gemini = qwen27 = perplexity
+5a7cd205554299452d57ba7d	111	factoid, numeric	4	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+5a7d00ac55429907fabef0a4	151	long_or_multihop, numeric, other	5	high	perplexity = qwen27 = gemini > gemma31	perplexity = qwen27 = gemini
+5a7d434c5542995f4f40224a	19	factoid	1	high	perplexity > gemini > gemma31 = qwen27	perplexity
+5a7dafbb5542991319bc93f2	28	factoid	2	high	qwen27 = gemma31 = gemini > perplexity	qwen27 = gemma31 = gemini
+5a7e217b5542995ed0d166a3	88	long_or_multihop, numeric, other, underspecified	4	medium	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+5a7f4ef95542994857a766e5	74	factoid, long_or_multihop, numeric	3	high	gemini > perplexity > qwen27 = gemma31	gemini
+5a7f994355429969796c1adb	102	long_or_multihop, numeric, other, time_sensitive	4	medium	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+5a7f9ee855429969796c1af3	46	long_or_multihop, other	3	medium	qwen27 > gemini = gemma31 = perplexity	qwen27
+5a7fada45542995d8a8ddef0	19	long_or_multihop, other	4	medium	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+5a7fd39b55429969796c1b83	117	long_or_multihop, numeric, other	4	medium	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+5a8093e35542996402f6a571	27	factoid, long_or_multihop, numeric	4	high	gemini = perplexity > qwen27 > gemma31	gemini = perplexity
+5a80b91c5542992bc0c4a7e3	8	factoid, long_or_multihop	4	high	perplexity > gemini > qwen27 = gemma31	perplexity
+5a80bb0c554299260e20a143	121	other	2	medium	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+5a80bc3f5542992bc0c4a801	58	factoid, long_or_multihop, numeric	5	medium	perplexity > gemma31 = gemini > qwen27	perplexity
+5a811273554299260e20a234	79	other	3	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5a81e7df5542995ce29dcc70	10	factoid	1	high	gemini > perplexity > qwen27 = gemma31	gemini
+5a81fca3554299676cceb1b6	135	explanation, underspecified	3	high	perplexity = gemini > gemma31 > qwen27	perplexity = gemini
+5a820f4c55429926c1cdae19	85	numeric, other	3	high	gemini = perplexity > gemma31 > qwen27	gemini = perplexity
+5a82180b554299676cceb211	54	long_or_multihop, other, underspecified	4	high	perplexity = gemini = qwen27 > gemma31	perplexity = gemini = qwen27
+5a83188155429954d2e2ec19	151	long_or_multihop, numeric, other	3	high	perplexity > gemini > gemma31 = qwen27	perplexity
+5a8320735542990548d0b17d	74	factoid, long_or_multihop, numeric	4	medium	perplexity > gemini = gemma31 = qwen27	perplexity
+5a83a6c55542990548d0b20d	149	factoid	2	medium	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+5a84717c554299123d8c2254	18	long_or_multihop, numeric, other, time_sensitive	5	high	qwen27 = gemma31 > perplexity = gemini	qwen27 = gemma31
+5a84919f5542997b5ce3febe	177	factoid, long_or_multihop	1	high	qwen27 = perplexity = gemini > gemma31	qwen27 = perplexity = gemini
+5a849b065542997175ce1ef6	123	other	3	high	perplexity = qwen27 = gemini > gemma31	perplexity = qwen27 = gemini
+5a84a2f95542990548d0b2d7	158	factoid, numeric	3	medium	gemini > qwen27 = gemma31 > perplexity	gemini
+5a84c1fd5542991dd0999de0	169	factoid	1	high	perplexity > gemini > gemma31 > qwen27	perplexity
+5a84e13b5542994c784dda75	41	factoid	3	high	perplexity > gemini > qwen27 = gemma31	perplexity
+5a85b0db5542997b5ce40026	79	other	3	medium	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+5a8618ae554299211dda2a6b	75	factoid	1	high	gemini > perplexity > gemma31 = qwen27	gemini
+5a8797bb5542993e715abfbd	155	long_or_multihop, numeric, other, time_sensitive	5	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5a87ab255542994846c1cdc1	38	factoid, long_or_multihop, numeric	3	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+5a88bd6955429938390d3fb6	148	factoid, long_or_multihop, numeric	5	high	perplexity = qwen27 = gemini > gemma31	perplexity = qwen27 = gemini
+5a89157355429951533612bc	99	other	3	medium	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+5a89283c554299669944a4d1	18	factoid, long_or_multihop, time_sensitive	4	high	gemini = perplexity > qwen27 = gemma31	gemini = perplexity
+5a89332d554299669944a4fe	108	factoid, long_or_multihop, numeric, time_sensitive	4	high	gemini = gemma31 > perplexity = qwen27	gemini = gemma31
+5a899e7855429946c8d6e96c	181	factoid	1	medium	gemma31 = gemini = qwen27 = perplexity	gemma31 = gemini = qwen27 = perplexity
+5a89f80b55429970aeb701c2	91	factoid, long_or_multihop, numeric	4	medium	gemini = gemma31 = qwen27 = perplexity	gemini = gemma31 = qwen27 = perplexity
+5a8a02585542992d82986e4c	7	long_or_multihop, other	4	high	perplexity = gemini > qwen27 > gemma31	perplexity = gemini
+5a8a12d45542992d82986e94	79	other	3	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+5a8a1d0855429970aeb70255	15	other	2	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5a8a28b55542996c9b8d5e23	6	long_or_multihop, other	3	high	gemini = perplexity > qwen27 = gemma31	gemini = perplexity
+5a8a381e55429970aeb70277	10	factoid, long_or_multihop, numeric	4	medium	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+5a8a548a5542996c9b8d5eba	39	long_or_multihop, numeric, other	4	high	gemma31 = gemini = qwen27 > perplexity	gemma31 = gemini = qwen27
+5a8b58875542995d1e6f1374	82	long_or_multihop, numeric, other	3	medium	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+5a8b6ac05542997f31a41d1a	75	long_or_multihop, numeric, other	3	medium	perplexity = qwen27 = gemma31 = gemini	perplexity = qwen27 = gemma31 = gemini
+5a8b848d5542997f31a41d5c	79	other	3	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5a8c45765542995e66a4758b	143	factoid, numeric	3	high	gemini > qwen27 > gemma31 = perplexity	gemini
+5a8c52d6554299240d9c2114	93	other	2	medium	gemma31 > perplexity = gemini = qwen27	gemma31
+5a8c6f775542996e8ac88aab	54	other	1	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5a8cbc92554299653c1aa100	8	other	1	medium	gemini = qwen27 = gemma31 = perplexity	gemini = qwen27 = gemma31 = perplexity
+5a8cd4b8554299441c6b9f19	110	long_or_multihop, numeric, other	4	high	gemma31 = perplexity = gemini > qwen27	gemma31 = perplexity = gemini
+5a8dc809554299068b959df0	139	other	2	medium	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+5a8dd88355429917b4a5bccf	115	numeric, other, time_sensitive	4	medium	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+5a8edf365542995085b374ae	72	numeric, other	3	medium	gemini > qwen27 = gemma31 > perplexity	gemini
+5a8ef39a5542995b44241f11	122	factoid	0	high	perplexity = qwen27 = gemini > gemma31	perplexity = qwen27 = gemini
+5a8f0a325542995b44241f36	91	other	2	high	perplexity = gemini > gemma31 = qwen27	perplexity = gemini
+5a8f413355429918e830d1de	77	explanation, long_or_multihop, time_sensitive, underspecified	4	medium	gemini > gemma31 = qwen27 > perplexity	gemini
+5a8f6d1155429918e830d21f	112	long_or_multihop, numeric, other	5	medium	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+5a8f7d905542995b44242053	132	long_or_multihop, numeric, other	5	high	perplexity = gemini = gemma31 > qwen27	perplexity = gemini = gemma31
+5a905cb455429916514e748a	72	long_or_multihop, numeric, other	4	medium	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+5a907dc85542990a98493662	139	factoid	3	medium	gemini = perplexity = qwen27 = gemma31	gemini = perplexity = qwen27 = gemma31
+5ab24e56554299449642c86a	43	other	2	medium	gemma31 = qwen27 = perplexity = gemini	gemma31 = qwen27 = perplexity = gemini
+5ab2da435542992953946880	92	factoid	1	medium	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+5ab3b6e9554299753aec59c3	106	factoid	2	high	perplexity = gemini = qwen27 > gemma31	perplexity = gemini = qwen27
+5ab3f1205542992ade7c6eed	22	long_or_multihop, numeric, other	3	medium	gemma31 = qwen27 = gemini = perplexity	gemma31 = qwen27 = gemini = perplexity
+5ab4073b55429976abd1bd39	141	long_or_multihop, numeric, other	4	medium	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+5ab4083655429976abd1bd3b	99	other	3	high	qwen27 = perplexity > gemma31 = gemini	qwen27 = perplexity
+5ab478435542990594ba9c28	122	factoid, numeric	3	high	perplexity = qwen27 = gemini > gemma31	perplexity = qwen27 = gemini
+5ab4913b5542990594ba9c6a	51	factoid, numeric	3	medium	gemini > perplexity = qwen27 = gemma31	gemini
+5ab515b75542991779162d74	0	numeric, other	3	medium	gemini > qwen27 = perplexity = gemma31	gemini
+5ab54e2f554299494045ef76	12	factoid	3	high	gemini = perplexity > gemma31 > qwen27	gemini = perplexity
+5ab569b25542997d4ad1f112	114	factoid	1	high	gemma31 = gemini = perplexity > qwen27	gemma31 = gemini = perplexity
+5ab57290554299488d4d9987	123	other	2	medium	gemma31 = qwen27 = gemini = perplexity	gemma31 = qwen27 = gemini = perplexity
+5ab59d95554299488d4d99fc	76	other	2	high	perplexity = gemma31 = gemini > qwen27	perplexity = gemma31 = gemini
+5ab5d35d5542997d4ad1f1f4	31	factoid	2	high	gemini = perplexity > qwen27 > gemma31	gemini = perplexity
+5ab647b25542995eadeeff9a	79	other	3	high	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+5ab6bf90554299710c8d1f46	13	factoid	0	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+5ab707c05542991d32223760	149	factoid	4	medium	gemini = perplexity = gemma31 = qwen27	gemini = perplexity = gemma31 = qwen27
+5ab710225542993667793f23	70	numeric, other	2	high	qwen27 = gemini > perplexity = gemma31	qwen27 = gemini
+5ab7da125542995dae37e9bb	92	other	2	medium	gemini = gemma31 = qwen27 = perplexity	gemini = gemma31 = qwen27 = perplexity
+5ab7f06d554299366779405b	149	other	1	high	qwen27 = perplexity = gemma31 > gemini	qwen27 = perplexity = gemma31
+5ab8a83755429919ba4e234b	116	long_or_multihop, numeric, other	4	medium	gemini = perplexity = qwen27 = gemma31	gemini = perplexity = qwen27 = gemma31
+5ab8e15c55429919ba4e2376	20	factoid, long_or_multihop, numeric	5	high	perplexity = gemini = gemma31 > qwen27	perplexity = gemini = gemma31
+5ab8f05b5542991b5579f064	135	factoid	1	high	gemini > perplexity > gemma31 = qwen27	gemini
+5ab8f2f655429934fafe6e21	149	factoid	3	high	gemini = qwen27 = perplexity > gemma31	gemini = qwen27 = perplexity
+5ab91f1d55429919ba4e23b7	45	long_or_multihop, numeric, other	4	medium	perplexity = qwen27 = gemma31 = gemini	perplexity = qwen27 = gemma31 = gemini
+5ab973975542996be20204fc	149	factoid	3	medium	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+5ab976d55542996be202050b	5	numeric, other, time_sensitive	3	high	gemini = perplexity > qwen27 = gemma31	gemini = perplexity
+5ab9a9d5554299743d22eb90	139	other	3	medium	qwen27 = gemini = perplexity = gemma31	qwen27 = gemini = perplexity = gemma31
+5ab9de8255429901930fa739	111	long_or_multihop, numeric, other	4	high	perplexity = gemini > gemma31 = qwen27	perplexity = gemini
+5aba3f9b55429901930fa78e	99	other	2	medium	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+5aba86ed55429901930fa804	93	long_or_multihop, numeric, other	5	high	qwen27 = gemini > perplexity = gemma31	qwen27 = gemini
+5abb17e05542992ccd8e7f13	109	long_or_multihop, numeric, other, time_sensitive	5	medium	gemini > qwen27 = perplexity > gemma31	gemini
+5abc50d2554299658360043c	93	other	3	medium	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+5abcdbc755429965836004d7	109	long_or_multihop, other	3	medium	gemini = perplexity = gemma31 = qwen27	gemini = perplexity = gemma31 = qwen27
+5abce6d4554299114383a185	173	factoid	1	high	gemini = perplexity = qwen27 > gemma31	gemini = perplexity = qwen27
+5abd05e45542992ac4f381ab	59	explanation	2	medium	gemini > perplexity = qwen27 > gemma31	gemini
+5abd2cb55542993062266bb0	103	numeric, other	3	high	gemini > perplexity > qwen27 = gemma31	gemini
+5abd6c8755429933744ab7cc	90	factoid	2	high	gemini = perplexity = qwen27 > gemma31	gemini = perplexity = qwen27
+5abd7e6b55429933744ab7fa	72	factoid	1	high	gemini > perplexity > qwen27 = gemma31	gemini
+5abd811a55429924427fd027	35	factoid	4	high	gemini = perplexity = qwen27 > gemma31	gemini = perplexity = qwen27
+5abda97855429965af743da8	106	other	2	medium	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+5abdc81a55429965af743e3c	123	factoid, numeric	3	medium	gemini = perplexity = qwen27 = gemma31	gemini = perplexity = qwen27 = gemma31
+5abea3c65542997ec76fd340	115	other	3	medium	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+5abfd1e75542994516f45504	80	factoid, numeric	2	medium	gemini > perplexity = qwen27 = gemma31	gemini
+5abfdb6c5542997ec76fd461	85	factoid, long_or_multihop, numeric, time_sensitive	4	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5ac01e4f5542990832d3a1f6	121	other	3	medium	gemma31 = qwen27 = gemini = perplexity	gemma31 = qwen27 = gemini = perplexity
+5ac02a53554299012d1db5c4	155	factoid, numeric	2	medium	perplexity > gemini = gemma31 > qwen27	perplexity
+5ac07c5f5542996f0d89cbf6	93	other	4	medium	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+5ac0d054554299294b21901a	70	factoid, long_or_multihop, numeric	5	medium	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+5ac0fa46554299012d1db66f	35	factoid	4	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5ac10c135542996f0d89cc61	90	long_or_multihop, numeric, other, underspecified	5	medium	qwen27 = gemini = gemma31 = perplexity	qwen27 = gemini = gemma31 = perplexity
+5ac150045542994ab5c67ce1	16	long_or_multihop, numeric, other	5	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5ac1b54055429963665198f4	108	numeric, other	4	high	qwen27 = gemini > perplexity = gemma31	qwen27 = gemini
+5ac2676f55429951e9e685a5	45	factoid, numeric	2	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5ac2bcc2554299218029db0b	140	other	2	medium	gemini > perplexity > gemma31 = qwen27	gemini
+5ac2f9e4554299677310266a	39	other	2	medium	perplexity > gemini > gemma31 = qwen27	perplexity
+5ac3906355429939154137d9	20	factoid	2	high	gemini > qwen27 = perplexity = gemma31	gemini
+5ac3a8065542993915413891	79	factoid	3	high	perplexity = gemini = gemma31 > qwen27	perplexity = gemini = gemma31
+5ac3b0b5554299204fd21e04	76	long_or_multihop, other, time_sensitive	5	medium	gemma31 = gemini > perplexity > qwen27	gemma31 = gemini
+5ac3ca28554299741d48a314	95	factoid	2	medium	perplexity > gemini > gemma31 = qwen27	perplexity
+5ac416595542997ea680c9fd	132	factoid	2	high	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+5ac4f82955429924173fb525	79	other	2	high	perplexity = gemini = qwen27 > gemma31	perplexity = gemini = qwen27
+5ac5083755429924173fb56a	110	factoid, numeric	1	medium	gemini > gemma31 > qwen27 = perplexity	gemini
+5ac53f585542994611c8b46d	43	long_or_multihop, other	4	high	perplexity = gemma31 = gemini > qwen27	perplexity = gemma31 = gemini
+5ac549a75542994611c8b496	123	other	2	high	perplexity = gemma31 = gemini > qwen27	perplexity = gemma31 = gemini
+5ac5628c5542993e66e823c9	38	other	3	high	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+5adbdbcb5542996e68525260	138	long_or_multihop, other	2	medium	gemini = qwen27 > perplexity > gemma31	gemini = qwen27
+5adc04ed554299438c868d06	123	factoid	1	high	gemini > perplexity = qwen27 = gemma31	gemini
+5adc206155429944faac2433	23	long_or_multihop, numeric, other, time_sensitive	5	medium	gemini = gemma31 > qwen27 > perplexity	gemini = gemma31
+5add37745542990dbb2f7dcc	67	other	3	medium	perplexity > gemini > qwen27 = gemma31	perplexity
+5add3e595542997545bbbcf9	149	other	4	high	qwen27 = perplexity = gemini > gemma31	qwen27 = perplexity = gemini
+5ade2e4a55429939a52fe852	158	long_or_multihop, numeric, other	3	medium	qwen27 > gemma31 = gemini > perplexity	qwen27
+5adf68b55542992d7e9f933c	139	other	1	high	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+5adf9dcd5542993344016d20	79	other	3	high	gemini = qwen27 = perplexity > gemma31	gemini = qwen27 = perplexity
+5adfc464554299603e4183a6	146	factoid, numeric	2	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+5adfe73355429925eb1afb1b	79	other	2	high	gemini = perplexity > qwen27 = gemma31	gemini = perplexity
+5adff47955429925eb1afb8f	79	other	2	high	gemma31 = perplexity = gemini > qwen27	gemma31 = perplexity = gemini
+5ae0bf375542993d6555ec36	44	long_or_multihop, numeric, other, time_sensitive	4	medium	gemini = qwen27 = gemma31 = perplexity	gemini = qwen27 = gemma31 = perplexity
+5ae0d7c455429945ae95947e	68	long_or_multihop, numeric, other, time_sensitive	5	medium	gemini > gemma31 = qwen27 = perplexity	gemini
+5ae0d81e55429945ae95947f	98	long_or_multihop, numeric, other	3	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+5ae13e815542997b2ef7d15e	136	long_or_multihop, numeric, other	4	high	gemini = perplexity > qwen27 = gemma31	gemini = perplexity
+5ae161d255429901ffe4ae8f	57	explanation	1	medium	gemini > perplexity > qwen27 = gemma31	gemini
+5ae1810f5542990adbacf7a8	174	explanation, long_or_multihop, numeric	4	high	gemini > perplexity = qwen27 = gemma31	gemini
+5ae1aa33554299492dc91b58	115	factoid	2	medium	gemma31 = gemini > perplexity > qwen27	gemma31 = gemini
+5ae1cf635542997f29b3c129	79	factoid	3	high	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+5ae1f6885542997f29b3c1c1	186	factoid	1	high	qwen27 = gemma31 = perplexity > gemini	qwen27 = gemma31 = perplexity
+5ae20741554299234fd043b5	146	explanation, long_or_multihop, numeric	4	high	gemma31 = perplexity = gemini = qwen27	gemma31 = perplexity = gemini = qwen27
+5ae257e15542992decbdccc8	3	factoid, numeric, time_sensitive, underspecified	4	medium	perplexity = gemini > gemma31 > qwen27	perplexity = gemini
+5ae2cc875542991a06ce98d8	48	factoid	2	high	perplexity = gemini > gemma31 = qwen27	perplexity = gemini
+5ae30cee55429928c42395cb	187	factoid	2	medium	gemini > gemma31 = perplexity > qwen27	gemini
+5ae341295542994393b9e669	5	factoid	0	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+5ae39c015542992f92d82317	152	long_or_multihop, other	4	high	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+5ae4164b55429970de88d8f1	134	long_or_multihop, numeric, other	4	high	perplexity = gemini > gemma31 = qwen27	perplexity = gemini
+5ae5144755429908b6326513	59	long_or_multihop, other, underspecified	5	high	qwen27 = gemma31 = gemini > perplexity	qwen27 = gemma31 = gemini
+5ae5e8ad5542996de7b71a67	40	other	0	high	gemini = qwen27 = perplexity > gemma31	gemini = qwen27 = perplexity
+5ae680d85542996d980e7ba6	62	long_or_multihop, numeric, other	4	high	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+5ae6d9b95542996d980e7c96	99	factoid, numeric	3	high	qwen27 = gemini = perplexity > gemma31	qwen27 = gemini = perplexity
+5ae6faa1554299572ea5465b	38	factoid, numeric	2	medium	perplexity > gemini > gemma31 > qwen27	perplexity
+5ae709935542995703ce8bc0	7	other	1	high	gemini = perplexity > gemma31 = qwen27	gemini = perplexity
+5ae744ee554299572ea547a4	144	long_or_multihop, numeric, other	4	high	perplexity = gemini = qwen27 = gemma31	perplexity = gemini = qwen27 = gemma31
+5ae760eb5542991e8301cc77	29	factoid, long_or_multihop, numeric	3	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+5ae767885542997b22f6a732	69	explanation, long_or_multihop, numeric	4	high	qwen27 = gemini = perplexity > gemma31	qwen27 = gemini = perplexity
+5ae77843554299540e5a55ba	114	factoid, numeric	3	high	gemini = gemma31 = perplexity > qwen27	gemini = gemma31 = perplexity
+5ae7872d5542994a481bbd5e	131	long_or_multihop, other	4	high	gemma31 = gemini = qwen27 = perplexity	gemma31 = gemini = qwen27 = perplexity
+5ae7b9bf5542993210983f0d	119	factoid, numeric	4	medium	perplexity > gemma31 > gemini = qwen27	perplexity
+5ae7e9555542994a481bbe0b	58	factoid	1	medium	gemini > qwen27 > gemma31 = perplexity	gemini
+5ae7f15c5542994a481bbe47	165	factoid	2	medium	gemini > perplexity > gemma31 = qwen27	gemini
+5ae82dc555429952e35eaa7a	2	other	2	high	perplexity = gemini > gemma31 = qwen27	perplexity = gemini
+601861	178	factoid	1	medium	perplexity > gemini = qwen27 > gemma31	perplexity
+615934	17	explanation	2	high	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+640273	118	other	0	medium	gemma31 = gemini > qwen27 > perplexity	gemma31 = gemini
+6437	11	factoid	2	high	qwen27 = gemini = perplexity = gemma31	qwen27 = gemini = perplexity = gemma31
+645738	148	explanation	1	high	gemini = perplexity = gemma31 = qwen27	gemini = perplexity = gemma31 = qwen27
+652634	55	explanation	1	high	gemini = qwen27 > gemma31 = perplexity	gemini = qwen27
+663261	81	factoid	0	high	perplexity = qwen27 = gemma31 = gemini	perplexity = qwen27 = gemma31 = gemini
+667553	89	explanation	1	high	qwen27 = gemini > perplexity = gemma31	qwen27 = gemini
+679388	47	explanation	0	medium	qwen27 > gemma31 = gemini > perplexity	qwen27
+685422	64	factoid	1	high	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+701179	157	factoid	1	high	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+754129	87	explanation	0	high	qwen27 = gemma31 > gemini = perplexity	qwen27 = gemma31
+77944	188	explanation	1	high	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+781550	17	explanation	1	high	gemma31 = gemini = qwen27 = perplexity	gemma31 = gemini = qwen27 = perplexity
+78560	159	explanation	1	high	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+810098	24	explanation	1	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+867343	137	other	1	high	perplexity = gemma31 > qwen27 = gemini	perplexity = gemma31
+87346	107	factoid	1	high	gemini = qwen27 = gemma31 > perplexity	gemini = qwen27 = gemma31
+881680	170	other	1	high	qwen27 = perplexity = gemma31 = gemini	qwen27 = perplexity = gemma31 = gemini
+889245	4	explanation	1	high	qwen27 > gemma31 = gemini = perplexity	qwen27
+906207	168	explanation	1	high	perplexity = gemini = gemma31 = qwen27	perplexity = gemini = gemma31 = qwen27
+922081	147	factoid	0	medium	gemini = qwen27 > gemma31 > perplexity	gemini = qwen27
+923040	21	explanation	1	high	qwen27 = gemini = gemma31 = perplexity	qwen27 = gemini = gemma31 = perplexity
+94008	94	explanation	1	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+948233	172	explanation	1	high	gemini = qwen27 = gemma31 = perplexity	gemini = qwen27 = gemma31 = perplexity
+960131	1	factoid	1	high	perplexity = qwen27 = gemini = gemma31	perplexity = qwen27 = gemini = gemma31
+973493	130	explanation	1	high	qwen27 = gemini > gemma31 = perplexity	qwen27 = gemini
+996902	156	explanation	1	high	gemini = perplexity = gemma31 = qwen27	gemini = perplexity = gemma31 = qwen27
+998256	125	explanation	1	high	qwen27 = perplexity = gemini = gemma31	qwen27 = perplexity = gemini = gemma31
+998345	4	explanation	1	high	perplexity = qwen27 = gemini = gemma31	perplexity = qwen27 = gemini = gemma31
+Q1027	153	factoid	2	high	gemma31 = gemini = qwen27 = perplexity	gemma31 = gemini = qwen27 = perplexity
+Q1338	84	factoid	1	high	perplexity = gemma31 = qwen27 = gemini	perplexity = gemma31 = qwen27 = gemini
+Q1342	189	factoid	1	high	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+Q1494	182	factoid	0	high	qwen27 = perplexity = gemma31 > gemini	qwen27 = perplexity = gemma31
+Q1610	120	factoid	1	high	gemini = qwen27 = perplexity = gemma31	gemini = qwen27 = perplexity = gemma31
+Q1664	101	factoid, numeric	2	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+Q1730	125	factoid	2	high	qwen27 = gemini = perplexity = gemma31	qwen27 = gemini = perplexity = gemma31
+Q1815	73	factoid	1	high	perplexity > qwen27 = gemini = gemma31	perplexity
+Q1891	37	factoid	1	high	qwen27 = gemma31 = perplexity = gemini	qwen27 = gemma31 = perplexity = gemini
+Q209	152	factoid	0	high	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+Q2146	47	factoid	2	high	perplexity = qwen27 = gemini > gemma31	perplexity = qwen27 = gemini
+Q2168	34	factoid, numeric	2	high	qwen27 = gemma31 = gemini = perplexity	qwen27 = gemma31 = gemini = perplexity
+Q2169	61	factoid, underspecified	3	high	perplexity = gemini > gemma31 = qwen27	perplexity = gemini
+Q217	65	factoid, numeric	2	high	qwen27 = perplexity = gemma31 = gemini	qwen27 = perplexity = gemma31 = gemini
+Q224	73	explanation, numeric	4	high	qwen27 = gemini = gemma31 > perplexity	qwen27 = gemini = gemma31
+Q2452	2	factoid	2	medium	perplexity = gemini > qwen27 > gemma31	perplexity = gemini
+Q2532	56	factoid	0	high	perplexity > gemma31 = qwen27 = gemini	perplexity
+Q2641	13	factoid	2	high	qwen27 = perplexity = gemini > gemma31	qwen27 = perplexity = gemini
+Q2671	83	factoid	2	high	gemma31 = perplexity = gemini = qwen27	gemma31 = perplexity = gemini = qwen27
+Q2774	145	factoid	2	high	gemma31 = perplexity = gemini = qwen27	gemma31 = perplexity = gemini = qwen27
+Q2855	69	factoid	1	high	gemini = perplexity = qwen27 = gemma31	gemini = perplexity = qwen27 = gemma31
+Q2888	36	factoid, numeric	2	high	perplexity = gemini > qwen27 = gemma31	perplexity = gemini
+Q2920	106	factoid	3	medium	gemini = gemma31 > perplexity > qwen27	gemini = gemma31
+Q339	183	explanation	1	high	gemma31 = perplexity = qwen27 = gemini	gemma31 = perplexity = qwen27 = gemini
+Q401	87	explanation	1	high	perplexity = gemma31 = gemini = qwen27	perplexity = gemma31 = gemini = qwen27
+Q539	120	factoid	3	high	perplexity = gemini = gemma31 > qwen27	perplexity = gemini = gemma31
+Q556	104	explanation	2	medium	perplexity > gemini > gemma31 = qwen27	perplexity
+Q578	96	explanation, numeric	2	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+Q580	64	explanation	1	medium	qwen27 > perplexity = gemini > gemma31	qwen27
+Q663	124	explanation, numeric	3	medium	qwen27 = gemini > perplexity > gemma31	qwen27 = gemini
+Q676	86	explanation	2	high	gemma31 = qwen27 = gemini > perplexity	gemma31 = qwen27 = gemini
+Q691	78	factoid, numeric	2	high	gemma31 = qwen27 = perplexity = gemini	gemma31 = qwen27 = perplexity = gemini
+Q705	84	factoid	2	high	gemma31 = perplexity = gemini = qwen27	gemma31 = perplexity = gemini = qwen27
+Q776	107	explanation	2	medium	gemini > perplexity > qwen27 > gemma31	gemini
+Q863	133	explanation	0	high	gemma31 = gemini = perplexity = qwen27	gemma31 = gemini = perplexity = qwen27
+Q884	154	explanation	1	high	gemma31 = gemini = qwen27 = perplexity	gemma31 = gemini = qwen27 = perplexity

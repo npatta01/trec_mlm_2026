@@ -107,7 +107,7 @@ def test_stage_resources_rejects_symlinked_destination_component(
     ("unsafe_html", "message"),
     [
         ('<a href="file:///tmp/private">local</a>', "file URL"),
-        ("<p>/home/npatta01/private</p>", "private home path"),
+        ("<p>/home/npatta01/private</p>", "local filesystem path"),
         ("-----BEGIN PRIVATE KEY-----", "private-key"),
         ('<script src="https://cdn.example/app.js"></script>', "external executable"),
         ('<link rel="stylesheet" href="//cdn.example/app.css">', "external executable"),
@@ -124,6 +124,52 @@ def test_stage_resources_rejects_private_or_executable_content(
         stage_resources(tmp_path, tmp_path / "research/hub/_site")
 
     assert not (tmp_path / "research/hub/_site/library").exists()
+
+
+@pytest.mark.parametrize(
+    "local_path",
+    [
+        "/home/alice/private/results.json",
+        r"\/home\/alice\/private\/results.json",
+        "/Users/alice/Library/Application Support/results.json",
+        "/tmp/private/results.json",
+        r"C:\Users\alice\private\results.json",
+        r"D:\private\results.json",
+        r"\\fileserver\research\alice\results.json",
+        r"\\\\fileserver\\research\\alice\\results.json",
+    ],
+)
+def test_stage_resources_rejects_portable_local_filesystem_paths(
+    tmp_path: Path,
+    local_path: str,
+) -> None:
+    _write_allowlisted_sources(tmp_path, f"<p>{local_path}</p>")
+
+    with pytest.raises(ValueError, match="local filesystem path"):
+        stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+    assert not (tmp_path / "research/hub/_site/library").exists()
+
+
+def test_stage_resources_allows_relative_and_site_absolute_paths(
+    tmp_path: Path,
+) -> None:
+    html = """
+    <script src="assets/app.js"></script>
+    <link rel="stylesheet" href="./assets/app.css">
+    <img src="../images/chart.svg" alt="">
+    <a href="/api/results.json">API results</a>
+    <a href="/research/hub/library/index.html">Library</a>
+    <a href="https://docs.example/home/alice/guide">Documentation</a>
+    <a href="//docs.example/tmp/guide">Protocol-relative documentation</a>
+    <script>const docs = "https:\\/\\/docs.example\\/home\\/alice";</script>
+    """
+    _write_allowlisted_sources(tmp_path, html)
+
+    staged = stage_resources(tmp_path, tmp_path / "research/hub/_site")
+
+    assert len(staged) == len(RESOURCE_ALLOWLIST)
+    assert all(path.read_text(encoding="utf-8") == html for path in staged)
 
 
 def test_stage_resources_rejects_external_base_for_relative_script(

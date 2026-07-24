@@ -23,11 +23,31 @@ RESOURCE_ALLOWLIST = {
 
 _PRIVATE_MARKERS = (
     ("file:///", "file URL"),
-    ("/home/npatta01", "private home path"),
     ("-----begin private key-----", "private-key header"),
     ("-----begin rsa private key-----", "private-key header"),
     ("-----begin openssh private key-----", "private-key header"),
     ("-----begin ec private key-----", "private-key header"),
+)
+_LOCAL_FILESYSTEM_PATH = re.compile(
+    r"""
+    (?:
+        (?<![A-Za-z0-9_./:-])
+        /
+        (?:
+            (?:home|Users)/[^/\s<>"']+
+            |
+            (?:var/)?tmp
+        )
+        (?=/|[\s<>"']|$)
+        |
+        (?<![A-Za-z0-9_/\\])
+        [A-Za-z]:[\\/]
+        |
+        (?<!\\)
+        \\\\[^\\/\s<>"']+[\\/][^\\/\s<>"']+
+    )
+    """,
+    flags=re.IGNORECASE | re.VERBOSE,
 )
 _CSS_EXTERNAL_IMPORT = re.compile(
     r"""@import\s+(?:url\(\s*)?["']?(?:https?:)?//""",
@@ -99,6 +119,13 @@ def _scan_text(source: Path, text: str, *, depth: int = 0) -> None:
     for marker, label in _PRIVATE_MARKERS:
         if marker in lowered:
             raise ValueError(f"staged HTML contains a {label}")
+    slash_normalized = text.replace("\\/", "/")
+    path_candidates = (
+        slash_normalized,
+        slash_normalized.replace("\\\\", "\\"),
+    )
+    if any(_LOCAL_FILESYSTEM_PATH.search(value) for value in path_candidates):
+        raise ValueError("staged HTML contains a local filesystem path")
     if _CSS_EXTERNAL_IMPORT.search(text):
         raise ValueError(
             "staged HTML contains an external executable asset"

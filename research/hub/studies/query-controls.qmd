@@ -1,6 +1,8 @@
 ---
 study_id: query-controls
 title: "Simple query controls"
+primary_theme_id: query-only-routing
+theme_ids: [query-only-routing]
 study_type: ranking_experiment
 question_ids: [query-only-routing]
 approach_ids: [dense-query-retrieval]

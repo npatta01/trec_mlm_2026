@@ -1,6 +1,8 @@
 ---
 question_id: query-only-routing
 title: "How far can query-only routing go?"
+primary_theme_id: query-only-routing
+theme_ids: [query-only-routing, candidate-evidence]
 plain_english: "Can a new request be routed well by comparing it with historical requests, before using candidate responses?"
 status: partially_answered
 current_answer: "Dense query neighbors are a useful stable control, but candidate-side evidence improved development results."

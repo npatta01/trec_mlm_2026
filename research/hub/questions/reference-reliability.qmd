@@ -1,6 +1,8 @@
 ---
 question_id: reference-reliability
 title: "How reliable must a generated reference be?"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, responses-references]
 plain_english: "When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?"
 status: partially_answered
 current_answer: "Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation."

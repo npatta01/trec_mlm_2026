@@ -1,6 +1,8 @@
 ---
 question_id: candidate-evidence
 title: "Can candidate-side semantic evidence improve query-only retrieval?"
+primary_theme_id: candidate-evidence
+theme_ids: [candidate-evidence]
 plain_english: "When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?"
 status: partially_answered
 current_answer: "Yes on development evidence, subject to the evidence limits below."

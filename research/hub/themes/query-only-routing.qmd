@@ -1,0 +1,15 @@
+---
+theme_id: query-only-routing
+title: "Query-only routing"
+plain_english: "Route a new request using evidence from historical requests before using candidate responses."
+current_conclusion: "Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them."
+decision: retain_control
+confidence: moderate
+confidence_boundary: "Development-only evidence with repeated tuning on the same queries; hidden-test transfer is unknown."
+next_test_ids: [semantic-failure-clusters]
+updated_on: 2026-07-24
+evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_dense_query_knn_results.json]
+---
+
+Query-only routing is the control path for deciding how far historical query
+similarity can carry model selection without candidate-side response evidence.

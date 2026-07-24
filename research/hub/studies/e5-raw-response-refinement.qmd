@@ -1,6 +1,8 @@
 ---
 study_id: e5-raw-response-refinement
 title: "E5 raw-response refinement"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
 study_type: audit
 question_ids: [response-evidence, failure-conditions]
 approach_ids: [response-evidence, reranking]

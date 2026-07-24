@@ -8,6 +8,7 @@ import yaml
 from .model import HubRecord, HubSources, RECORD_KINDS
 
 DIRECTORIES = {
+    "theme": "themes",
     "question": "questions",
     "study": "studies",
     "test": "ideas",
@@ -16,6 +17,7 @@ DIRECTORIES = {
     "background": "background",
 }
 ID_FIELDS = {
+    "theme": "theme_id",
     "question": "question_id",
     "study": "study_id",
     "test": "test_id",
@@ -81,6 +83,7 @@ def load_hub_sources(
         records = [parse_qmd_record(root, path, kind) for path in paths]
         grouped[kind] = tuple(sorted(records, key=lambda row: row.record_id))
     return HubSources(
+        themes=grouped["theme"],
         questions=grouped["question"],
         studies=grouped["study"],
         tests=grouped["test"],

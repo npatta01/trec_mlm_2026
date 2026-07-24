@@ -1,4 +1,5 @@
 """Shared fixtures for research hub tests."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -32,10 +33,26 @@ def minimal_sources(tmp_path: Path) -> HubSources:
         )
 
     return HubSources(
+        themes=(
+            record(
+                "theme",
+                "candidate-evidence",
+                plain_english="Candidate-side semantic evidence for ranking.",
+                current_conclusion="Candidate evidence improves development ranking.",
+                decision="adopt",
+                confidence="moderate",
+                confidence_boundary="Development-only evidence.",
+                next_test_ids=["test-candidate-evidence"],
+                updated_on="2026-07-24",
+                evidence_refs=[evidence_ref],
+            ),
+        ),
         questions=(
             record(
                 "question",
                 "candidate-evidence",
+                primary_theme_id="candidate-evidence",
+                theme_ids=["candidate-evidence"],
                 plain_english="Does candidate evidence improve ranking?",
                 status="open",
                 current_answer="Evidence is insufficient.",
@@ -52,6 +69,8 @@ def minimal_sources(tmp_path: Path) -> HubSources:
             record(
                 "study",
                 "dense-baseline",
+                primary_theme_id="candidate-evidence",
+                theme_ids=["candidate-evidence"],
                 study_type="ranking_experiment",
                 question_ids=["candidate-evidence"],
                 approach_ids=["dense-retrieval"],
@@ -81,6 +100,8 @@ def minimal_sources(tmp_path: Path) -> HubSources:
             record(
                 "test",
                 "test-candidate-evidence",
+                primary_theme_id="candidate-evidence",
+                theme_ids=["candidate-evidence"],
                 stage="idea",
                 summary="Test candidate evidence.",
                 linked_question_ids=["candidate-evidence"],

@@ -1,6 +1,8 @@
 ---
 study_id: grounded-data-quality-audit
 title: "Grounded reference data-quality audit"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, responses-references]
 study_type: data_quality
 question_ids: [reference-reliability, failure-conditions]
 approach_ids: [reference-generation]

@@ -1,4 +1,5 @@
 """Schema and relationship validation for canonical research-hub records."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -47,7 +48,13 @@ DATA_SHARING = frozenset(
 
 DATA_CATEGORIES = frozenset({"provided", "collected", "generated", "external"})
 BACKGROUND_TYPES = frozenset(
-    {"literature_review", "participant_review", "competition", "benchmark", "methods_landscape"}
+    {
+        "literature_review",
+        "participant_review",
+        "competition",
+        "benchmark",
+        "methods_landscape",
+    }
 )
 
 READY_FIELDS = (
@@ -145,7 +152,9 @@ def _require_known_ids(
     values = require_string_list(record, field)
     unknown = _unknown_ids(values, known_ids)
     if unknown:
-        raise ValueError(f"{record.source_path}: {field} references unknown id(s): {sorted(unknown)}")
+        raise ValueError(
+            f"{record.source_path}: {field} references unknown id(s): {sorted(unknown)}"
+        )
     return values
 
 
@@ -154,6 +163,8 @@ def _unknown_ids(values: Sequence[str], known_ids: set[str]) -> set[str]:
 
 
 def validate_question(root: Path, record: HubRecord) -> None:
+    require_string(record, "primary_theme_id")
+    require_string_list(record, "theme_ids")
     require_string(record, "plain_english")
     require_choice(record, "status", QUESTION_STATUSES)
     require_string(record, "current_answer")
@@ -169,6 +180,8 @@ def validate_question(root: Path, record: HubRecord) -> None:
 
 
 def validate_study(root: Path, record: HubRecord) -> None:
+    require_string(record, "primary_theme_id")
+    require_string_list(record, "theme_ids")
     study_type = require_choice(record, "study_type", STUDY_TYPES)
     question_ids = require_string_list(record, "question_ids")
     if not question_ids:
@@ -197,26 +210,38 @@ def validate_study(root: Path, record: HubRecord) -> None:
     concluded_on = record.metadata["concluded_on"]
     if concluded_on is None:
         if status == "concluded":
-            raise ValueError(f"{record.source_path}: concluded_on cannot be null for concluded study")
+            raise ValueError(
+                f"{record.source_path}: concluded_on cannot be null for concluded study"
+            )
     else:
         require_date_or_unknown(record, "concluded_on")
     require_string_list(record, "supersedes")
     require_string_list(record, "superseded_by")
     require_string(record, "limitations")
     if provenance == "reconstructed" and not evidence_refs:
-        raise ValueError(f"{record.source_path}: reconstructed rationale requires evidence_refs")
+        raise ValueError(
+            f"{record.source_path}: reconstructed rationale requires evidence_refs"
+        )
     if decision != "pending" and not evidence_refs:
         raise ValueError(f"{record.source_path}: decision requires evidence_refs")
     if status == "concluded":
         if outcome == "pending":
-            raise ValueError(f"{record.source_path}: concluded study cannot have pending outcome")
+            raise ValueError(
+                f"{record.source_path}: concluded study cannot have pending outcome"
+            )
         if decision == "pending":
-            raise ValueError(f"{record.source_path}: concluded study cannot have pending decision")
+            raise ValueError(
+                f"{record.source_path}: concluded study cannot have pending decision"
+            )
     elif outcome != "pending" or decision != "pending":
-        raise ValueError(f"{record.source_path}: unfinished study requires pending outcome and decision")
+        raise ValueError(
+            f"{record.source_path}: unfinished study requires pending outcome and decision"
+        )
 
 
 def validate_test(record: HubRecord) -> None:
+    require_string(record, "primary_theme_id")
+    require_string_list(record, "theme_ids")
     stage = require_choice(record, "stage", TEST_STAGES)
     require_string(record, "summary")
     require_string_list(record, "linked_question_ids")
@@ -231,7 +256,9 @@ def validate_test(record: HubRecord) -> None:
         for field in READY_FIELDS:
             require_string(record, field)
         if missing_readiness_fields:
-            raise ValueError(f"{record.source_path}: ready test has missing_readiness_fields")
+            raise ValueError(
+                f"{record.source_path}: ready test has missing_readiness_fields"
+            )
     if stage == "completed":
         require_string(record, "resulting_study_id")
 
@@ -246,7 +273,9 @@ def validate_dataset(root: Path, record: HubRecord) -> None:
     repository_path = record.metadata.get("repository_path")
     if sharing == "repository":
         if not isinstance(repository_path, str) or not repository_path.strip():
-            raise ValueError(f"{record.source_path}: repository_path must be a nonempty string")
+            raise ValueError(
+                f"{record.source_path}: repository_path must be a nonempty string"
+            )
         validate_repo_reference(root, record, repository_path)
     elif repository_path is not None:
         require_string(record, "repository_path")
@@ -272,6 +301,19 @@ def validate_background(root: Path, record: HubRecord) -> None:
     require_date_or_unknown(record, "reviewed_on")
 
 
+def validate_theme(root: Path, record: HubRecord) -> None:
+    require_string(record, "plain_english")
+    require_string(record, "current_conclusion")
+    require_choice(record, "decision", DECISIONS)
+    require_choice(record, "confidence", CONFIDENCE_LEVELS)
+    require_string(record, "confidence_boundary")
+    require_string_list(record, "next_test_ids")
+    require_date_or_unknown(record, "updated_on")
+    evidence_refs = _require_references(root, record, "evidence_refs")
+    if not evidence_refs:
+        raise ValueError(f"{record.source_path}: evidence_refs must not be empty")
+
+
 def _validate_approach(record: HubRecord) -> None:
     require_string(record, "summary")
     require_string_list(record, "question_ids")
@@ -282,6 +324,7 @@ def _validate_relationships(
     sources: HubSources,
     ledger: LedgerBuild,
 ) -> int:
+    theme_ids = {row.record_id for row in sources.themes}
     question_ids = {row.record_id for row in sources.questions}
     study_ids = {row.record_id for row in sources.studies}
     test_ids = {row.record_id for row in sources.tests}
@@ -290,6 +333,21 @@ def _validate_relationships(
     system_scopes = {row.system_id: row.evaluation_scope for row in ledger.systems}
     system_ids = set(system_scopes)
 
+    for record in sources.themes:
+        _require_known_ids(record, "next_test_ids", test_ids)
+    for record in (*sources.questions, *sources.studies, *sources.tests):
+        primary_theme_id = require_string(record, "primary_theme_id")
+        if primary_theme_id not in theme_ids:
+            raise ValueError(
+                f"{record.source_path}: primary_theme_id references unknown id: "
+                f"{primary_theme_id}"
+            )
+        linked_themes = _require_known_ids(record, "theme_ids", theme_ids)
+        if primary_theme_id not in linked_themes:
+            raise ValueError(
+                f"{record.source_path}: primary_theme_id must occur in theme_ids"
+            )
+
     for record in sources.questions:
         _require_known_ids(record, "study_ids", study_ids)
         _require_known_ids(record, "next_test_ids", test_ids)
@@ -297,7 +355,9 @@ def _validate_relationships(
         _require_known_ids(record, "question_ids", question_ids)
         _require_known_ids(record, "approach_ids", approach_ids)
         linked_systems = _require_known_ids(record, "system_ids", system_ids)
-        representatives = _require_known_ids(record, "representative_system_ids", system_ids)
+        representatives = _require_known_ids(
+            record, "representative_system_ids", system_ids
+        )
         if not set(representatives) <= set(linked_systems):
             raise ValueError(
                 f"{record.source_path}: representative_system_ids must occur in system_ids"
@@ -329,7 +389,13 @@ def _validate_relationships(
         _require_known_ids(record, "study_ids", study_ids)
     for record in sources.background:
         _require_known_ids(record, "question_ids", question_ids)
-    return len({system_id for record in sources.studies for system_id in require_string_list(record, "system_ids")})
+    return len(
+        {
+            system_id
+            for record in sources.studies
+            for system_id in require_string_list(record, "system_ids")
+        }
+    )
 
 
 def validate_hub_sources(
@@ -348,6 +414,8 @@ def validate_hub_sources(
             )
         owners[key] = record.source_path
 
+    for record in sources.themes:
+        validate_theme(root, record)
     for record in sources.questions:
         validate_question(root, record)
     for record in sources.studies:
@@ -363,6 +431,7 @@ def validate_hub_sources(
 
     return ValidationSummary(
         record_counts={
+            "theme": len(sources.themes),
             "question": len(sources.questions),
             "study": len(sources.studies),
             "test": len(sources.tests),

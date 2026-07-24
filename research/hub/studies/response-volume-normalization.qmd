@@ -1,6 +1,8 @@
 ---
 study_id: response-volume-normalization
 title: "Response-volume normalization"
+primary_theme_id: responses-references
+theme_ids: [responses-references]
 study_type: ranking_experiment
 question_ids: [response-evidence]
 approach_ids: [response-evidence]

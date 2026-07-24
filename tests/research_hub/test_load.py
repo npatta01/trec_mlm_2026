@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from trec_mlm.research_hub.load import load_hub_sources, parse_qmd_record
+from trec_mlm.research_hub.model import RECORD_KINDS
 
 
 def test_parse_qmd_record_preserves_metadata_and_markdown(tmp_path: Path) -> None:
@@ -50,3 +51,18 @@ def test_load_hub_sources_sorts_records_by_id(tmp_path: Path) -> None:
     sources = load_hub_sources(tmp_path)
 
     assert [record.record_id for record in sources.questions] == ["alpha", "zeta"]
+
+
+def test_load_hub_sources_loads_themes(tmp_path: Path) -> None:
+    directory = tmp_path / "research/hub/themes"
+    directory.mkdir(parents=True)
+    (directory / "candidate-evidence.qmd").write_text(
+        "---\ntheme_id: candidate-evidence\ntitle: Candidate evidence\n---\n",
+        encoding="utf-8",
+    )
+
+    sources = load_hub_sources(tmp_path)
+
+    assert "theme" in RECORD_KINDS
+    assert sources.themes[0].kind == "theme"
+    assert sources.themes[0].record_id == "candidate-evidence"

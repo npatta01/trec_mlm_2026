@@ -19,6 +19,7 @@ def test_validation_returns_record_and_linked_system_counts(
     summary = validate_hub_sources(minimal_sources, ledger_build, tmp_path)
 
     assert summary.record_counts == {
+        "theme": 1,
         "question": 1,
         "study": 1,
         "test": 1,
@@ -27,6 +28,101 @@ def test_validation_returns_record_and_linked_system_counts(
         "background": 1,
     }
     assert summary.linked_system_count == 1
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "plain_english",
+        "current_conclusion",
+        "decision",
+        "confidence",
+        "confidence_boundary",
+        "next_test_ids",
+        "updated_on",
+        "evidence_refs",
+    ],
+)
+def test_validation_requires_theme_fields(
+    field: str,
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    theme = minimal_sources.themes[0]
+    metadata = dict(theme.metadata)
+    metadata.pop(field)
+
+    with pytest.raises(ValueError, match=field):
+        validate_hub_sources(
+            replace(minimal_sources, themes=(replace(theme, metadata=metadata),)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_requires_theme_evidence_refs(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    theme = minimal_sources.themes[0]
+    theme = replace(
+        theme,
+        metadata={**theme.metadata, "evidence_refs": []},
+    )
+
+    with pytest.raises(ValueError, match="evidence_refs"):
+        validate_hub_sources(
+            replace(minimal_sources, themes=(theme,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_rejects_unknown_primary_theme(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = minimal_sources.questions[0]
+    question = replace(
+        question,
+        metadata={
+            **question.metadata,
+            "primary_theme_id": "unknown-theme",
+            "theme_ids": ["unknown-theme"],
+        },
+    )
+
+    with pytest.raises(ValueError, match="primary_theme_id references unknown"):
+        validate_hub_sources(
+            replace(minimal_sources, questions=(question,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
+def test_validation_requires_primary_theme_in_theme_ids(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = minimal_sources.questions[0]
+    question = replace(
+        question,
+        metadata={
+            **question.metadata,
+            "theme_ids": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="primary_theme_id must occur in theme_ids"):
+        validate_hub_sources(
+            replace(minimal_sources, questions=(question,)),
+            ledger_build,
+            tmp_path,
+        )
 
 
 def test_validation_requires_plain_english_question(

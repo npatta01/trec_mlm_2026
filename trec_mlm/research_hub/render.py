@@ -135,6 +135,7 @@ def _related_ids(record: HubRecord) -> list[str]:
 
 def _rendered_path(record: HubRecord) -> str:
     directory = {
+        "theme": "themes",
         "question": "questions",
         "study": "studies",
         "test": "ideas",

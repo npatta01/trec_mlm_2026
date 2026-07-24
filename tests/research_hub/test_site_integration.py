@@ -21,6 +21,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert "generated/runs/*.qmd" in config["project"]["render"]
     assert config["execute"]["enabled"] is False
     assert build.validation.record_counts == {
+        "theme": 4,
         "question": 5,
         "study": 15,
         "test": 3,

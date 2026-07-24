@@ -1,6 +1,8 @@
 ---
 study_id: query-cluster-aggregation
 title: "Query-cluster aggregation"
+primary_theme_id: query-only-routing
+theme_ids: [query-only-routing, evidence-reliability]
 study_type: ranking_experiment
 question_ids: [query-only-routing, failure-conditions]
 approach_ids: [dense-query-retrieval]

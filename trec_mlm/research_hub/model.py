@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 RECORD_KINDS = frozenset(
-    {"question", "study", "test", "approach", "dataset", "background"}
+    {"theme", "question", "study", "test", "approach", "dataset", "background"}
 )
 
 
@@ -21,6 +21,7 @@ class HubRecord:
 
 @dataclass(frozen=True)
 class HubSources:
+    themes: tuple[HubRecord, ...] = ()
     questions: tuple[HubRecord, ...] = ()
     studies: tuple[HubRecord, ...] = ()
     tests: tuple[HubRecord, ...] = ()
@@ -30,7 +31,8 @@ class HubSources:
 
     def all_records(self) -> tuple[HubRecord, ...]:
         return (
-            self.questions
+            self.themes
+            + self.questions
             + self.studies
             + self.tests
             + self.approaches

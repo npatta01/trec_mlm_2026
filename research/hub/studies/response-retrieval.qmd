@@ -1,6 +1,8 @@
 ---
 study_id: response-retrieval
 title: "Lexical response retrieval"
+primary_theme_id: responses-references
+theme_ids: [responses-references]
 study_type: ranking_experiment
 question_ids: [response-evidence]
 approach_ids: [response-evidence]

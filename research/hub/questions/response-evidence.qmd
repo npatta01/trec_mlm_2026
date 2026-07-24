@@ -1,6 +1,8 @@
 ---
 question_id: response-evidence
 title: "Can model responses provide useful ranking evidence?"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
 plain_english: "Does comparing a request or reference answer with candidate responses help choose the best models?"
 status: partially_answered
 current_answer: "Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence."

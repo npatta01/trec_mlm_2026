@@ -1,6 +1,8 @@
 ---
 study_id: label-ranker-pilots
 title: "Label-ranker feasibility pilots"
+primary_theme_id: candidate-evidence
+theme_ids: [candidate-evidence, evidence-reliability]
 study_type: ranking_experiment
 question_ids: [candidate-evidence, failure-conditions]
 approach_ids: [reranking, candidate-profiles]

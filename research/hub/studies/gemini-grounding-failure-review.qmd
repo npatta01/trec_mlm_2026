@@ -1,6 +1,8 @@
 ---
 study_id: gemini-grounding-failure-review
 title: "Gemini grounding failure review"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, responses-references]
 study_type: audit
 question_ids: [reference-reliability, failure-conditions]
 approach_ids: [reference-generation]

@@ -1,6 +1,8 @@
 ---
 test_id: failure-aware-fusion
 title: "Failure-aware evidence fusion"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, responses-references]
 stage: idea
 summary: "Select evidence sources using a query-level reliability signal."
 linked_question_ids: [failure-conditions, response-evidence, reference-reliability]

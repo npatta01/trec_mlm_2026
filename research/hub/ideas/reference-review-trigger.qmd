@@ -1,6 +1,8 @@
 ---
 test_id: reference-review-trigger
 title: "Reference review trigger"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, responses-references]
 stage: idea
 summary: "Predict which generated references need grounding or human review."
 linked_question_ids: [reference-reliability, response-evidence, failure-conditions]

@@ -37,6 +37,7 @@ def sample_build(
         ledger=ledger_build,
         validation=ValidationSummary(
             record_counts={
+                "theme": 1,
                 "question": 1,
                 "study": 1,
                 "test": 1,
@@ -63,19 +64,30 @@ def test_render_catalog_is_deterministic(sample_build: HubBuild) -> None:
     )
 
 
+def test_catalog_renders_theme_paths(sample_build: HubBuild) -> None:
+    payload = json.loads(render_catalog(sample_build))
+    theme = next(
+        row
+        for row in payload["resources"]
+        if row["type"] == "theme" and row["id"] == "candidate-evidence"
+    )
+
+    assert theme["rendered_path"] == "themes/candidate-evidence.html"
+
+
 def test_catalog_collects_sorted_related_ids_and_run_study_links(
     sample_build: HubBuild,
 ) -> None:
     payload = json.loads(render_catalog(sample_build))
-    resources = {row["id"]: row for row in payload["resources"]}
+    resources = {(row["type"], row["id"]): row for row in payload["resources"]}
 
-    assert resources["dense-baseline"]["related_ids"] == [
+    assert resources[("study", "dense-baseline")]["related_ids"] == [
         "candidate-evidence",
         "dense-retrieval",
         "development-set",
     ]
-    assert resources["dense_nested"]["related_ids"] == ["dense-baseline"]
-    assert resources["candidate-evidence"]["rendered_path"] == (
+    assert resources[("run", "dense_nested")]["related_ids"] == ["dense-baseline"]
+    assert resources[("question", "candidate-evidence")]["rendered_path"] == (
         "questions/candidate-evidence.html"
     )
 

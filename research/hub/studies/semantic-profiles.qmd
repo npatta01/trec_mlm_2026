@@ -1,6 +1,8 @@
 ---
 study_id: semantic-profiles
 title: "Candidate semantic profiles"
+primary_theme_id: candidate-evidence
+theme_ids: [candidate-evidence]
 study_type: ranking_experiment
 question_ids: [candidate-evidence]
 approach_ids: [candidate-profiles, dense-query-retrieval, reranking]

@@ -1,6 +1,8 @@
 ---
 test_id: semantic-failure-clusters
 title: "Semantic failure clusters"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, query-only-routing, candidate-evidence]
 stage: idea
 summary: "Group development failures to test whether recurring query types predict method weakness."
 linked_question_ids: [failure-conditions, query-only-routing, candidate-evidence]

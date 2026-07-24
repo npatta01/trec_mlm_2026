@@ -1,0 +1,15 @@
+---
+theme_id: candidate-evidence
+title: "Candidate evidence"
+plain_english: "Use semantic evidence about candidate models to improve ranking beyond query-only controls."
+current_conclusion: "Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved."
+decision: adopt
+confidence: moderate
+confidence_boundary: "Development-only evidence; diagnostic variants and incomplete construction artifacts do not establish hidden-test gains."
+next_test_ids: [semantic-failure-clusters]
+updated_on: 2026-07-24
+evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_candidate_semantic_profiles_results.json]
+---
+
+Candidate evidence covers labels, behavior summaries, and multiresolution
+profiles used to characterize which models may fit a request.

@@ -1,6 +1,8 @@
 ---
 question_id: failure-conditions
 title: "When do promising signals fail?"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, query-only-routing, candidate-evidence, responses-references]
 plain_english: "Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?"
 status: open
 current_answer: "Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists."

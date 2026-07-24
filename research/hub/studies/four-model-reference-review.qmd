@@ -1,6 +1,8 @@
 ---
 study_id: four-model-reference-review
 title: "Four-model reference-answer review"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
 study_type: reference_review
 question_ids: [reference-reliability, response-evidence]
 approach_ids: [reference-generation]

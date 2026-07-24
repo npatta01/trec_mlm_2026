@@ -1,6 +1,8 @@
 ---
 study_id: source-query-first
 title: "Source-query-first response evidence"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
 study_type: ranking_experiment
 question_ids: [response-evidence, failure-conditions]
 approach_ids: [response-evidence, reranking]

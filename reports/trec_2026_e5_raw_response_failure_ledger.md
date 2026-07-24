@@ -18,13 +18,14 @@ Primary system: `raw_hierarchical_dense_equal`.
 | New zero regression | 1 | Prior fused baseline was nonzero; new fusion is zero | P0 regression |
 | Prior zeros rescued | 8 | Prior fused baseline was zero; new fusion is nonzero | Preserve as regression tests |
 
-The complete private interactive explorer covers all 322 development queries,
-defaults to weakest nDCG first, and supports the frozen failure cohorts. It
-shows the final top 20 plus all development-positive candidates, component
-ranks, and exactly three nearest historical question-response records for each
-final top-ten or positive candidate. Historical answers are embedded in the
-private, tailnet-only HTML; similarity and substantive output do not establish
-correctness.
+The complete private interactive explorer covers all 322 development queries
+and defaults to all top-1 failures. It separately filters failures where a
+positive remains in ranks 2–10 from failures with no positive in the top 10,
+alongside the frozen diagnostic cohorts. It shows the final top 20 plus all
+development-positive candidates, component ranks, and exactly three nearest
+historical question-response records for each final top-ten or positive
+candidate. Historical answers are embedded in the private, tailnet-only HTML;
+similarity and substantive output do not establish correctness.
 
 ## P0: new zero regression
 
@@ -68,8 +69,8 @@ The new fusion rescued eight prior zero-score queries:
 
 ## Canonical evidence
 
-- Sealed evaluation: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/evaluation/evaluation.json`
-- Rankings: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1/rankings/`
-- Selected raw evidence IDs: `/home/npatta01/data/competitions/trec_mlm_2026/.git/shared-data/trec-2026/e5_raw_response_refinement/refinement_run1/selected_record_ids.json`
+- Sealed evaluation: `$TREC_SHARED_ROOT/e5_raw_response_refinement/evaluation/evaluation.json`
+- Rankings: `$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1/rankings/`
+- Selected raw evidence IDs: `$TREC_SHARED_ROOT/e5_raw_response_refinement/refinement_run1/selected_record_ids.json`
 - Private interactive explorer (tailnet-only; embeds selected full historical answers): `https://npatta01-framework.tail481212.ts.net/plans/e5-raw-response-failure-explorer.html`
-- Canonical rendered path: `/home/npatta01/codex-rendered/plans/e5-raw-response-failure-explorer.html`
+- Canonical rendered path: `$TREC_RENDER_ROOT/plans/e5-raw-response-failure-explorer.html`

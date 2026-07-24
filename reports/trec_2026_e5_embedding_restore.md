@@ -14,6 +14,12 @@ the ordered `records.json` mapping for all 182,764 response vectors. The remote
 prefix also contains four checkpoint/construction metadata files that are not
 part of the inference loader inventory.
 
+This was a user-authorized, post-experiment durability backup on 2026-07-23,
+not part of experiment construction, ranking, or evaluation. The private copy
+contains the 13 loader files, including embeddings, ordered record metadata,
+and the full historical question/response text in `records.json`, plus four
+checkpoint/construction metadata files.
+
 ## Restore
 
 Authenticate with an account authorized for the private Bucket, choose an
@@ -55,6 +61,11 @@ import sys
 from trec_mlm.profile_inference_artifact import load_profile_inference_artifacts
 
 artifact = load_profile_inference_artifacts(sys.argv[1])
+expected_aggregate = "d9ef709db6642d3f7d9f62f25186939378c130ac17a407ee736e383b2f7d7054"
+assert artifact.manifest["aggregate_sha256"] == expected_aggregate
+assert artifact.query_embeddings.shape == (322, 4096)
+assert artifact.record_embeddings.shape == (182764, 4096)
+assert len(artifact.records) == 182764
 print(json.dumps({
     "aggregate_sha256": artifact.manifest["aggregate_sha256"],
     "query_shape": list(artifact.query_embeddings.shape),

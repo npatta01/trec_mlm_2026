@@ -184,3 +184,13 @@ Final verification requires:
 This experiment does not compare new embedding backbones, train a learned
 router, introduce a reranker or LLM judge, tune `k` or fusion weights, publish
 artifacts, or send the discovery corpus to an external service.
+
+### Post-experiment durability exception
+
+After the frozen qrel-free experiment completed, the user explicitly requested
+on 2026-07-23 that the generated embeddings be retained in a private Hugging
+Face Bucket. This later durability action is outside construction, ranking, and
+evaluation and does not alter the experiment. The private loader-ready copy
+contains embeddings, ordered record metadata, and the full historical
+question/response text in `records.json`; its restore and integrity checks are
+documented in `reports/trec_2026_e5_embedding_restore.md`.

@@ -1,7 +1,7 @@
 {
   "artifact_type": "e5_raw_response_embedding_checkpoint",
   "checkpoint_date": "2026-07-23",
-  "code_revision": "7af99b2159171d32c5d8c0671c71e123dc715cdc",
+  "code_revision": "8c78f865261ec53b97f8df835cdde0b4cc080dbb",
   "storage": {
     "kind": "repository_shared_data",
     "logical_path": ".git/shared-data/trec-2026/e5_raw_response_refinement/inference",
@@ -9,12 +9,15 @@
     "reason": "The 2.99 GB record matrix is an immutable generated artifact and is too large for ordinary Git storage."
   },
   "durable_remote": {
+    "authorization": "The user explicitly requested a private Hugging Face backup on 2026-07-23 after the qrel-free experiment had completed.",
     "bucket_private": true,
+    "data_boundary": "Post-experiment durability copy only; it was not read during construction, ranking, or evaluation.",
     "file_count": 17,
     "hf_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/artifacts/e5-raw-response-refinement-2026-07-23",
     "loader_ready_byte_size": 3412801099,
     "loader_ready_file_count": 13,
     "restore_documentation": "reports/trec_2026_e5_embedding_restore.md",
+    "transferred_content": "The 13-file loader artifact includes embeddings, ordered record metadata, and the full historical question/response text in records.json; four additional checkpoint/construction metadata files were also copied.",
     "uploaded": true,
     "verified_by_fresh_download": true,
     "verified_by_project_loader": true

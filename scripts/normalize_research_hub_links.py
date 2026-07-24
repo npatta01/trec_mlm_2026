@@ -41,8 +41,11 @@ def _normalize_html(text: str) -> str:
         raw_value = (
             f"{match.group('path')}index.html{match.group('suffix')}"
         )
+        decoded_value = unescape(raw_value).strip()
+        if "\\" in decoded_value:
+            return match.group(0)
         try:
-            decoded = urlsplit(unescape(raw_value).strip())
+            decoded = urlsplit(decoded_value)
         except ValueError:
             return match.group(0)
         if decoded.scheme or decoded.netloc:

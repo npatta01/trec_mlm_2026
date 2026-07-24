@@ -178,6 +178,7 @@ def test_post_render_normalizes_only_local_index_links(tmp_path: Path) -> None:
         '<a href="https://example.test/index.html">External</a>'
         '<a href="&sol;&sol;evil.example/index.html">Encoded external</a>'
         '<a href="https&colon;//evil.example/index.html">Encoded scheme</a>'
+        r'<a href="\\evil.example\foo/index.html">Backslash external</a>'
     )
 
     changed = normalize_links(tmp_path, output)
@@ -189,6 +190,7 @@ def test_post_render_normalizes_only_local_index_links(tmp_path: Path) -> None:
     assert 'href="https://example.test/index.html"' in rendered
     assert 'href="&sol;&sol;evil.example/index.html"' in rendered
     assert 'href="https&colon;//evil.example/index.html"' in rendered
+    assert r'href="\\evil.example\foo/index.html"' in rendered
 
 
 def test_post_render_rejects_symlinked_output(tmp_path: Path) -> None:

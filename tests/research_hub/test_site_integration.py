@@ -24,6 +24,12 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert {
         row["text"] for row in config["website"]["navbar"]["left"]
     } >= {"Themes"}
+    themes_nav = next(
+        row
+        for row in config["website"]["navbar"]["left"]
+        if row["text"] == "Themes"
+    )
+    assert themes_nav["href"] == "themes/index.qmd"
     assert config["execute"]["enabled"] is False
     assert build.validation.record_counts == {
         "theme": 4,
@@ -74,11 +80,14 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     assert "hub-task-flow" in problem
     assert "hub-example" in problem
     studies = (ROOT / "research/hub/studies/index.qmd").read_text()
+    themes = (ROOT / "research/hub/themes/index.qmd").read_text()
     summary = (ROOT / "research/hub/index.qmd").read_text()
     ledger_script = (ROOT / "research/hub/assets/ledger.js").read_text()
 
     assert "{{< include ../generated/questions-index.qmd >}}" in questions
     assert "{{< include ../generated/studies-index.qmd >}}" in studies
+    assert "{{< include ../generated/themes-index.qmd >}}" in themes
+    assert "research summary" not in themes.lower()
     assert "include-after-body: ../assets/ledger-script.html" in studies
     assert "{{< include generated/summary.qmd >}}" in summary
     assert 'searchParams.get("theme")' in ledger_script
@@ -95,11 +104,13 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
     outputs = render_hub_outputs(build)
 
     summary = outputs[Path("research/hub/generated/summary.qmd")]
+    themes = outputs[Path("research/hub/generated/themes-index.qmd")]
     questions = outputs[Path("research/hub/generated/questions-index.qmd")]
     studies = outputs[Path("research/hub/generated/studies-index.qmd")]
 
     for theme in build.sources.themes:
         assert theme.record_id in summary
+        assert theme.record_id in themes
         assert (
             Path(f"research/hub/generated/themes/{theme.record_id}.qmd") in outputs
         )

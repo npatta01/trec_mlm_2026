@@ -31,6 +31,7 @@ _STATIC_OUTPUT_PATHS = (
     Path("research/hub/generated/runs.qmd"),
     Path("research/hub/generated/studies-index.qmd"),
     Path("research/hub/generated/summary.qmd"),
+    Path("research/hub/generated/themes-index.qmd"),
 )
 _RESTRICTED_SCOPES = frozenset({"restricted_12x20", "restricted_6", "invalid_unscored"})
 _SAFE_SYSTEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*\Z")
@@ -362,14 +363,16 @@ def _human_label(value: object) -> str:
     return str(value).replace("_", " ").strip().capitalize()
 
 
-def _render_summary_cards(build: HubBuild) -> str:
-    lines = [
+def _development_evidence_notice() -> list[str]:
+    return [
         "::: {.hub-evidence-notice}",
         "**Development evidence only.** Promotion labels do not imply held-out results.",
         ":::",
-        "",
-        "## Current position by theme",
     ]
+
+
+def _render_theme_rows(build: HubBuild, *, href_prefix: str) -> list[str]:
+    lines: list[str] = []
     for theme in sorted(build.sources.themes, key=lambda row: row.record_id):
         questions = _records_for_theme(build.sources.questions, theme.record_id)
         studies = _records_for_theme(build.sources.studies, theme.record_id)
@@ -378,7 +381,8 @@ def _render_summary_cards(build: HubBuild) -> str:
                 "",
                 (
                     '<a class="hub-theme-row" '
-                    f'href="generated/themes/{html.escape(theme.record_id, quote=True)}.qmd">'
+                    f'href="{href_prefix}/'
+                    f'{html.escape(theme.record_id, quote=True)}.qmd">'
                 ),
                 f"<strong>{html.escape(theme.title)}</strong>",
                 (
@@ -399,6 +403,16 @@ def _render_summary_cards(build: HubBuild) -> str:
                 "</a>",
             ]
         )
+    return lines
+
+
+def _render_summary_cards(build: HubBuild) -> str:
+    lines = [
+        *_development_evidence_notice(),
+        "",
+        "## Current position by theme",
+        *_render_theme_rows(build, href_prefix="generated/themes"),
+    ]
     lines.extend(["", "## Open across themes", ""])
     cross_theme_questions = [
         question
@@ -433,6 +447,20 @@ def _render_summary_cards(build: HubBuild) -> str:
 
 def render_summary_qmd(build: HubBuild) -> str:
     return _render_summary_cards(build).rstrip() + "\n"
+
+
+def render_themes_index_qmd(build: HubBuild) -> str:
+    """Render the theme-only landing from canonical theme relationships."""
+
+    lines = [
+        *_development_evidence_notice(),
+        "",
+        "Open a theme for its current conclusion, questions, and evidence trail.",
+        "",
+        "## Themes",
+        *_render_theme_rows(build, href_prefix="../generated/themes"),
+    ]
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _theme_next_move(build: HubBuild, theme: HubRecord) -> str:
@@ -553,6 +581,8 @@ def render_questions_index_qmd(build: HubBuild) -> str:
     """Render the question library from canonical question records."""
 
     lines = [
+        *_development_evidence_notice(),
+        "",
         "Start with the question and its current bounded answer; open a row for "
         "supporting studies, limitations, and next tests.",
         "",
@@ -620,6 +650,8 @@ def render_studies_index_qmd(build: HubBuild) -> str:
         ),
     )
     lines = [
+        *_development_evidence_notice(),
+        "",
         "A study is one decision-relevant experiment, audit, or review. "
         "Open a row for its full evidence and limitations."
     ]
@@ -1141,6 +1173,9 @@ def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
                 build
             ),
             Path("research/hub/generated/summary.qmd"): render_summary_qmd(build),
+            Path(
+                "research/hub/generated/themes-index.qmd"
+            ): render_themes_index_qmd(build),
             Path(
                 "research/hub/generated/questions-index.qmd"
             ): render_questions_index_qmd(build),

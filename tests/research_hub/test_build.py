@@ -92,6 +92,7 @@ def test_render_hub_outputs_has_exact_deterministic_path_contract(
         Path("research/hub/catalog.json"),
         Path("reports/trec_2026_research_hub_summary.md"),
         Path("research/hub/generated/summary.qmd"),
+        Path("research/hub/generated/themes-index.qmd"),
         Path("research/hub/generated/questions-index.qmd"),
         Path("research/hub/generated/studies-index.qmd"),
         Path("research/hub/generated/coverage.qmd"),

@@ -4,5 +4,4 @@ description: "Current positions organized by stable areas of inquiry."
 toc: false
 ---
 
-The generated theme overview and links to each theme are on the
-[research summary](../index.qmd).
+{{< include ../generated/themes-index.qmd >}}

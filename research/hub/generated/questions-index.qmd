@@ -1,3 +1,7 @@
+::: {.hub-evidence-notice}
+**Development evidence only.** Promotion labels do not imply held-out results.
+:::
+
 Start with the question and its current bounded answer; open a row for supporting studies, limitations, and next tests.
 
 <div class="hub-question-list">

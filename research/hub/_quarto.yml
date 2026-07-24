@@ -31,7 +31,7 @@ website:
       - text: "Data"
         href: data/index.qmd
       - text: "Themes"
-        href: index.qmd
+        href: themes/index.qmd
       - text: "Research"
         menu:
           - text: "Questions"

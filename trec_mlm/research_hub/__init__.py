@@ -16,6 +16,7 @@ from .render import (
     render_summary_markdown,
     render_summary_qmd,
     render_theme_pages,
+    render_themes_index_qmd,
     write_hub_outputs,
 )
 from .validate import ValidationSummary, validate_hub_sources
@@ -39,6 +40,7 @@ __all__ = [
     "render_summary_markdown",
     "render_summary_qmd",
     "render_theme_pages",
+    "render_themes_index_qmd",
     "ValidationSummary",
     "validate_hub_sources",
     "write_hub_outputs",

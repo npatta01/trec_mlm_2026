@@ -159,6 +159,29 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
     assert "receipt" not in study_index.lower()
 
 
+def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
+    sample_build: HubBuild,
+) -> None:
+    outputs = render_hub_outputs(sample_build)
+    notice = (
+        "**Development evidence only.** Promotion labels do not imply "
+        "held-out results."
+    )
+
+    questions = outputs[Path("research/hub/generated/questions-index.qmd")]
+    studies = outputs[Path("research/hub/generated/studies-index.qmd")]
+    themes = outputs[Path("research/hub/generated/themes-index.qmd")]
+
+    assert "hub-evidence-notice" in questions
+    assert notice in questions
+    assert "hub-evidence-notice" in studies
+    assert notice in studies
+    assert "hub-theme-row" in themes
+    assert "candidate-evidence" in themes
+    assert "Open across themes" not in themes
+    assert "Highest-value next tests" not in themes
+
+
 def test_catalog_collects_sorted_related_ids_and_run_study_links(
     sample_build: HubBuild,
 ) -> None:

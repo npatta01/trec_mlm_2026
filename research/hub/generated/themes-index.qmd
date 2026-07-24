@@ -1,0 +1,31 @@
+::: {.hub-evidence-notice}
+**Development evidence only.** Promotion labels do not imply held-out results.
+:::
+
+Open a theme for its current conclusion, questions, and evidence trail.
+
+## Themes
+
+<a class="hub-theme-row" href="../generated/themes/candidate-evidence.qmd">
+<strong>Candidate evidence</strong>
+<span>Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.</span>
+<span>Adopt · Moderate confidence · 3 questions · 5 studies</span>
+</a>
+
+<a class="hub-theme-row" href="../generated/themes/evidence-reliability.qmd">
+<strong>Evidence reliability</strong>
+<span>Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.</span>
+<span>Iterate · Low confidence · 3 questions · 8 studies</span>
+</a>
+
+<a class="hub-theme-row" href="../generated/themes/query-only-routing.qmd">
+<strong>Query-only routing</strong>
+<span>Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.</span>
+<span>Retain control · Moderate confidence · 2 questions · 3 studies</span>
+</a>
+
+<a class="hub-theme-row" href="../generated/themes/responses-references.qmd">
+<strong>Responses and references</strong>
+<span>Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.</span>
+<span>Iterate · Low confidence · 3 questions · 7 studies</span>
+</a>

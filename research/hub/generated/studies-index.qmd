@@ -1,3 +1,7 @@
+::: {.hub-evidence-notice}
+**Development evidence only.** Promotion labels do not imply held-out results.
+:::
+
 A study is one decision-relevant experiment, audit, or review. Open a row for its full evidence and limitations.
 
 ## Candidate evidence

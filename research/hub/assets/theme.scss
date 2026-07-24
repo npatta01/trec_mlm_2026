@@ -33,7 +33,50 @@ $content-padding-top: 2rem;
   padding: .75rem 1rem;
 }
 
+.hub-evidence-notice {
+  margin-block: 1.25rem 2rem;
+  padding: 1rem 1.25rem;
+  border-inline-start: .3rem solid var(--bs-warning);
+  border-radius: .35rem;
+  background: color-mix(in srgb, var(--bs-warning) 10%, transparent);
+}
+
+.hub-summary-panel {
+  margin-block: 1.25rem;
+  padding: clamp(1.15rem, 3vw, 1.75rem);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--bs-body-bg) 92%, var(--bs-primary));
+  box-shadow: 0 .35rem 1.25rem rgb(0 0 0 / 5%);
+}
+
+.hub-summary-panel h2 {
+  margin-top: 0;
+  padding-bottom: .65rem;
+}
+
+.hub-summary-panel li {
+  margin-block: .75rem;
+}
+
+.hub-decisions {
+  border-inline-start: .35rem solid var(--bs-success);
+}
+
+.hub-questions {
+  border-inline-start: .35rem solid var(--bs-primary);
+}
+
+.hub-next-tests {
+  border-inline-start: .35rem solid var(--bs-info);
+}
+
 @media (max-width: 768px) {
   .hub-grid,
   .hub-filter-controls { grid-template-columns: 1fr; }
+
+  .hub-summary-panel {
+    margin-inline: -.35rem;
+    padding: 1rem;
+  }
 }

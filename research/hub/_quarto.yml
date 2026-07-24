@@ -52,6 +52,7 @@ format:
     theme:
       light: [cosmo, assets/theme.scss]
       dark: [darkly, assets/theme.scss]
+    html-math-method: plain
     toc: true
     anchor-sections: true
     smooth-scroll: true

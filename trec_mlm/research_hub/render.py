@@ -334,19 +334,29 @@ def render_summary_markdown(build: HubBuild) -> str:
 
 
 def _render_summary_cards(build: HubBuild) -> str:
+    def panel(block: list[str], css_class: str) -> list[str]:
+        return [
+            "",
+            f"::: {{.hub-summary-panel .{css_class}}}",
+            *block[1:],
+            "",
+            ":::",
+        ]
+
     lines = [
         "---",
-        'title: "Research Hub Summary"',
-        "toc: true",
+        'title: "TREC 2026 Research Hub"',
+        'description: "Current conclusions, decisions, open questions, and next tests."',
+        "toc: false",
         "---",
         "",
-        "# TREC 2026 Research Hub",
-        "",
-        "> Development evidence only. Promotion labels do not imply held-out results.",
+        "::: {.hub-evidence-notice}",
+        "**Development evidence only.** Promotion labels do not imply held-out results.",
+        ":::",
     ]
-    lines.extend(_summary_current_position(build))
-    lines.extend(_summary_open_questions(build))
-    lines.extend(_summary_next_tests(build))
+    lines.extend(panel(_summary_current_position(build), "hub-decisions"))
+    lines.extend(panel(_summary_open_questions(build), "hub-questions"))
+    lines.extend(panel(_summary_next_tests(build), "hub-next-tests"))
     lines.extend(_summary_navigation(generated_qmd=True))
     return "\n".join(lines)
 

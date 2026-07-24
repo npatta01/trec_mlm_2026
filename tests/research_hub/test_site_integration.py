@@ -5,8 +5,10 @@ from pathlib import Path
 import shutil
 import subprocess
 
+import pytest
 import yaml
 
+from scripts.normalize_research_hub_links import normalize_links
 from trec_mlm.research_hub.build import build_research_hub
 from trec_mlm.research_hub.render import render_hub_outputs
 
@@ -31,7 +33,9 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     ]
     assert config["project"]["post-render"] == [
         "uv run python ../../scripts/stage_research_hub_resources.py "
-        "--root ../.. --output-dir _site"
+        "--root ../.. --output-dir _site",
+        "uv run python ../../scripts/normalize_research_hub_links.py "
+        "--root ../.. --output-dir _site",
     ]
     assert {
         row["text"] for row in config["website"]["navbar"]["left"]
@@ -162,6 +166,36 @@ def test_generated_pages_and_theme_use_the_open_visual_system() -> None:
     assert ".content table" in theme
     assert "overflow-x: auto" in theme
     assert "$web-font-path: false" in theme
+
+
+def test_post_render_normalizes_only_local_index_links(tmp_path: Path) -> None:
+    output = tmp_path / "research/hub/_site"
+    output.mkdir(parents=True)
+    page = output / "page.html"
+    page.write_text(
+        '<a href="../background/index.html">Background</a>'
+        '<a href="index.html?view=all">Home</a>'
+        '<a href="https://example.test/index.html">External</a>'
+    )
+
+    changed = normalize_links(tmp_path, output)
+
+    assert changed == (page,)
+    rendered = page.read_text()
+    assert 'href="../background/"' in rendered
+    assert 'href="./?view=all"' in rendered
+    assert 'href="https://example.test/index.html"' in rendered
+
+
+def test_post_render_rejects_symlinked_output(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    expected = tmp_path / "research/hub"
+    expected.mkdir(parents=True)
+    (expected / "_site").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        normalize_links(tmp_path, expected / "_site")
 
 
 def test_generated_navigation_contains_every_canonical_record() -> None:

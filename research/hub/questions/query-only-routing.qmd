@@ -16,6 +16,8 @@ updated_on: 2026-07-24
 tags: [queries, retrieval, routing]
 ---
 
+{{< include ../generated/questions/query-only-routing.md >}}
+
 ## In plain English
 
 If a request asks for gardening help, should the router look for similar past

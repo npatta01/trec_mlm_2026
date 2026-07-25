@@ -372,6 +372,7 @@
       "id": "candidate-evidence",
       "related_ids": [
         "behavior-profile",
+        "candidate-evidence",
         "candidate-label-matching",
         "label-ranker-pilots",
         "multiresolution-profiles",
@@ -391,14 +392,18 @@
       "canonical_path": "research/hub/questions/failure-conditions.qmd",
       "id": "failure-conditions",
       "related_ids": [
+        "candidate-evidence",
         "candidate-label-matching",
         "e5-raw-response-refinement",
+        "evidence-reliability",
         "failure-aware-fusion",
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
         "label-ranker-pilots",
         "query-cluster-aggregation",
+        "query-only-routing",
         "reference-review-trigger",
+        "responses-references",
         "semantic-failure-clusters",
         "source-query-first"
       ],
@@ -416,9 +421,11 @@
       "canonical_path": "research/hub/questions/query-only-routing.qmd",
       "id": "query-only-routing",
       "related_ids": [
+        "candidate-evidence",
         "dense-query-knn",
         "query-cluster-aggregation",
         "query-controls",
+        "query-only-routing",
         "semantic-failure-clusters"
       ],
       "rendered_path": "questions/query-only-routing.html",
@@ -435,11 +442,13 @@
       "canonical_path": "research/hub/questions/reference-reliability.qmd",
       "id": "reference-reliability",
       "related_ids": [
+        "evidence-reliability",
         "failure-aware-fusion",
         "four-model-reference-review",
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
-        "reference-review-trigger"
+        "reference-review-trigger",
+        "responses-references"
       ],
       "rendered_path": "questions/reference-reliability.html",
       "summary": "When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?",
@@ -456,11 +465,13 @@
       "id": "response-evidence",
       "related_ids": [
         "e5-raw-response-refinement",
+        "evidence-reliability",
         "failure-aware-fusion",
         "four-model-reference-review",
         "reference-review-trigger",
         "response-retrieval",
         "response-volume-normalization",
+        "responses-references",
         "source-query-first"
       ],
       "rendered_path": "questions/response-evidence.html",
@@ -2145,7 +2156,8 @@
         "candidate-profiles",
         "discovery-responses",
         "generated-embeddings",
-        "run-artifacts"
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/behavior-profile.html",
       "summary": "Construct a candidate profile from discovery-response behavior and topics.",
@@ -2166,9 +2178,13 @@
         "candidate-profiles",
         "dev-qrels",
         "dev-queries",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
         "generated-embeddings",
-        "run-artifacts"
+        "reference-review-trigger",
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/candidate-label-matching.html",
       "summary": "Test raw and contextual candidate labels as semantic ranking evidence.",
@@ -2190,7 +2206,8 @@
         "dev-queries",
         "generated-embeddings",
         "query-only-routing",
-        "run-artifacts"
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/dense-query-knn.html",
       "summary": "Compare dense query encoders and neighborhood sizes for transferring candidate relevance.",
@@ -2210,10 +2227,15 @@
         "dev-qrels",
         "dev-queries",
         "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
         "generated-embeddings",
+        "reference-review-trigger",
         "reranking",
-        "response-evidence"
+        "response-evidence",
+        "responses-references",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/e5-raw-response-refinement.html",
       "summary": "Evaluate bounded E5 refinements over raw response evidence outside the run registry.",
@@ -2230,9 +2252,13 @@
       "id": "four-model-reference-review",
       "related_ids": [
         "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "reference-generation",
         "reference-reliability",
+        "reference-review-trigger",
         "response-evidence",
+        "responses-references",
         "run-artifacts"
       ],
       "rendered_path": "studies/four-model-reference-review.html",
@@ -2250,10 +2276,15 @@
       "id": "gemini-grounding-failure-review",
       "related_ids": [
         "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
         "reference-generation",
         "reference-reliability",
-        "run-artifacts"
+        "reference-review-trigger",
+        "responses-references",
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/gemini-grounding-failure-review.html",
       "summary": "Measure whether Search grounding repairs audited Gemini reference failures.",
@@ -2270,9 +2301,14 @@
       "id": "grounded-data-quality-audit",
       "related_ids": [
         "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
         "reference-generation",
-        "reference-reliability"
+        "reference-reliability",
+        "reference-review-trigger",
+        "responses-references",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/grounded-data-quality-audit.html",
       "summary": "Check completeness, uncertainty, duplication, Search use, and provenance risks in the grounded corpus.",
@@ -2293,9 +2329,13 @@
         "candidate-profiles",
         "dev-qrels",
         "dev-queries",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
+        "reference-review-trigger",
         "reranking",
-        "run-artifacts"
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/label-ranker-pilots.html",
       "summary": "Assess pointwise, listwise, and groupwise label-ranker feasibility.",
@@ -2318,7 +2358,8 @@
         "dev-qrels",
         "dev-queries",
         "generated-embeddings",
-        "run-artifacts"
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/multiresolution-profiles.html",
       "summary": "Test profile summaries at multiple semantic resolutions.",
@@ -2338,10 +2379,14 @@
         "dense-query-retrieval",
         "dev-qrels",
         "dev-queries",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
         "generated-embeddings",
         "query-only-routing",
-        "run-artifacts"
+        "reference-review-trigger",
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/query-cluster-aggregation.html",
       "summary": "Test local domain priors and matched-neighbor cluster aggregation.",
@@ -2362,7 +2407,8 @@
         "dev-qrels",
         "dev-queries",
         "query-only-routing",
-        "run-artifacts"
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/query-controls.html",
       "summary": "Establish global-prior and sparse query-neighbor controls.",
@@ -2381,7 +2427,10 @@
         "dev-qrels",
         "dev-queries",
         "discovery-responses",
+        "failure-aware-fusion",
+        "reference-review-trigger",
         "response-evidence",
+        "responses-references",
         "run-artifacts"
       ],
       "rendered_path": "studies/response-retrieval.html",
@@ -2402,7 +2451,10 @@
         "dev-qrels",
         "dev-queries",
         "discovery-responses",
+        "failure-aware-fusion",
+        "reference-review-trigger",
         "response-evidence",
+        "responses-references",
         "run-artifacts"
       ],
       "rendered_path": "studies/response-volume-normalization.html",
@@ -2427,7 +2479,8 @@
         "dev-queries",
         "generated-embeddings",
         "reranking",
-        "run-artifacts"
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/semantic-profiles.html",
       "summary": "Evaluate whether candidate semantic profiles improve ranking.",
@@ -2447,10 +2500,15 @@
         "dev-qrels",
         "dev-queries",
         "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
         "failure-conditions",
+        "reference-review-trigger",
         "reranking",
         "response-evidence",
-        "run-artifacts"
+        "responses-references",
+        "run-artifacts",
+        "semantic-failure-clusters"
       ],
       "rendered_path": "studies/source-query-first.html",
       "summary": "Test whether source-query alignment should precede target-response evidence.",
@@ -2465,7 +2523,13 @@
     {
       "canonical_path": "research/hub/ideas/failure-aware-fusion.qmd",
       "id": "failure-aware-fusion",
-      "related_ids": [],
+      "related_ids": [
+        "evidence-reliability",
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence",
+        "responses-references"
+      ],
       "rendered_path": "generated/ideas/failure-aware-fusion.html",
       "summary": "Use a reliability check to choose which evidence sources should influence each request.",
       "tags": [
@@ -2478,7 +2542,13 @@
     {
       "canonical_path": "research/hub/ideas/reference-review-trigger.qmd",
       "id": "reference-review-trigger",
-      "related_ids": [],
+      "related_ids": [
+        "evidence-reliability",
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence",
+        "responses-references"
+      ],
       "rendered_path": "generated/ideas/reference-review-trigger.html",
       "summary": "Flag generated reference answers that need more evidence or a human check before guiding a ranking.",
       "tags": [
@@ -2492,7 +2562,12 @@
     {
       "canonical_path": "research/hub/ideas/semantic-failure-clusters.qmd",
       "id": "semantic-failure-clusters",
-      "related_ids": [],
+      "related_ids": [
+        "candidate-evidence",
+        "evidence-reliability",
+        "failure-conditions",
+        "query-only-routing"
+      ],
       "rendered_path": "generated/ideas/semantic-failure-clusters.html",
       "summary": "Group similar ranking failures to find request types where a method repeatedly struggles.",
       "tags": [

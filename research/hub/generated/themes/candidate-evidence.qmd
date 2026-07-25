@@ -4,23 +4,46 @@ description: "Use semantic evidence about candidate models to improve ranking be
 toc: false
 ---
 
+## What does this mean?
+
+Use semantic evidence about candidate models to improve ranking beyond query-only controls.
+
+## Why does it matter?
+
+Candidate evidence covers labels, behavior summaries, and multiresolution
+profiles used to characterize which models may fit a request.
+
+## How does it work?
+
+<ol class="hub-process hub-record-path">
+<li class="hub-process-step"><strong>Questions</strong><br>3 questions defines what this theme is trying to learn.</li>
+<li class="hub-process-step"><strong>Evidence</strong><br>5 studies records the current evidence.</li>
+<li class="hub-process-step"><strong>Decision</strong><br>Adopt</li>
+</ol>
+
+## What do we know?
+
 ::: {.hub-conclusion}
-## Current conclusion
+### Current conclusion
 
 Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.
 :::
 
-<div class="hub-decision-strip">
-<div><strong>Practical decision</strong><br>
+**Practical decision**
+
 Adopt
-</div>
-<div><strong>Confidence and evidence boundary</strong><br>
+
+## What is missing?
+
+**Confidence and evidence boundary**
+
 Moderate confidence. Development-only evidence; diagnostic variants and incomplete construction artifacts do not establish hidden-test gains.
-</div>
-<div><strong>Next move</strong><br>
-<a href="../../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: Group development failures to test whether recurring query types predict method weakness.
-</div>
-</div>
+
+## What happens next?
+
+<a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+
+## How does it connect?
 
 ## Questions in this theme
 

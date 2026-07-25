@@ -29,6 +29,6 @@ limitations: "State evaluation-scope, leakage, custody, and generalization limit
 tags: []
 ---
 
-Add domain-specific prose that should remain human-authored.
-
 {{< include ../generated/studies/STUDY_ID.md >}}
+
+Add domain-specific prose that should remain human-authored.

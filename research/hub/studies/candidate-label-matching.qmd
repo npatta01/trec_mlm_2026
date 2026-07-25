@@ -28,6 +28,8 @@ limitations: "Mixed aggregate and per-query evidence; invalid systems are not sc
 tags: [labels, candidates, contextual]
 ---
 
+{{< include ../generated/studies/candidate-label-matching.md >}}
+
 ## Decision
 
 Contextual E5 remains a stable candidate-label control. Invalid terminal-token
@@ -37,5 +39,3 @@ attempts remain visible as failures, never as leaderboard rows.
 
 This narrative is a reconstruction from tracked receipts; original rationale
 and dates are not available.
-
-{{< include ../generated/studies/candidate-label-matching.md >}}

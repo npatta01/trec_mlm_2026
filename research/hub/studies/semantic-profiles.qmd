@@ -28,6 +28,8 @@ limitations: "Development-only evidence; diagnostic higher scores are not promot
 tags: [candidate-evidence, profiles, fusion]
 ---
 
+{{< include ../generated/studies/semantic-profiles.md >}}
+
 ## Decision
 
 Adopt `dense_profile_equal` for development and retain `profile_only` as the
@@ -38,5 +40,3 @@ promoted.
 
 The hidden test is unavailable. Metrics and artifact states come from the
 ledger, not this narrative page.
-
-{{< include ../generated/studies/semantic-profiles.md >}}

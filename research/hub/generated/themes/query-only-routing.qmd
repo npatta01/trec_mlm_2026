@@ -4,23 +4,46 @@ description: "Route a new request using evidence from historical requests before
 toc: false
 ---
 
+## What does this mean?
+
+Route a new request using evidence from historical requests before using candidate responses.
+
+## Why does it matter?
+
+Query-only routing is the control path for deciding how far historical query
+similarity can carry model selection without candidate-side response evidence.
+
+## How does it work?
+
+<ol class="hub-process hub-record-path">
+<li class="hub-process-step"><strong>Questions</strong><br>2 questions defines what this theme is trying to learn.</li>
+<li class="hub-process-step"><strong>Evidence</strong><br>3 studies records the current evidence.</li>
+<li class="hub-process-step"><strong>Decision</strong><br>Retain control</li>
+</ol>
+
+## What do we know?
+
 ::: {.hub-conclusion}
-## Current conclusion
+### Current conclusion
 
 Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.
 :::
 
-<div class="hub-decision-strip">
-<div><strong>Practical decision</strong><br>
+**Practical decision**
+
 Retain control
-</div>
-<div><strong>Confidence and evidence boundary</strong><br>
+
+## What is missing?
+
+**Confidence and evidence boundary**
+
 Moderate confidence. Development-only evidence with repeated tuning on the same queries; hidden-test transfer is unknown.
-</div>
-<div><strong>Next move</strong><br>
-<a href="../../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: Group development failures to test whether recurring query types predict method weakness.
-</div>
-</div>
+
+## What happens next?
+
+<a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+
+## How does it connect?
 
 ## Questions in this theme
 

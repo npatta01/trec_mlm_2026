@@ -4,23 +4,46 @@ description: "Use candidate responses or generated reference answers as evidence
 toc: false
 ---
 
+## What does this mean?
+
+Use candidate responses or generated reference answers as evidence for choosing models.
+
+## Why does it matter?
+
+This theme keeps response-derived ranking evidence and generated reference
+evidence together while preserving their distinct evaluation boundaries.
+
+## How does it work?
+
+<ol class="hub-process hub-record-path">
+<li class="hub-process-step"><strong>Questions</strong><br>3 questions defines what this theme is trying to learn.</li>
+<li class="hub-process-step"><strong>Evidence</strong><br>7 studies records the current evidence.</li>
+<li class="hub-process-step"><strong>Decision</strong><br>Iterate</li>
+</ol>
+
+## What do we know?
+
 ::: {.hub-conclusion}
-## Current conclusion
+### Current conclusion
 
 Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.
 :::
 
-<div class="hub-decision-strip">
-<div><strong>Practical decision</strong><br>
+**Practical decision**
+
 Iterate
-</div>
-<div><strong>Confidence and evidence boundary</strong><br>
+
+## What is missing?
+
+**Confidence and evidence boundary**
+
 Low confidence. Most ranking evidence is development-only, some response data is private or local, and reference quality varies by case.
-</div>
-<div><strong>Next move</strong><br>
-<a href="../../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Select evidence sources using a query-level reliability signal.; <a href="../../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Predict which generated references need grounding or human review.
-</div>
-</div>
+
+## What happens next?
+
+<a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
+
+## How does it connect?
 
 ## Questions in this theme
 

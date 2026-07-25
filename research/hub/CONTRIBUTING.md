@@ -29,11 +29,30 @@ lowercase ID with hyphens.
    `questions/<question-id>.qmd`.
 2. Set one `primary_theme_id` and include it in `theme_ids`.
 3. State a bounded `current_answer`, `confidence`, and `confidence_boundary`.
-4. Link existing studies and tests with `study_ids` and `next_test_ids`.
+4. Link existing studies with `study_ids`.
 5. Attach at least one tracked, repository-relative canonical evidence path.
 
 The next build automatically updates the question index, owning theme pages,
 history snapshot, and machine-readable catalog.
+
+## Add an idea or test
+
+1. Copy `templates/test.qmd.example` to `ideas/<test-id>.qmd`.
+2. Set `primary_theme_id`, list every owning theme in `theme_ids`, and list
+   every question the proposal addresses in `linked_question_ids`.
+3. Fill in `plain_english`, `why_it_matters`, `mechanism_steps`, and
+   `next_action`; these fields drive the reader-facing explainer.
+4. Fill every readiness field that is known and name the blocking gaps in
+   `missing_readiness_fields`. The displayed readiness count is derived from
+   actual field presence. A `ready`, `running`, or `completed` record must have
+   every readiness field.
+5. Do not add the test ID to theme or question `next_test_ids` just to make it
+   appear. The generator derives owning-theme, related-question, study, index,
+   explainer, and catalog relationships from the test record itself.
+
+The next build automatically expands every derived reader surface. Open the
+generated explainer under `generated/ideas/<test-id>.html`; canonical
+`ideas/<test-id>.qmd` files are source records and are never published.
 
 ## Add a study
 

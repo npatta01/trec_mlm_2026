@@ -16,6 +16,8 @@ updated_on: 2026-07-24
 tags: [responses, retrieval, reranking]
 ---
 
+{{< include ../generated/questions/response-evidence.md >}}
+
 ## In plain English
 
 Instead of only reading a model's name or profile, compare what it actually

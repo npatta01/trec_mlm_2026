@@ -72,6 +72,12 @@ h1, h2, h3, h4, h5, h6,
 
 .hub-muted { color: var(--hub-muted); }
 
+.hub-path {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .hub-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -95,7 +101,6 @@ h1, h2, h3, h4, h5, h6,
 .hub-filter-controls input,
 .hub-filter-controls select { width: 100%; margin-top: .25rem; }
 .hub-filter-row[hidden] { display: none; }
-.hub-muted { color: var(--bs-secondary-color); }
 .hub-boundary {
   border-inline-start: .3rem double var(--hub-rule-strong);
   padding: .75rem 1rem;
@@ -630,7 +635,8 @@ div.hub-question-row > :last-child {
     border-block-start: 0;
   }
 
-  .hub-process-step {
+  .hub-process-step,
+  .hub-process-step:first-child {
     padding-inline-start: 3.25rem;
   }
 

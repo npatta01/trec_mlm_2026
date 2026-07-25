@@ -23,6 +23,7 @@ project:
     - "uv run --project ../.. python ../../scripts/build_research_hub.py --root ../.."
   post-render:
     - "uv run python ../../scripts/normalize_research_hub_links.py --root ../.. --output-dir _site"
+    - "uv run python ../../scripts/audit_research_hub_site.py --root ../.. --output-dir _site"
   resources:
     - assets/ledger.js
     - assets/fonts/

@@ -28,9 +28,9 @@ limitations: "Development-only aggregate evidence; preflights are diagnostic and
 tags: [queries, clusters, aggregation]
 ---
 
+{{< include ../generated/studies/query-cluster-aggregation.md >}}
+
 ## Decision
 
 Do not replace the dense control with these aggregations. Their mixed
 diagnostic results remain useful for failure analysis.
-
-{{< include ../generated/studies/query-cluster-aggregation.md >}}

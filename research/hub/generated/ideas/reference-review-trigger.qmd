@@ -3,42 +3,42 @@
 # Reference review trigger
 
 ::: {.hub-idea-hero}
-<p class="hub-idea-status">Idea · High priority · 6/9 readiness fields complete</p>
+<p class="hub-idea-status">Idea · High priority · 2/9 readiness fields complete</p>
 
-## What this idea means
+## What does this mean?
 
 Flag generated reference answers that need more evidence or a human check before guiding a ranking.
 :::
 
-## Why it matters
+## Why does it matter?
 
 A selective review trigger could reduce avoidable reference failures without reviewing every request.
 
-## How it would work
+## How does it work?
 
-<ol class="hub-process">
+<ol class="hub-process hub-record-path">
 <li class="hub-process-step">Measure signals that indicate a generated reference may be unreliable.</li>
 <li class="hub-process-step">Route flagged references to grounding or human review.</li>
 <li class="hub-process-step">Compare the trigger with always-review and never-review controls.</li>
 </ol>
 
-## Current evidence
+## What do we know?
 
 The existing audits motivate selective escalation, but the local trigger and its
 acceptance rule are not yet frozen. Completed E5 refinement evidence is recorded
 as a study, not mislabeled as a future ready test.
 
-## What is missing
+## What is missing?
 
 - Decision rule
 - Dependencies
 - Artifact plan
 
-## What happens next
+## What happens next?
 
 Define the local trigger features and acceptance rule.
 
-## Related research
+## How does it connect?
 
 **Themes**
 

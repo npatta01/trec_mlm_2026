@@ -28,9 +28,9 @@ limitations: "Development-only aggregate evidence; local construction artifacts 
 tags: [responses, bm25, rm3]
 ---
 
+{{< include ../generated/studies/response-retrieval.md >}}
+
 ## Decision
 
 Do not use lexical response retrieval as the primary path. The full parameter
 grid remains available for audit in the run registry.
-
-{{< include ../generated/studies/response-retrieval.md >}}

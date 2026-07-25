@@ -279,9 +279,12 @@ git diff --check
 
 Expected: every command exits zero.
 
-Verified 2026-07-25: `pytest tests/research_hub -q` reported 102 passed;
+Verified after the final review fix wave on 2026-07-25:
+`pytest tests/research_hub -q` reported 105 passed;
 the deterministic generator, Quarto render, generator `--check`, Ruff, and
-`git diff --check` each exited zero.
+`git diff --check` each exited zero. The render-time publication audit also
+exited zero and rejected any published `.qmd` source or reader-facing `.qmd`
+target.
 
 - [x] **Step 2: Inspect representative pages**
 
@@ -290,10 +293,15 @@ pages at 1440×1000 dark mode and 390×844 dark mode. Confirm no horizontal
 overflow, clipped copy, low-contrast metadata, or meaning conveyed only by
 color.
 
-Verified 2026-07-25: directly inspected true-dark screenshots for summary,
-theme, idea index/detail, question, and study at both viewports. No horizontal
-overflow or clipped active copy was observed; metadata remains legible and
-status distinctions retain text labels and borders in grayscale.
+Verified after the final review fix wave on 2026-07-25: directly inspected
+summary, theme, idea index/detail, question, and study screenshots at
+1440×1000 and 390×844 in true dark and light modes. Also directly inspected the
+idea-detail process in grayscale, with accents disabled, and with an auditable
+forced-colors simulation at both viewports. The 30-capture probe confirmed
+Inter was active, all 12 dark pages had `quarto-dark`, the forced-colors media
+query was active in both forced-color captures, and every capture had
+`scrollWidth == viewportWidth`. Text labels, numbering, borders, and line
+styles preserved meaning without accent color.
 
 - [x] **Step 3: Sync only the rendered site**
 
@@ -303,8 +311,9 @@ Run:
 rsync -a --delete research/hub/_site/ /home/npatta01/codex-rendered/plans/trec-2026-research-hub/
 ```
 
-Verified 2026-07-25: synced only `research/hub/_site/`; destination contains
-195 rendered files.
+Verified after the final review fix wave on 2026-07-25: synced only
+`research/hub/_site/`; the destination contains 192 rendered files and no QMD
+sources.
 
 - [x] **Step 4: Verify private delivery**
 
@@ -313,11 +322,13 @@ Confirm `tailscale serve status` reports
 HTTP 200, retired raw interactive bundles return HTTP 404, and internal links
 remain inside the rendered root.
 
-Verified 2026-07-25: `tailscale serve status` reports
+Verified after the final review fix wave on 2026-07-25:
+`tailscale serve status` reports
 `https://npatta01-framework.tail481212.ts.net (tailnet only)`. Key hub routes
-returned 200; retired interactive-bundle paths returned 404. The rendered-site
-audit covered 162 HTML pages and 2,666 internal links, with zero missing or
-root-escaping targets.
+returned 200; the canonical idea QMD route and retired interactive-bundle paths
+returned 404. The rendered-site audit covered 162 HTML pages and 2,709 internal
+links, with zero missing, root-escaping, or reader-facing QMD targets and zero
+forbidden published source files.
 
 - [x] **Step 5: Commit verification record**
 

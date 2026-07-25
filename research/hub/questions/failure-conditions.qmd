@@ -16,6 +16,8 @@ updated_on: 2026-07-24
 tags: [failure-analysis, reliability, diagnostics]
 ---
 
+{{< include ../generated/questions/failure-conditions.md >}}
+
 ## In plain English
 
 An approach may work overall yet fail on ambiguous names, time-sensitive facts,

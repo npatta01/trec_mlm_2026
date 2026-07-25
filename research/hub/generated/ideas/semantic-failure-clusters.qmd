@@ -3,43 +3,43 @@
 # Semantic failure clusters
 
 ::: {.hub-idea-hero}
-<p class="hub-idea-status">Idea · Medium priority · 5/9 readiness fields complete</p>
+<p class="hub-idea-status">Idea · Medium priority · 2/9 readiness fields complete</p>
 
-## What this idea means
+## What does this mean?
 
 Group similar ranking failures to find request types where a method repeatedly struggles.
 :::
 
-## Why it matters
+## Why does it matter?
 
 Recurring failure patterns could show where a ranking method needs a different evidence strategy or should not be used.
 
-## How it would work
+## How does it work?
 
-<ol class="hub-process">
+<ol class="hub-process hub-record-path">
 <li class="hub-process-step">Represent development failures using bounded query and ranking evidence.</li>
 <li class="hub-process-step">Cluster similar failures and describe the resulting query types.</li>
 <li class="hub-process-step">Test whether the clusters predict weakness on a held-out development partition.</li>
 </ol>
 
-## Current evidence
+## What do we know?
 
 Clustering can describe repeated failures, but a useful test still needs a
 falsifiable hypothesis and a boundary that prevents tuning on evaluation
 labels.
 
-## What is missing
+## What is missing?
 
 - Hypothesis
 - Decision rule
 - Evaluation boundary
 - Artifact plan
 
-## What happens next
+## What happens next?
 
 State a falsifiable hypothesis and evaluation boundary for the clustering test.
 
-## Related research
+## How does it connect?
 
 **Themes**
 

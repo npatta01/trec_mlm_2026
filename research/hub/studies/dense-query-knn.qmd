@@ -28,6 +28,8 @@ limitations: "Development-only and adaptively explored; most variants have aggre
 tags: [dense, queries, knn]
 ---
 
+{{< include ../generated/studies/dense-query-knn.md >}}
+
 ## Decision
 
 Keep `dense_nested` as the frozen control. The full encoder-by-neighborhood
@@ -37,5 +39,3 @@ grid is available in the technical run registry, not repeated here.
 
 The study transfers qrel-derived development evidence and cannot support a
 hidden-test effectiveness claim.
-
-{{< include ../generated/studies/dense-query-knn.md >}}

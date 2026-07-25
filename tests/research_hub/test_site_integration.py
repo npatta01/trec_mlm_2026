@@ -21,11 +21,15 @@ def test_quarto_renders_generated_idea_library() -> None:
     config = yaml.safe_load((ROOT / "research/hub/_quarto.yml").read_text())
 
     assert Path("research/hub/generated/ideas-index.qmd") in outputs
-    assert all(
-        "generated/ideas/" in path.as_posix()
+    assert {
+        path
         for path in outputs
-        if path.as_posix().startswith("research/hub/generated/ideas/")
-    )
+        if path.parent == Path("research/hub/generated/ideas")
+    } == {
+        Path("research/hub/generated/ideas/failure-aware-fusion.qmd"),
+        Path("research/hub/generated/ideas/reference-review-trigger.qmd"),
+        Path("research/hub/generated/ideas/semantic-failure-clusters.qmd"),
+    }
     assert "generated/ideas/*.qmd" in config["project"]["render"]
     assert "ideas/*.qmd" not in config["project"]["render"]
 
@@ -74,6 +78,8 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     ]
     assert config["project"]["post-render"] == [
         "uv run python ../../scripts/normalize_research_hub_links.py "
+        "--root ../.. --output-dir _site",
+        "uv run python ../../scripts/audit_research_hub_site.py "
         "--root ../.. --output-dir _site",
     ]
     assert {
@@ -247,6 +253,40 @@ def test_post_render_rejects_symlinked_output(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="symlink"):
         normalize_links(tmp_path, expected / "_site")
+
+
+def test_site_security_audit_rejects_qmd_files_and_reader_links(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "research/hub/_site"
+    output.mkdir(parents=True)
+    (output / "index.html").write_text(
+        '<a href="ideas/raw-record.qmd">Raw record</a>',
+        encoding="utf-8",
+    )
+    raw_record = output / "ideas/raw-record.qmd"
+    raw_record.parent.mkdir()
+    raw_record.write_text("---\ntest_id: raw-record\n---\n", encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            "uv",
+            "run",
+            "python",
+            str(ROOT / "scripts/audit_research_hub_site.py"),
+            "--root",
+            str(tmp_path),
+            "--output-dir",
+            str(output),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert "reader-facing .qmd target" in completed.stderr
+    assert "unexpected published .qmd source" in completed.stderr
 
 
 def test_generated_navigation_contains_every_canonical_record() -> None:
@@ -456,6 +496,7 @@ def test_quarto_pre_render_reflects_an_added_question_from_another_cwd(
         shutil.copytree(ROOT / name, copied_root / name)
     for name in ("README.md", "pyproject.toml", "uv.lock"):
         shutil.copy2(ROOT / name, copied_root / name)
+    shutil.rmtree(copied_root / "research/hub/_site", ignore_errors=True)
 
     implementation_sentinel = "COPIED_REPOSITORY_RENDERER_EXECUTED"
     copied_renderer = copied_root / "trec_mlm/research_hub/render.py"

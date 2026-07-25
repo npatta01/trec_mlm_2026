@@ -27,10 +27,10 @@ limitations: "Deterministic integrity checks do not prove semantic correctness o
 tags: [data-quality, grounding, audit]
 ---
 
+{{< include ../generated/studies/grounded-data-quality-audit.md >}}
+
 ## Decision
 
 Use the corpus with explicit uncertainty and review gates. Structural
 completeness is not semantic validation, and private evidence stays outside the
 static hub.
-
-{{< include ../generated/studies/grounded-data-quality-audit.md >}}

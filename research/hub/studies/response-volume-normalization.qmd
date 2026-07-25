@@ -28,9 +28,9 @@ limitations: "Single aggregate-only development result with local artifact gaps.
 tags: [responses, normalization, negative]
 ---
 
+{{< include ../generated/studies/response-volume-normalization.md >}}
+
 ## Decision
 
 The bounded normalization did not repair the direct response path. This
 negative result is retained separately from later response refinements.
-
-{{< include ../generated/studies/response-volume-normalization.md >}}

@@ -16,4 +16,6 @@ updated_on: 2026-07-24
 tags: []
 ---
 
+{{< include ../generated/questions/QUESTION_ID.md >}}
+
 Explain why this question matters and how to interpret its evidence boundary.

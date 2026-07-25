@@ -28,9 +28,9 @@ limitations: "Constructed-not-evaluated; no ranking metric or promotion conclusi
 tags: [behavior, profiles, unscored]
 ---
 
+{{< include ../generated/studies/behavior-profile.md >}}
+
 ## Decision
 
 Treat this as constructed evidence only. It does not establish that behavior
 profiles improve ranking.
-
-{{< include ../generated/studies/behavior-profile.md >}}

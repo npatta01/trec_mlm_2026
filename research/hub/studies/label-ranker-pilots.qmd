@@ -28,10 +28,10 @@ limitations: "Restricted scopes and invalid unscored runs are not directly compa
 tags: [reranking, feasibility, restricted]
 ---
 
+{{< include ../generated/studies/label-ranker-pilots.md >}}
+
 ## Decision
 
 Do not promote these pilot forms. Their failures narrow future test design, but
 restricted and invalid evidence cannot be combined into a full-development
 claim.
-
-{{< include ../generated/studies/label-ranker-pilots.md >}}

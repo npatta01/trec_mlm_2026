@@ -16,6 +16,13 @@ def test_hub_theme_uses_local_inter_and_grayscale_safe_idea_visuals() -> None:
     assert "Inter-Regular.otf" in theme
     assert "Inter-SemiBold.otf" in theme
     assert ".hub-process-step" in theme
+    assert ".hub-path" in theme
+    mobile = theme.split("@media (max-width: 768px)", maxsplit=1)[1]
+    assert (
+        ".hub-process-step,\n"
+        "  .hub-process-step:first-child {\n"
+        "    padding-inline-start: 3.25rem;"
+    ) in mobile
     assert "@media (forced-colors: active)" in theme
     assert "@media (prefers-reduced-motion: reduce)" in theme
 

@@ -103,6 +103,7 @@ def test_render_hub_outputs_has_exact_deterministic_path_contract(
         Path("research/hub/generated/runs.qmd"),
         Path("research/hub/generated/themes/candidate-evidence.qmd"),
         Path("research/hub/generated/ideas/test-candidate-evidence.qmd"),
+        Path("research/hub/generated/questions/candidate-evidence.md"),
         Path("research/hub/generated/studies/dense-baseline.md"),
         *{
             Path(f"research/hub/generated/runs/{system.system_id}.qmd")

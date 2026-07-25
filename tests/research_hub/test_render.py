@@ -78,13 +78,28 @@ def test_idea_index_and_details_expand_from_canonical_records(
 
     assert "Test candidate evidence." in index
     assert "hub-idea-row" in index
+    assert "## candidate-evidence title" in index
+    assert "### Idea" in index
+    assert "Check whether candidate evidence improves ranking." in index
+    assert "2/9 readiness fields complete" in index
+    assert "Medium priority" in index
+    assert (
+        "<span><strong>Next action:</strong> "
+        "Define the decision rule.</span>"
+    ) in index
     assert 'href="../generated/ideas/test-candidate-evidence.qmd"' in index
-    assert "What this idea means" in detail
-    assert "Why it matters" in detail
-    assert "How it would work" in detail
-    assert "What is missing" in detail
-    assert "What happens next" in detail
-    assert "Related research" in detail
+    required_sections = (
+        "## What does this mean?",
+        "## Why does it matter?",
+        "## How does it work?",
+        "## What do we know?",
+        "## What is missing?",
+        "## What happens next?",
+        "## How does it connect?",
+    )
+    assert [detail.index(section) for section in required_sections] == sorted(
+        detail.index(section) for section in required_sections
+    )
 
 
 def test_idea_detail_emits_semantic_visuals_with_every_process_step(
@@ -112,7 +127,7 @@ def test_idea_detail_emits_semantic_visuals_with_every_process_step(
 
     assert "::: {.hub-idea-hero}" in detail
     assert 'class="hub-idea-status"' in detail
-    assert '<ol class="hub-process">' in detail
+    assert '<ol class="hub-process hub-record-path">' in detail
     assert detail.count('<li class="hub-process-step">') == 2
     assert (
         '<li class="hub-process-step">Collect &lt;candidate&gt; evidence.</li>'
@@ -144,6 +159,93 @@ def test_idea_index_shows_fallback_when_priority_is_not_specified(
     ]
 
     assert "Priority not specified" in index
+    assert "1/9 readiness fields complete" in index
+
+
+def test_second_test_record_expands_every_derived_reader_surface(
+    sample_build: HubBuild,
+) -> None:
+    first = sample_build.sources.tests[0]
+    second = replace(
+        first,
+        record_id="second-candidate-test",
+        title="Second candidate test",
+        source_path="research/hub/tests/second-candidate-test.qmd",
+        metadata={
+            **first.metadata,
+            "test_id": "second-candidate-test",
+            "summary": "Run the second candidate-side check.",
+            "plain_english": "Check a second candidate-side signal.",
+            "next_action": "Freeze the second decision rule.",
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(
+            sample_build.sources,
+            tests=(first, second),
+        ),
+    )
+
+    outputs = render_hub_outputs(build)
+    expected_details = {
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd"),
+        Path("research/hub/generated/ideas/second-candidate-test.qmd"),
+    }
+    assert {
+        path
+        for path in outputs
+        if path.parent == Path("research/hub/generated/ideas")
+    } == expected_details
+
+    index = outputs[Path("research/hub/generated/ideas-index.qmd")]
+    theme = outputs[
+        Path("research/hub/generated/themes/candidate-evidence.qmd")
+    ]
+    question = outputs[
+        Path("research/hub/generated/questions/candidate-evidence.md")
+    ]
+    study = outputs[
+        Path("research/hub/generated/studies/dense-baseline.md")
+    ]
+    catalog = json.loads(outputs[Path("research/hub/catalog.json")])
+    resources = {
+        (row["type"], row["id"]): row for row in catalog["resources"]
+    }
+
+    assert index.count('class="hub-idea-row"') == 2
+    assert "Second candidate test" in index
+    assert (
+        'href="../ideas/second-candidate-test.qmd"'
+        in theme
+    )
+    assert (
+        'href="../generated/ideas/second-candidate-test.qmd"'
+        in question
+    )
+    assert (
+        "(../generated/ideas/second-candidate-test.qmd)"
+        in study
+    )
+    assert resources[("test", "second-candidate-test")] == {
+        "canonical_path": "research/hub/tests/second-candidate-test.qmd",
+        "id": "second-candidate-test",
+        "related_ids": ["candidate-evidence"],
+        "rendered_path": "generated/ideas/second-candidate-test.html",
+        "summary": "Check a second candidate-side signal.",
+        "tags": [],
+        "title": "Second candidate test",
+        "type": "test",
+    }
+    assert "second-candidate-test" in resources[
+        ("theme", "candidate-evidence")
+    ]["related_ids"]
+    assert "second-candidate-test" in resources[
+        ("question", "candidate-evidence")
+    ]["related_ids"]
+    assert "second-candidate-test" in resources[
+        ("study", "dense-baseline")
+    ]["related_ids"]
 
 
 def test_catalog_includes_themes_with_generated_page_paths(
@@ -224,7 +326,10 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
     assert "Practical decision" in theme_page
     assert "Questions in this theme" in theme_page
     assert "Evidence behind this position" in theme_page
-    assert theme_page.count(str(theme.metadata["plain_english"])) == 1
+    meaning = theme_page.split("## What does this mean?", 1)[1].split(
+        "## Why does it matter?", 1
+    )[0]
+    assert str(theme.metadata["plain_english"]) in meaning
     assert "Which signals matter?" in theme_page
     assert "What transfers to held-out requests?" in theme_page
     assert "2 studies" in theme_page
@@ -244,6 +349,42 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
     assert "secondary-study" in study_index
     assert "artifact" not in study_index.lower()
     assert "receipt" not in study_index.lower()
+
+
+def test_theme_question_and_study_details_follow_the_explainer_sequence(
+    sample_build: HubBuild,
+) -> None:
+    outputs = render_hub_outputs(sample_build)
+    pages = (
+        outputs[
+            Path("research/hub/generated/themes/candidate-evidence.qmd")
+        ],
+        outputs[
+            Path("research/hub/generated/questions/candidate-evidence.md")
+        ],
+        outputs[
+            Path("research/hub/generated/studies/dense-baseline.md")
+        ],
+    )
+    required_sections = (
+        "## What does this mean?",
+        "## Why does it matter?",
+        "## How does it work?",
+        "## What do we know?",
+        "## What is missing?",
+        "## What happens next?",
+        "## How does it connect?",
+    )
+
+    for page in pages:
+        positions = [page.index(section) for section in required_sections]
+        assert positions == sorted(positions)
+        assert '<ol class="hub-process hub-record-path">' in page
+
+    assert (
+        '<code class="hub-path">evidence/receipt.md</code>'
+        in pages[1]
+    )
 
 
 def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
@@ -314,15 +455,16 @@ def test_generated_study_detail_contains_decision_and_evidence_sections(
         Path("research/hub/generated/studies/dense-baseline.md")
     ]
 
-    assert "Why this study was run" in detail
-    assert "Protocol and comparison" in detail
-    assert "Current result" in detail
-    assert "Decision and rationale" in detail
-    assert "Evidence limits" in detail
+    assert "What does this mean?" in detail
+    assert "Why does it matter?" in detail
+    assert "How does it work?" in detail
+    assert "What do we know?" in detail
+    assert "What is missing?" in detail
+    assert "What happens next?" in detail
+    assert "How does it connect?" in detail
     assert "Representative runs" in detail
     assert "Artifact custody" in detail
     assert "Canonical evidence" in detail
-    assert "Related questions, studies, and next tests" in detail
     assert "Evaluate on development data." in detail
     assert "Keep the established baseline." in detail
     assert "dense_nested" in detail
@@ -384,6 +526,7 @@ def test_catalog_collects_sorted_related_ids_and_run_study_links(
         "candidate-evidence",
         "dense-retrieval",
         "development-set",
+        "test-candidate-evidence",
     ]
     assert resources[("run", "dense_nested")]["related_ids"] == ["dense-baseline"]
     assert resources[("question", "candidate-evidence")]["rendered_path"] == (

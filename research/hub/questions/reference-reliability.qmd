@@ -16,6 +16,8 @@ updated_on: 2026-07-24
 tags: [references, reliability, grounding]
 ---
 
+{{< include ../generated/questions/reference-reliability.md >}}
+
 ## In plain English
 
 A reference answer can help compare candidates, but a confident wrong reference

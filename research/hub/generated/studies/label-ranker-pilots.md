@@ -46,6 +46,14 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Do not promote these pilot forms. Their failures narrow future test design, but
+restricted and invalid evidence cannot be combined into a full-development
+claim.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

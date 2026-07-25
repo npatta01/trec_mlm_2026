@@ -44,6 +44,14 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Use the corpus with explicit uncertainty and review gates. Structural
+completeness is not semantic validation, and private evidence stays outside the
+static hub.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

@@ -46,6 +46,13 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Stop the current source-query-first route. Constructed but unscored variants
+remain visible without effectiveness metrics.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

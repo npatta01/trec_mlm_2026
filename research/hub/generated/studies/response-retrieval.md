@@ -46,6 +46,13 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Do not use lexical response retrieval as the primary path. The full parameter
+grid remains available for audit in the run registry.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

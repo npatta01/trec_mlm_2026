@@ -18,6 +18,7 @@ tags: [failure-analysis, reliability, diagnostics]
 
 {{< include ../generated/questions/failure-conditions.md >}}
 
+<!--
 ## In plain English
 
 An approach may work overall yet fail on ambiguous names, time-sensitive facts,
@@ -34,3 +35,4 @@ comparisons.
 
 Pilot failures, cluster aggregation, grounding review, corpus audit, and E5
 refinement each expose a different failure boundary.
+-->

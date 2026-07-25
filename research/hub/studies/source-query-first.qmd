@@ -30,7 +30,9 @@ tags: [responses, source-alignment, unscored]
 
 {{< include ../generated/studies/source-query-first.md >}}
 
+<!--
 ## Decision
 
 Stop the current source-query-first route. Constructed but unscored variants
 remain visible without effectiveness metrics.
+-->

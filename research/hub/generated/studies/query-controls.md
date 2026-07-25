@@ -46,6 +46,18 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Retain these as simple orientation points. Exact metrics, caveats, and source
+pointers remain in the run registry.
+
+## History boundary
+
+The rationale is reconstructed from tracked outputs. It is not described as a
+preregistered claim, and the original dates remain unknown.
+
 ## Next tests
 
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.

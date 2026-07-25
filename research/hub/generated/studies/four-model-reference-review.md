@@ -44,6 +44,19 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Use Gemini as the default reference pivot, not as an oracle. Preserve the
+existing Perplexity answer and route material disagreements or uncertainty to
+review.
+
+## Why there is no run row
+
+This reviewed reference generators; it did not evaluate a registered TREC
+ranking system. Creating a leaderboard row would manufacture comparability.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

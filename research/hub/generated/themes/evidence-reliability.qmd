@@ -9,7 +9,7 @@ toc: false
 <p class="hub-takeaway">Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.</p>
 <p>Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.</p>
 
-<p class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.; <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+<p class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.</p>
 </section>
 
 
@@ -34,6 +34,11 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 
 <details class="hub-details">
 <summary>Relationships and evidence</summary>
+## Other linked tests
+
+- <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
+- <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+
 ## Questions in this theme
 
 <div class="hub-question-row">

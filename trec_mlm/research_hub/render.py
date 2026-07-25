@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 import html
 import json
@@ -47,6 +48,15 @@ _STATIC_OUTPUT_PATHS = (
 )
 _RESTRICTED_SCOPES = frozenset({"restricted_12x20", "restricted_6", "invalid_unscored"})
 _SAFE_SYSTEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._@+-]*\Z")
+
+
+@dataclass(frozen=True)
+class _NextAction:
+    """A context-free summary of the first deterministic linked test."""
+
+    record_id: str | None
+    title: str | None
+    text: str
 
 
 def _yaml_scalar(value: object) -> str:
@@ -421,6 +431,56 @@ def _tests_for_questions(
     )
 
 
+def _ordered_theme_tests(build: HubBuild, theme: HubRecord) -> list[HubRecord]:
+    """Order a theme's linked tests by its authored next-test preference."""
+
+    tests = _tests_for_theme(build, theme.record_id)
+    preferred_ids = _metadata_list(theme, "next_test_ids")
+    preferred_order = {
+        record_id: index for index, record_id in enumerate(preferred_ids)
+    }
+    return sorted(
+        tests,
+        key=lambda test: (
+            preferred_order.get(test.record_id, len(preferred_order)),
+            test.record_id,
+        ),
+    )
+
+
+def _next_action(tests: Sequence[HubRecord]) -> _NextAction:
+    """Return one deterministic action without choosing an output context."""
+
+    if not tests:
+        return _NextAction(None, None, "No next test is currently linked.")
+    test = tests[0]
+    return _NextAction(
+        record_id=test.record_id,
+        title=test.title,
+        text=str(test.metadata.get("next_action", "")),
+    )
+
+
+def _render_action_text(action: _NextAction) -> str:
+    """Render an action as plain text for callers already inside a link."""
+
+    if action.title is None:
+        return html.escape(action.text)
+    return f"{html.escape(action.title)}: {html.escape(action.text)}"
+
+
+def _render_action_link(action: _NextAction, *, href_prefix: str) -> str:
+    """Render an action link using the caller's output-relative destination."""
+
+    if action.record_id is None or action.title is None:
+        return html.escape(action.text)
+    return (
+        f'<a href="{html.escape(href_prefix, quote=True)}/'
+        f'{html.escape(action.record_id, quote=True)}.qmd">'
+        f"{html.escape(action.title)}</a>: {html.escape(action.text)}"
+    )
+
+
 def _count_label(count: int, singular: str) -> str:
     if count == 1:
         return f"{count} {singular}"
@@ -443,6 +503,7 @@ def _development_evidence_notice() -> list[str]:
 def _render_theme_rows(build: HubBuild, *, href_prefix: str) -> list[str]:
     lines: list[str] = []
     for theme in sorted(build.sources.themes, key=lambda row: row.record_id):
+        action = _next_action(_ordered_theme_tests(build, theme))
         lines.extend(
             [
                 "",
@@ -464,11 +525,7 @@ def _render_theme_rows(build: HubBuild, *, href_prefix: str) -> list[str]:
                     f"{html.escape(str(theme.metadata.get('current_conclusion', '')))}"
                     "</span>"
                 ),
-                (
-                    '<span class="hub-next-action">'
-                    f"{_theme_next_move(build, theme)}"
-                    "</span>"
-                ),
+                (f'<span class="hub-next-action">{_render_action_text(action)}</span>'),
                 "</a>",
             ]
         )
@@ -689,21 +746,11 @@ def render_data_index_qmd(build: HubBuild) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _theme_next_move(build: HubBuild, theme: HubRecord) -> str:
-    tests = _tests_for_theme(build, theme.record_id)
-    if not tests:
-        return "No next test is currently linked."
-    return "; ".join(
-        f'<a href="../ideas/{html.escape(test.record_id, quote=True)}.qmd">'
-        f"{html.escape(test.title)}</a>: "
-        f"{html.escape(str(test.metadata.get('next_action', '')))}"
-        for test in tests
-    )
-
-
 def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
     questions = _records_for_theme(build.sources.questions, theme.record_id)
     studies = _records_for_theme(build.sources.studies, theme.record_id)
+    tests = _ordered_theme_tests(build, theme)
+    action = _next_action(tests)
     theme_id = quote(theme.record_id, safe="")
     status = (
         f"{_human_label(theme.metadata.get('decision', ''))} · "
@@ -727,7 +774,11 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
     lines.extend(
         [
             "",
-            f'<p class="hub-next-action">{_theme_next_move(build, theme)}</p>',
+            (
+                '<p class="hub-next-action">'
+                f"{_render_action_link(action, href_prefix='../ideas')}"
+                "</p>"
+            ),
             "</section>",
             "",
         ]
@@ -756,7 +807,14 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
             ],
         )
     )
-    relationship_lines = ["## Questions in this theme"]
+    relationship_lines = ["## Other linked tests", ""]
+    relationship_lines.extend(
+        f"- {_render_action_link(_NextAction(test.record_id, test.title, str(test.metadata.get('next_action', ''))), href_prefix='../ideas')}"
+        for test in tests[1:]
+    )
+    if len(tests) < 2:
+        relationship_lines.append("- No additional linked test is currently recorded.")
+    relationship_lines.extend(["", "## Questions in this theme"])
     if not questions:
         relationship_lines.extend(["", "No research question is currently linked."])
     for question in questions:
@@ -857,7 +915,7 @@ def render_questions_index_qmd(build: HubBuild) -> str:
                 f"<span>{html.escape(str(question.metadata.get('plain_english', '')))}</span>",
                 (
                     '<span class="hub-next-action">'
-                    f"{_question_next_move(build, question)}"
+                    f"{_render_action_text(_next_action(_tests_for_questions(build, (question.record_id,))))}"
                     "</span>"
                 ),
                 "</a>",
@@ -880,7 +938,17 @@ def _body_section(record: HubRecord, heading: str) -> str:
         (index for index in range(start, len(lines)) if lines[index].startswith("## ")),
         len(lines),
     )
-    return "\n".join(lines[start:end]).strip()
+    return "\n".join(lines[start:end]).replace("<!--", "").replace("-->", "").strip()
+
+
+def _authored_body(record: HubRecord) -> str:
+    """Return canonical supporting prose while hiding its source-only comment."""
+
+    return "\n".join(
+        line
+        for line in record.body.replace("<!--", "").replace("-->", "").splitlines()
+        if not line.strip().startswith("{{< include ")
+    ).strip()
 
 
 def _render_details(
@@ -901,18 +969,6 @@ def _render_details(
     ]
 
 
-def _question_next_move(build: HubBuild, question: HubRecord) -> str:
-    tests = _tests_for_questions(build, (question.record_id,))
-    if not tests:
-        return "No next test is currently linked."
-    test = tests[0]
-    return (
-        f'<a href="../generated/ideas/{html.escape(test.record_id, quote=True)}.qmd">'
-        f"{html.escape(test.title)}</a>: "
-        f"{html.escape(str(test.metadata.get('next_action', '')))}"
-    )
-
-
 def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
     studies_by_id = {study.record_id: study for study in build.sources.studies}
     themes_by_id = {theme.record_id: theme for theme in build.sources.themes}
@@ -925,6 +981,7 @@ def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
         key=lambda study: study.record_id,
     )
     tests = _tests_for_questions(build, (question.record_id,))
+    action = _next_action(tests)
     themes = sorted(
         (
             themes_by_id[theme_id]
@@ -954,7 +1011,11 @@ def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
     lines.extend(
         [
             "",
-            f'<p class="hub-next-action">{_question_next_move(build, question)}</p>',
+            (
+                '<p class="hub-next-action">'
+                f"{_render_action_link(action, href_prefix='../generated/ideas')}"
+                "</p>"
+            ),
             "</section>",
         ]
     )
@@ -1357,7 +1418,7 @@ def render_studies_index_qmd(build: HubBuild) -> str:
                     "</span>"
                 ),
                 f"<strong>{html.escape(study.title)}</strong>",
-                (f"{html.escape(str(study.metadata.get('conclusion', '')))}</span>"),
+                f"<span>{html.escape(str(study.metadata.get('conclusion', '')))}</span>",
                 (
                     '<span class="hub-next-action"><strong>Practical decision</strong> '
                     f"{html.escape(str(study.metadata.get('decision_summary', '')))}</span>"
@@ -1508,6 +1569,7 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
         if question.record_id in question_ids
     ]
     tests = _tests_for_questions(build, question_ids)
+    action = _next_action(tests)
     question_links = "; ".join(
         f"[{_markdown_table_text(question.title)}]"
         f"(../questions/{question.record_id}.qmd)"
@@ -1516,15 +1578,6 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
     status = (
         f"{_human_label(study.metadata.get('outcome', ''))} · "
         f"{_human_label(study.metadata.get('decision', ''))}"
-    )
-    next_action = (
-        (
-            f'<a href="../generated/ideas/{html.escape(tests[0].record_id, quote=True)}.qmd">'
-            f"{html.escape(tests[0].title)}</a>: "
-            f"{html.escape(str(tests[0].metadata.get('next_action', '')))}"
-        )
-        if tests
-        else "No next test is linked through the study questions."
     )
     lines = [
         "<!-- Generated by scripts/build_research_hub.py; do not edit. -->",
@@ -1540,7 +1593,11 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
     lines.extend(
         [
             "",
-            f'<p class="hub-next-action">{next_action}</p>',
+            (
+                '<p class="hub-next-action">'
+                f"{_render_action_link(action, href_prefix='../generated/ideas')}"
+                "</p>"
+            ),
             "</section>",
         ]
     )
@@ -1594,6 +1651,10 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
         )
     )
     relationship_lines = [
+        "## Authored decision notes",
+        "",
+        _authored_body(study),
+        "",
         "## Next tests",
         "",
         *(

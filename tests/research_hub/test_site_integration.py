@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import subprocess
 import time
 from urllib.request import urlopen
+from urllib.parse import urlparse
 
 import json
 
@@ -20,6 +22,65 @@ from trec_mlm.research_hub.render import render_hub_outputs
 
 
 ROOT = Path(__file__).resolve().parents[2]
+_RENDERED_SITE: Path | None = None
+
+
+def _render_site() -> Path:
+    global _RENDERED_SITE
+    if _RENDERED_SITE is not None:
+        return _RENDERED_SITE
+    build = subprocess.run(
+        ["uv", "run", "python", "scripts/build_research_hub.py"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert build.returncode == 0, build.stdout + build.stderr
+    completed = subprocess.run(
+        ["quarto", "render", "research/hub", "--quiet"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    _RENDERED_SITE = ROOT / "research/hub/_site"
+    return _RENDERED_SITE
+
+
+def _visible_html(html: str) -> str:
+    return re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
+
+
+def test_final_html_keeps_canonical_supporting_copy_inside_details() -> None:
+    site = _render_site()
+    question = _visible_html((site / "questions/candidate-evidence.html").read_text())
+    study = _visible_html((site / "studies/response-retrieval.html").read_text())
+    question_copy = (
+        "Two requests can look similar while requiring different model strengths."
+    )
+    study_copy = "Do not use lexical response retrieval as the primary path."
+
+    assert question.count(question_copy) == 1
+    assert question_copy not in question[question.rfind("</details>") :]
+    assert study.count(study_copy) == 1
+    assert study_copy not in study[study.rfind("</details>") :]
+
+
+def test_final_html_index_rows_own_their_actions_and_destinations() -> None:
+    site = _render_site()
+    themes = (site / "themes/index.html").read_text()
+    questions = (site / "questions/index.html").read_text()
+    studies = (site / "studies/index.html").read_text()
+
+    assert '<span class="hub-next-action">Semantic failure clusters:' in themes
+    assert '<span class="hub-next-action">Semantic failure clusters:' in questions
+    assert 'href="../ideas/semantic-failure-clusters.qmd"' not in themes
+    assert (
+        "<strong>Lexical response retrieval</strong> "
+        "<span>Direct lexical response retrieval underperformed"
+    ) in studies
 
 
 def _free_local_port() -> int:
@@ -31,11 +92,9 @@ def _free_local_port() -> int:
 def test_details_summary_toggles_from_keyboard_in_browser(
     tmp_path: Path,
 ) -> None:
-    detail = render_hub_outputs(build_research_hub(ROOT))[
-        Path("research/hub/generated/ideas/failure-aware-fusion.qmd")
-    ]
-    page = tmp_path / "details.html"
-    page.write_text(f"<!doctype html><body>{detail}</body>", encoding="utf-8")
+    site = _render_site()
+    page = site / "generated/ideas/failure-aware-fusion.html"
+    question_index = site / "questions/index.html"
     port = _free_local_port()
     profile = tmp_path / "chrome-profile"
     browser = shutil.which("google-chrome")
@@ -59,12 +118,22 @@ def test_details_summary_toggles_from_keyboard_in_browser(
         for _ in range(30):
             try:
                 targets = json.loads(urlopen(endpoint, timeout=1).read())
-                break
             except OSError:
                 time.sleep(0.1)
+                continue
+            target = next(
+                (
+                    row
+                    for row in targets
+                    if row["type"] == "page" and row["url"] == page.resolve().as_uri()
+                ),
+                None,
+            )
+            if target is not None:
+                break
+            time.sleep(0.1)
         else:
-            pytest.fail("Chrome remote debugging endpoint did not start")
-        target = next(row for row in targets if row["type"] == "page")
+            pytest.fail("Chrome did not load the rendered details page")
         client = websocket.create_connection(target["webSocketDebuggerUrl"], timeout=5)
         try:
 
@@ -83,6 +152,19 @@ def test_details_summary_toggles_from_keyboard_in_browser(
                         return response
 
             call.counter = 0  # type: ignore[attr-defined]
+            for _ in range(30):
+                ready = call(
+                    "Runtime.evaluate",
+                    {
+                        "expression": "document.readyState === 'complete' && Boolean(document.querySelector('summary'))",
+                        "returnByValue": True,
+                    },
+                )
+                if ready["result"]["result"].get("value") is True:
+                    break
+                time.sleep(0.1)
+            else:
+                pytest.fail("Rendered details summary did not become available")
             focus = call(
                 "Runtime.evaluate",
                 {
@@ -91,6 +173,14 @@ def test_details_summary_toggles_from_keyboard_in_browser(
                 },
             )
             assert focus["result"]["result"]["value"] == "SUMMARY"
+            summary_height = call(
+                "Runtime.evaluate",
+                {
+                    "expression": "getComputedStyle(document.querySelector('summary')).minHeight",
+                    "returnByValue": True,
+                },
+            )
+            assert float(summary_height["result"]["result"]["value"][:-2]) >= 44
             before = call(
                 "Runtime.evaluate",
                 {
@@ -119,6 +209,43 @@ def test_details_summary_toggles_from_keyboard_in_browser(
                 },
             )
             assert after["result"]["result"]["value"] is True
+            call("Page.navigate", {"url": question_index.resolve().as_uri()})
+            for _ in range(20):
+                ready = call(
+                    "Runtime.evaluate",
+                    {
+                        "expression": "JSON.stringify({ready: document.readyState, path: location.pathname})",
+                        "returnByValue": True,
+                    },
+                )
+                page_state = json.loads(ready["result"]["result"]["value"])
+                if page_state["ready"] == "complete" and page_state["path"].endswith(
+                    "/questions/index.html"
+                ):
+                    break
+                time.sleep(0.1)
+            else:
+                pytest.fail("Question index did not finish navigating in Chrome")
+            row = call(
+                "Runtime.evaluate",
+                {
+                    "expression": """
+const row = document.querySelector('a.hub-question-row');
+row.focus();
+JSON.stringify({
+  focused: document.activeElement === row,
+  actionOwned: row.querySelector('.hub-next-action').parentElement === row,
+  href: row.href,
+});
+""",
+                    "returnByValue": True,
+                },
+            )
+            row_state = json.loads(row["result"]["result"]["value"])
+            assert row_state["focused"] is True
+            assert row_state["actionOwned"] is True
+            destination = Path(urlparse(row_state["href"]).path)
+            assert destination.is_file()
         finally:
             client.close()
     finally:

@@ -46,6 +46,18 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Keep `dense_nested` as the frozen control. The full encoder-by-neighborhood
+grid is available in the technical run registry, not repeated here.
+
+## Evidence boundary
+
+The study transfers qrel-derived development evidence and cannot support a
+hidden-test effectiveness claim.
+
 ## Next tests
 
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.

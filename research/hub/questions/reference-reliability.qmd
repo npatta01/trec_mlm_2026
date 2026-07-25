@@ -18,6 +18,7 @@ tags: [references, reliability, grounding]
 
 {{< include ../generated/questions/reference-reliability.md >}}
 
+<!--
 ## In plain English
 
 A reference answer can help compare candidates, but a confident wrong reference
@@ -33,3 +34,4 @@ judgments, not organizer answer-correctness labels.
 
 The model review chooses a default; the failure review evaluates selective
 grounding; the data-quality audit checks the resulting corpus.
+-->

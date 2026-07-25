@@ -56,3 +56,36 @@ uv run python scripts/audit_research_hub_site.py --root . --output-dir research/
 - Confirmed generated assets were refreshed by the canonical build and render.
 - Confirmed dark-mode paper, ink, risk, and proposal tokens preserve contrast
   after introducing the editorial paper background.
+
+## Round 1 review remediation
+
+- Moved canonical question and study supporting prose behind source-only HTML
+  comments, while rendering it exactly once in the generated disclosures.
+- Selected a theme's one hero/index next action from its authored
+  `next_test_ids` order; additional linked tests remain in the collapsed
+  relationships disclosure.
+- Replaced markup-producing next-action helpers with context-free action data
+  and caller-owned text or output-relative links, eliminating nested anchors
+  and dangling index destinations.
+- Corrected the study-row takeaway to a balanced `<span>` child.
+- Replaced the fragment-only browser test with a real rendered-site contract:
+  it loads Quarto output and CSS, focuses a summary, sends Enter through Chrome
+  DevTools, and confirms the native disclosure opens. It also confirms a final
+  question-index row owns its action, receives keyboard focus, and targets an
+  existing HTML document.
+
+### Round 1 verification evidence
+
+```text
+uv run --extra dev pytest tests/research_hub/test_render.py tests/research_hub/test_resources.py tests/research_hub/test_site_integration.py -q
+# 58 passed in 42.23s
+
+uv run ruff check trec_mlm/research_hub/render.py tests/research_hub/test_render.py tests/research_hub/test_resources.py tests/research_hub/test_site_integration.py
+# All checks passed
+
+uv run python scripts/build_research_hub.py
+quarto render research/hub --quiet
+uv run python scripts/audit_research_hub_site.py --root . --output-dir research/hub/_site
+git diff --check
+# all commands exited 0; the site audit found no reader-facing QMD source exposure
+```

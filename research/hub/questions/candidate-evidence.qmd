@@ -18,6 +18,7 @@ tags: [candidate-evidence, profiles]
 
 {{< include ../generated/questions/candidate-evidence.md >}}
 
+<!--
 ## In plain English
 
 Two requests can look similar while requiring different model strengths. A
@@ -34,3 +35,4 @@ claim follows.
 
 Raw labels, behavior topics, semantic profiles, and multiresolution profiles
 provide distinct candidate-side comparisons.
+-->

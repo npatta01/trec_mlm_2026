@@ -46,6 +46,13 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Treat this as constructed evidence only. It does not establish that behavior
+profiles improve ranking.
+
 ## Next tests
 
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.

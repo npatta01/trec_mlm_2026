@@ -29,7 +29,9 @@ tags: [e5, responses, refinement]
 
 {{< include ../generated/studies/e5-raw-response-refinement.md >}}
 
+<!--
 ## Decision
 
 Treat this as completed evidence, not a prospective ready test and not a
 leaderboard row. Its receipt can motivate a later frozen ranking study.
+-->

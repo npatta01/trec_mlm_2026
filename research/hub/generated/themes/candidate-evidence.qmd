@@ -34,6 +34,10 @@ Moderate confidence. Development-only evidence; diagnostic variants and incomple
 
 <details class="hub-details">
 <summary>Relationships and evidence</summary>
+## Other linked tests
+
+- No additional linked test is currently recorded.
+
 ## Questions in this theme
 
 <div class="hub-question-row">

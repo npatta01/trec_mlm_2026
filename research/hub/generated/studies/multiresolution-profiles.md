@@ -46,6 +46,13 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Keep these variants as diagnostics. A larger development score alone does not
+override the existing promoted decision or its evidence-maturity boundary.
+
 ## Next tests
 
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.

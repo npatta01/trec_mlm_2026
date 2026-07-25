@@ -30,6 +30,7 @@ tags: [controls, queries]
 
 {{< include ../generated/studies/query-controls.md >}}
 
+<!--
 ## Decision
 
 Retain these as simple orientation points. Exact metrics, caveats, and source
@@ -39,3 +40,4 @@ pointers remain in the run registry.
 
 The rationale is reconstructed from tracked outputs. It is not described as a
 preregistered claim, and the original dates remain unknown.
+-->

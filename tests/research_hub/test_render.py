@@ -267,6 +267,9 @@ def test_second_test_record_expands_every_derived_reader_surface(
 
     assert index.count('class="hub-idea-row"') == 2
     assert "Second candidate test" in index
+    theme_hero = theme.split("</section>", maxsplit=1)[0]
+    assert theme_hero.count('class="hub-next-action"') == 1
+    assert "second-candidate-test" not in theme_hero
     assert 'href="../ideas/second-candidate-test.qmd"' in theme
     assert 'href="../generated/ideas/second-candidate-test.qmd"' in question
     assert "(../generated/ideas/second-candidate-test.qmd)" in study

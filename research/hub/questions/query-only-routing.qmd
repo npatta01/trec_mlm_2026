@@ -18,6 +18,7 @@ tags: [queries, retrieval, routing]
 
 {{< include ../generated/questions/query-only-routing.md >}}
 
+<!--
 ## In plain English
 
 If a request asks for gardening help, should the router look for similar past
@@ -33,3 +34,4 @@ descriptions.
 
 The controls establish simple priors; dense k-nearest-neighbor retrieval is the
 stable query-only control; cluster aggregation remains diagnostic or negative.
+-->

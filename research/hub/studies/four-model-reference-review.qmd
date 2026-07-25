@@ -29,6 +29,7 @@ tags: [references, model-review, blinded]
 
 {{< include ../generated/studies/four-model-reference-review.md >}}
 
+<!--
 ## Decision
 
 Use Gemini as the default reference pivot, not as an oracle. Preserve the
@@ -39,3 +40,4 @@ review.
 
 This reviewed reference generators; it did not evaluate a registered TREC
 ranking system. Creating a leaderboard row would manufacture comparability.
+-->

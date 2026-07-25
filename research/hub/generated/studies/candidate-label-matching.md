@@ -46,6 +46,18 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Contextual E5 remains a stable candidate-label control. Invalid terminal-token
+attempts remain visible as failures, never as leaderboard rows.
+
+## History boundary
+
+This narrative is a reconstruction from tracked receipts; original rationale
+and dates are not available.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

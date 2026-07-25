@@ -18,6 +18,7 @@ tags: [responses, retrieval, reranking]
 
 {{< include ../generated/questions/response-evidence.md >}}
 
+<!--
 ## In plain English
 
 Instead of only reading a model's name or profile, compare what it actually
@@ -34,3 +35,4 @@ are pivots rather than gold labels.
 
 The studies separate lexical retrieval, volume normalization, source-query-first
 controls, and a bounded E5 refinement.
+-->

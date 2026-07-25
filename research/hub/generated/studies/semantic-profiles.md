@@ -46,6 +46,19 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Adopt `dense_profile_equal` for development and retain `profile_only` as the
+stable qrel-free control. The higher diagnostic weighting is not silently
+promoted.
+
+## Evidence boundary
+
+The hidden test is unavailable. Metrics and artifact states come from the
+ledger, not this narrative page.
+
 ## Next tests
 
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.

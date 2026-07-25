@@ -44,6 +44,13 @@ Development results do not establish hidden-test effectiveness.
 
 <details class="hub-details">
 <summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## Decision
+
+Ground selectively, after a reproducible trigger is calibrated. The observed
+rescues are diagnostic evidence on a selected cohort, not a corpus-wide rate.
+
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.

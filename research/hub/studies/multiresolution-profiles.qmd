@@ -30,7 +30,9 @@ tags: [profiles, multiresolution, diagnostic]
 
 {{< include ../generated/studies/multiresolution-profiles.md >}}
 
+<!--
 ## Decision
 
 Keep these variants as diagnostics. A larger development score alone does not
 override the existing promoted decision or its evidence-maturity boundary.
+-->

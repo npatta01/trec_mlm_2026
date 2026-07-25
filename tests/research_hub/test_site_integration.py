@@ -358,7 +358,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         "test": 3,
         "approach": 5,
         "dataset": 6,
-        "background": 7,
+        "background": 8,
     }
     assert build.validation.linked_system_count == len(build.ledger.systems) == 98
 

@@ -1,0 +1,2204 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "TREC 2026: why ranking performance has plateaued",
+    "description": "A source-backed diagnosis of the 322-query development ledger, including a similar-query deep dive on the 75 sole-positive failures.",
+    "generatedAt": "2026-07-25T19:05:36Z",
+    "charts": [
+      {
+        "id": "system_ndcg",
+        "title": "nDCG@10 by retrieval approach",
+        "subtitle": "Profile modeling created the main gain; simple fusion added little on the same 322-query development set.",
+        "headerMarkdown": "The two highest bars are **diagnostic-only** and cannot be treated as independent improvements.",
+        "type": "horizontalBar",
+        "dataset": "systems",
+        "sourceId": "experiment_systems",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "method",
+            "type": "nominal",
+            "label": "System"
+          },
+          "y": {
+            "field": "ndcg_at_10",
+            "type": "quantitative",
+            "label": "nDCG@10"
+          },
+          "color": {
+            "field": "status",
+            "type": "nominal",
+            "label": "Evidence status"
+          },
+          "tooltip": [
+            {
+              "field": "mrr",
+              "type": "quantitative",
+              "label": "MRR"
+            },
+            {
+              "field": "zero_count",
+              "type": "quantitative",
+              "label": "Zero queries"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "ascending",
+          "showValues": true
+        },
+        "layout": "full"
+      },
+      {
+        "id": "density_ndcg",
+        "title": "nDCG@10 by relevant-candidate density",
+        "subtitle": "Nearly all remaining failures are in the 248 queries with five or fewer positives.",
+        "headerMarkdown": "The promoted fusion is effectively tied with profile-only in the sparse majority. Asterisks mark **diagnostic-only** variants.",
+        "type": "bar",
+        "dataset": "density",
+        "sourceId": "density_slices",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "density_bucket",
+            "type": "ordinal",
+            "label": "Relevant candidates per query"
+          },
+          "y": {
+            "field": "ndcg_at_10",
+            "type": "quantitative",
+            "label": "nDCG@10"
+          },
+          "color": {
+            "field": "system",
+            "type": "nominal",
+            "label": "System"
+          },
+          "tooltip": [
+            {
+              "field": "query_count",
+              "type": "quantitative",
+              "label": "Queries"
+            },
+            {
+              "field": "zero_count",
+              "type": "quantitative",
+              "label": "Zero queries"
+            }
+          ]
+        },
+        "settings": {
+          "groupMode": "grouped",
+          "showValues": false
+        },
+        "layout": "full"
+      },
+      {
+        "id": "analogue_evidence_buckets",
+        "title": "Pre-qrel evidence strength for the 75 sole-positive failures",
+        "subtitle": "Deterministic upper-bound screen using frozen component ranks and historical discovery-query attempts.",
+        "headerMarkdown": "A **strong** flag means corroborated historical evidence or profile rank 1\u20133; it does not mean the historical answer was correct.",
+        "type": "horizontalBar",
+        "dataset": "analogue_evidence_buckets",
+        "sourceId": "sparse_analogue",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "bucket",
+            "type": "nominal",
+            "label": "Evidence bucket"
+          },
+          "y": {
+            "field": "query_count",
+            "type": "quantitative",
+            "label": "Queries"
+          },
+          "tooltip": [
+            {
+              "field": "share_pct",
+              "type": "quantitative",
+              "label": "Share of 75 (%)"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "descending",
+          "showValues": true,
+          "palette": {
+            "kind": "single",
+            "root": "blue"
+          }
+        },
+        "layout": "full"
+      },
+      {
+        "id": "neighbor_transfer_hit10",
+        "title": "Best inspected leave-one-out Hit@10 by query representation",
+        "subtitle": "Receipt-only post-hoc sweep; original producer was not retained. Denominator is the same 75 failures.",
+        "headerMarkdown": "The unreproduced exploratory receipt reports only **10/75** official positives in the top ten at its optimistic grid maximum.",
+        "type": "horizontalBar",
+        "dataset": "neighbor_transfer_best",
+        "sourceId": "neighbor_transfer",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "representation",
+            "type": "nominal",
+            "label": "Query representation"
+          },
+          "y": {
+            "field": "hit_at_10",
+            "type": "quantitative",
+            "label": "Official positives in top 10"
+          },
+          "tooltip": [
+            {
+              "field": "k",
+              "type": "quantitative",
+              "label": "Neighbors"
+            },
+            {
+              "field": "mrr",
+              "type": "quantitative",
+              "label": "MRR"
+            },
+            {
+              "field": "median_official_rank",
+              "type": "quantitative",
+              "label": "Median official rank"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "ascending",
+          "showValues": true,
+          "palette": {
+            "kind": "single",
+            "root": "orange"
+          }
+        },
+        "layout": "full"
+      },
+      {
+        "id": "failure_cause_proxies",
+        "title": "Primary released-evidence explanation for all 75 failures",
+        "subtitle": "Mutually exclusive mechanical or deterministic evidence proxy; no-signal proxies do not establish qrel error.",
+        "headerMarkdown": "The 21 fusion misses have an exact mechanism. The three no-signal buckets describe what the released evidence lacks or contradicts.",
+        "type": "horizontalBar",
+        "dataset": "failure_cause_proxies",
+        "sourceId": "failure_causes",
+        "valueFormat": "number",
+        "encodings": {
+          "x": {
+            "field": "cause",
+            "type": "nominal",
+            "label": "Primary explanation"
+          },
+          "y": {
+            "field": "query_count",
+            "type": "quantitative",
+            "label": "Queries"
+          },
+          "tooltip": [
+            {
+              "field": "share_pct",
+              "type": "quantitative",
+              "label": "Share of 75 (%)"
+            },
+            {
+              "field": "evidence_type",
+              "type": "nominal",
+              "label": "Evidence"
+            }
+          ]
+        },
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "descending",
+          "showValues": true,
+          "palette": {
+            "kind": "single",
+            "root": "olive"
+          }
+        },
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "paired_comparisons",
+        "title": "The decisive paired comparisons",
+        "subtitle": "Deterministic 10,000-sample query bootstrap, seed 20260717. Intervals are descriptive because all variants reuse the same development queries.",
+        "dataset": "comparisons",
+        "sourceId": "per_query",
+        "defaultSort": {
+          "field": "delta_ndcg",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "comparison",
+            "label": "Comparison",
+            "type": "text"
+          },
+          {
+            "field": "delta_ndcg",
+            "label": "\u0394 nDCG@10",
+            "format": "number",
+            "movement": true
+          },
+          {
+            "field": "ci_95",
+            "label": "95% bootstrap interval",
+            "type": "text"
+          },
+          {
+            "field": "wins_ties_losses",
+            "label": "W / T / L",
+            "type": "text"
+          },
+          {
+            "field": "zero_change",
+            "label": "Zero-score change",
+            "format": "number",
+            "movement": true
+          },
+          {
+            "field": "interpretation",
+            "label": "Interpretation",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "analogue_spot_checks",
+        "title": "Representative similar-query spot checks",
+        "subtitle": "P / F / D are promoted-primary, profile, and dense ranks. Historical attempts are not treated as correct answers.",
+        "dataset": "analogue_spot_checks",
+        "sourceId": "sparse_cases",
+        "defaultSort": {
+          "field": "case",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "case",
+            "label": "Target case",
+            "type": "text"
+          },
+          {
+            "field": "official_positive",
+            "label": "Official sole positive",
+            "type": "text"
+          },
+          {
+            "field": "ranks",
+            "label": "P / F / D ranks",
+            "type": "text"
+          },
+          {
+            "field": "similar_query_evidence",
+            "label": "Closest useful evidence",
+            "type": "text"
+          },
+          {
+            "field": "assessment",
+            "label": "What it tells us",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "all_analogue_cases",
+        "title": "All 75 sole-positive failure cases",
+        "subtitle": "Sanitized case-level evidence; no development-target responses or raw historical responses are included.",
+        "dataset": "all_analogue_cases",
+        "sourceId": "all_sparse_cases",
+        "defaultSort": {
+          "field": "primary_rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "columns": [
+          {
+            "field": "query_text",
+            "label": "Target query",
+            "type": "text"
+          },
+          {
+            "field": "official_positive",
+            "label": "Official sole positive",
+            "type": "text"
+          },
+          {
+            "field": "evidence_bucket",
+            "label": "Evidence screen",
+            "type": "text"
+          },
+          {
+            "field": "cause",
+            "label": "Primary failure explanation",
+            "type": "text"
+          },
+          {
+            "field": "interpretive_archetype",
+            "label": "Spot-check archetype",
+            "type": "text"
+          },
+          {
+            "field": "primary_rank",
+            "label": "Primary rank",
+            "format": "number"
+          },
+          {
+            "field": "profile_rank",
+            "label": "Profile rank",
+            "format": "number"
+          },
+          {
+            "field": "dense_rank",
+            "label": "Dense rank",
+            "format": "number"
+          },
+          {
+            "field": "nearest_dev_query_text",
+            "label": "Closest MPNet development query",
+            "type": "text"
+          },
+          {
+            "field": "same_positive",
+            "label": "Closest query shares positive?",
+            "type": "text"
+          },
+          {
+            "field": "official_top3_attempts",
+            "label": "Official attempts / 3 discovery analogues",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "fusion_weight_tradeoff",
+        "title": "Static profile-to-dense weight sensitivity",
+        "subtitle": "Post-qrel sensitivity over all 322 queries; losses are relative to the 105 other sole-positive queries solved by equal fusion.",
+        "dataset": "fusion_weight_tradeoff",
+        "sourceId": "failure_causes",
+        "defaultSort": {
+          "field": "profile_dense_ratio",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "profile_dense_ratio",
+            "label": "Profile / dense weight",
+            "format": "number"
+          },
+          {
+            "field": "fusion_21_recovered",
+            "label": "Fusion cases recovered",
+            "format": "number"
+          },
+          {
+            "field": "previous_successes_lost",
+            "label": "Prior successes lost",
+            "format": "number"
+          },
+          {
+            "field": "all_query_ndcg_at_10",
+            "label": "All-query nDCG@10",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "no_signal_archetypes",
+        "title": "Manual archetypes within the 54 no-signal failures",
+        "subtitle": "Structured spot-check interpretation of query text, candidate handle, and released history; not an assessor-rationale label.",
+        "dataset": "no_signal_archetypes",
+        "sourceId": "failure_causes",
+        "defaultSort": {
+          "field": "query_count",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "archetype",
+            "label": "Archetype",
+            "type": "text"
+          },
+          {
+            "field": "query_count",
+            "label": "Queries",
+            "format": "number"
+          },
+          {
+            "field": "share_pct",
+            "label": "Share of 54 (%)",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "experiment_systems",
+        "label": "Experiment systems ledger",
+        "path": "reports/trec_2026_experiment_systems.tsv",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "description": "Reproduces the bounded, reviewed system rows plotted in this report from ledger values.",
+          "sql": "WITH systems(method, ndcg_at_10, mrr, zero_count, status) AS (VALUES ('TF-IDF query',0.217654,0.277696,NULL,'Stable/control'),('Response sum-score',0.277358,0.317533,NULL,'Valid negative'),('Contextual E5',0.334722,0.386566,120,'Stable/control'),('Dense query kNN',0.359855,0.404063,116,'Stable/control'),('Profile-only',0.414924,0.441698,92,'Stable/control'),('Dense + profile',0.420214,0.453017,99,'Promoted'),('Multiresolution X1',0.436409,0.464610,83,'Diagnostic only'),('Profile-heavy',0.437630,0.469991,91,'Diagnostic only')) SELECT * FROM systems;",
+          "filters": [
+            "Eight decision-relevant systems from the 98-system ledger."
+          ],
+          "metric_definitions": [
+            "nDCG@10 and MRR are macro means over the same 322 development queries where per-query custody exists."
+          ],
+          "tables_used": [
+            "reports/trec_2026_experiment_systems.tsv"
+          ]
+        }
+      },
+      {
+        "id": "per_query",
+        "label": "Per-query experiment ledger",
+        "path": "reports/trec_2026_experiment_per_query.tsv",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "description": "Reproduces the reviewed paired-comparison summary after deterministic 10,000-sample query bootstrap analysis.",
+          "sql": "WITH comparisons(comparison, delta_ndcg, ci_95, wins_ties_losses, zero_change, interpretation) AS (VALUES ('Dense + profile vs dense',0.060359,'[0.0389, 0.0820]','132 / 135 / 55',-17,'Clear improvement'),('Dense + profile vs profile-only',0.005290,'[-0.0202, 0.0306]','107 / 122 / 93',7,'Not convincing; more failures'),('Profile-heavy vs profile-only',0.022705,'[0.0015, 0.0438]','111 / 141 / 70',-1,'Promising, diagnostic-only'),('Multiresolution vs profile-only',0.021485,'[-0.0039, 0.0472]','111 / 121 / 90',-9,'Promising sparse behavior; diagnostic-only')) SELECT * FROM comparisons;",
+          "filters": [
+            "Paired on all 322 queries; bootstrap seed 20260717."
+          ],
+          "metric_definitions": [
+            "Delta nDCG@10 is the mean paired query-level difference. Zero change is comparison-system zeros minus baseline zeros."
+          ],
+          "tables_used": [
+            "reports/trec_2026_experiment_per_query.tsv"
+          ]
+        }
+      },
+      {
+        "id": "density_slices",
+        "label": "Relevant-candidate density slices",
+        "path": "reports/trec_2026_experiment_density_slices.tsv",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "description": "Reproduces the 12 reviewed system-by-density rows plotted in this report.",
+          "sql": "WITH density(density_bucket, system, ndcg_at_10, query_count, zero_count) AS (VALUES ('<=5 positives','Profile',0.377881,248,89),('<=5 positives','Equal fusion',0.377873,248,94),('<=5 positives','Profile-heavy*',0.399365,248,87),('<=5 positives','Multires*',0.402011,248,80),('6-20 positives','Profile',0.303257,30,3),('6-20 positives','Equal fusion',0.310780,30,5),('6-20 positives','Profile-heavy*',0.323786,30,4),('6-20 positives','Multires*',0.294312,30,3),('>20 positives','Profile',0.699850,44,0),('>20 positives','Equal fusion',0.733476,44,0),('>20 positives','Profile-heavy*',0.730923,44,0),('>20 positives','Multires*',0.727173,44,0)) SELECT * FROM density;",
+          "filters": [
+            "All 322 development queries, grouped by qrel-derived relevant-candidate count."
+          ],
+          "metric_definitions": [
+            "Each density-row nDCG@10 is the macro mean within the stated qrel-density bucket."
+          ],
+          "tables_used": [
+            "reports/trec_2026_experiment_density_slices.tsv"
+          ]
+        }
+      },
+      {
+        "id": "clustering_preflight",
+        "label": "Matched-support clustering preflight",
+        "path": "reports/issue_13_matched_support_preflight.json"
+      },
+      {
+        "id": "ledger_narrative",
+        "label": "Experiment ledger and caveats",
+        "path": "reports/trec_2026_experiment_ledger.md"
+      },
+      {
+        "id": "sparse_analogue",
+        "label": "Sparse-failure analogue diagnostic",
+        "path": "reports/trec_2026_sparse_failure_analogue_diagnostic.json",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "description": "Reproduces the 75-query slice, MPNet analogue retrieval, component states, refusal flags, and deterministic evidence screen.",
+          "sql": "WITH evidence(bucket, query_count, share_pct) AS (VALUES ('Strong / corroborated',11,14.7),('Weak / non-unique',34,45.3),('Not predictably identifiable',30,40.0)) SELECT * FROM evidence;",
+          "filters": [
+            "Promoted-run nDCG@10 = 0.",
+            "Exactly one candidate has qrel grade > 0."
+          ],
+          "metric_definitions": [
+            "Strong/weak/not are deterministic screening flags, not correctness judgments.",
+            "Attempt means the historical response is not an exact default refusal."
+          ],
+          "tables_used": [
+            "data/dev/llm_dev_data.tsv",
+            "data/dev/llm_dev_qrels.txt",
+            "data/dev/llm_discovery_data.json",
+            "reports/trec_2026_candidate_semantic_profiles_query_explorer.html"
+          ]
+        }
+      },
+      {
+        "id": "neighbor_transfer",
+        "label": "Leave-one-out similar-query transfer",
+        "path": "reports/trec_2026_sparse_failure_neighbor_transfer.tsv",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "description": "Receipt from a transfer of grades from the other 321 development queries across eight representations; the original producer was not retained.",
+          "sql": "WITH transfer(representation,k,hit_at_10,mrr,median_official_rank) AS (VALUES ('Word TF-IDF unigram',5,6,0.0672,70),('Word TF-IDF 1-2 gram',3,7,0.0562,79),('Character TF-IDF 3-5',20,4,0.0265,75),('MiniLM-L6',10,6,0.0523,71),('E5-small-v2',1,7,0.0653,78),('BGE-small',5,5,0.0601,59),('MPNet-base-v2',1,7,0.0548,78),('E5-Mistral contextual',3,10,0.0997,72)) SELECT * FROM transfer;",
+          "filters": [
+            "Same 75 sole-positive promoted-run failures.",
+            "Target qrels excluded from every prediction.",
+            "Receipt-only: rerun before using these rows for model selection."
+          ],
+          "metric_definitions": [
+            "Hit@10 counts targets whose official positive is ranked 1-10.",
+            "Best inspected k is post-hoc and not an unbiased model-selection estimate."
+          ],
+          "tables_used": [
+            "data/dev/llm_dev_data.tsv",
+            "data/dev/llm_dev_qrels.txt"
+          ]
+        }
+      },
+      {
+        "id": "sparse_cases",
+        "label": "All 75 sole-positive failure cases",
+        "path": "reports/trec_2026_sparse_failure_analogue_cases.tsv",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "description": "Reproduces the eight representative rows selected from the complete 75-case diagnostic table.",
+          "sql": "WITH examples(case_name,official_positive,ranks,evidence,assessment) AS (VALUES ('Pizza-chain count','Companies','22 / 2 / 117','Several pizza-chain comparisons','Strong profile signal diluted'),('Riemann short-interval primes','Fields_of_mathematics','16 / 1 / 100','Prime-related profile centroid','Strong profile signal diluted'),('House location by county','Technology_systems','12 / 17 / 30','Near-template query with same positive','Small coherent pocket'),('Chopin festival companion','Politics_by_location','59 / 27 / 116','Chopin history is non-unique','Plausible but not identifiable'),('Zinnia versus Pachypodium','Education','60 / 103 / 37','Plant analogue labels Flora and Organisms','Counter-domain'),('Documentary release order','Food_and_drink_by_country','96 / 78 / 89','Documentary analogue labels Culture_stubs','Conflicting label'),('Which film is book-based?','Cuisine','129 / 114 / 119','No relevant Cuisine history','Deep counter-domain miss'),('What is that determination based on?','Social_groups','45 / 79 / 28','No antecedent in released text','Under-specified')) SELECT * FROM examples;",
+          "filters": [
+            "Eight representative cases selected to cover coherent, ambiguous, counter-domain, and under-specified patterns."
+          ],
+          "metric_definitions": [
+            "Ranks are promoted-primary / profile / dense."
+          ],
+          "tables_used": [
+            "reports/trec_2026_sparse_failure_analogue_cases.tsv"
+          ]
+        }
+      },
+      {
+        "id": "all_sparse_cases",
+        "label": "Complete sanitized 75-case failure-cause table",
+        "path": "reports/trec_2026_sparse_failure_cause_cases.tsv",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Joins the sanitized analogue and causal case tables in primary-rank order.",
+          "sql": "SELECT a.query_text, a.official_positive, a.evidence_bucket, c.cause_bucket, c.interpretive_archetype, CAST(a.primary_rank AS INTEGER) AS primary_rank, CAST(a.profile_rank AS INTEGER) AS profile_rank, CAST(a.dense_rank AS INTEGER) AS dense_rank, a.nearest_dev_query_text, a.nearest_dev_has_official_positive, CAST(a.official_top3_attempts AS INTEGER) AS official_top3_attempts FROM read_csv_auto('reports/trec_2026_sparse_failure_analogue_cases.tsv', delim='\\t', header=true) a JOIN read_csv_auto('reports/trec_2026_sparse_failure_cause_cases.tsv', delim='\\t', header=true) c USING (query_id) ORDER BY primary_rank;",
+          "filters": [
+            "Promoted-run nDCG@10 = 0.",
+            "Exactly one qrel grade is greater than zero.",
+            "Raw discovery responses excluded from the table."
+          ],
+          "metric_definitions": [
+            "Evidence screen is the deterministic strong/weak/not upper-bound flag.",
+            "Official attempts count non-exact refusals over the top three MPNet discovery analogues."
+          ],
+          "tables_used": [
+            "reports/trec_2026_sparse_failure_analogue_cases.tsv",
+            "reports/trec_2026_sparse_failure_cause_cases.tsv"
+          ]
+        }
+      },
+      {
+        "id": "failure_causes",
+        "label": "Sparse-failure causal decomposition",
+        "path": "reports/trec_2026_sparse_failure_cause_diagnostic.json",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "description": "Exactly reproduces equal reciprocal-rank fusion, decomposes the 21/54 cohorts, and runs a post-qrel weight sensitivity grid.",
+          "sql": "SELECT cohort, cause_bucket, COUNT(*) AS query_count FROM read_csv_auto('reports/trec_2026_sparse_failure_cause_cases.tsv', delim='\\t', header=true) GROUP BY cohort, cause_bucket;",
+          "filters": [
+            "Promoted equal-RRF nDCG@10 reproduced with raw graded gains.",
+            "Same 75 sole-positive zero-nDCG failures."
+          ],
+          "metric_definitions": [
+            "Fusion cause is exact rank arithmetic.",
+            "No-signal causes are deterministic evidence proxies, not qrel-error labels.",
+            "Manual archetypes are structured spot-check interpretations."
+          ],
+          "tables_used": [
+            "reports/trec_2026_sparse_failure_cause_cases.tsv",
+            "reports/trec_2026_sparse_failure_weight_sensitivity.tsv",
+            "reports/trec_2026_candidate_semantic_profiles_query_explorer.html"
+          ]
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "report_title",
+        "type": "markdown",
+        "body": "# TREC 2026: why ranking performance has plateaued"
+      },
+      {
+        "id": "executive_summary",
+        "type": "markdown",
+        "body": "## Executive summary\n\n- **The 21 fusion misses are cross-component vetoes.** In every case, one component ranks the official positive in its top ten while the other ranks it 21\u2013150. Equal reciprocal-rank fusion rewards candidates with moderate support in both inputs and suppresses the unilateral hit.\n- **No global weight protects both directions.** The 18 profile-only recoveries require profile/dense weight above 1.30; the three dense-only recoveries require it below 0.78. Profile-heavy weights recover more failures but lose previously solved sole-positive queries.\n- **The 54 no-signal misses mostly lack or contradict released evidence.** Seven are ranks 11\u201320 in one input, 24 have no close attempted history, and 23 have historical activity whose nearby development labels point elsewhere.\n- **Decision:** test a fold-local, query-conditional component-protection gate. Treat the other 54 as evidence and label-provenance work, not another static fusion sweep."
+      },
+      {
+        "id": "where_bad",
+        "type": "markdown",
+        "body": "## Where we are doing badly\n\n1. **Sparse, brittle queries.** The promoted run scores zero on 94 of 248 queries with five or fewer positives. Among the 180 single-positive queries, 75 score zero. This is the main measurable failure mode.\n2. **Fusion does not beat the right baseline.** Equal dense/profile fusion is clearly better than dense retrieval, but it is effectively tied with profile-only and has seven more zero-score queries.\n3. **One fixed mixture is wrong for heterogeneous queries.** The same fusion loses to profile-only in slices such as Fields of mathematics and Linguistics, while winning in Culture stubs, Food and drink, and Technology. The topic slices overlap and are diagnostic, but the sign changes are consistent with query-dependent weighting.\n4. **Raw response matching is weak.** Response sum-score retrieval reaches only 0.2774, while aggregated profile semantics reach 0.4149. The current value is in profile construction, not unfiltered response similarity.\n5. **Diagnosis is still incomplete for most experiments.** Only 11 of 98 tracked systems have complete per-query evidence, so many historical ideas cannot be compared on hard queries, density, or topic slices."
+      },
+      {
+        "id": "system_chart",
+        "type": "chart",
+        "chartId": "system_ndcg"
+      },
+      {
+        "id": "system_chart_readout",
+        "type": "markdown",
+        "sourceId": "experiment_systems",
+        "body": "The stable evidence says profile construction matters. The 0.4376 profile-heavy and 0.4364 multiresolution results are promising directions, but they are post-hoc/non-independent diagnostics on the same seen queries. They justify one controlled follow-up, not a claim that the problem is solved."
+      },
+      {
+        "id": "density_chart",
+        "type": "chart",
+        "chartId": "density_ndcg"
+      },
+      {
+        "id": "density_chart_readout",
+        "type": "markdown",
+        "sourceId": "density_slices",
+        "body": "Dense queries with more than 20 relevant candidates are already easy: the promoted run reaches 0.7335 with no zero scores. The sparse majority is the binding problem, and equal fusion does not improve its average nDCG over profile-only. Multiresolution reduces sparse zero scores directionally, from 89 for profile-only to 80, but that result is diagnostic-only."
+      },
+      {
+        "id": "comparison_table",
+        "type": "table",
+        "tableId": "paired_comparisons"
+      },
+      {
+        "id": "analogue_answer",
+        "type": "markdown",
+        "sourceId": "sparse_analogue",
+        "body": "## Similar questions expose only a small predictable pocket\n\nThe released evidence would let a blinded reviewer confidently nominate the official sole positive in only a small minority of these failures. The deterministic screen flags **11/75 (14.7%)** as strong or corroborated, **34/75 (45.3%)** as weak or non-unique, and **30/75 (40.0%)** as not predictably identifiable. Because profile rank 1\u20133 alone earns a strong flag, the 11 should be treated as an upper bound\u2014not as 11 verified correct historical experts."
+      },
+      {
+        "id": "analogue_bucket_chart",
+        "type": "chart",
+        "chartId": "analogue_evidence_buckets"
+      },
+      {
+        "id": "analogue_bucket_readout",
+        "type": "markdown",
+        "sourceId": "sparse_analogue",
+        "body": "The misses deepen with rank. None of the 12 official positives at primary ranks 101\u2013150 receives a strong flag. Historical discovery behavior is also non-discriminative: across the three closest MPNet discovery analogues per target, the official positives attempt **36/225** responses, versus **50/225** for the profile-ranked leader. An attempt is only a non-exact refusal; it may still be irrelevant or wrong."
+      },
+      {
+        "id": "neighbor_coherence",
+        "type": "markdown",
+        "sourceId": "neighbor_transfer",
+        "body": "## Changing the query encoder does not repair label coherence\n\nAn exploratory receipt from transfer over the other 321 development queries reports a highest pure one-neighbor label agreement of **12/75**. Its most optimistic post-hoc configuration\u2014contextual E5-Mistral with three neighbors\u2014places only **10/75** official positives in the top ten and leaves the median official candidate at rank 72. The original sweep producer was not retained, so these values must be rerun before system selection."
+      },
+      {
+        "id": "neighbor_transfer_chart",
+        "type": "chart",
+        "chartId": "neighbor_transfer_hit10"
+      },
+      {
+        "id": "neighbor_transfer_readout",
+        "type": "markdown",
+        "sourceId": "neighbor_transfer",
+        "body": "The exploratory receipt reports that across all eight representations, **37/75** targets have no nearest-neighbor label agreement at all. This is hypothesis-generating evidence\u2014not a reproducible gate. Small template-level pockets may transfer cleanly, but a fresh preregistered rerun is required before concluding that broad nearest-query tuning cannot help."
+      },
+      {
+        "id": "two_failure_modes",
+        "type": "markdown",
+        "sourceId": "failure_causes",
+        "body": "## Reciprocal-rank fusion vetoes unilateral evidence in all 21 cases\n\nThe promoted system sums `1 / (60 + rank)` from profile and dense inputs. In the **18 profile-only** and **3 dense-only** failures, the supporting component ranks the positive 1\u201310, but the opposing component always ranks it 21\u2013150. Ten positives are top-three in their supporting component; 18 face an opposing rank of 51\u2013150. This is exact rank arithmetic\u2014not raw-score calibration drift.\n\nThe equal-fusion deficit to rank ten ranges from 0.000647 to 0.005264. Only six cases finish at ranks 11\u201315; ten fall below rank 20. The other input is therefore acting as a strong veto, not merely nudging a borderline candidate."
+      },
+      {
+        "id": "failure_cause_chart",
+        "type": "chart",
+        "chartId": "failure_cause_proxies"
+      },
+      {
+        "id": "failure_cause_readout",
+        "type": "markdown",
+        "sourceId": "failure_causes",
+        "body": "For the **54** cases with no component top-ten hit, the chart uses deterministic released-evidence proxies rather than inferred assessor intent. Seven are near-component misses at ranks 11\u201320. Twenty-four are outside the top 20, have zero official-candidate attempts on the three closest discovery analogues, and have no attempted lexical analogue at similarity 0.10. The remaining 23 have some historical evidence, but the nearest development label set excludes the official positive.\n\nAcross the 54, **37** official positives attempt none of their three closest discovery analogues, **49** are absent from the nearest development query's positive labels, and only one receives the earlier strong-evidence flag. These measurements explain why neither input can surface the label; they do not prove the label is incorrect."
+      },
+      {
+        "id": "weight_tradeoff_heading",
+        "type": "markdown",
+        "sourceId": "failure_causes",
+        "body": "## A static weight can move the failures, but cannot protect both components\n\nEvery profile-only recovery needs a profile/dense ratio above **1.30**. Every dense-only recovery needs a ratio below **0.78**. Those recovery regions do not overlap. A profile-heavy ratio of 2 recovers 10 of the 21 but loses five of the 105 other sole-positive successes; a ratio of 3 recovers 14 and loses eight. The higher development nDCG is post-qrel sensitivity evidence, not an unbiased selection result."
+      },
+      {
+        "id": "fusion_weight_tradeoff_table",
+        "type": "table",
+        "tableId": "fusion_weight_tradeoff"
+      },
+      {
+        "id": "archetype_heading",
+        "type": "markdown",
+        "sourceId": "failure_causes",
+        "body": "## Opaque profiles dominate the human-readable pattern in the 54\n\nA structured spot check assigns one interpretive archetype per no-signal query. **30/54** have a counter-domain or opaque official profile under the released query text and history. Seven require obscure entity or multi-hop resolution; six have a surface/topic collision where the wrapper and requested answer type favor different candidates; four are under-specified and lack an antecedent. The smaller buckets are history coverage, semantic granularity, and one local refusal gap.\n\nThis layer is intentionally labeled interpretive. Candidate handles are model identifiers, not assessor explanations, and the actual target responses are unavailable."
+      },
+      {
+        "id": "no_signal_archetypes_table",
+        "type": "table",
+        "tableId": "no_signal_archetypes"
+      },
+      {
+        "id": "spot_checks_heading",
+        "type": "markdown",
+        "body": "## Spot checks show both coherent templates and counter-domain labels\n\nThe cases below are deliberately mixed. A few have an interpretable component or near-template signal; several high-similarity analogues carry a different official positive; and some targets are missing the context needed to route them."
+      },
+      {
+        "id": "analogue_spot_check_table",
+        "type": "table",
+        "tableId": "analogue_spot_checks"
+      },
+      {
+        "id": "spot_checks_readout",
+        "type": "markdown",
+        "sourceId": "sparse_cases",
+        "body": "The counterexamples matter more than any one surprising label. Plant, film, music, and documentary targets often retrieve highly similar questions whose positives disagree with the target's sole positive. That does not prove the qrels are wrong: candidate IDs are model identifiers, not canonical topics. It does show why target text plus released history often cannot uniquely predict the organizer's label."
+      },
+      {
+        "id": "all_cases_heading",
+        "type": "markdown",
+        "body": "## Inspect every sole-positive failure\n\nThe complete table keeps the target, official positive, primary failure explanation, interpretive archetype, three frozen ranks, closest MPNet development analogue, same-positive indicator, and historical attempt count together. Use it to move from the aggregate diagnosis into any of the 75 individual cases without exposing the unavailable target responses or raw discovery-response text."
+      },
+      {
+        "id": "all_analogue_cases_table",
+        "type": "table",
+        "tableId": "all_analogue_cases"
+      },
+      {
+        "id": "next_step",
+        "type": "markdown",
+        "body": "## Recommended next experiment\n\nRun one **fold-local, query-conditional component-protection gate**, then decide whether richer evidence collection is justified.\n\n1. Detect unilateral evidence without qrels: top-ten disagreement, component margin, profile support, query completeness, entity-match strength, and whether the opposing component has corroborating head candidates.\n2. Protect or lightly boost a high-margin unilateral candidate. Do not choose one global profile/dense ratio: the verified recovery regions for profile-only and dense-only misses are incompatible.\n3. Evaluate all 322 queries with nested or fold-local fitting. Report recoveries and regressions separately for the 21 fusion-veto cases, the 54 no-signal cases, and the other 247 queries.\n4. For the 54, prioritize the 24 history gaps and six surface collisions for an entity-aware retrieval or response-judging pilot. Treat the 30 opaque-profile cases as a label-provenance question until target responses or assessor rationale become available.\n\n**Pass gates:** paired nDCG@10 improvement over profile-only with the 95% interval above zero; fewer than 75 single-positive zero scores; no more than 92 overall zeros; no degradation in the 6\u201320 and >20 density buckets; and no use of held-out qrels in features, tuning, or selection.\n\nDo not call attempt, length, or confidence \u201creliability.\u201d Without correctness labels, they remain behavior or evidence-quality features."
+      },
+      {
+        "id": "why_not_clusters",
+        "type": "markdown",
+        "body": "## Why clustering is not next\n\nHard query clusters have already failed the relevant controlled check: k=20 scored 0.2902 versus 0.3395 for matched neighbors, and k=40 scored 0.2866 versus 0.3282. Clustering discards useful local variation.\n\nA **router** is different: it chooses weights per query without forcing queries into one hard semantic bucket. An oracle over dense, profile-only, and equal fusion reaches 0.5116, showing complementarity exists\u2014but that number uses qrels after the fact and is only an upper-bound diagnostic. Any router must use qrel-free features and nested/fold-local evaluation."
+      },
+      {
+        "id": "questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- How were the 2026 expertise labels produced, and can the organizers share the rubric or anonymized judgment provenance even if target responses remain private?\n- Which of the 21 component-hit cases can a qrel-free margin gate protect without harming the full 322-query ranking?\n- Can organizer provenance explain the 30 counter-domain or opaque-profile cases and the two coherent county-template labels?\n- Can a small human- or reference-audited discovery subset distinguish factual quality from mere non-refusal and verbosity?\n- Can future runs write complete per-query rankings and evidence by default so every failure remains diagnosable?"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "body": "## Caveats\n\nThe actual 150 candidate responses to the development target queries are unavailable, so no spot check can verify whether the official positive answered its target correctly. The 2026 assessor, rubric, prompt, reference answer, and grading pipeline are undocumented. Candidate IDs are model identifiers rather than canonical query topics.\n\nAll development-label analyses are post-hoc. The best neighbor count, representation, weight ratio, and manual archetype taxonomy are diagnostic\u2014not unbiased test estimates or assessor explanations. Historical responses are attempts, not correctness labels; longer or non-refusing answers can still be wrong. The strong/weak/not screen is deterministic and intentionally generous, with profile rank 1\u20133 sufficient for a strong flag. Qrel-derived density, cause proxies, and evidence buckets are valid evaluation slices, not online router features."
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-25T19:05:36Z",
+    "status": "ready",
+    "datasets": {
+      "systems": [
+        {
+          "method": "TF-IDF query",
+          "ndcg_at_10": 0.217654,
+          "mrr": 0.277696,
+          "zero_count": null,
+          "status": "Stable/control"
+        },
+        {
+          "method": "Response sum-score",
+          "ndcg_at_10": 0.277358,
+          "mrr": 0.317533,
+          "zero_count": null,
+          "status": "Valid negative"
+        },
+        {
+          "method": "Contextual E5",
+          "ndcg_at_10": 0.334722,
+          "mrr": 0.386566,
+          "zero_count": 120,
+          "status": "Stable/control"
+        },
+        {
+          "method": "Dense query kNN",
+          "ndcg_at_10": 0.359855,
+          "mrr": 0.404063,
+          "zero_count": 116,
+          "status": "Stable/control"
+        },
+        {
+          "method": "Profile-only",
+          "ndcg_at_10": 0.414924,
+          "mrr": 0.441698,
+          "zero_count": 92,
+          "status": "Stable/control"
+        },
+        {
+          "method": "Dense + profile",
+          "ndcg_at_10": 0.420214,
+          "mrr": 0.453017,
+          "zero_count": 99,
+          "status": "Promoted"
+        },
+        {
+          "method": "Multiresolution X1",
+          "ndcg_at_10": 0.436409,
+          "mrr": 0.46461,
+          "zero_count": 83,
+          "status": "Diagnostic only"
+        },
+        {
+          "method": "Profile-heavy",
+          "ndcg_at_10": 0.43763,
+          "mrr": 0.469991,
+          "zero_count": 91,
+          "status": "Diagnostic only"
+        }
+      ],
+      "density": [
+        {
+          "density_bucket": "\u22645 positives",
+          "system": "Profile",
+          "ndcg_at_10": 0.377881,
+          "query_count": 248,
+          "zero_count": 89
+        },
+        {
+          "density_bucket": "\u22645 positives",
+          "system": "Equal fusion",
+          "ndcg_at_10": 0.377873,
+          "query_count": 248,
+          "zero_count": 94
+        },
+        {
+          "density_bucket": "\u22645 positives",
+          "system": "Profile-heavy*",
+          "ndcg_at_10": 0.399365,
+          "query_count": 248,
+          "zero_count": 87
+        },
+        {
+          "density_bucket": "\u22645 positives",
+          "system": "Multires*",
+          "ndcg_at_10": 0.402011,
+          "query_count": 248,
+          "zero_count": 80
+        },
+        {
+          "density_bucket": "6\u201320 positives",
+          "system": "Profile",
+          "ndcg_at_10": 0.303257,
+          "query_count": 30,
+          "zero_count": 3
+        },
+        {
+          "density_bucket": "6\u201320 positives",
+          "system": "Equal fusion",
+          "ndcg_at_10": 0.31078,
+          "query_count": 30,
+          "zero_count": 5
+        },
+        {
+          "density_bucket": "6\u201320 positives",
+          "system": "Profile-heavy*",
+          "ndcg_at_10": 0.323786,
+          "query_count": 30,
+          "zero_count": 4
+        },
+        {
+          "density_bucket": "6\u201320 positives",
+          "system": "Multires*",
+          "ndcg_at_10": 0.294312,
+          "query_count": 30,
+          "zero_count": 3
+        },
+        {
+          "density_bucket": ">20 positives",
+          "system": "Profile",
+          "ndcg_at_10": 0.69985,
+          "query_count": 44,
+          "zero_count": 0
+        },
+        {
+          "density_bucket": ">20 positives",
+          "system": "Equal fusion",
+          "ndcg_at_10": 0.733476,
+          "query_count": 44,
+          "zero_count": 0
+        },
+        {
+          "density_bucket": ">20 positives",
+          "system": "Profile-heavy*",
+          "ndcg_at_10": 0.730923,
+          "query_count": 44,
+          "zero_count": 0
+        },
+        {
+          "density_bucket": ">20 positives",
+          "system": "Multires*",
+          "ndcg_at_10": 0.727173,
+          "query_count": 44,
+          "zero_count": 0
+        }
+      ],
+      "comparisons": [
+        {
+          "comparison": "Dense + profile vs dense",
+          "delta_ndcg": 0.060359,
+          "ci_95": "[0.0389, 0.0820]",
+          "wins_ties_losses": "132 / 135 / 55",
+          "zero_change": -17,
+          "interpretation": "Clear improvement"
+        },
+        {
+          "comparison": "Dense + profile vs profile-only",
+          "delta_ndcg": 0.00529,
+          "ci_95": "[\u22120.0202, 0.0306]",
+          "wins_ties_losses": "107 / 122 / 93",
+          "zero_change": 7,
+          "interpretation": "Not convincing; more failures"
+        },
+        {
+          "comparison": "Profile-heavy vs profile-only",
+          "delta_ndcg": 0.022705,
+          "ci_95": "[0.0015, 0.0438]",
+          "wins_ties_losses": "111 / 141 / 70",
+          "zero_change": -1,
+          "interpretation": "Promising, diagnostic-only"
+        },
+        {
+          "comparison": "Multiresolution vs profile-only",
+          "delta_ndcg": 0.021485,
+          "ci_95": "[\u22120.0039, 0.0472]",
+          "wins_ties_losses": "111 / 121 / 90",
+          "zero_change": -9,
+          "interpretation": "Promising sparse behavior; diagnostic-only"
+        }
+      ],
+      "analogue_evidence_buckets": [
+        {
+          "bucket": "Strong / corroborated",
+          "query_count": 11,
+          "share_pct": 14.7
+        },
+        {
+          "bucket": "Weak / non-unique",
+          "query_count": 34,
+          "share_pct": 45.3
+        },
+        {
+          "bucket": "Not predictably identifiable",
+          "query_count": 30,
+          "share_pct": 40.0
+        }
+      ],
+      "neighbor_transfer_best": [
+        {
+          "representation": "Word TF-IDF unigram",
+          "k": 5,
+          "hit_at_10": 6,
+          "mrr": 0.0672,
+          "median_official_rank": 70
+        },
+        {
+          "representation": "Word TF-IDF 1-2 gram",
+          "k": 3,
+          "hit_at_10": 7,
+          "mrr": 0.0562,
+          "median_official_rank": 79
+        },
+        {
+          "representation": "Character TF-IDF 3-5",
+          "k": 20,
+          "hit_at_10": 4,
+          "mrr": 0.0265,
+          "median_official_rank": 75
+        },
+        {
+          "representation": "MiniLM-L6",
+          "k": 10,
+          "hit_at_10": 6,
+          "mrr": 0.0523,
+          "median_official_rank": 71
+        },
+        {
+          "representation": "E5-small-v2",
+          "k": 1,
+          "hit_at_10": 7,
+          "mrr": 0.0653,
+          "median_official_rank": 78
+        },
+        {
+          "representation": "BGE-small",
+          "k": 5,
+          "hit_at_10": 5,
+          "mrr": 0.0601,
+          "median_official_rank": 59
+        },
+        {
+          "representation": "MPNet-base-v2",
+          "k": 1,
+          "hit_at_10": 7,
+          "mrr": 0.0548,
+          "median_official_rank": 78
+        },
+        {
+          "representation": "E5-Mistral contextual",
+          "k": 3,
+          "hit_at_10": 10,
+          "mrr": 0.0997,
+          "median_official_rank": 72
+        }
+      ],
+      "analogue_spot_checks": [
+        {
+          "case": "Pizza-chain count",
+          "official_positive": "Companies",
+          "ranks": "22 / 2 / 117",
+          "similar_query_evidence": "Several pizza-chain comparisons; best five-analogue score among all candidates",
+          "assessment": "Strong profile signal diluted by fusion"
+        },
+        {
+          "case": "Riemann short-interval primes",
+          "official_positive": "Fields_of_mathematics",
+          "ranks": "16 / 1 / 100",
+          "similar_query_evidence": "Prime-related profile centroid; little close lexical history",
+          "assessment": "Strong semantic profile signal diluted by fusion"
+        },
+        {
+          "case": "House location by county",
+          "official_positive": "Technology_systems",
+          "ranks": "12 / 17 / 30",
+          "similar_query_evidence": "Near-template development query has the same sole positive",
+          "assessment": "Small pocket of label coherence; still missed at rank 12"
+        },
+        {
+          "case": "Chopin festival companion",
+          "official_positive": "Politics_by_location",
+          "ranks": "59 / 27 / 116",
+          "similar_query_evidence": "Chopin history exists, but Popular_music has equally direct evidence",
+          "assessment": "Plausible but not uniquely identifiable"
+        },
+        {
+          "case": "Zinnia versus Pachypodium",
+          "official_positive": "Education",
+          "ranks": "60 / 103 / 37",
+          "similar_query_evidence": "Closest plant-genus query labels Flora and Organisms, not Education",
+          "assessment": "Counter-domain; not predictable"
+        },
+        {
+          "case": "Documentary release order",
+          "official_positive": "Food_and_drink_by_country",
+          "ranks": "96 / 78 / 89",
+          "similar_query_evidence": "Closest documentary comparison labels Culture_stubs",
+          "assessment": "Strong semantic similarity, conflicting label"
+        },
+        {
+          "case": "Which film is book-based?",
+          "official_positive": "Cuisine",
+          "ranks": "129 / 114 / 119",
+          "similar_query_evidence": "No relevant Cuisine history; media candidates have direct film/book evidence",
+          "assessment": "Deep counter-domain miss; not predictable"
+        },
+        {
+          "case": "What is that determination based on?",
+          "official_positive": "Social_groups",
+          "ranks": "45 / 79 / 28",
+          "similar_query_evidence": "No antecedent in the released query text",
+          "assessment": "Under-specified; historical evidence cannot reconstruct context"
+        }
+      ],
+      "all_analogue_cases": [
+        {
+          "query_text": "Who did Chopin attend the Lower Rhenish Music Festival with?",
+          "official_positive": "Politics_by_location",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 59,
+          "profile_rank": 27,
+          "dense_rank": 116,
+          "nearest_dev_query_text": "Dennis Lyxz\u00e9n and Mark Hunter, are musicians, and what other mutual occupation?",
+          "same_positive": "No",
+          "official_top3_attempts": 3
+        },
+        {
+          "query_text": "Who was the first person to carry the torch in Macao?",
+          "official_positive": "Sports_by_year",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 18,
+          "profile_rank": 8,
+          "dense_rank": 54,
+          "nearest_dev_query_text": "When did Israel host and win the Asian Nations Cup?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Where were the 18th and 19th satellites for the BeiDou system launched from?",
+          "official_positive": "Mathematics",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 75,
+          "profile_rank": 57,
+          "dense_rank": 82,
+          "nearest_dev_query_text": "Yingcheng and Zhangping, are in which country?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "What is that determination based on?",
+          "official_positive": "Social_groups",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Query underspecification",
+          "primary_rank": 45,
+          "profile_rank": 79,
+          "dense_rank": 28,
+          "nearest_dev_query_text": "What survey results complement on data on health status?",
+          "same_positive": "No",
+          "official_top3_attempts": 2
+        },
+        {
+          "query_text": "What other language has a telicity contrast?",
+          "official_positive": "Time",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 30,
+          "profile_rank": 8,
+          "dense_rank": 91,
+          "nearest_dev_query_text": "Who founded autosegmental phonology?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "What gave them a sense of solidarity?",
+          "official_positive": "Foreign_relations_by_country",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Query underspecification",
+          "primary_rank": 77,
+          "profile_rank": 93,
+          "dense_rank": 48,
+          "nearest_dev_query_text": "What societal group derived much of their power from the disparity between classes of people?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Who founded autosegmental phonology?",
+          "official_positive": "Linguistics",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 28,
+          "profile_rank": 1,
+          "dense_rank": 135,
+          "nearest_dev_query_text": "What profession do both Phil Alden Robinson and David Nixon share?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "When did Seattle host the national Poetry Slam Tournament?",
+          "official_positive": "Computing",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 30,
+          "profile_rank": 13,
+          "dense_rank": 94,
+          "nearest_dev_query_text": "What is the currency code for the prize for the Gwen Harwood Poetry Prize?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Most of the Ashkenazi Jews moved away from Europe either immigrating to North America, or other English speaking areas but most to which place?",
+          "official_positive": "Culture_by_country",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 26,
+          "profile_rank": 26,
+          "dense_rank": 38,
+          "nearest_dev_query_text": "Israel is a leading country of what development?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "In what year did the three EI techniques from ISO 12232:1998 largely stop being used?",
+          "official_positive": "Fields_of_mathematics",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 78,
+          "profile_rank": 47,
+          "dense_rank": 108,
+          "nearest_dev_query_text": "When was the Type-C Specification 1.0 finalized?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What was the rejection rate of the quota system by the French speaking part of Switzerland?",
+          "official_positive": "Politics",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "Semantic granularity mismatch",
+          "primary_rank": 46,
+          "profile_rank": 18,
+          "dense_rank": 111,
+          "nearest_dev_query_text": "Most of the Ashkenazi Jews moved away from Europe either immigrating to North America, or other English speaking areas but most to which place?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "What do the routes consist of?",
+          "official_positive": "Governments_of_country_subdivisions",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Query underspecification",
+          "primary_rank": 132,
+          "profile_rank": 108,
+          "dense_rank": 112,
+          "nearest_dev_query_text": "Which route was a central post in Kiev?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "By what time period were the Egyptians constructing  large buildings?",
+          "official_positive": "Entities",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 16,
+          "profile_rank": 59,
+          "dense_rank": 9,
+          "nearest_dev_query_text": "What structures can be viewed as both works of art and symbols of certain cultures?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 2
+        },
+        {
+          "query_text": "What do Plastoglobuli exchange contents with?",
+          "official_positive": "Human_behavior",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 40,
+          "profile_rank": 42,
+          "dense_rank": 49,
+          "nearest_dev_query_text": "What kind of immune system do bacteria have?",
+          "same_positive": "No",
+          "official_top3_attempts": 2
+        },
+        {
+          "query_text": "What type of prime distribution does the Riemann hypothesis propose is also true for short intervals near X?",
+          "official_positive": "Fields_of_mathematics",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 16,
+          "profile_rank": 1,
+          "dense_rank": 100,
+          "nearest_dev_query_text": "Paloma and Monkey Gland, are what type of item?",
+          "same_positive": "No",
+          "official_top3_attempts": 2
+        },
+        {
+          "query_text": "What is the county's payroll?",
+          "official_positive": "Food_and_drink_by_country",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Query underspecification",
+          "primary_rank": 89,
+          "profile_rank": 66,
+          "dense_rank": 92,
+          "nearest_dev_query_text": "What cabinet agency did Eisenhower make Social Security a part of?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "What cabinet agency did Eisenhower make Social Security a part of?",
+          "official_positive": "Health_care",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Surface/topic collision",
+          "primary_rank": 65,
+          "profile_rank": 32,
+          "dense_rank": 92,
+          "nearest_dev_query_text": "What is the county's payroll?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Who wrote 'A Kind of Alaska'?",
+          "official_positive": "Literature",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 15,
+          "profile_rank": 4,
+          "dense_rank": 44,
+          "nearest_dev_query_text": "What was  a novel about a Siberian husky puppy that joins a wolf pack, who's authors husband  wrote a novel about a young girl stranded alone for years on an island off the California coast?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "When was the 'Treatise on the Police' published?",
+          "official_positive": "Writing",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "History coverage gap",
+          "primary_rank": 95,
+          "profile_rank": 66,
+          "dense_rank": 99,
+          "nearest_dev_query_text": "What year saw the publication of Sense without Matter?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "The station WBYY (98.7) is a radio station owned by Binnie Media licensed to which city in Strafford County, New Hampshire?",
+          "official_positive": "Categories_by_medium",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 19,
+          "profile_rank": 41,
+          "dense_rank": 20,
+          "nearest_dev_query_text": "Moose Mountain is an 8 mi -long ridge located in the eastern part of the town of Hanover in Grafton County, New Hampshire, it is traversed by the Appalachian National Scenic Trail, generally known as the Appalachian Trail, a marked hiking trail in the Eastern United States extending between Springer Mountain in Georgia and Mount Katahdin in which state?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Stanislav Smirnov and Georgy Adelson-Velsky, were both what?",
+          "official_positive": "Fields_of_mathematics",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 24,
+          "profile_rank": 1,
+          "dense_rank": 143,
+          "nearest_dev_query_text": "Carl Macek and Darren Aronofsky, are of which nationality?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Which film did Charles Leavitt write that had Leonardo DiCaprio, Jennifer Connelly and Djimon Hounsou as part of the cast?",
+          "official_positive": "Natural_environment",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 133,
+          "profile_rank": 125,
+          "dense_rank": 111,
+          "nearest_dev_query_text": "What film screenplay did Justin Theroux coauthor that was a satirical action comedy set in the Vietnam War?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Who was born first, Emma Bull, or Kenneth Clark?",
+          "official_positive": "Categories_by_medium",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 35,
+          "profile_rank": 50,
+          "dense_rank": 26,
+          "nearest_dev_query_text": "John Peers and Jared Palmer, have which occupation in common?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Who was a Hungarian-American mathematician, physicist, and computer scientist that helped introduce a technique for using unbounded operators to study modules generated by a single vector?",
+          "official_positive": "Applied_mathematics",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 29,
+          "profile_rank": 1,
+          "dense_rank": 146,
+          "nearest_dev_query_text": "What nationality is the man who wrote the foreword for Rogue Leaders: The Story of LucasArts?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Which film, directed by Roger Christian is based upon the first half of L. Ron Hubbard's 1982 novel of the same name?",
+          "official_positive": "Religion_and_society",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Surface/topic collision",
+          "primary_rank": 33,
+          "profile_rank": 66,
+          "dense_rank": 22,
+          "nearest_dev_query_text": "Which movie is based on a book, Darby O'Gill and the Little People and College Road Trip?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "\"Movin'\" is a song by Swedish-Congolese singer-songwriter Mohombi, it is the lead singer from his second studio album, \"Universe\", it features Birdman, KMC and \"Movin'\" is a song by Swedish-Congolese singer-songwriter Mohombi, it is the lead singer from his second studio album, \"Universe\", it features Birdman, KMC and Brandon Caskey, an American rapper, from which organization?",
+          "official_positive": "Categories_by_time",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 97,
+          "profile_rank": 54,
+          "dense_rank": 132,
+          "nearest_dev_query_text": "Nico Constantine is an American music director, producer, and guitarist, known for his work with Biters, a rock band from Atlanta, Georgia, and are signed, to which organization?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Does East of Chicago Pizza, the pizza chain based in Lima, Ohio or Your Pie, the pizza chain started in Athens, Georgia operate have more restaurants?",
+          "official_positive": "Companies",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 22,
+          "profile_rank": 2,
+          "dense_rank": 117,
+          "nearest_dev_query_text": "What states is the metropolitan area once home to the Cook Paint and Varnish Company located in?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Where was a mission to study the dynamics of the region between 50 km and 100 km above the Earth's surface launched from on December 7, 2001",
+          "official_positive": "Nature",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 15,
+          "profile_rank": 3,
+          "dense_rank": 75,
+          "nearest_dev_query_text": "\"Breathing Your Love\" is a song by the Swedish singer Darin featuring vocals by singer Kat DeLuna, in October 2009 which Swedish ESA astronaut, and physicist, took 2 copies of the single into space with him?",
+          "same_positive": "No",
+          "official_top3_attempts": 2
+        },
+        {
+          "query_text": "Who died first, Jim Henson or Kurt Gerron?",
+          "official_positive": "Humanities",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Semantic granularity mismatch",
+          "primary_rank": 75,
+          "profile_rank": 71,
+          "dense_rank": 66,
+          "nearest_dev_query_text": "Which movie came out first, Flubber or Finding Dory?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Which documentary came out first, The Real Dirt on Farmer John or Prophet's Prey?",
+          "official_positive": "Food_and_drink_by_country",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 96,
+          "profile_rank": 78,
+          "dense_rank": 89,
+          "nearest_dev_query_text": "Which documentary provides a more in depth look at a specific moment in time, That's Dancing! or The Reflektor Tapes?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What states is the metropolitan area once home to the Cook Paint and Varnish Company located in?",
+          "official_positive": "Mass_media_by_location",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 138,
+          "profile_rank": 111,
+          "dense_rank": 145,
+          "nearest_dev_query_text": "Towne West Square is an enclosed shopping mall located in Wichita, Kansas, the mall's five anchor stores include Convergys, is a corporation that sells customer management, and information management products, primarily to large corporations,based in Cincinnati, in which state?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Which movie is based on a book, Darby O'Gill and the Little People and College Road Trip?",
+          "official_positive": "Cuisine",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 129,
+          "profile_rank": 114,
+          "dense_rank": 119,
+          "nearest_dev_query_text": "What film screenplay did Justin Theroux coauthor that was a satirical action comedy set in the Vietnam War?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "During the promotion of her sixth album, \"Talk That Talk,\" Which singer song writer recorded the song, \"Half of Me\"?",
+          "official_positive": "Humanities",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Local refusal gap",
+          "primary_rank": 56,
+          "profile_rank": 59,
+          "dense_rank": 52,
+          "nearest_dev_query_text": "Which American singer that performed and co-wrote \"Into You\" collaborated on \"My Favorite Part\" with American rapper Mac Miller?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Military expression is an area of military law pertaining to the United States military that relates to the free speech rights of its service members, That hearing also included references by which U.S. Representative, and American politician (D-TX), who also referred to the area of law as \"military expression\"?",
+          "official_positive": "Law",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 22,
+          "profile_rank": 4,
+          "dense_rank": 103,
+          "nearest_dev_query_text": "The U.S. state of Arizona is the home of which Senator, an American politician and member of the Republican Party who since 2013 has served as the Junior United States Senator from Arizona, alongside former 2008 presidential nominee John McCain?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Vinko Bre\u0161an and Robert Greenwald, share which industry?",
+          "official_positive": "Categories_by_medium",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 17,
+          "profile_rank": 7,
+          "dense_rank": 53,
+          "nearest_dev_query_text": "What profession do both Phil Alden Robinson and David Nixon share?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Which genus of plant is part of the daisy family, Zinnia or Pachypodium?",
+          "official_positive": "Education",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 60,
+          "profile_rank": 103,
+          "dense_rank": 37,
+          "nearest_dev_query_text": "Is the plant Decumaria a genus of more species than the plant Pachycereus?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "The Curtis Fling School was started by Glenn Curtiss to compete against the flying school of what brothers who made the first controlled, sustained flight of a powered, heavier-than-air aircraft on December 17, 1903?",
+          "official_positive": "Economy",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 54,
+          "profile_rank": 99,
+          "dense_rank": 29,
+          "nearest_dev_query_text": "Frank Roman was the band directer of what marching band that was founded in 1908 by a group of 14 students?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Superdrag and Tom Morello, are of which nationality?",
+          "official_positive": "Executive_branches_of_government",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 122,
+          "profile_rank": 120,
+          "dense_rank": 88,
+          "nearest_dev_query_text": "Mickey Rooney and Lino Brocka, are American?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Are Lupin Mine and Lost Lemon Mine both places that can be located on a map?",
+          "official_positive": "Popular_music",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 80,
+          "profile_rank": 100,
+          "dense_rank": 51,
+          "nearest_dev_query_text": "General Carrera Lake and Owens Lake, are both in California?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Garner v. Louisiana and Williams v. Lee wee both held before which court?",
+          "official_positive": "Research",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 97,
+          "profile_rank": 78,
+          "dense_rank": 93,
+          "nearest_dev_query_text": "Meteorologist Robert case is best known for naming the fourth hurricane and final tropical cyclone is the 1991 hurricane season in what ocean?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What country does Spright Dowell and Mercer University have in common?",
+          "official_positive": "Educators",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 48,
+          "profile_rank": 23,
+          "dense_rank": 92,
+          "nearest_dev_query_text": "What type of institution is the Notre Dame?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "The Daughters of Divine love was founded during a time when war was fought between what two factions?",
+          "official_positive": "Religion_and_society",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 101,
+          "profile_rank": 67,
+          "dense_rank": 122,
+          "nearest_dev_query_text": "What gave them a sense of solidarity?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "What film starring Guy Pearce is based on a short story published in the March 2001 edition of \"Esquire\" magazine?",
+          "official_positive": "Categories_by_time",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 69,
+          "profile_rank": 58,
+          "dense_rank": 73,
+          "nearest_dev_query_text": "Which film did Charles Leavitt write that had Leonardo DiCaprio, Jennifer Connelly and Djimon Hounsou as part of the cast?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Frank Roman was the band directer of what marching band that was founded in 1908 by a group of 14 students?",
+          "official_positive": "Sports",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 14,
+          "profile_rank": 10,
+          "dense_rank": 38,
+          "nearest_dev_query_text": "Between Ben Folds Five and Ra Ra Riot, which band has more members?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Are Wanding Town and Jiujiang, Guangdong both frontier towns?",
+          "official_positive": "Geography_stubs",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 15,
+          "profile_rank": 1,
+          "dense_rank": 94,
+          "nearest_dev_query_text": "Lucheng, Shanxi and Hejian are county-level cities of which country?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "What was the 2016 enrollment for the Univeristy that is home to the Texas Academy of Leadership in the Humanities?",
+          "official_positive": "Geography_by_period",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 31,
+          "profile_rank": 29,
+          "dense_rank": 45,
+          "nearest_dev_query_text": "Which university is located in San Antonio, Texas- Carnegie Mellon University or Trinity University?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Jules Granier wrote the Easter song Hosanna, that was recorded by an Italian operatic tenor who sang to great acclaim at the major opera houses of Europe and the Americas, and was born in what year?",
+          "official_positive": "Diseases_and_disorders",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 104,
+          "profile_rank": 85,
+          "dense_rank": 97,
+          "nearest_dev_query_text": "The viola organista is a musical instrument designed by Leonardo da Vinci, was an Italian Renaissance polymath whose areas of interest included invention, painting, sculpting, architecture, science, music, mathematics, engineering, literature, anatomy, geology, astronomy, botany, writing, history, and cartography, he died in which year?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "In what county is The Troy Historic Village located?",
+          "official_positive": "Technology_systems",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 14,
+          "profile_rank": 15,
+          "dense_rank": 23,
+          "nearest_dev_query_text": "The Squire Ignatius Haskell House is located in what county?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What genre of music do Sonic Reign and Emperor fall under?",
+          "official_positive": "Culture_stubs",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 15,
+          "profile_rank": 53,
+          "dense_rank": 3,
+          "nearest_dev_query_text": "Hayley Williams and Fastball both perform what type of music?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Botineras is an Argentine telenovela airing on a television station located in which city ?",
+          "official_positive": "Categories_by_sport",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 134,
+          "profile_rank": 135,
+          "dense_rank": 100,
+          "nearest_dev_query_text": "What tv station shows both Real World/Road Rules Challenge: The Inferno and The Challenge?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "The Squire Ignatius Haskell House is located in what county?",
+          "official_positive": "Technology_systems",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 12,
+          "profile_rank": 17,
+          "dense_rank": 30,
+          "nearest_dev_query_text": "In what county is The Troy Historic Village located?",
+          "same_positive": "Yes",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What reed instrument was played by Indian musician S. R. D. Vaidyanathan?",
+          "official_positive": "Geography_by_country",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 139,
+          "profile_rank": 123,
+          "dense_rank": 130,
+          "nearest_dev_query_text": "What uncommon instrument is used in the musical Edel Rhapsody?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What area does WOAD and Ridgeland, Mississippi have in common?",
+          "official_positive": "Mass_media",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 133,
+          "profile_rank": 148,
+          "dense_rank": 96,
+          "nearest_dev_query_text": "Lonesome Lake is located south of a 4080 ft peak that was home to what?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What disorder did the song \" You're Only Human\" refer too?",
+          "official_positive": "Human_behavior",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "Surface/topic collision",
+          "primary_rank": 34,
+          "profile_rank": 13,
+          "dense_rank": 75,
+          "nearest_dev_query_text": "\"Heathens\" is a song by American musical duo Twenty One Pilots, released on which date, \"Heathens\" peaked at number two on the US \"Billboard\" Hot 100, tying with \"Stressed Out\"?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Ghosts comes from a slang term that applies to what type of ethnicities?",
+          "official_positive": "Mass_media_by_language",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Surface/topic collision",
+          "primary_rank": 115,
+          "profile_rank": 85,
+          "dense_rank": 120,
+          "nearest_dev_query_text": "What is race sometimes seen as?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "The U.S. state of Arizona is the home of which Senator, an American politician and member of the Republican Party who since 2013 has served as the Junior United States Senator from Arizona, alongside former 2008 presidential nominee John McCain?",
+          "official_positive": "Culture",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 95,
+          "profile_rank": 76,
+          "dense_rank": 86,
+          "nearest_dev_query_text": "Military expression is an area of military law pertaining to the United States military that relates to the free speech rights of its service members, That hearing also included references by which U.S. Representative, and American politician (D-TX), who also referred to the area of law as \"military expression\"?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Russian matematician Timur Eneev, current editor-in-chief of the journal Cosmic Research, was honored in 1978 by having what named after him?",
+          "official_positive": "Educators",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "History coverage gap",
+          "primary_rank": 71,
+          "profile_rank": 63,
+          "dense_rank": 54,
+          "nearest_dev_query_text": "\"Breathing Your Love\" is a song by the Swedish singer Darin featuring vocals by singer Kat DeLuna, in October 2009 which Swedish ESA astronaut, and physicist, took 2 copies of the single into space with him?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Which of the following was a favorite drink of author John Steinbeck: Jack Rose or Hot buttered rum?",
+          "official_positive": "Food_and_drink",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Surface/topic collision",
+          "primary_rank": 51,
+          "profile_rank": 87,
+          "dense_rank": 27,
+          "nearest_dev_query_text": "What type of media does Mr Hudson and Makethisrelate have in common?",
+          "same_positive": "No",
+          "official_top3_attempts": 2
+        },
+        {
+          "query_text": "What song did Lisbeth Scott co-write and perform for a movie which grossed nearly 6 times its budget despite generally negative reviews?",
+          "official_positive": "Computing",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 76,
+          "profile_rank": 77,
+          "dense_rank": 65,
+          "nearest_dev_query_text": "During the promotion of her sixth album, \"Talk That Talk,\" Which singer song writer recorded the song, \"Half of Me\"?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "The first Capcom Pro Tour was co-sponsored by a live streaming video platform owned by a subsidary of who?",
+          "official_positive": "Sport_by_period",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 12,
+          "profile_rank": 8,
+          "dense_rank": 27,
+          "nearest_dev_query_text": "K-1 Grand Prix '93 was a martial arts event held by the K-1 organization on April 30, 1993 at the Yoyogi National Gymnasium in Tokyo, Japan, thetournament winner was Branko Cikati\u0107 who defeated Ernesto Hoost in the final, Hoost is a Dutch kickboxer, he announced his retirement on December 2, 2006 after the K-1 World GP Final tournament in Tokyo Dome, in which country?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Both Bertrand Russell and Marshall McLuhan were philosophers during the same era, but did only Marshall McLuhan taught at the University of Cambridge.",
+          "official_positive": "Anthropology",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 18,
+          "profile_rank": 32,
+          "dense_rank": 24,
+          "nearest_dev_query_text": "What profession do both Phil Alden Robinson and David Nixon share?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "For which team does the older brother of Jonas Hummels play ?",
+          "official_positive": "Geography",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 119,
+          "profile_rank": 99,
+          "dense_rank": 110,
+          "nearest_dev_query_text": "What sport did Justin Gimelstob and Olivier Rochus both play professionally?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "In which sport was Franklin Patrick Spring, from British Columbia, and former player of a team known as the California Seals, the Oakland Seals and finally the California Golden Seals, a professional?",
+          "official_positive": "Sport_by_location",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 16,
+          "profile_rank": 6,
+          "dense_rank": 67,
+          "nearest_dev_query_text": "Juan Sebasti\u00e1n Cabal and John Lloyd play what sport?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What is the currency code for the prize for the Gwen Harwood Poetry Prize?",
+          "official_positive": "Literature",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Surface/topic collision",
+          "primary_rank": 29,
+          "profile_rank": 41,
+          "dense_rank": 39,
+          "nearest_dev_query_text": "When did Seattle host the national Poetry Slam Tournament?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Philip Carlo was a biographer for an American contract killer who was associated with members of what crime family?",
+          "official_positive": "Human_behavior",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Entity-specific or multi-hop",
+          "primary_rank": 95,
+          "profile_rank": 62,
+          "dense_rank": 118,
+          "nearest_dev_query_text": "What profession do both Phil Alden Robinson and David Nixon share?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "El Toro was the first coaster to use a cable lift in comparison to what mechanical lift?",
+          "official_positive": "Structure",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Semantic granularity mismatch",
+          "primary_rank": 21,
+          "profile_rank": 35,
+          "dense_rank": 31,
+          "nearest_dev_query_text": "What is another name for King Edward's Chair?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What did Philip Bertie's father style from 1642 to 1666",
+          "official_positive": "Research",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 34,
+          "profile_rank": 5,
+          "dense_rank": 137,
+          "nearest_dev_query_text": "What is another name for King Edward's Chair?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "DVB Bank SE is part of which second largest bank in Germany by asset size and the central institution for more than 1,000 co-operative banks and their 12,000 branch offices?",
+          "official_positive": "Geography_by_period",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 54,
+          "profile_rank": 44,
+          "dense_rank": 64,
+          "nearest_dev_query_text": "Bad K\u00f6stritz is a town in the district of Greiz, in Thuringia, Germany, which brewery, founded in 1543, is one of the oldest producers of Schwarzbier (black lager)?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Corey Reynolds is best known for his roles as David Gabriel and Seaweed from which two productions?",
+          "official_positive": "Linguistics",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 77,
+          "profile_rank": 62,
+          "dense_rank": 74,
+          "nearest_dev_query_text": "American actor Blair Redford was succeeded in the role of Scotty Grainger on \"The Young and the Restless\" by what actor?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Are New England Offering and Women's Running both text based forms of media?",
+          "official_positive": "Education_by_subject",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Nearby released labels point elsewhere",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 55,
+          "profile_rank": 46,
+          "dense_rank": 55,
+          "nearest_dev_query_text": "What type of publication is Popular Mechanics and Sojourners?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Catherine Walker, is an Irish actress, notable for British and Irish television appearances including which 2016 Irish independent horror film, written and directed by Liam Gavin and starring Steve Oram and Catherine Walker?",
+          "official_positive": "Religion_and_society",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "No close attempted history",
+          "interpretive_archetype": "Counter-domain or opaque profile",
+          "primary_rank": 89,
+          "profile_rank": 84,
+          "dense_rank": 78,
+          "nearest_dev_query_text": "Which movie is based on a book, Darby O'Gill and the Little People and College Road Trip?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What main river does the West River, that flows through Addison Maine, run into?",
+          "official_positive": "Geography_stubs",
+          "evidence_bucket": "Not predictably identifiable",
+          "cause": "One component ranks positive 11\u201320",
+          "interpretive_archetype": "History coverage gap",
+          "primary_rank": 40,
+          "profile_rank": 15,
+          "dense_rank": 101,
+          "nearest_dev_query_text": "What area does WOAD and Ridgeland, Mississippi have in common?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "What is a writer's house and biographical museum and was previously Opekta, a European pectin and spice company?",
+          "official_positive": "People_by_legal_status",
+          "evidence_bucket": "Strong / corroborated",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 29,
+          "profile_rank": 3,
+          "dense_rank": 128,
+          "nearest_dev_query_text": "What was the typical main focus of rooms?",
+          "same_positive": "No",
+          "official_top3_attempts": 1
+        },
+        {
+          "query_text": "Which 1980 epic war film written and directed by Samuel Fuller did Mark Hamill starred in",
+          "official_positive": "Mass_media_by_location",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 27,
+          "profile_rank": 7,
+          "dense_rank": 118,
+          "nearest_dev_query_text": "What film screenplay did Justin Theroux coauthor that was a satirical action comedy set in the Vietnam War?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        },
+        {
+          "query_text": "Adrian the Barbarian (later Olaff the Madlander) was a comic strip in the comic The Beezer, and later the merged Beezer and Topper, first introduced in which year?",
+          "official_positive": "Culture_stubs",
+          "evidence_bucket": "Weak / non-unique",
+          "cause": "Cross-component RRF veto",
+          "interpretive_archetype": "Not applicable (fusion veto)",
+          "primary_rank": 25,
+          "profile_rank": 124,
+          "dense_rank": 2,
+          "nearest_dev_query_text": "At some point, did Inked and Sporting News have print magazines?",
+          "same_positive": "No",
+          "official_top3_attempts": 0
+        }
+      ],
+      "failure_cause_proxies": [
+        {
+          "cause": "Cross-component RRF veto",
+          "query_count": 21,
+          "share_pct": 28.0,
+          "evidence_type": "Exact mechanism"
+        },
+        {
+          "cause": "One component ranks positive 11\u201320",
+          "query_count": 7,
+          "share_pct": 9.3,
+          "evidence_type": "Deterministic proxy"
+        },
+        {
+          "cause": "No close attempted history",
+          "query_count": 24,
+          "share_pct": 32.0,
+          "evidence_type": "Deterministic proxy"
+        },
+        {
+          "cause": "Nearby released labels point elsewhere",
+          "query_count": 23,
+          "share_pct": 30.7,
+          "evidence_type": "Deterministic proxy"
+        }
+      ],
+      "fusion_weight_tradeoff": [
+        {
+          "profile_dense_ratio": 0.5,
+          "fusion_21_recovered": 2,
+          "previous_successes_lost": 4,
+          "all_query_ndcg_at_10": 0.41032806840144154
+        },
+        {
+          "profile_dense_ratio": 1.0,
+          "fusion_21_recovered": 0,
+          "previous_successes_lost": 0,
+          "all_query_ndcg_at_10": 0.4202139921941393
+        },
+        {
+          "profile_dense_ratio": 1.5,
+          "fusion_21_recovered": 4,
+          "previous_successes_lost": 3,
+          "all_query_ndcg_at_10": 0.4300972191989591
+        },
+        {
+          "profile_dense_ratio": 2.0,
+          "fusion_21_recovered": 10,
+          "previous_successes_lost": 5,
+          "all_query_ndcg_at_10": 0.43762953591529047
+        },
+        {
+          "profile_dense_ratio": 3.0,
+          "fusion_21_recovered": 14,
+          "previous_successes_lost": 8,
+          "all_query_ndcg_at_10": 0.4398777208897938
+        },
+        {
+          "profile_dense_ratio": 10.0,
+          "fusion_21_recovered": 18,
+          "previous_successes_lost": 13,
+          "all_query_ndcg_at_10": 0.4325961127616535
+        }
+      ],
+      "no_signal_archetypes": [
+        {
+          "archetype": "Counter-domain or opaque profile",
+          "query_count": 30,
+          "share_pct": 55.6
+        },
+        {
+          "archetype": "Query underspecification",
+          "query_count": 4,
+          "share_pct": 7.4
+        },
+        {
+          "archetype": "Entity-specific or multi-hop",
+          "query_count": 7,
+          "share_pct": 13.0
+        },
+        {
+          "archetype": "Semantic granularity mismatch",
+          "query_count": 3,
+          "share_pct": 5.6
+        },
+        {
+          "archetype": "Surface/topic collision",
+          "query_count": 6,
+          "share_pct": 11.1
+        },
+        {
+          "archetype": "History coverage gap",
+          "query_count": 3,
+          "share_pct": 5.6
+        },
+        {
+          "archetype": "Local refusal gap",
+          "query_count": 1,
+          "share_pct": 1.9
+        }
+      ]
+    }
+  },
+  "package_info": {
+    "originUrl": "artifact://trec-2026-ranking-diagnosis",
+    "controls": {
+      "edit": false,
+      "refresh": false
+    }
+  }
+}

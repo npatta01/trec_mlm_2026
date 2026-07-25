@@ -72,6 +72,7 @@ rescues are diagnostic evidence on a selected cohort, not a corpus-wide rate.
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
 - [Query-cluster aggregation](query-cluster-aggregation.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

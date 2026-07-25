@@ -74,6 +74,7 @@ leaderboard row. Its receipt can motivate a later frozen ranking study.
 - [Lexical response retrieval](response-retrieval.qmd)
 - [Response-volume normalization](response-volume-normalization.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

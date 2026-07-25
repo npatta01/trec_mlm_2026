@@ -1,0 +1,24 @@
+---
+resource_id: team-method-granularity-review
+title: "Did TREC teams use relation and answer-type features?"
+resource_type: literature_review
+summary: "Corrects the proposed rich-taxonomy direction: reviewed TREC 2025 teams used latent retrieval, response evidence, weak quality labels, and learned reranking rather than an explicit entity-relation-answer schema."
+canonical_source_path: reports/trec_2025_team_method_granularity_review_2026-07-24.md
+citations: ["TREC 2025 Million LLMs overview", "UDInfo TREC 2025 paper", "GenAIus TREC 2025 paper", "SRCB TREC 2025 paper"]
+tags: [trec-2025, response-evidence, reranking, taxonomy]
+question_ids: [failure-conditions, query-only-routing, response-evidence]
+reviewed_on: 2026-07-24
+---
+
+No reviewed TREC 2025 team demonstrated a hand-authored semantic-demand schema
+for routing. The direct precedent is to retrieve fine-grained historical
+query-response evidence, estimate response quality or preference, aggregate to
+candidate IDs, and learn the scoring function when supervision is reliable.
+
+Relation and answer-contract fields can remain human audit labels for a small
+blinded validity study. They should not become a full ranking representation
+until they reject wrong-relation neighbors and improve candidate discrimination
+beyond raw dense similarity.
+
+The canonical report is the audited deep dive for team-level method details,
+source links, and the boundary between verified precedent and proposed work.

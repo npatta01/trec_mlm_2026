@@ -75,6 +75,7 @@ diagnostic results remain useful for failure analysis.
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
 - [Simple query controls](query-controls.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

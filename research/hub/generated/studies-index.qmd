@@ -53,6 +53,12 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <span>Grounding materially helped many true failures but did not provide a reliable blanket cure.</span>
 <span class="hub-next-action"><strong>Practical decision</strong> Develop a two-pass disagreement trigger rather than grounding every request.</span>
 </a>
+<a class="hub-study-row" data-study-id="sparse-failure-analogue-diagnosis" data-themes="evidence-reliability query-only-routing candidate-evidence" href="sparse-failure-analogue-diagnosis.qmd">
+<span>Negative · Reject</span>
+<strong>Sparse-failure analogue diagnosis</strong>
+<span>Query analogues rarely identify the official positive: only 11 of 75 had strong or corroborated pre-qrel evidence, and 54 of 75 had no top-ten positive from either promoted component.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Do not treat ordinary query-neighbor transfer or another static fusion weight as the missing ranking signal; test stronger response-evidence reranking instead.</span>
+</a>
 
 ### Data quality
 

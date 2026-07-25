@@ -54,6 +54,7 @@ claim follows.
 - [Label-ranker feasibility pilots](../studies/label-ranker-pilots.qmd)
 - [Multiresolution candidate profiles](../studies/multiresolution-profiles.qmd)
 - [Candidate semantic profiles](../studies/semantic-profiles.qmd)
+- [Sparse-failure analogue diagnosis](../studies/sparse-failure-analogue-diagnosis.qmd)
 
 Raw labels, behavior topics, semantic profiles, and multiresolution profiles
 provide distinct candidate-side comparisons.

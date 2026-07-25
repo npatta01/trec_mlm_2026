@@ -76,5 +76,5 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 
 ## Evidence behind this position
 
-<a class="hub-evidence-line" href="../../studies/index.html?theme=evidence-reliability">Explore 8 studies linked to this theme in the study library.</a>
+<a class="hub-evidence-line" href="../../studies/index.html?theme=evidence-reliability">Explore 9 studies linked to this theme in the study library.</a>
 </details>

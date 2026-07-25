@@ -4,7 +4,7 @@ title: "Dense query retrieval"
 summary: "Embed a request, retrieve similar development requests, and transfer candidate evidence."
 plain_english: "Find past requests with similar meaning and use what worked for them."
 question_ids: [query-only-routing, candidate-evidence]
-study_ids: [query-controls, dense-query-knn, semantic-profiles, multiresolution-profiles, query-cluster-aggregation]
+study_ids: [query-controls, dense-query-knn, semantic-profiles, multiresolution-profiles, query-cluster-aggregation, sparse-failure-analogue-diagnosis]
 current_assessment: "A useful stable control and fusion component; not the strongest development result alone."
 tags: [queries, embeddings, retrieval]
 ---

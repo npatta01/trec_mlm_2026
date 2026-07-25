@@ -61,6 +61,7 @@ comparisons.
 - [Label-ranker feasibility pilots](../studies/label-ranker-pilots.qmd)
 - [Query-cluster aggregation](../studies/query-cluster-aggregation.qmd)
 - [Source-query-first response evidence](../studies/source-query-first.qmd)
+- [Sparse-failure analogue diagnosis](../studies/sparse-failure-analogue-diagnosis.qmd)
 
 Pilot failures, cluster aggregation, grounding review, corpus audit, and E5
 refinement each expose a different failure boundary.

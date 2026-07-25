@@ -285,6 +285,46 @@ def test_validation_rejects_incomplete_causal_comparison(
         )
 
 
+def test_validation_requires_causal_change_label(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    visual = dict(CAUSAL_VISUAL)
+    visual.pop("change_label")
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={**minimal_sources.tests[0].metadata, "visual": visual},
+    )
+
+    with pytest.raises(ValueError, match="visual.change_label"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_unknown_transition_label_field(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={
+            **minimal_sources.tests[0].metadata,
+            "visual": {
+                **CAUSAL_VISUAL,
+                "transition_label": "Undeclared alias",
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="unknown field.*transition_label"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
 def test_validation_rejects_unsupported_visual_type(
     minimal_sources: HubSources,
     ledger_build: LedgerBuild,

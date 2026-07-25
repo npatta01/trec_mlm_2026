@@ -29,6 +29,7 @@ tags: []
 #   current_summary: "State the limitation of the current approach."
 #   current_items:
 #     - "Name one current evidence source."
+#   change_label: "Name the transition into the proposed approach."
 #   proposed_label: "Proposed"
 #   proposed_summary: "State the proposed decision mechanism."
 #   proposed_routes:

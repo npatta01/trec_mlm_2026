@@ -54,6 +54,7 @@ _CAUSAL_COMPARISON_FIELDS = frozenset(
         "current_label",
         "current_summary",
         "current_items",
+        "change_label",
         "proposed_label",
         "proposed_summary",
         "proposed_routes",
@@ -159,6 +160,7 @@ def validate_visual(record: HubRecord) -> None:
     for field in (
         "current_label",
         "current_summary",
+        "change_label",
         "proposed_label",
         "proposed_summary",
         "decision_test",

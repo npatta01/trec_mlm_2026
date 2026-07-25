@@ -102,6 +102,7 @@ visual:
     - "Candidate profiles"
     - "Responses"
     - "Generated reference"
+  change_label: "Proposed change"
   proposed_label: "Proposed"
   proposed_summary: "A reliability gate chooses the evidence mixture."
   proposed_routes:

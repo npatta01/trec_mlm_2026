@@ -94,7 +94,8 @@ def validate_visual(record: HubRecord) -> None:
 ```
 
 For `causal_comparison`, require nonempty strings for `current_label`,
-`current_summary`, `proposed_label`, `proposed_summary`, and `decision_test`;
+`current_summary`, `change_label`, `proposed_label`, `proposed_summary`, and
+`decision_test`;
 a nonempty string list for `current_items`; and a nonempty list of mappings
 whose `label` and `action` are nonempty strings for `proposed_routes`. Reject
 unknown visual keys so misspellings cannot silently disappear.
@@ -138,7 +139,7 @@ Render:
 ```html
 <figure class="hub-causal-comparison">
   <section class="hub-causal-current">...</section>
-  <div class="hub-causal-change">Proposed change</div>
+  <div class="hub-causal-change">{escaped source visual.change_label}</div>
   <section class="hub-causal-proposed">...</section>
   <figcaption class="hub-decision-test">...</figcaption>
 </figure>
@@ -355,7 +356,7 @@ git commit -m "docs: verify progressive visual hierarchy"
 
 #### Task 3 verification evidence (2026-07-25)
 
-- Fresh complete gate passed after the final renderer change: Research Hub tests,
+- Fresh complete gate passed after the final source-model change: Research Hub tests,
   generator build/check, Quarto render, Ruff, publication audit, and
   `git diff --check` all exited zero.
 - Chrome DevTools captured and visually inspected 27 actual page viewports:
@@ -364,9 +365,10 @@ git commit -m "docs: verify progressive visual hierarchy"
   causal detail grayscale, accent-disabled, and forced-colors views. Evidence:
   `.superpowers/sdd/2026-07-25-research-hub-progressive-visual-hierarchy/visual-captures/`.
   All captures had no horizontal overflow. The causal visual is the only
-  primary visual and now labels its transition `Proposed change`; other pages
-  show no placeholder diagram. The visual review found readable hierarchy and
-  closed details below the first-view takeaway/action.
+  primary visual and now labels its transition with canonical Markdown
+  `visual.change_label`; other pages show no placeholder diagram. The visual
+  review found readable hierarchy and closed details below the first-view
+  takeaway/action.
 - The browser focused and pressed Enter on all 24 rendered disclosure summaries
   (theme, causal idea, question, and study; desktop and mobile). Every control
   retained focus and path, changed `details.open` from false to true, had a
@@ -377,3 +379,10 @@ git commit -m "docs: verify progressive visual hierarchy"
   `https://npatta01-framework.tail481212.ts.net (tailnet only)`. The portal
   returned 200 for the hub index and representative idea, question, and study
   pages; canonical `.qmd` and retired `.zip` paths returned 404.
+- Round-one remediation moved the transition label into required canonical
+  `visual.change_label` metadata. Validation rejects a missing label and an
+  undeclared `transition_label` alias; the renderer test uses a distinctive
+  `<adaptive>` fixture to prove source provenance and HTML escaping. The
+  focused tests failed before implementation (3 expected failures), passed
+  after implementation (5 passed), and the covering plus complete gates exited
+  zero after regeneration.

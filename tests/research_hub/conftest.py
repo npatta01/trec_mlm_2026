@@ -20,6 +20,7 @@ CAUSAL_VISUAL = {
         "Responses",
         "Generated reference",
     ],
+    "change_label": "Source-authored pivot <adaptive>",
     "proposed_label": "Proposed",
     "proposed_summary": "A reliability gate chooses the evidence mixture.",
     "proposed_routes": [

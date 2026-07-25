@@ -299,6 +299,7 @@ def test_failure_aware_fusion_uses_the_reviewed_explainer_copy() -> None:
             "Responses",
             "Generated reference",
         ],
+        "change_label": "Proposed change",
         "proposed_label": "Proposed",
         "proposed_summary": "A reliability gate chooses the evidence mixture.",
         "proposed_routes": [

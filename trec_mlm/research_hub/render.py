@@ -1250,7 +1250,7 @@ def _render_record_visual(record: HubRecord) -> list[str]:
         [
             "</ul>",
             "</section>",
-            '<div class="hub-causal-change" aria-hidden="true"></div>',
+            '<div class="hub-causal-change">Proposed change</div>',
             '<section class="hub-causal-proposed">',
             f"<h3>{html.escape(str(visual.get('proposed_label', '')))}</h3>",
             f"<p>{html.escape(str(visual.get('proposed_summary', '')))}</p>",

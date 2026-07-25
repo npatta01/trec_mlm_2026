@@ -149,7 +149,7 @@ def test_causal_visual_uses_only_explicit_record_text(
     assert detail.index("hub-causal-comparison") < detail.index("## How does it work?")
     assert detail.index("hub-next-action") < detail.index("## How does it work?")
     assert '<p class="hub-next-action">Define the decision rule.</p>' in detail
-    assert "Proposed change" not in detail
+    assert '<div class="hub-causal-change">Proposed change</div>' in detail
     assert "<strong>Decision test:</strong>" not in detail
     for text in (
         "One fixed evidence mixture creates uneven failures.",

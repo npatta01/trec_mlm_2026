@@ -19,7 +19,7 @@
 <li>Generated reference</li>
 </ul>
 </section>
-<div class="hub-causal-change" aria-hidden="true"></div>
+<div class="hub-causal-change">Proposed change</div>
 <section class="hub-causal-proposed">
 <h3>Proposed</h3>
 <p>A reliability gate chooses the evidence mixture.</p>

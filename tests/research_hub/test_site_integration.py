@@ -59,7 +59,11 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert config["quarto-required"] == "1.9.38"
     assert config["project"]["type"] == "website"
     assert config["project"]["output-dir"] == "_site"
-    assert config["project"]["resources"] == ["assets/ledger.js", "catalog.json"]
+    assert config["project"]["resources"] == [
+        "assets/ledger.js",
+        "assets/fonts/",
+        "catalog.json",
+    ]
     assert "generated/runs/*.qmd" in config["project"]["render"]
     assert "generated/themes/*.qmd" in config["project"]["render"]
     assert "generated/ideas/*.qmd" in config["project"]["render"]

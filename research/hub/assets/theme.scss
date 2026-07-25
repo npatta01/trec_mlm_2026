@@ -1,11 +1,77 @@
 /*-- scss:defaults --*/
 $web-font-path: false;
-$font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-  "Helvetica Neue", Arial, sans-serif;
+$font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+  Roboto, "Helvetica Neue", Arial, sans-serif;
 $font-size-root: 17px;
+$line-height-base: 1.6;
 $content-padding-top: 2rem;
 
 /*-- scss:rules --*/
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/Inter-Regular.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600 800;
+  font-display: swap;
+  src: url("assets/fonts/Inter-SemiBold.otf") format("opentype");
+}
+
+:root {
+  --hub-ink: #181818;
+  --hub-muted: #595959;
+  --hub-rule: #9a9a9a;
+  --hub-rule-strong: #3c3c3c;
+  --hub-surface: #fafafa;
+  --bs-body-color: var(--hub-ink);
+  --bs-secondary-color: var(--hub-muted);
+  --bs-border-color: var(--hub-rule);
+  --bs-primary: #292929;
+}
+
+body.quarto-dark {
+  --hub-ink: #f4f4ef;
+  --hub-muted: #cacac4;
+  --hub-rule: #858580;
+  --hub-rule-strong: #e2e2dc;
+  --hub-surface: #1d1d1b;
+  --bs-body-color: var(--hub-ink);
+  --bs-secondary-color: var(--hub-muted);
+  --bs-border-color: var(--hub-rule);
+  --bs-primary: #f4f4ef;
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6,
+.navbar-brand {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: -.012em;
+}
+
+#quarto-document-content > p,
+#quarto-document-content > ul,
+#quarto-document-content > ol,
+.content > p,
+.content > ul,
+.content > ol {
+  max-width: 72ch;
+}
+
+.hub-muted { color: var(--hub-muted); }
+
 .hub-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -31,7 +97,7 @@ $content-padding-top: 2rem;
 .hub-filter-row[hidden] { display: none; }
 .hub-muted { color: var(--bs-secondary-color); }
 .hub-boundary {
-  border-inline-start: .3rem solid var(--bs-warning);
+  border-inline-start: .3rem double var(--hub-rule-strong);
   padding: .75rem 1rem;
 }
 
@@ -39,7 +105,7 @@ $content-padding-top: 2rem;
   margin-block: 1.25rem 2rem;
   padding: .8rem 0 .8rem 1rem;
   border: 0;
-  border-inline-start: .25rem solid var(--bs-warning);
+  border-inline-start: .25rem dashed var(--hub-rule-strong);
   background: transparent;
 }
 
@@ -47,7 +113,8 @@ $content-padding-top: 2rem;
 a.hub-question-row,
 .hub-study-row,
 .hub-background-row,
-.hub-evidence-line {
+.hub-evidence-line,
+a.hub-idea-row {
   position: relative;
   display: grid;
   min-width: 0;
@@ -67,28 +134,31 @@ a.hub-question-row,
 a.hub-question-row:hover,
 .hub-study-row:hover,
 .hub-background-row:hover,
-.hub-evidence-line:hover {
+.hub-evidence-line:hover,
+a.hub-idea-row:hover {
   color: var(--bs-body-color);
-  background: color-mix(in srgb, var(--bs-primary) 6%, transparent);
-  box-shadow: inset .2rem 0 var(--bs-primary);
+  background: color-mix(in srgb, var(--hub-ink) 6%, transparent);
+  box-shadow: inset .2rem 0 var(--hub-rule-strong);
 }
 
 .hub-theme-row:focus-visible,
 a.hub-question-row:focus-visible,
 .hub-study-row:focus-visible,
 .hub-background-row:focus-visible,
-.hub-evidence-line:focus-visible {
+.hub-evidence-line:focus-visible,
+a.hub-idea-row:focus-visible {
   z-index: 1;
   color: var(--bs-body-color);
-  outline: .2rem solid var(--bs-primary);
+  outline: .2rem solid var(--hub-rule-strong);
   outline-offset: .15rem;
-  background: color-mix(in srgb, var(--bs-primary) 8%, transparent);
+  background: color-mix(in srgb, var(--hub-ink) 8%, transparent);
 }
 
 .hub-theme-row > strong,
 a.hub-question-row > strong,
 .hub-study-row > strong,
-.hub-background-row > strong {
+.hub-background-row > strong,
+a.hub-idea-row > strong {
   color: var(--bs-body-color);
   font-size: clamp(1.05rem, 1.5vw, 1.2rem);
   line-height: 1.3;
@@ -97,14 +167,16 @@ a.hub-question-row > strong,
 .hub-theme-row > span,
 a.hub-question-row > span,
 .hub-study-row > span,
-.hub-background-row > span {
+.hub-background-row > span,
+a.hub-idea-row > span {
   display: block;
   max-width: 76ch;
 }
 
 .hub-theme-row > span:last-child,
 a.hub-question-row > span:last-child,
-.hub-study-row > span:first-child {
+.hub-study-row > span:first-child,
+a.hub-idea-row > span:last-child {
   width: fit-content;
   color: var(--bs-secondary-color);
   font-size: .78rem;
@@ -195,7 +267,7 @@ div.hub-question-row > :last-child {
 
 .hub-evidence-line::after {
   content: "→";
-  color: var(--bs-primary);
+  color: var(--hub-rule-strong);
   font-size: 1.2rem;
   font-weight: 800;
 }
@@ -332,7 +404,7 @@ div.hub-question-row > :last-child {
   margin-block: 2rem;
   padding: 1rem 0 1rem 1.25rem;
   border: 0;
-  border-inline-start: .3rem solid var(--bs-warning);
+  border-inline-start: .3rem double var(--hub-rule-strong);
   border-radius: 0;
   background: transparent;
 }
@@ -369,19 +441,107 @@ div.hub-question-row > :last-child {
 
 .hub-status-open,
 .hub-restricted {
-  border-color: color-mix(in srgb, var(--bs-warning) 55%, var(--bs-border-color));
-  color: color-mix(in srgb, var(--bs-warning) 75%, var(--bs-body-color));
+  border-color: var(--hub-rule-strong);
+  border-bottom-style: dashed;
+  color: var(--bs-body-color);
 }
 
 .hub-status-partial,
 .hub-mixed {
-  border-color: color-mix(in srgb, var(--bs-primary) 45%, var(--bs-border-color));
-  color: var(--bs-primary);
+  border-color: var(--hub-rule-strong);
+  border-bottom-style: double;
+  color: var(--bs-body-color);
 }
 
 .hub-available {
-  border-color: color-mix(in srgb, var(--bs-success) 50%, var(--bs-border-color));
-  color: var(--bs-success);
+  border-color: var(--hub-rule-strong);
+  border-bottom-style: solid;
+  color: var(--bs-body-color);
+}
+
+.hub-idea-list {
+  margin-block: 1.25rem 2rem;
+}
+
+.hub-idea-list > :last-child {
+  border-block-end: 1px solid var(--bs-border-color);
+}
+
+.hub-idea-hero {
+  max-width: 75ch;
+  margin-block: 1.5rem 2.5rem;
+  padding: clamp(1.2rem, 3vw, 2rem) 0;
+  border-block: 2px solid var(--hub-rule-strong);
+}
+
+.hub-idea-hero > :last-child {
+  margin-bottom: 0;
+}
+
+.hub-idea-status {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: .75rem;
+  padding: .15rem 0;
+  border-block-end: 2px double var(--hub-rule-strong);
+  color: var(--bs-body-color);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .055em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.hub-process {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin-block: 1.75rem 2.5rem;
+  border-block: 1px solid var(--bs-border-color);
+  counter-reset: hub-process;
+}
+
+.hub-process-step {
+  position: relative;
+  min-width: 0;
+  padding: 1.25rem clamp(1rem, 2vw, 1.5rem);
+  border-inline-start: 1px solid var(--bs-border-color);
+  counter-increment: hub-process;
+  overflow-wrap: anywhere;
+}
+
+.hub-process-step:first-child {
+  padding-inline-start: .25rem;
+  border-inline-start: 0;
+}
+
+.hub-process-step::before {
+  display: block;
+  width: fit-content;
+  margin-bottom: .75rem;
+  padding-bottom: .15rem;
+  border-bottom: 2px solid var(--hub-rule-strong);
+  content: "Step " counter(hub-process);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .055em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.hub-process-step:not(:last-child)::after {
+  position: absolute;
+  inset-block-start: 1.25rem;
+  inset-inline-end: -.5rem;
+  z-index: 1;
+  padding-inline: .15rem;
+  background: var(--bs-body-bg);
+  color: var(--hub-rule-strong);
+  content: "→";
+  font-weight: 700;
+}
+
+.hub-process-step > :last-child {
+  margin-bottom: 0;
 }
 
 .hub-data-groups > h2 {
@@ -432,7 +592,8 @@ div.hub-question-row > :last-child {
   .hub-compare-grid,
   .hub-data-grid,
   .hub-decision-strip,
-  .hub-background-row {
+  .hub-background-row,
+  .hub-process {
     grid-template-columns: 1fr;
   }
 
@@ -452,7 +613,8 @@ div.hub-question-row > :last-child {
   .hub-decision-strip > div,
   .hub-flow-step,
   .hub-example > div,
-  .hub-compare-card {
+  .hub-compare-card,
+  .hub-process-step {
     padding: 1rem .2rem;
     border-inline-start: 0;
     border-block-start: 1px solid var(--bs-border-color);
@@ -461,8 +623,36 @@ div.hub-question-row > :last-child {
   .hub-decision-strip > div:first-child,
   .hub-flow-step:first-child,
   .hub-example > div:first-child,
-  .hub-compare-card:first-child {
+  .hub-compare-card:first-child,
+  .hub-process-step:first-child {
     border-block-start: 0;
+  }
+
+  .hub-process-step {
+    padding-inline-start: 3.25rem;
+  }
+
+  .hub-process-step::before {
+    position: absolute;
+    inset-block-start: 1rem;
+    inset-inline-start: .2rem;
+    width: 2.35rem;
+    min-height: 2.35rem;
+    margin: 0;
+    border: 1px solid var(--hub-rule-strong);
+    border-radius: 50%;
+    content: counter(hub-process);
+    display: grid;
+    place-items: center;
+  }
+
+  .hub-process-step:not(:last-child)::after {
+    inset-block-start: auto;
+    inset-block-end: -.7rem;
+    inset-inline-start: 1.05rem;
+    inset-inline-end: auto;
+    padding: .05rem .2rem;
+    content: "↓";
   }
 
   .content table {
@@ -479,7 +669,8 @@ div.hub-question-row > :last-child {
   a.hub-question-row,
   .hub-study-row,
   .hub-background-row,
-  .hub-evidence-line {
+  .hub-evidence-line,
+  a.hub-idea-row {
     transition: none;
   }
 }
@@ -505,7 +696,8 @@ div.hub-question-row > :last-child {
   a.hub-question-row:hover,
   .hub-study-row:hover,
   .hub-background-row:hover,
-  .hub-evidence-line:hover {
+  .hub-evidence-line:hover,
+  a.hub-idea-row:hover {
     box-shadow: inset .2rem 0 LinkText;
   }
 
@@ -513,7 +705,18 @@ div.hub-question-row > :last-child {
   a.hub-question-row:focus-visible,
   .hub-study-row:focus-visible,
   .hub-background-row:focus-visible,
-  .hub-evidence-line:focus-visible {
+  .hub-evidence-line:focus-visible,
+  a.hub-idea-row:focus-visible {
     outline-color: Highlight;
+  }
+
+  .hub-idea-hero,
+  .hub-idea-status,
+  .hub-process,
+  .hub-process-step,
+  .hub-process-step::before {
+    border-color: CanvasText;
+    color: CanvasText;
+    forced-color-adjust: auto;
   }
 }

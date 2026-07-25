@@ -9,6 +9,17 @@ from trec_mlm.research_hub.render import render_hub_outputs
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_hub_theme_uses_local_inter_and_grayscale_safe_idea_visuals() -> None:
+    theme = (ROOT / "research/hub/assets/theme.scss").read_text()
+
+    assert "@font-face" in theme
+    assert "Inter-Regular.otf" in theme
+    assert "Inter-SemiBold.otf" in theme
+    assert ".hub-process-step" in theme
+    assert "@media (forced-colors: active)" in theme
+    assert "@media (prefers-reduced-motion: reduce)" in theme
+
+
 def test_background_records_use_audited_sources_and_named_evidence() -> None:
     build = build_research_hub(ROOT)
     background = {

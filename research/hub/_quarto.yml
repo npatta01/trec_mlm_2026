@@ -25,6 +25,7 @@ project:
     - "uv run python ../../scripts/normalize_research_hub_links.py --root ../.. --output-dir _site"
   resources:
     - assets/ledger.js
+    - assets/fonts/
     - catalog.json
 website:
   title: "TREC 2026 Research Hub"

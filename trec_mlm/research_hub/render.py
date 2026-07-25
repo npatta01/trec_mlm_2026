@@ -1165,6 +1165,62 @@ def _render_test_related_research(build: HubBuild, test: HubRecord) -> list[str]
     return lines
 
 
+def _render_record_visual(record: HubRecord) -> list[str]:
+    """Render a record's optional, explicitly authored visual model."""
+
+    visual = record.metadata.get("visual")
+    if not isinstance(visual, Mapping) or visual.get("type") != "causal_comparison":
+        return []
+
+    current_items = visual.get("current_items")
+    proposed_routes = visual.get("proposed_routes")
+    if not isinstance(current_items, list) or not isinstance(proposed_routes, list):
+        return []
+
+    lines = [
+        '<figure class="hub-causal-comparison">',
+        '<section class="hub-causal-current">',
+        f"<h3>{html.escape(str(visual.get('current_label', '')))}</h3>",
+        f"<p>{html.escape(str(visual.get('current_summary', '')))}</p>",
+        "<ul>",
+    ]
+    lines.extend(f"<li>{html.escape(str(item))}</li>" for item in current_items)
+    lines.extend(
+        [
+            "</ul>",
+            "</section>",
+            '<div class="hub-causal-change">Proposed change</div>',
+            '<section class="hub-causal-proposed">',
+            f"<h3>{html.escape(str(visual.get('proposed_label', '')))}</h3>",
+            f"<p>{html.escape(str(visual.get('proposed_summary', '')))}</p>",
+            "<dl>",
+        ]
+    )
+    for route in proposed_routes:
+        if not isinstance(route, Mapping):
+            continue
+        lines.extend(
+            [
+                "<div>",
+                f"<dt>{html.escape(str(route.get('label', '')))}</dt>",
+                f"<dd>{html.escape(str(route.get('action', '')))}</dd>",
+                "</div>",
+            ]
+        )
+    lines.extend(
+        [
+            "</dl>",
+            "</section>",
+            (
+                '<figcaption class="hub-decision-test"><strong>Decision test:</strong> '
+                f"{html.escape(str(visual.get('decision_test', '')))}</figcaption>"
+            ),
+            "</figure>",
+        ]
+    )
+    return lines
+
+
 def _render_test_page(build: HubBuild, test: HubRecord) -> str:
     mechanism_steps = _metadata_list(test, "mechanism_steps")
     missing_fields = _metadata_list(test, "missing_readiness_fields")
@@ -1194,16 +1250,23 @@ def _render_test_page(build: HubBuild, test: HubRecord) -> str:
         "",
         "## How does it work?",
         "",
-        '<ol class="hub-process hub-record-path">',
+        '<ol class="hub-record-path">',
     ]
     lines.extend(
-        f'<li class="hub-process-step">{html.escape(step)}</li>'
+        f'<li class="hub-record-path-step">{html.escape(step)}</li>'
         for step in mechanism_steps
     )
     lines.extend(
         [
             "</ol>",
             "",
+        ]
+    )
+    visual = _render_record_visual(test)
+    if visual:
+        lines.extend([*visual, ""])
+    lines.extend(
+        [
             "## What do we know?",
             "",
             html.escape(test.body),

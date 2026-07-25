@@ -54,6 +54,34 @@ def test_failure_aware_fusion_uses_the_reviewed_explainer_copy() -> None:
     assert metadata["next_action"] == (
         "Define and freeze the reliability signal, fallback, and artifact plan."
     )
+    assert metadata["visual"] == {
+        "type": "causal_comparison",
+        "current_label": "Today",
+        "current_summary": "One fixed evidence mixture creates uneven failures.",
+        "current_items": [
+            "Past requests",
+            "Candidate profiles",
+            "Responses",
+            "Generated reference",
+        ],
+        "proposed_label": "Proposed",
+        "proposed_summary": "A reliability gate chooses the evidence mixture.",
+        "proposed_routes": [
+            {
+                "label": "Known request pattern",
+                "action": "Use similar historical requests.",
+            },
+            {
+                "label": "Stable candidate strength",
+                "action": "Use semantic profiles.",
+            },
+            {
+                "label": "Response evidence passes checks",
+                "action": "Use responses or references.",
+            },
+        ],
+        "decision_test": "Does the adaptive mixture beat the frozen dense/profile control?",
+    }
 
 
 def test_complete_research_hub_content_and_static_shell() -> None:

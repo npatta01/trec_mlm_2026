@@ -16,6 +16,25 @@ linked_question_ids: [failure-conditions, response-evidence, reference-reliabili
 missing_readiness_fields: [decision_rule, dependencies, artifact_plan]
 priority: high
 tags: [fusion, reliability]
+visual:
+  type: causal_comparison
+  current_label: "Today"
+  current_summary: "One fixed evidence mixture creates uneven failures."
+  current_items:
+    - "Past requests"
+    - "Candidate profiles"
+    - "Responses"
+    - "Generated reference"
+  proposed_label: "Proposed"
+  proposed_summary: "A reliability gate chooses the evidence mixture."
+  proposed_routes:
+    - label: "Known request pattern"
+      action: "Use similar historical requests."
+    - label: "Stable candidate strength"
+      action: "Use semantic profiles."
+    - label: "Response evidence passes checks"
+      action: "Use responses or references."
+  decision_test: "Does the adaptive mixture beat the frozen dense/profile control?"
 ---
 
 This is an idea, not a result. It needs a frozen decision rule, named

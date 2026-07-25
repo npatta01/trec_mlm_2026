@@ -16,10 +16,10 @@ A selective review trigger could reduce avoidable reference failures without rev
 
 ## How does it work?
 
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step">Measure signals that indicate a generated reference may be unreliable.</li>
-<li class="hub-process-step">Route flagged references to grounding or human review.</li>
-<li class="hub-process-step">Compare the trigger with always-review and never-review controls.</li>
+<ol class="hub-record-path">
+<li class="hub-record-path-step">Measure signals that indicate a generated reference may be unreliable.</li>
+<li class="hub-record-path-step">Route flagged references to grounding or human review.</li>
+<li class="hub-record-path-step">Compare the trigger with always-review and never-review controls.</li>
 </ol>
 
 ## What do we know?

@@ -22,6 +22,19 @@ evaluation_boundary: "Name the evaluation scope and forbidden comparisons."
 artifact_plan: "Name the outputs and receipts that will be retained."
 next_action: "State one concrete next action."
 tags: []
+# Optional curated visual; omit this mapping when no explicit comparison is ready.
+# visual:
+#   type: causal_comparison
+#   current_label: "Today"
+#   current_summary: "State the limitation of the current approach."
+#   current_items:
+#     - "Name one current evidence source."
+#   proposed_label: "Proposed"
+#   proposed_summary: "State the proposed decision mechanism."
+#   proposed_routes:
+#     - label: "Condition"
+#       action: "Action selected for that condition."
+#   decision_test: "State the control comparison that decides this proposal."
 ---
 
 Record any context needed to execute the test without turning the proposal into

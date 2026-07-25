@@ -10,6 +10,7 @@ from trec_mlm.experiment_ledger import LedgerBuild
 from trec_mlm.research_hub.model import HubSources
 from trec_mlm.research_hub.validate import validate_hub_sources
 
+from conftest import CAUSAL_VISUAL
 
 def test_validation_returns_record_and_linked_system_counts(
     minimal_sources: HubSources,
@@ -259,6 +260,81 @@ def test_validation_requires_nonempty_test_mechanism_steps(
     with pytest.raises(ValueError, match="mechanism_steps must not be empty"):
         validate_hub_sources(
             replace(minimal_sources, tests=(test,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_incomplete_causal_comparison(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={
+            **minimal_sources.tests[0].metadata,
+            "visual": {
+                "type": "causal_comparison",
+                "current_label": "Today",
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="current_summary"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_unsupported_visual_type(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={
+            **minimal_sources.tests[0].metadata,
+            "visual": {"type": "placeholder"},
+        },
+    )
+
+    with pytest.raises(ValueError, match="visual.type"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_accepts_record_without_visual(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    validate_hub_sources(minimal_sources, ledger_build, tmp_path)
+
+
+def test_validation_accepts_complete_causal_comparison_and_rejects_unknown_keys(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={**minimal_sources.tests[0].metadata, "visual": CAUSAL_VISUAL},
+    )
+    sources = replace(minimal_sources, tests=(idea,))
+
+    validate_hub_sources(sources, ledger_build, tmp_path)
+
+    unknown_key = replace(
+        idea,
+        metadata={
+            **idea.metadata,
+            "visual": {**CAUSAL_VISUAL, "current_summry": "Typo."},
+        },
+    )
+    with pytest.raises(ValueError, match="unknown field"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(unknown_key,)), ledger_build, tmp_path
         )
 
 

@@ -16,10 +16,10 @@ Recurring failure patterns could show where a ranking method needs a different e
 
 ## How does it work?
 
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step">Represent development failures using bounded query and ranking evidence.</li>
-<li class="hub-process-step">Cluster similar failures and describe the resulting query types.</li>
-<li class="hub-process-step">Test whether the clusters predict weakness on a held-out development partition.</li>
+<ol class="hub-record-path">
+<li class="hub-record-path-step">Represent development failures using bounded query and ranking evidence.</li>
+<li class="hub-record-path-step">Cluster similar failures and describe the resulting query types.</li>
+<li class="hub-record-path-step">Test whether the clusters predict weakness on a held-out development partition.</li>
 </ol>
 
 ## What do we know?

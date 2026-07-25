@@ -24,10 +24,13 @@ from trec_mlm.research_hub.render import (
     render_run_pages,
     render_runs_qmd,
     render_study_detail_pages,
+    render_test_pages,
     render_summary_markdown,
     render_summary_qmd,
 )
 from trec_mlm.research_hub.validate import ValidationSummary
+
+from conftest import CAUSAL_VISUAL
 
 
 @pytest.fixture
@@ -127,17 +130,56 @@ def test_idea_detail_emits_semantic_visuals_with_every_process_step(
 
     assert "::: {.hub-idea-hero}" in detail
     assert 'class="hub-idea-status"' in detail
-    assert '<ol class="hub-process hub-record-path">' in detail
-    assert detail.count('<li class="hub-process-step">') == 2
+    assert '<ol class="hub-record-path">' in detail
+    assert detail.count('<li class="hub-record-path-step">') == 2
     assert (
-        '<li class="hub-process-step">Collect &lt;candidate&gt; evidence.</li>'
+        '<li class="hub-record-path-step">Collect &lt;candidate&gt; evidence.</li>'
         in detail
     )
     assert (
-        '<li class="hub-process-step">'
+        '<li class="hub-record-path-step">'
         "Compare it with the query &amp; baseline.</li>"
         in detail
     )
+
+
+def test_causal_visual_uses_only_explicit_record_text(
+    sample_build: HubBuild,
+) -> None:
+    idea = replace(
+        sample_build.sources.tests[0],
+        metadata={
+            **sample_build.sources.tests[0].metadata,
+            "visual": CAUSAL_VISUAL,
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(sample_build.sources, tests=(idea,)),
+    )
+
+    detail = render_test_pages(build)[
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
+    ]
+
+    assert "hub-causal-comparison" in detail
+    for text in (
+        "One fixed evidence mixture creates uneven failures.",
+        "A reliability gate chooses the evidence mixture.",
+        "Does the adaptive mixture beat the frozen dense/profile control?",
+    ):
+        assert text in detail
+
+
+def test_idea_without_visual_emits_no_placeholder_diagram(
+    sample_build: HubBuild,
+) -> None:
+    detail = render_test_pages(sample_build)[
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
+    ]
+
+    assert "hub-causal-comparison" not in detail
+    assert "hub-process" not in detail
 
 
 def test_idea_index_shows_fallback_when_priority_is_not_specified(

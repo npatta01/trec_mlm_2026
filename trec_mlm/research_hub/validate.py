@@ -46,6 +46,20 @@ DATA_SENSITIVITY = frozenset({"public", "project_internal", "restricted", "secre
 DATA_SHARING = frozenset(
     {"repository", "local_only", "external_reference", "metadata_only"}
 )
+VISUAL_TYPES = frozenset({"causal_comparison"})
+
+_CAUSAL_COMPARISON_FIELDS = frozenset(
+    {
+        "type",
+        "current_label",
+        "current_summary",
+        "current_items",
+        "proposed_label",
+        "proposed_summary",
+        "proposed_routes",
+        "decision_test",
+    }
+)
 
 DATA_CATEGORIES = frozenset({"provided", "collected", "generated", "external"})
 BACKGROUND_TYPES = frozenset(
@@ -92,6 +106,91 @@ def require_string_list(record: HubRecord, field: str) -> tuple[str, ...]:
     if len(value) != len(set(value)):
         raise ValueError(f"{record.source_path}: {field} contains duplicates")
     return tuple(value)
+
+
+def _require_visual_string(
+    record: HubRecord,
+    visual: Mapping[str, object],
+    key: str,
+    *,
+    error_field: str | None = None,
+) -> str:
+    value = visual.get(key)
+    field = error_field or key
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"{record.source_path}: visual.{field} must be a nonempty string"
+        )
+    return value.strip()
+
+
+def validate_visual(record: HubRecord) -> None:
+    """Validate an optional explicit visual model attached to a record."""
+
+    visual = record.metadata.get("visual")
+    if visual is None:
+        return
+    if not isinstance(visual, Mapping):
+        raise ValueError(f"{record.source_path}: visual must be a mapping")
+    visual_type = visual.get("type")
+    if visual_type not in VISUAL_TYPES:
+        raise ValueError(
+            f"{record.source_path}: visual.type must be one of "
+            f"{sorted(VISUAL_TYPES)}"
+        )
+
+    unknown_fields = set(visual) - _CAUSAL_COMPARISON_FIELDS
+    if unknown_fields:
+        raise ValueError(
+            f"{record.source_path}: visual contains unknown field(s): "
+            f"{sorted(unknown_fields)}"
+        )
+
+    for field in (
+        "current_label",
+        "current_summary",
+        "proposed_label",
+        "proposed_summary",
+        "decision_test",
+    ):
+        _require_visual_string(record, visual, field)
+
+    current_items = visual.get("current_items")
+    if (
+        not isinstance(current_items, list)
+        or not current_items
+        or any(
+            not isinstance(item, str) or not item.strip()
+            for item in current_items
+        )
+    ):
+        raise ValueError(
+            f"{record.source_path}: visual.current_items must be a nonempty string list"
+        )
+
+    proposed_routes = visual.get("proposed_routes")
+    if not isinstance(proposed_routes, list) or not proposed_routes:
+        raise ValueError(
+            f"{record.source_path}: visual.proposed_routes must be a nonempty list"
+        )
+    for route in proposed_routes:
+        if not isinstance(route, Mapping):
+            raise ValueError(
+                f"{record.source_path}: visual.proposed_routes must contain mappings"
+            )
+        unknown_route_fields = set(route) - {"label", "action"}
+        if unknown_route_fields:
+            raise ValueError(
+                f"{record.source_path}: visual.proposed_routes contains unknown "
+                f"field(s): {sorted(unknown_route_fields)}"
+            )
+        for field in ("label", "action"):
+            _require_visual_string(
+                record,
+                route,
+                field,
+                error_field=f"proposed_routes.{field}",
+            )
 
 
 def require_choice(record: HubRecord, field: str, allowed: frozenset[str]) -> str:
@@ -464,6 +563,7 @@ def validate_hub_sources(
     owners: dict[tuple[str, str], str] = {}
     for record in records:
         validate_record_identity(record)
+        validate_visual(record)
         key = (record.kind, record.record_id)
         if key in owners:
             raise ValueError(

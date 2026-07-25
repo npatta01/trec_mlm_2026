@@ -16,11 +16,44 @@ Response and reference evidence help unevenly, so a fixed mixture can hide failu
 
 ## How does it work?
 
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step">Read the new request and estimate which evidence sources are dependable.</li>
-<li class="hub-process-step">Choose a bounded evidence mixture using the frozen reliability rule.</li>
-<li class="hub-process-step">Rank candidates and compare with the frozen dense/profile control.</li>
+<ol class="hub-record-path">
+<li class="hub-record-path-step">Read the new request and estimate which evidence sources are dependable.</li>
+<li class="hub-record-path-step">Choose a bounded evidence mixture using the frozen reliability rule.</li>
+<li class="hub-record-path-step">Rank candidates and compare with the frozen dense/profile control.</li>
 </ol>
+
+<figure class="hub-causal-comparison">
+<section class="hub-causal-current">
+<h3>Today</h3>
+<p>One fixed evidence mixture creates uneven failures.</p>
+<ul>
+<li>Past requests</li>
+<li>Candidate profiles</li>
+<li>Responses</li>
+<li>Generated reference</li>
+</ul>
+</section>
+<div class="hub-causal-change">Proposed change</div>
+<section class="hub-causal-proposed">
+<h3>Proposed</h3>
+<p>A reliability gate chooses the evidence mixture.</p>
+<dl>
+<div>
+<dt>Known request pattern</dt>
+<dd>Use similar historical requests.</dd>
+</div>
+<div>
+<dt>Stable candidate strength</dt>
+<dd>Use semantic profiles.</dd>
+</div>
+<div>
+<dt>Response evidence passes checks</dt>
+<dd>Use responses or references.</dd>
+</div>
+</dl>
+</section>
+<figcaption class="hub-decision-test"><strong>Decision test:</strong> Does the adaptive mixture beat the frozen dense/profile control?</figcaption>
+</figure>
 
 ## What do we know?
 

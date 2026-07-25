@@ -10,6 +10,36 @@ from trec_mlm.experiment_ledger import LedgerBuild, build_ledger
 from trec_mlm.research_hub.model import HubRecord, HubSources
 
 
+CAUSAL_VISUAL = {
+    "type": "causal_comparison",
+    "current_label": "Today",
+    "current_summary": "One fixed evidence mixture creates uneven failures.",
+    "current_items": [
+        "Past requests",
+        "Candidate profiles",
+        "Responses",
+        "Generated reference",
+    ],
+    "proposed_label": "Proposed",
+    "proposed_summary": "A reliability gate chooses the evidence mixture.",
+    "proposed_routes": [
+        {
+            "label": "Known request pattern",
+            "action": "Use similar historical requests.",
+        },
+        {
+            "label": "Stable candidate strength",
+            "action": "Use semantic profiles.",
+        },
+        {
+            "label": "Response evidence passes checks",
+            "action": "Use responses or references.",
+        },
+    ],
+    "decision_test": "Does the adaptive mixture beat the frozen dense/profile control?",
+}
+
+
 @pytest.fixture(scope="session")
 def ledger_build() -> LedgerBuild:
     return build_ledger(Path("."))

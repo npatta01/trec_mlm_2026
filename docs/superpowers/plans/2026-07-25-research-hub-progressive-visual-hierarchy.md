@@ -303,7 +303,7 @@ git commit -m "style: reduce research hub first-view density"
 - Consumes the rendered Quarto site.
 - Produces the refreshed tailnet-only preview.
 
-- [ ] **Step 1: Run the fresh complete gate**
+- [x] **Step 1: Run the fresh complete gate**
 
 ```bash
 uv run --extra dev pytest tests/research_hub -q
@@ -317,7 +317,7 @@ git diff --check
 
 Expected: every command exits zero.
 
-- [ ] **Step 2: Capture and inspect representative pages**
+- [x] **Step 2: Capture and inspect representative pages**
 
 Inspect summary, theme, idea index, causal idea detail, question, and study
 pages at 1440×1000 and 390×844 in light and dark modes. Also inspect the causal
@@ -330,13 +330,13 @@ detail in grayscale, accent-disabled, and forced-colors modes. Confirm:
 - no unclear unlabeled arrows or nodes;
 - readable color and type hierarchy.
 
-- [ ] **Step 3: Verify progressive disclosure interaction**
+- [x] **Step 3: Verify progressive disclosure interaction**
 
 On desktop and mobile, use keyboard focus plus Enter to open each representative
 details summary. Confirm the control state is visible and the expanded content
 does not move focus or navigate.
 
-- [ ] **Step 4: Sync and probe the private portal**
+- [x] **Step 4: Sync and probe the private portal**
 
 ```bash
 rsync -a --delete research/hub/_site/ /home/npatta01/codex-rendered/plans/trec-2026-research-hub/
@@ -346,9 +346,34 @@ tailscale serve status
 Confirm the mapping says `tailnet only`; key pages return 200; canonical QMD and
 retired raw bundles return 404.
 
-- [ ] **Step 5: Commit verification evidence**
+- [x] **Step 5: Commit verification evidence**
 
 ```bash
 git add docs/superpowers/plans/2026-07-25-research-hub-progressive-visual-hierarchy.md
 git commit -m "docs: verify progressive visual hierarchy"
 ```
+
+#### Task 3 verification evidence (2026-07-25)
+
+- Fresh complete gate passed after the final renderer change: Research Hub tests,
+  generator build/check, Quarto render, Ruff, publication audit, and
+  `git diff --check` all exited zero.
+- Chrome DevTools captured and visually inspected 27 actual page viewports:
+  summary, generated theme, idea index, causal idea detail, question, and
+  study at 1440×1000 and 390×844 in light and true Quarto dark mode, plus
+  causal detail grayscale, accent-disabled, and forced-colors views. Evidence:
+  `.superpowers/sdd/2026-07-25-research-hub-progressive-visual-hierarchy/visual-captures/`.
+  All captures had no horizontal overflow. The causal visual is the only
+  primary visual and now labels its transition `Proposed change`; other pages
+  show no placeholder diagram. The visual review found readable hierarchy and
+  closed details below the first-view takeaway/action.
+- The browser focused and pressed Enter on all 24 rendered disclosure summaries
+  (theme, causal idea, question, and study; desktop and mobile). Every control
+  retained focus and path, changed `details.open` from false to true, had a
+  visible outline, and met the 44px minimum target. Summary and idea-index
+  pages have no disclosure summaries.
+- Synced `/home/npatta01/codex-rendered/plans/trec-2026-research-hub/` using
+  the required delete-aware rsync. `tailscale serve status` reported
+  `https://npatta01-framework.tail481212.ts.net (tailnet only)`. The portal
+  returned 200 for the hub index and representative idea, question, and study
+  pages; canonical `.qmd` and retired `.zip` paths returned 404.

@@ -2,9 +2,13 @@
 
 # Semantic failure clusters
 
+::: {.hub-idea-hero}
+<p class="hub-idea-status">Idea · Medium priority · 5/9 readiness fields complete</p>
+
 ## What this idea means
 
 Group similar ranking failures to find request types where a method repeatedly struggles.
+:::
 
 ## Why it matters
 
@@ -12,9 +16,11 @@ Recurring failure patterns could show where a ranking method needs a different e
 
 ## How it would work
 
-1. Represent development failures using bounded query and ranking evidence.
-2. Cluster similar failures and describe the resulting query types.
-3. Test whether the clusters predict weakness on a held-out development partition.
+<ol class="hub-process">
+<li class="hub-process-step">Represent development failures using bounded query and ranking evidence.</li>
+<li class="hub-process-step">Cluster similar failures and describe the resulting query types.</li>
+<li class="hub-process-step">Test whether the clusters predict weakness on a held-out development partition.</li>
+</ol>
 
 ## Current evidence
 

@@ -87,6 +87,44 @@ def test_idea_index_and_details_expand_from_canonical_records(
     assert "Related research" in detail
 
 
+def test_idea_detail_emits_semantic_visuals_with_every_process_step(
+    sample_build: HubBuild,
+) -> None:
+    test = sample_build.sources.tests[0]
+    metadata = {
+        **test.metadata,
+        "mechanism_steps": [
+            "Collect <candidate> evidence.",
+            "Compare it with the query & baseline.",
+        ],
+    }
+    build = replace(
+        sample_build,
+        sources=replace(
+            sample_build.sources,
+            tests=(replace(test, metadata=metadata),),
+        ),
+    )
+
+    detail = render_hub_outputs(build)[
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
+    ]
+
+    assert "::: {.hub-idea-hero}" in detail
+    assert 'class="hub-idea-status"' in detail
+    assert '<ol class="hub-process">' in detail
+    assert detail.count('<li class="hub-process-step">') == 2
+    assert (
+        '<li class="hub-process-step">Collect &lt;candidate&gt; evidence.</li>'
+        in detail
+    )
+    assert (
+        '<li class="hub-process-step">'
+        "Compare it with the query &amp; baseline.</li>"
+        in detail
+    )
+
+
 def test_idea_index_shows_fallback_when_priority_is_not_specified(
     sample_build: HubBuild,
 ) -> None:

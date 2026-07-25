@@ -2,9 +2,13 @@
 
 # Failure-aware evidence fusion
 
+::: {.hub-idea-hero}
+<p class="hub-idea-status">Idea · High priority · 6/9 readiness fields complete</p>
+
 ## What this idea means
 
 Use a reliability check to choose which evidence sources should influence each request.
+:::
 
 ## Why it matters
 
@@ -12,9 +16,11 @@ Response and reference evidence help unevenly, so a fixed mixture can hide failu
 
 ## How it would work
 
-1. Read the new request and estimate which evidence sources are dependable.
-2. Choose a bounded evidence mixture using the frozen reliability rule.
-3. Rank candidates and compare with the frozen dense/profile control.
+<ol class="hub-process">
+<li class="hub-process-step">Read the new request and estimate which evidence sources are dependable.</li>
+<li class="hub-process-step">Choose a bounded evidence mixture using the frozen reliability rule.</li>
+<li class="hub-process-step">Rank candidates and compare with the frozen dense/profile control.</li>
+</ol>
 
 ## Current evidence
 

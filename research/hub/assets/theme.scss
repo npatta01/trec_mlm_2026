@@ -496,8 +496,10 @@ div.hub-question-row > :last-child {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   margin-block: 1.75rem 2.5rem;
+  padding-inline-start: 0;
   border-block: 1px solid var(--bs-border-color);
   counter-reset: hub-process;
+  list-style: none;
 }
 
 .hub-process-step {

@@ -2,9 +2,13 @@
 
 # Reference review trigger
 
+::: {.hub-idea-hero}
+<p class="hub-idea-status">Idea · High priority · 6/9 readiness fields complete</p>
+
 ## What this idea means
 
 Flag generated reference answers that need more evidence or a human check before guiding a ranking.
+:::
 
 ## Why it matters
 
@@ -12,9 +16,11 @@ A selective review trigger could reduce avoidable reference failures without rev
 
 ## How it would work
 
-1. Measure signals that indicate a generated reference may be unreliable.
-2. Route flagged references to grounding or human review.
-3. Compare the trigger with always-review and never-review controls.
+<ol class="hub-process">
+<li class="hub-process-step">Measure signals that indicate a generated reference may be unreliable.</li>
+<li class="hub-process-step">Route flagged references to grounding or human review.</li>
+<li class="hub-process-step">Compare the trigger with always-review and never-review controls.</li>
+</ol>
 
 ## Current evidence
 

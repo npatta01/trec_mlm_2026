@@ -17,6 +17,7 @@ project:
     - "themes/index.qmd"
     - "library/*.qmd"
     - "generated/themes/*.qmd"
+    - "generated/ideas/*.qmd"
     - "generated/runs/*.qmd"
   pre-render:
     - "uv run --project ../.. python ../../scripts/build_research_hub.py --root ../.."

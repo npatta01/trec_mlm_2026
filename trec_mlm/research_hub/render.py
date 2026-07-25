@@ -147,7 +147,7 @@ def _rendered_path(record: HubRecord) -> str:
         "theme": "generated/themes",
         "question": "questions",
         "study": "studies",
-        "test": "ideas",
+        "test": "generated/ideas",
         "approach": "approaches",
         "dataset": "data",
         "background": "background",
@@ -803,7 +803,11 @@ def render_tests_index_qmd(build: HubBuild) -> str:
     ]
     for test in sorted(build.sources.tests, key=lambda row: row.record_id):
         stage = html.escape(_human_label(test.metadata.get("stage", "")))
-        priority = html.escape(_human_label(test.metadata.get("priority", "")))
+        priority_value = test.metadata.get("priority")
+        if isinstance(priority_value, str) and priority_value.strip():
+            priority = f"{html.escape(_human_label(priority_value))} priority"
+        else:
+            priority = "Priority not specified"
         readiness = html.escape(_test_readiness_count(test))
         lines.extend(
             [
@@ -811,12 +815,13 @@ def render_tests_index_qmd(build: HubBuild) -> str:
                     '<a class="hub-idea-row" '
                     f'data-test-id="{html.escape(test.record_id, quote=True)}" '
                     f'data-themes="{html.escape(" ".join(_metadata_list(test, "theme_ids")), quote=True)}" '
-                    f'href="ideas/{html.escape(test.record_id, quote=True)}.qmd">'
+                    f'href="../generated/ideas/'
+                    f'{html.escape(test.record_id, quote=True)}.qmd">'
                 ),
                 f"<strong>{html.escape(test.title)}</strong>",
                 f"<span>{html.escape(str(test.metadata.get('plain_english', '')))}</span>",
                 f"<span>{html.escape(str(test.metadata.get('summary', '')))}</span>",
-                f"<span>{stage} · {priority} priority · {readiness}</span>",
+                f"<span>{stage} · {priority} · {readiness}</span>",
                 "</a>",
             ]
         )

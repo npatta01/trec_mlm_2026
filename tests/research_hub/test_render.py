@@ -78,12 +78,34 @@ def test_idea_index_and_details_expand_from_canonical_records(
 
     assert "Test candidate evidence." in index
     assert "hub-idea-row" in index
+    assert 'href="../generated/ideas/test-candidate-evidence.qmd"' in index
     assert "What this idea means" in detail
     assert "Why it matters" in detail
     assert "How it would work" in detail
     assert "What is missing" in detail
     assert "What happens next" in detail
     assert "Related research" in detail
+
+
+def test_idea_index_shows_fallback_when_priority_is_not_specified(
+    sample_build: HubBuild,
+) -> None:
+    test = sample_build.sources.tests[0]
+    metadata = dict(test.metadata)
+    metadata.pop("priority")
+    build = replace(
+        sample_build,
+        sources=replace(
+            sample_build.sources,
+            tests=(replace(test, metadata=metadata),),
+        ),
+    )
+
+    index = render_hub_outputs(build)[
+        Path("research/hub/generated/ideas-index.qmd")
+    ]
+
+    assert "Priority not specified" in index
 
 
 def test_catalog_includes_themes_with_generated_page_paths(
@@ -94,6 +116,9 @@ def test_catalog_includes_themes_with_generated_page_paths(
 
     assert resources[("theme", "candidate-evidence")]["rendered_path"] == (
         "generated/themes/candidate-evidence.html"
+    )
+    assert resources[("test", "test-candidate-evidence")]["rendered_path"] == (
+        "generated/ideas/test-candidate-evidence.html"
     )
 
 

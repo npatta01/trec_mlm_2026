@@ -2466,7 +2466,7 @@
       "canonical_path": "research/hub/ideas/failure-aware-fusion.qmd",
       "id": "failure-aware-fusion",
       "related_ids": [],
-      "rendered_path": "ideas/failure-aware-fusion.html",
+      "rendered_path": "generated/ideas/failure-aware-fusion.html",
       "summary": "Choose the evidence source most likely to be trustworthy for each request.",
       "tags": [
         "fusion",
@@ -2479,7 +2479,7 @@
       "canonical_path": "research/hub/ideas/reference-review-trigger.qmd",
       "id": "reference-review-trigger",
       "related_ids": [],
-      "rendered_path": "ideas/reference-review-trigger.html",
+      "rendered_path": "generated/ideas/reference-review-trigger.html",
       "summary": "Flag generated reference answers that need more evidence or a human check before guiding a ranking.",
       "tags": [
         "escalation",
@@ -2493,7 +2493,7 @@
       "canonical_path": "research/hub/ideas/semantic-failure-clusters.qmd",
       "id": "semantic-failure-clusters",
       "related_ids": [],
-      "rendered_path": "ideas/semantic-failure-clusters.html",
+      "rendered_path": "generated/ideas/semantic-failure-clusters.html",
       "summary": "Group similar ranking failures to find request types where a method repeatedly struggles.",
       "tags": [
         "clusters",

@@ -26,6 +26,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert config["project"]["resources"] == ["assets/ledger.js", "catalog.json"]
     assert "generated/runs/*.qmd" in config["project"]["render"]
     assert "generated/themes/*.qmd" in config["project"]["render"]
+    assert "generated/ideas/*.qmd" in config["project"]["render"]
     assert "library/*.qmd" in config["project"]["render"]
     assert config["project"]["pre-render"] == [
         "uv run --project ../.. python ../../scripts/build_research_hub.py "
@@ -101,6 +102,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     questions = (ROOT / "research/hub/questions/index.qmd").read_text()
     data = (ROOT / "research/hub/data/index.qmd").read_text()
     background = (ROOT / "research/hub/background/index.qmd").read_text()
+    ideas = (ROOT / "research/hub/ideas/index.qmd").read_text()
 
     assert "hub-task-flow" in problem
     assert "hub-example" in problem
@@ -117,6 +119,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     assert "Candidate inventory" not in data
     assert "{{< include ../generated/studies-index.qmd >}}" in studies
     assert "{{< include ../generated/themes-index.qmd >}}" in themes
+    assert "{{< include ../generated/ideas-index.qmd >}}" in ideas
     assert "research summary" not in themes.lower()
     assert "include-after-body: ../assets/ledger-script.html" in studies
     assert "{{< include generated/summary.qmd >}}" in summary
@@ -126,6 +129,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
     assert "listing:" not in studies
     assert "listing:" not in data
     assert "listing:" not in background
+    assert "listing:" not in ideas
 
 
 def test_generated_pages_and_theme_use_the_open_visual_system() -> None:
@@ -340,6 +344,9 @@ def test_contributor_guide_and_complete_record_templates() -> None:
             "theme_ids",
             "stage",
             "summary",
+            "plain_english",
+            "why_it_matters",
+            "mechanism_steps",
             "linked_question_ids",
             "missing_readiness_fields",
             "hypothesis",

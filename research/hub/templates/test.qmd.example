@@ -5,6 +5,11 @@ primary_theme_id: replace-theme-id
 theme_ids: [replace-theme-id]
 stage: ready
 summary: "State the decision-relevant test."
+plain_english: "Explain the idea in language a new contributor can understand."
+why_it_matters: "Explain what decision or outcome this test could improve."
+mechanism_steps:
+  - "Describe the first concrete step."
+  - "Describe how the result will be evaluated."
 linked_question_ids: [replace-question-id]
 missing_readiness_fields: []
 hypothesis: "State the frozen expectation."

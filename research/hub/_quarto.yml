@@ -10,7 +10,7 @@ project:
     - "data/*.qmd"
     - "questions/*.qmd"
     - "studies/*.qmd"
-    - "ideas/*.qmd"
+    - "ideas/index.qmd"
     - "approaches/*.qmd"
     - "protocols/*.qmd"
     - "evidence/*.qmd"

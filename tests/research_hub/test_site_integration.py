@@ -16,6 +16,42 @@ from trec_mlm.research_hub.render import render_hub_outputs
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_quarto_renders_generated_idea_library() -> None:
+    outputs = render_hub_outputs(build_research_hub(ROOT))
+    config = yaml.safe_load((ROOT / "research/hub/_quarto.yml").read_text())
+
+    assert Path("research/hub/generated/ideas-index.qmd") in outputs
+    assert all(
+        "generated/ideas/" in path.as_posix()
+        for path in outputs
+        if path.as_posix().startswith("research/hub/generated/ideas/")
+    )
+    assert "generated/ideas/*.qmd" in config["project"]["render"]
+    assert "ideas/*.qmd" not in config["project"]["render"]
+
+
+def test_failure_aware_fusion_uses_the_reviewed_explainer_copy() -> None:
+    source = (ROOT / "research/hub/ideas/failure-aware-fusion.qmd").read_text()
+    metadata = yaml.safe_load(source.split("---", maxsplit=2)[1])
+
+    assert metadata["plain_english"] == (
+        "Use a reliability check to choose which evidence sources should "
+        "influence each request."
+    )
+    assert metadata["why_it_matters"] == (
+        "Response and reference evidence help unevenly, so a fixed mixture "
+        "can hide failures."
+    )
+    assert metadata["mechanism_steps"] == [
+        "Read the new request and estimate which evidence sources are dependable.",
+        "Choose a bounded evidence mixture using the frozen reliability rule.",
+        "Rank candidates and compare with the frozen dense/profile control.",
+    ]
+    assert metadata["next_action"] == (
+        "Define and freeze the reliability signal, fallback, and artifact plan."
+    )
+
+
 def test_complete_research_hub_content_and_static_shell() -> None:
     build = build_research_hub(ROOT)
     config = yaml.safe_load((ROOT / "research/hub/_quarto.yml").read_text())

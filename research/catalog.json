@@ -2467,7 +2467,7 @@
       "id": "failure-aware-fusion",
       "related_ids": [],
       "rendered_path": "generated/ideas/failure-aware-fusion.html",
-      "summary": "Choose the evidence source most likely to be trustworthy for each request.",
+      "summary": "Use a reliability check to choose which evidence sources should influence each request.",
       "tags": [
         "fusion",
         "reliability"

@@ -7,7 +7,7 @@ Ideas are prospective work, not results. Open a row for the full explanation, ev
 <div class="hub-idea-list">
 <a class="hub-idea-row" data-test-id="failure-aware-fusion" data-themes="evidence-reliability responses-references" href="../generated/ideas/failure-aware-fusion.qmd">
 <strong>Failure-aware evidence fusion</strong>
-<span>Choose the evidence source most likely to be trustworthy for each request.</span>
+<span>Use a reliability check to choose which evidence sources should influence each request.</span>
 <span>Select evidence sources using a query-level reliability signal.</span>
 <span>Idea · High priority · 6/9 readiness fields complete</span>
 </a>

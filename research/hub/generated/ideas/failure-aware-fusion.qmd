@@ -4,17 +4,17 @@
 
 ## What this idea means
 
-Choose the evidence source most likely to be trustworthy for each request.
+Use a reliability check to choose which evidence sources should influence each request.
 
 ## Why it matters
 
-A ranking method can fail when it relies on evidence that is unreliable for the current request.
+Response and reference evidence help unevenly, so a fixed mixture can hide failures.
 
 ## How it would work
 
-1. Estimate the reliability of each available evidence source for a request.
-2. Weight or exclude evidence sources according to that reliability estimate.
-3. Compare the resulting ranking with fixed evidence-source controls.
+1. Read the new request and estimate which evidence sources are dependable.
+2. Choose a bounded evidence mixture using the frozen reliability rule.
+3. Rank candidates and compare with the frozen dense/profile control.
 
 ## Current evidence
 
@@ -29,7 +29,7 @@ dependencies, and an artifact plan before it can enter the ready queue.
 
 ## What happens next
 
-Freeze the reliability signal and the decision rule for the comparison.
+Define and freeze the reliability signal, fallback, and artifact plan.
 
 ## Related research
 

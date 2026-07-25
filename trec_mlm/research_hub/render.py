@@ -161,13 +161,11 @@ def _catalog_related_ids(build: HubBuild, record: HubRecord) -> list[str]:
     related = set(_related_ids(record))
     if record.kind == "theme":
         related.update(
-            test.record_id
-            for test in _tests_for_theme(build, record.record_id)
+            test.record_id for test in _tests_for_theme(build, record.record_id)
         )
     elif record.kind == "question":
         related.update(
-            test.record_id
-            for test in _tests_for_questions(build, (record.record_id,))
+            test.record_id for test in _tests_for_questions(build, (record.record_id,))
         )
     elif record.kind == "study":
         related.update(
@@ -417,9 +415,7 @@ def _tests_for_questions(
         (
             test
             for test in build.sources.tests
-            if linked_ids.intersection(
-                _metadata_list(test, "linked_question_ids")
-            )
+            if linked_ids.intersection(_metadata_list(test, "linked_question_ids"))
         ),
         key=lambda test: test.record_id,
     )
@@ -447,8 +443,6 @@ def _development_evidence_notice() -> list[str]:
 def _render_theme_rows(build: HubBuild, *, href_prefix: str) -> list[str]:
     lines: list[str] = []
     for theme in sorted(build.sources.themes, key=lambda row: row.record_id):
-        questions = _records_for_theme(build.sources.questions, theme.record_id)
-        studies = _records_for_theme(build.sources.studies, theme.record_id)
         lines.extend(
             [
                 "",
@@ -457,6 +451,13 @@ def _render_theme_rows(build: HubBuild, *, href_prefix: str) -> list[str]:
                     f'href="{href_prefix}/'
                     f'{html.escape(theme.record_id, quote=True)}.qmd">'
                 ),
+                (
+                    "<span>"
+                    f"{html.escape(_human_label(theme.metadata.get('decision', '')))} · "
+                    f"{html.escape(_human_label(theme.metadata.get('confidence', '')))} "
+                    "confidence"
+                    "</span>"
+                ),
                 f"<strong>{html.escape(theme.title)}</strong>",
                 (
                     "<span>"
@@ -464,13 +465,8 @@ def _render_theme_rows(build: HubBuild, *, href_prefix: str) -> list[str]:
                     "</span>"
                 ),
                 (
-                    "<span>"
-                    f"{html.escape(_human_label(theme.metadata.get('decision', '')))}"
-                    " · "
-                    f"{html.escape(_human_label(theme.metadata.get('confidence', '')))} "
-                    "confidence · "
-                    f"{_count_label(len(questions), 'question')} · "
-                    f"{_count_label(len(studies), 'study')}"
+                    '<span class="hub-next-action">'
+                    f"{_theme_next_move(build, theme)}"
                     "</span>"
                 ),
                 "</a>",
@@ -580,7 +576,9 @@ def render_background_index_qmd(build: HubBuild) -> str:
         "adjacent research.",
     ]
     for heading, introduction, record_ids in groups:
-        present_ids = tuple(record_id for record_id in record_ids if record_id in records)
+        present_ids = tuple(
+            record_id for record_id in record_ids if record_id in records
+        )
         if not present_ids:
             continue
         lines.extend(
@@ -637,8 +635,7 @@ def render_data_index_qmd(build: HubBuild) -> str:
         (
             "collected",
             "Collected evidence",
-            "Evidence gathered from candidate models under bounded project "
-            "protocols.",
+            "Evidence gathered from candidate models under bounded project protocols.",
         ),
         (
             "generated",
@@ -661,9 +658,7 @@ def render_data_index_qmd(build: HubBuild) -> str:
     ]
     for category, heading, introduction in groups:
         records = [
-            record
-            for record in datasets
-            if record.metadata.get("category") == category
+            record for record in datasets if record.metadata.get("category") == category
         ]
         if not records:
             continue
@@ -710,6 +705,10 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
     questions = _records_for_theme(build.sources.questions, theme.record_id)
     studies = _records_for_theme(build.sources.studies, theme.record_id)
     theme_id = quote(theme.record_id, safe="")
+    status = (
+        f"{_human_label(theme.metadata.get('decision', ''))} · "
+        f"{_human_label(theme.metadata.get('confidence', ''))} confidence"
+    )
     lines = [
         "---",
         f"title: {_yaml_scalar(theme.title)}",
@@ -717,69 +716,52 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
         "toc: false",
         "---",
         "",
-        "## What does this mean?",
-        "",
-        str(theme.metadata.get("plain_english", "")),
-        "",
+        '<section class="hub-record-hero">',
+        f'<p class="hub-record-status">{html.escape(status)}</p>',
+        f'<p class="hub-takeaway">{html.escape(str(theme.metadata.get("current_conclusion", "")))}</p>',
+        f"<p>{html.escape(str(theme.metadata.get('plain_english', '')))}</p>",
+    ]
+    visual = _render_record_visual(theme)
+    if visual:
+        lines.extend(["", *visual])
+    lines.extend(
+        [
+            "",
+            f'<p class="hub-next-action">{_theme_next_move(build, theme)}</p>',
+            "</section>",
+            "",
+        ]
+    )
+    evidence_lines = [
         "## Why does it matter?",
         "",
         theme.body,
         "",
-        "## How does it work?",
-        "",
-        '<ol class="hub-process hub-record-path">',
-        (
-            '<li class="hub-process-step"><strong>Questions</strong><br>'
-            f"{_count_label(len(questions), 'question')} defines what this "
-            "theme is trying to learn.</li>"
-        ),
-        (
-            '<li class="hub-process-step"><strong>Evidence</strong><br>'
-            f"{_count_label(len(studies), 'study')} records the current "
-            "evidence.</li>"
-        ),
-        (
-            '<li class="hub-process-step"><strong>Decision</strong><br>'
-            f"{html.escape(_human_label(theme.metadata.get('decision', '')))}"
-            "</li>"
-        ),
-        "</ol>",
-        "",
-        "## What do we know?",
-        "",
-        "::: {.hub-conclusion}",
-        "### Current conclusion",
+        "## Current conclusion",
         "",
         str(theme.metadata.get("current_conclusion", "")),
-        ":::",
-        "",
-        "**Practical decision**",
-        "",
-        html.escape(_human_label(theme.metadata.get("decision", ""))),
-        "",
-        "## What is missing?",
-        "",
-        "**Confidence and evidence boundary**",
-        "",
-        (
-            f"{html.escape(_human_label(theme.metadata.get('confidence', '')))} "
-            f"confidence. "
-            f"{html.escape(str(theme.metadata.get('confidence_boundary', '')))}"
-        ),
-        "",
-        "## What happens next?",
-        "",
-        _theme_next_move(build, theme),
-        "",
-        "## How does it connect?",
-        "",
-        "## Questions in this theme",
     ]
+    lines.extend(_render_details("Evidence and current knowledge", evidence_lines))
+    lines.extend(
+        _render_details(
+            "Limits and readiness",
+            [
+                "**Confidence and evidence boundary**",
+                "",
+                (
+                    f"{html.escape(_human_label(theme.metadata.get('confidence', '')))} "
+                    f"confidence. "
+                    f"{html.escape(str(theme.metadata.get('confidence_boundary', '')))}"
+                ),
+            ],
+        )
+    )
+    relationship_lines = ["## Questions in this theme"]
     if not questions:
-        lines.extend(["", "No research question is currently linked."])
+        relationship_lines.extend(["", "No research question is currently linked."])
     for question in questions:
         open_subquestions = _metadata_list(question, "open_subquestions")
-        lines.extend(
+        relationship_lines.extend(
             [
                 "",
                 '<div class="hub-question-row">',
@@ -796,7 +778,7 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
             ]
         )
         if open_subquestions:
-            lines.extend(
+            relationship_lines.extend(
                 [
                     "<p><strong>Still open</strong></p>",
                     "<ul>",
@@ -807,8 +789,8 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
                     "</ul>",
                 ]
             )
-        lines.append("</div>")
-    lines.extend(
+        relationship_lines.append("</div>")
+    relationship_lines.extend(
         [
             "",
             "## Evidence behind this position",
@@ -821,6 +803,7 @@ def _render_theme_page(build: HubBuild, theme: HubRecord) -> str:
             ),
         ]
     )
+    lines.extend(_render_details("Relationships and evidence", relationship_lines))
     return "\n".join(lines)
 
 
@@ -863,17 +846,18 @@ def render_questions_index_qmd(build: HubBuild) -> str:
                     '<a class="hub-question-row" '
                     f'href="{html.escape(question.record_id, quote=True)}.qmd">'
                 ),
-                f"<strong>{html.escape(question.title)}</strong>",
-                f"<span>{html.escape(str(question.metadata.get('plain_english', '')))}</span>",
-                (
-                    "<span><strong>Current bounded answer</strong> "
-                    f"{html.escape(str(question.metadata.get('current_answer', '')))}</span>"
-                ),
                 (
                     "<span>"
                     f"{html.escape(_human_label(question.metadata.get('status', '')))} · "
                     f"{html.escape(_human_label(question.metadata.get('confidence', '')))} "
                     "confidence"
+                    "</span>"
+                ),
+                f"<strong>{html.escape(question.title)}</strong>",
+                f"<span>{html.escape(str(question.metadata.get('plain_english', '')))}</span>",
+                (
+                    '<span class="hub-next-action">'
+                    f"{_question_next_move(build, question)}"
                     "</span>"
                 ),
                 "</a>",
@@ -893,23 +877,45 @@ def _body_section(record: HubRecord, heading: str) -> str:
     except ValueError:
         return ""
     end = next(
-        (
-            index
-            for index in range(start, len(lines))
-            if lines[index].startswith("## ")
-        ),
+        (index for index in range(start, len(lines)) if lines[index].startswith("## ")),
         len(lines),
     )
     return "\n".join(lines[start:end]).strip()
 
 
+def _render_details(
+    label: str,
+    lines: Sequence[str],
+    *,
+    open: bool = False,
+) -> list[str]:
+    """Render supporting material behind a native progressive-disclosure control."""
+
+    open_attribute = " open" if open else ""
+    return [
+        "",
+        f'<details class="hub-details"{open_attribute}>',
+        f"<summary>{html.escape(label)}</summary>",
+        *lines,
+        "</details>",
+    ]
+
+
+def _question_next_move(build: HubBuild, question: HubRecord) -> str:
+    tests = _tests_for_questions(build, (question.record_id,))
+    if not tests:
+        return "No next test is currently linked."
+    test = tests[0]
+    return (
+        f'<a href="../generated/ideas/{html.escape(test.record_id, quote=True)}.qmd">'
+        f"{html.escape(test.title)}</a>: "
+        f"{html.escape(str(test.metadata.get('next_action', '')))}"
+    )
+
+
 def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
-    studies_by_id = {
-        study.record_id: study for study in build.sources.studies
-    }
-    themes_by_id = {
-        theme.record_id: theme for theme in build.sources.themes
-    }
+    studies_by_id = {study.record_id: study for study in build.sources.studies}
+    themes_by_id = {theme.record_id: theme for theme in build.sources.themes}
     studies = sorted(
         (
             studies_by_id[study_id]
@@ -918,6 +924,7 @@ def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
         ),
         key=lambda study: study.record_id,
     )
+    tests = _tests_for_questions(build, (question.record_id,))
     themes = sorted(
         (
             themes_by_id[theme_id]
@@ -926,41 +933,37 @@ def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
         ),
         key=lambda theme: theme.record_id,
     )
-    tests = _tests_for_questions(build, (question.record_id,))
-    authored_motivation = (
-        _body_section(question, "In plain English") or question.body
-    )
+    authored_motivation = _body_section(question, "In plain English") or question.body
     authored_limits = _body_section(question, "Evidence limits")
     authored_connections = _body_section(question, "Linked studies")
+    status = (
+        f"{_human_label(question.metadata.get('status', ''))} · "
+        f"{_human_label(question.metadata.get('confidence', ''))} confidence"
+    )
     lines = [
         "<!-- Generated by scripts/build_research_hub.py; do not edit. -->",
         "",
-        "## What does this mean?",
-        "",
-        html.escape(str(question.metadata.get("plain_english", ""))),
-        "",
+        '<section class="hub-record-hero">',
+        f'<p class="hub-record-status">{html.escape(status)}</p>',
+        f'<p class="hub-takeaway">{html.escape(str(question.metadata.get("plain_english", "")))}</p>',
+        f"<p>{html.escape(str(question.metadata.get('current_answer', '')))}</p>",
+    ]
+    visual = _render_record_visual(question)
+    if visual:
+        lines.extend(["", *visual])
+    lines.extend(
+        [
+            "",
+            f'<p class="hub-next-action">{_question_next_move(build, question)}</p>',
+            "</section>",
+        ]
+    )
+    evidence_lines = [
         "## Why does it matter?",
         "",
         html.escape(authored_motivation),
         "",
-        "## How does it work?",
-        "",
-        '<ol class="hub-process hub-record-path">',
-        (
-            '<li class="hub-process-step"><strong>Question</strong><br>'
-            f"{html.escape(question.title)}</li>"
-        ),
-        (
-            '<li class="hub-process-step"><strong>Evidence</strong><br>'
-            f"{_count_label(len(studies), 'study')} addresses this question.</li>"
-        ),
-        (
-            '<li class="hub-process-step"><strong>Bounded answer</strong><br>'
-            f"{html.escape(str(question.metadata.get('current_answer', '')))}</li>"
-        ),
-        "</ol>",
-        "",
-        "## What do we know?",
+        "## Current bounded answer",
         "",
         html.escape(str(question.metadata.get("current_answer", ""))),
         "",
@@ -968,35 +971,31 @@ def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
             f"**Confidence:** "
             f"{html.escape(_human_label(question.metadata.get('confidence', '')))}"
         ),
-        "",
-        "## What is missing?",
-        "",
-        html.escape(str(question.metadata.get("confidence_boundary", ""))),
     ]
+    lines.extend(_render_details("Evidence and current knowledge", evidence_lines))
+    limit_lines = [html.escape(str(question.metadata.get("confidence_boundary", "")))]
     if authored_limits:
-        lines.extend(["", html.escape(authored_limits)])
+        limit_lines.extend(["", html.escape(authored_limits)])
     open_subquestions = _metadata_list(question, "open_subquestions")
     if open_subquestions:
-        lines.extend(["", "**Open subquestions**", ""])
-        lines.extend(
-            f"- {html.escape(subquestion)}"
-            for subquestion in open_subquestions
+        limit_lines.extend(["", "**Open subquestions**", ""])
+        limit_lines.extend(
+            f"- {html.escape(subquestion)}" for subquestion in open_subquestions
         )
-    lines.extend(["", "## What happens next?", ""])
-    if tests:
-        lines.extend(
-            (
-                f'- <a href="../generated/ideas/'
-                f'{html.escape(test.record_id, quote=True)}.qmd">'
-                f"{html.escape(test.title)}</a>: "
-                f"{html.escape(str(test.metadata.get('next_action', '')))}"
-            )
-            for test in tests
+    lines.extend(_render_details("Limits and readiness", limit_lines))
+    relationship_lines = ["## Linked tests", ""]
+    relationship_lines.extend(
+        (
+            f'- <a href="../generated/ideas/{html.escape(test.record_id, quote=True)}.qmd">'
+            f"{html.escape(test.title)}</a>: "
+            f"{html.escape(str(test.metadata.get('next_action', '')))}"
         )
-    else:
-        lines.append("No next test is currently linked.")
-    lines.extend(["", "## How does it connect?", "", "**Themes**", ""])
-    lines.extend(
+        for test in tests
+    )
+    if not tests:
+        relationship_lines.append("- No next test is currently linked.")
+    relationship_lines.extend(["", "**Themes**", ""])
+    relationship_lines.extend(
         (
             f"- [{_markdown_table_text(theme.title)}]"
             f"(../generated/themes/{theme.record_id}.qmd)"
@@ -1004,24 +1003,26 @@ def _render_question_detail(build: HubBuild, question: HubRecord) -> str:
         for theme in themes
     )
     if not themes:
-        lines.append("- No linked theme.")
-    lines.extend(["", "**Studies**", ""])
-    lines.extend(
-        (
-            f"- [{_markdown_table_text(study.title)}]"
-            f"(../studies/{study.record_id}.qmd)"
-        )
+        relationship_lines.append("- No linked theme.")
+    relationship_lines.extend(["", "**Studies**", ""])
+    relationship_lines.extend(
+        (f"- [{_markdown_table_text(study.title)}](../studies/{study.record_id}.qmd)")
         for study in studies
     )
     if not studies:
-        lines.append("- No linked study.")
+        relationship_lines.append("- No linked study.")
     if authored_connections:
-        lines.extend(["", html.escape(authored_connections)])
-    lines.extend(["", "**Canonical evidence**", ""])
+        relationship_lines.extend(["", html.escape(authored_connections)])
+    relationship_lines.extend(["", "**Canonical evidence**", ""])
     evidence_refs = _metadata_list(question, "evidence_refs")
-    lines.extend(f"- {_path_code(reference)}" for reference in evidence_refs)
+    relationship_lines.extend(
+        f"- {_path_code(reference)}" for reference in evidence_refs
+    )
     if not evidence_refs:
-        lines.append("- No canonical evidence path is recorded.")
+        relationship_lines.append("- No canonical evidence path is recorded.")
+    lines.extend(
+        _render_details("Relationships and technical details", relationship_lines)
+    )
     return "\n".join(lines)
 
 
@@ -1113,12 +1114,11 @@ def render_tests_index_qmd(build: HubBuild) -> str:
                     f'href="../generated/ideas/'
                     f'{html.escape(test.record_id, quote=True)}.qmd">'
                 ),
+                f"<span>{stage} · {priority} · {readiness}</span>",
                 f"<strong>{html.escape(test.title)}</strong>",
                 f"<span>{html.escape(str(test.metadata.get('plain_english', '')))}</span>",
-                f"<span>{html.escape(str(test.metadata.get('summary', '')))}</span>",
-                f"<span>{stage} · {priority} · {readiness}</span>",
                 (
-                    "<span><strong>Next action:</strong> "
+                    '<span class="hub-next-action"><strong>Next action:</strong> '
                     f"{html.escape(str(test.metadata.get('next_action', '')))}</span>"
                 ),
                 "</a>",
@@ -1236,16 +1236,11 @@ def _render_test_page(build: HubBuild, test: HubRecord) -> str:
         "",
         f"# {html.escape(test.title)}",
         "",
-        "::: {.hub-idea-hero}",
+        "::: {.hub-record-hero .hub-idea-hero}",
         f'<p class="hub-idea-status">{stage} · {priority} · {readiness}</p>',
         "",
-        "## What does this mean?",
-        "",
-        html.escape(str(test.metadata.get("plain_english", ""))),
-        "",
-        "## Why does it matter?",
-        "",
-        html.escape(str(test.metadata.get("why_it_matters", ""))),
+        f'<p class="hub-takeaway">{html.escape(str(test.metadata.get("plain_english", "")))}</p>',
+        f"<p>{html.escape(str(test.metadata.get('why_it_matters', '')))}</p>",
     ]
     visual = _render_record_visual(test)
     if visual:
@@ -1259,45 +1254,29 @@ def _render_test_page(build: HubBuild, test: HubRecord) -> str:
             ),
             ":::",
             "",
-            "## How does it work?",
-            "",
-            '<ol class="hub-record-path">',
         ]
     )
-    lines.extend(
-        f'<li class="hub-record-path-step">{html.escape(step)}</li>'
-        for step in mechanism_steps
-    )
-    lines.extend(
-        [
-            "</ol>",
-            "",
-        ]
-    )
-    lines.extend(
-        [
-            "## What do we know?",
-            "",
-            html.escape(test.body),
-            "",
-            "## What is missing?",
-            "",
-        ]
-    )
-    lines.extend(
+    evidence_lines = [
+        "## How does it work?",
+        "",
+        "- " + "\n- ".join(html.escape(step) for step in mechanism_steps),
+        "",
+        "## What do we know?",
+        "",
+        html.escape(test.body),
+    ]
+    lines.extend(_render_details("Evidence and current knowledge", evidence_lines))
+    readiness_lines = ["## What is missing?", ""]
+    readiness_lines.extend(
         f"- {html.escape(_human_label(field))}" for field in missing_fields
     )
     if not missing_fields:
-        lines.append("- No readiness fields are currently missing.")
+        readiness_lines.append("- No readiness fields are currently missing.")
+    lines.extend(_render_details("Limits and readiness", readiness_lines))
+    relationship_lines = _render_test_related_research(build, test)
     lines.extend(
-        [
-            "",
-            "## What happens next?",
-            "",
-            html.escape(str(test.metadata.get("next_action", ""))),
-        ]
+        _render_details("Relationships and technical details", relationship_lines)
     )
-    lines.extend(_render_test_related_research(build, test))
     return "\n".join(lines)
 
 
@@ -1340,7 +1319,7 @@ def render_studies_index_qmd(build: HubBuild) -> str:
         *_development_evidence_notice(),
         "",
         "A study is one decision-relevant experiment, audit, or review. "
-        "Open a row for its full evidence and limitations."
+        "Open a row for its full evidence and limitations.",
     ]
     current_theme: str | None = None
     current_study_type: str | None = None
@@ -1363,7 +1342,6 @@ def render_studies_index_qmd(build: HubBuild) -> str:
         if study_type != current_study_type:
             lines.extend(["", f"### {_human_label(study_type)}", ""])
             current_study_type = study_type
-        question_titles = _study_question_titles(build, study)
         lines.extend(
             [
                 (
@@ -1379,16 +1357,9 @@ def render_studies_index_qmd(build: HubBuild) -> str:
                     "</span>"
                 ),
                 f"<strong>{html.escape(study.title)}</strong>",
+                (f"{html.escape(str(study.metadata.get('conclusion', '')))}</span>"),
                 (
-                    "<span><strong>Pursuit question</strong> "
-                    f"{html.escape(question_titles)}</span>"
-                ),
-                (
-                    "<span><strong>Current result</strong> "
-                    f"{html.escape(str(study.metadata.get('conclusion', '')))}</span>"
-                ),
-                (
-                    "<span><strong>Practical decision</strong> "
+                    '<span class="hub-next-action"><strong>Practical decision</strong> '
                     f"{html.escape(str(study.metadata.get('decision_summary', '')))}</span>"
                 ),
                 "</a>",
@@ -1433,9 +1404,7 @@ def _render_study_representative_runs(
     scopes = sorted({system.evaluation_scope for system in representatives})
     for scope in scopes:
         scoped = [
-            system
-            for system in representatives
-            if system.evaluation_scope == scope
+            system for system in representatives if system.evaluation_scope == scope
         ]
         suppress_effectiveness = scope in {
             "constructed_not_evaluated",
@@ -1490,8 +1459,7 @@ def _render_study_artifact_custody(
         ]
     )
     lines.extend(
-        f"| {_inline_code(state)} | {counts[state]} |"
-        for state in sorted(counts)
+        f"| {_inline_code(state)} | {counts[state]} |" for state in sorted(counts)
     )
     return lines
 
@@ -1524,10 +1492,7 @@ def _render_study_relationships(
         lines.append("- No linked question.")
     lines.extend(["", "**Related studies**", ""])
     lines.extend(
-        (
-            f"- [{_markdown_table_text(candidate.title)}]"
-            f"({candidate.record_id}.qmd)"
-        )
+        (f"- [{_markdown_table_text(candidate.title)}]({candidate.record_id}.qmd)")
         for candidate in sorted(related_studies, key=lambda row: row.record_id)
     )
     if not related_studies:
@@ -1548,13 +1513,39 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
         f"(../questions/{question.record_id}.qmd)"
         for question in sorted(questions, key=lambda row: row.record_id)
     )
+    status = (
+        f"{_human_label(study.metadata.get('outcome', ''))} · "
+        f"{_human_label(study.metadata.get('decision', ''))}"
+    )
+    next_action = (
+        (
+            f'<a href="../generated/ideas/{html.escape(tests[0].record_id, quote=True)}.qmd">'
+            f"{html.escape(tests[0].title)}</a>: "
+            f"{html.escape(str(tests[0].metadata.get('next_action', '')))}"
+        )
+        if tests
+        else "No next test is linked through the study questions."
+    )
     lines = [
         "<!-- Generated by scripts/build_research_hub.py; do not edit. -->",
         "",
-        "## What does this mean?",
-        "",
-        str(study.metadata.get("objective", "")),
-        "",
+        '<section class="hub-record-hero">',
+        f'<p class="hub-record-status">{html.escape(status)}</p>',
+        f'<p class="hub-takeaway">{html.escape(str(study.metadata.get("objective", "")))}</p>',
+        f"<p>{html.escape(str(study.metadata.get('conclusion', '')))}</p>",
+    ]
+    visual = _render_record_visual(study)
+    if visual:
+        lines.extend(["", *visual])
+    lines.extend(
+        [
+            "",
+            f'<p class="hub-next-action">{next_action}</p>',
+            "</section>",
+        ]
+    )
+    hypothesis = study.metadata.get("hypothesis")
+    evidence_lines = [
         "## Why does it matter?",
         "",
         f"**Rationale:** {study.metadata.get('rationale', '')}",
@@ -1563,27 +1554,10 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
         "",
         "## How does it work?",
         "",
-        '<ol class="hub-process hub-record-path">',
-        (
-            '<li class="hub-process-step"><strong>Question</strong><br>'
-            f"{html.escape(_study_question_titles(build, study) or 'No linked question.')}"
-            "</li>"
-        ),
-        (
-            '<li class="hub-process-step"><strong>Protocol</strong><br>'
-            f"{html.escape(str(study.metadata.get('protocol_summary', '')))}</li>"
-        ),
-        (
-            '<li class="hub-process-step"><strong>Decision</strong><br>'
-            f"{html.escape(str(study.metadata.get('decision_summary', '')))}</li>"
-        ),
-        "</ol>",
-        "",
     ]
-    hypothesis = study.metadata.get("hypothesis")
     if hypothesis:
-        lines.extend([f"**Hypothesis:** {hypothesis}", ""])
-    lines.extend(
+        evidence_lines.extend([f"**Hypothesis:** {hypothesis}", ""])
+    evidence_lines.extend(
         [
             str(study.metadata.get("protocol_summary", "")),
             "",
@@ -1606,46 +1580,51 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
                 f"Rationale provenance: "
                 f"{_inline_code(study.metadata.get('rationale_provenance', 'unknown'))}."
             ),
-            "",
-            "## What is missing?",
-            "",
-            str(study.metadata.get("limitations", "")),
-            "",
-            "Development results do not establish hidden-test effectiveness.",
-            "",
-            "## What happens next?",
-            "",
-            "**Next tests**",
-            "",
         ]
     )
+    lines.extend(_render_details("Evidence and current knowledge", evidence_lines))
     lines.extend(
-        (
+        _render_details(
+            "Limits and readiness",
+            [
+                str(study.metadata.get("limitations", "")),
+                "",
+                "Development results do not establish hidden-test effectiveness.",
+            ],
+        )
+    )
+    relationship_lines = [
+        "## Next tests",
+        "",
+        *(
             f"- [{_markdown_table_text(test.title)}]"
             f"(../generated/ideas/{test.record_id}.qmd): "
             f"{_markdown_table_text(test.metadata.get('next_action', ''))}"
-        )
-        for test in tests
-    )
-    if not tests:
-        lines.append("- No next test is linked through the study questions.")
-    lines.extend(
-        [
-            "",
-            "## How does it connect?",
-            *_render_study_relationships(build, study),
-            *_render_study_representative_runs(build, study),
-            *_render_study_artifact_custody(build, study),
-            "",
-            "## Canonical evidence",
-            "",
-            "Repository-root evidence paths:",
-        ]
-    )
+            for test in tests
+        ),
+        *(
+            ["- No next test is linked through the study questions."]
+            if not tests
+            else []
+        ),
+        "",
+        *_render_study_relationships(build, study),
+        *_render_study_representative_runs(build, study),
+        *_render_study_artifact_custody(build, study),
+        "",
+        "## Canonical evidence",
+        "",
+        "Repository-root evidence paths:",
+    ]
     evidence_refs = _metadata_list(study, "evidence_refs")
-    lines.extend(f"- {_path_code(reference)}" for reference in evidence_refs)
+    relationship_lines.extend(
+        f"- {_path_code(reference)}" for reference in evidence_refs
+    )
     if not evidence_refs:
-        lines.append("- No canonical evidence path is recorded.")
+        relationship_lines.append("- No canonical evidence path is recorded.")
+    lines.extend(
+        _render_details("Relationships and technical details", relationship_lines)
+    )
     return "\n".join(lines)
 
 
@@ -1910,9 +1889,7 @@ def _format_metric(value: float | None) -> str:
 
 
 def _render_run_index(build: HubBuild) -> str:
-    promotions = sorted(
-        {system.promotion_status for system in build.ledger.systems}
-    )
+    promotions = sorted({system.promotion_status for system in build.ledger.systems})
     scopes = sorted({system.evaluation_scope for system in build.ledger.systems})
     lines = [
         "---",
@@ -1942,8 +1919,7 @@ def _render_run_index(build: HubBuild) -> str:
         ),
         "</select></label>",
         "</div>",
-        '<p class="visually-hidden" aria-live="polite" '
-        "data-hub-filter-live></p>",
+        '<p class="visually-hidden" aria-live="polite" data-hub-filter-live></p>',
     ]
     for scope in scopes:
         lines.extend(["", f"## Evaluation scope: {_inline_code(scope)}"])
@@ -2125,8 +2101,7 @@ def _run_evidence_links(build: HubBuild, system: SystemRecord) -> list[str]:
     links: list[str] = []
     if system.per_query_available:
         links.append(
-            "- **Per-query evidence:** "
-            "`reports/trec_2026_experiment_per_query.tsv`"
+            "- **Per-query evidence:** `reports/trec_2026_experiment_per_query.tsv`"
         )
     if any(row.system_id == system.system_id for row in build.ledger.topic_slices):
         links.append(
@@ -2168,21 +2143,19 @@ def render_hub_outputs(build: HubBuild) -> Mapping[Path, str]:
             Path(
                 "research/hub/generated/background-index.qmd"
             ): render_background_index_qmd(build),
-            Path(
-                "research/hub/generated/data-index.qmd"
-            ): render_data_index_qmd(build),
-            Path(
-                "research/hub/generated/ideas-index.qmd"
-            ): render_tests_index_qmd(build),
-            Path(
-                "research/hub/generated/themes-index.qmd"
-            ): render_themes_index_qmd(build),
+            Path("research/hub/generated/data-index.qmd"): render_data_index_qmd(build),
+            Path("research/hub/generated/ideas-index.qmd"): render_tests_index_qmd(
+                build
+            ),
+            Path("research/hub/generated/themes-index.qmd"): render_themes_index_qmd(
+                build
+            ),
             Path(
                 "research/hub/generated/questions-index.qmd"
             ): render_questions_index_qmd(build),
-            Path(
-                "research/hub/generated/studies-index.qmd"
-            ): render_studies_index_qmd(build),
+            Path("research/hub/generated/studies-index.qmd"): render_studies_index_qmd(
+                build
+            ),
             Path("research/hub/generated/coverage.qmd"): render_coverage_qmd(build),
             Path("research/hub/generated/history.qmd"): render_history_qmd(build),
             Path("research/hub/generated/runs.qmd"): render_runs_qmd(build),
@@ -2276,9 +2249,7 @@ def _tracked_output_paths(root: Path) -> set[Path]:
             if path.is_file()
         )
         paths.update(
-            path.relative_to(root)
-            for path in generated.rglob("*.md")
-            if path.is_file()
+            path.relative_to(root) for path in generated.rglob("*.md") if path.is_file()
         )
     return paths
 

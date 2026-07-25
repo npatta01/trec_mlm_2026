@@ -4,47 +4,36 @@ description: "Identify when ranking and reference evidence is trustworthy enough
 toc: false
 ---
 
-## What does this mean?
+<section class="hub-record-hero">
+<p class="hub-record-status">Iterate · Low confidence</p>
+<p class="hub-takeaway">Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.</p>
+<p>Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.</p>
 
-Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.
+<p class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.; <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+</section>
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## Why does it matter?
 
 Evidence reliability spans failure diagnosis, provenance, evaluation scope,
 and escalation decisions for generated references and ranking signals.
 
-## How does it work?
-
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step"><strong>Questions</strong><br>3 questions defines what this theme is trying to learn.</li>
-<li class="hub-process-step"><strong>Evidence</strong><br>8 studies records the current evidence.</li>
-<li class="hub-process-step"><strong>Decision</strong><br>Iterate</li>
-</ol>
-
-## What do we know?
-
-::: {.hub-conclusion}
-### Current conclusion
+## Current conclusion
 
 Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.
-:::
+</details>
 
-**Practical decision**
-
-Iterate
-
-## What is missing?
-
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 **Confidence and evidence boundary**
 
 Low confidence. Audits use purposive or known-failure samples and do not estimate hidden-test prevalence.
+</details>
 
-## What happens next?
-
-<a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.; <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
-
-## How does it connect?
-
+<details class="hub-details">
+<summary>Relationships and evidence</summary>
 ## Questions in this theme
 
 <div class="hub-question-row">
@@ -83,3 +72,4 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 ## Evidence behind this position
 
 <a class="hub-evidence-line" href="../../studies/index.html?theme=evidence-reliability">Explore 8 studies linked to this theme in the study library.</a>
+</details>

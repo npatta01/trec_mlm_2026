@@ -4,47 +4,36 @@ description: "Use candidate responses or generated reference answers as evidence
 toc: false
 ---
 
-## What does this mean?
+<section class="hub-record-hero">
+<p class="hub-record-status">Iterate · Low confidence</p>
+<p class="hub-takeaway">Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.</p>
+<p>Use candidate responses or generated reference answers as evidence for choosing models.</p>
 
-Use candidate responses or generated reference answers as evidence for choosing models.
+<p class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.</p>
+</section>
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## Why does it matter?
 
 This theme keeps response-derived ranking evidence and generated reference
 evidence together while preserving their distinct evaluation boundaries.
 
-## How does it work?
-
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step"><strong>Questions</strong><br>3 questions defines what this theme is trying to learn.</li>
-<li class="hub-process-step"><strong>Evidence</strong><br>7 studies records the current evidence.</li>
-<li class="hub-process-step"><strong>Decision</strong><br>Iterate</li>
-</ol>
-
-## What do we know?
-
-::: {.hub-conclusion}
-### Current conclusion
+## Current conclusion
 
 Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.
-:::
+</details>
 
-**Practical decision**
-
-Iterate
-
-## What is missing?
-
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 **Confidence and evidence boundary**
 
 Low confidence. Most ranking evidence is development-only, some response data is private or local, and reference quality varies by case.
+</details>
 
-## What happens next?
-
-<a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
-
-## How does it connect?
-
+<details class="hub-details">
+<summary>Relationships and evidence</summary>
 ## Questions in this theme
 
 <div class="hub-question-row">
@@ -83,3 +72,4 @@ Low confidence. Most ranking evidence is development-only, some response data is
 ## Evidence behind this position
 
 <a class="hub-evidence-line" href="../../studies/index.html?theme=responses-references">Explore 7 studies linked to this theme in the study library.</a>
+</details>

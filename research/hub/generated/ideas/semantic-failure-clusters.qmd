@@ -2,44 +2,43 @@
 
 # Semantic failure clusters
 
-::: {.hub-idea-hero}
+::: {.hub-record-hero .hub-idea-hero}
 <p class="hub-idea-status">Idea · Medium priority · 2/9 readiness fields complete</p>
 
-## What does this mean?
-
-Group similar ranking failures to find request types where a method repeatedly struggles.
-
-## Why does it matter?
-
-Recurring failure patterns could show where a ranking method needs a different evidence strategy or should not be used.
+<p class="hub-takeaway">Group similar ranking failures to find request types where a method repeatedly struggles.</p>
+<p>Recurring failure patterns could show where a ranking method needs a different evidence strategy or should not be used.</p>
 
 <p class="hub-next-action">State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
 :::
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## How does it work?
 
-<ol class="hub-record-path">
-<li class="hub-record-path-step">Represent development failures using bounded query and ranking evidence.</li>
-<li class="hub-record-path-step">Cluster similar failures and describe the resulting query types.</li>
-<li class="hub-record-path-step">Test whether the clusters predict weakness on a held-out development partition.</li>
-</ol>
+- Represent development failures using bounded query and ranking evidence.
+- Cluster similar failures and describe the resulting query types.
+- Test whether the clusters predict weakness on a held-out development partition.
 
 ## What do we know?
 
 Clustering can describe repeated failures, but a useful test still needs a
 falsifiable hypothesis and a boundary that prevents tuning on evaluation
 labels.
+</details>
 
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 ## What is missing?
 
 - Hypothesis
 - Decision rule
 - Evaluation boundary
 - Artifact plan
+</details>
 
-## What happens next?
-
-State a falsifiable hypothesis and evaluation boundary for the clustering test.
+<details class="hub-details">
+<summary>Relationships and technical details</summary>
 
 ## How does it connect?
 
@@ -54,3 +53,4 @@ State a falsifiable hypothesis and evaluation boundary for the clustering test.
 - <a href="../../questions/candidate-evidence.qmd">Can candidate-side semantic evidence improve query-only retrieval?</a>
 - <a href="../../questions/failure-conditions.qmd">When do promising signals fail?</a>
 - <a href="../../questions/query-only-routing.qmd">How far can query-only routing go?</a>
+</details>

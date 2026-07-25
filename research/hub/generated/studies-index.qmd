@@ -13,37 +13,32 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="behavior-profile" data-themes="candidate-evidence" href="behavior-profile.qmd">
 <span>Unscored · Informational</span>
 <strong>Discovery behavior profile</strong>
-<span><strong>Pursuit question</strong> Can candidate-side semantic evidence improve query-only retrieval?</span>
-<span><strong>Current result</strong> The profile was constructed but not evaluated as a full-development ranking.</span>
-<span><strong>Practical decision</strong> Retain the constructed profile as input evidence, not an effectiveness result.</span>
+The profile was constructed but not evaluated as a full-development ranking.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Retain the constructed profile as input evidence, not an effectiveness result.</span>
 </a>
 <a class="hub-study-row" data-study-id="candidate-label-matching" data-themes="candidate-evidence evidence-reliability" href="candidate-label-matching.qmd">
 <span>Mixed · Retain control</span>
 <strong>Candidate label matching</strong>
-<span><strong>Pursuit question</strong> Can candidate-side semantic evidence improve query-only retrieval?; When do promising signals fail?</span>
-<span><strong>Current result</strong> Contextual E5 is a stable control; several alternatives are diagnostic and two initial systems are invalid.</span>
-<span><strong>Practical decision</strong> Retain contextual E5 while preserving invalid and diagnostic variants as bounded evidence.</span>
+Contextual E5 is a stable control; several alternatives are diagnostic and two initial systems are invalid.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Retain contextual E5 while preserving invalid and diagnostic variants as bounded evidence.</span>
 </a>
 <a class="hub-study-row" data-study-id="label-ranker-pilots" data-themes="candidate-evidence evidence-reliability" href="label-ranker-pilots.qmd">
 <span>Invalid · Stop</span>
 <strong>Label-ranker feasibility pilots</strong>
-<span><strong>Pursuit question</strong> Can candidate-side semantic evidence improve query-only retrieval?; When do promising signals fail?</span>
-<span><strong>Current result</strong> The pilots did not produce a full-development result suitable for promotion.</span>
-<span><strong>Practical decision</strong> Stop the current pilot forms and preserve restricted diagnostics for future redesign.</span>
+The pilots did not produce a full-development result suitable for promotion.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Stop the current pilot forms and preserve restricted diagnostics for future redesign.</span>
 </a>
 <a class="hub-study-row" data-study-id="multiresolution-profiles" data-themes="candidate-evidence" href="multiresolution-profiles.qmd">
 <span>Mixed · Retain control</span>
 <strong>Multiresolution candidate profiles</strong>
-<span><strong>Pursuit question</strong> Can candidate-side semantic evidence improve query-only retrieval?</span>
-<span><strong>Current result</strong> Several variants are strong development diagnostics, but none displaced the promoted decision.</span>
-<span><strong>Practical decision</strong> Retain the promoted semantic-profile system; keep multiresolution variants diagnostic.</span>
+Several variants are strong development diagnostics, but none displaced the promoted decision.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Retain the promoted semantic-profile system; keep multiresolution variants diagnostic.</span>
 </a>
 <a class="hub-study-row" data-study-id="semantic-profiles" data-themes="candidate-evidence" href="semantic-profiles.qmd">
 <span>Mixed · Adopt</span>
 <strong>Candidate semantic profiles</strong>
-<span><strong>Pursuit question</strong> Can candidate-side semantic evidence improve query-only retrieval?</span>
-<span><strong>Current result</strong> Profile evidence improved development ranking in fusion, while weighting variants produced mixed outcomes.</span>
-<span><strong>Practical decision</strong> Promote equal-weight dense/profile fusion; retain profile-only as a control.</span>
+Profile evidence improved development ranking in fusion, while weighting variants produced mixed outcomes.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Promote equal-weight dense/profile fusion; retain profile-only as a control.</span>
 </a>
 
 ## Evidence reliability
@@ -55,9 +50,8 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="gemini-grounding-failure-review" data-themes="evidence-reliability responses-references" href="gemini-grounding-failure-review.qmd">
 <span>Mixed · Iterate</span>
 <strong>Gemini grounding failure review</strong>
-<span><strong>Pursuit question</strong> How reliable must a generated reference be?; When do promising signals fail?</span>
-<span><strong>Current result</strong> Grounding materially helped many true failures but did not provide a reliable blanket cure.</span>
-<span><strong>Practical decision</strong> Develop a two-pass disagreement trigger rather than grounding every request.</span>
+Grounding materially helped many true failures but did not provide a reliable blanket cure.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Develop a two-pass disagreement trigger rather than grounding every request.</span>
 </a>
 
 ### Data quality
@@ -65,9 +59,8 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="grounded-data-quality-audit" data-themes="evidence-reliability responses-references" href="grounded-data-quality-audit.qmd">
 <span>Mixed · Iterate</span>
 <strong>Grounded reference data-quality audit</strong>
-<span><strong>Pursuit question</strong> How reliable must a generated reference be?; When do promising signals fail?</span>
-<span><strong>Current result</strong> The corpus is structurally complete, but uncertain and non-Search records require stratified source-level review.</span>
-<span><strong>Practical decision</strong> Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth.</span>
+The corpus is structurally complete, but uncertain and non-Search records require stratified source-level review.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth.</span>
 </a>
 
 ## Query-only routing
@@ -79,23 +72,20 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="dense-query-knn" data-themes="query-only-routing" href="dense-query-knn.qmd">
 <span>Positive · Retain control</span>
 <strong>Dense query nearest-neighbor retrieval</strong>
-<span><strong>Pursuit question</strong> How far can query-only routing go?</span>
-<span><strong>Current result</strong> Dense retrieval established the stable query-only control; parameter variants remain diagnostic.</span>
-<span><strong>Practical decision</strong> Retain dense_nested as the frozen query-only control.</span>
+Dense retrieval established the stable query-only control; parameter variants remain diagnostic.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Retain dense_nested as the frozen query-only control.</span>
 </a>
 <a class="hub-study-row" data-study-id="query-cluster-aggregation" data-themes="query-only-routing evidence-reliability" href="query-cluster-aggregation.qmd">
 <span>Mixed · Reject</span>
 <strong>Query-cluster aggregation</strong>
-<span><strong>Pursuit question</strong> How far can query-only routing go?; When do promising signals fail?</span>
-<span><strong>Current result</strong> The local prior was negative and preflight variants remained diagnostic.</span>
-<span><strong>Practical decision</strong> Do not replace dense retrieval with the tested cluster aggregations.</span>
+The local prior was negative and preflight variants remained diagnostic.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Do not replace dense retrieval with the tested cluster aggregations.</span>
 </a>
 <a class="hub-study-row" data-study-id="query-controls" data-themes="query-only-routing" href="query-controls.qmd">
 <span>Mixed · Retain control</span>
 <strong>Simple query controls</strong>
-<span><strong>Pursuit question</strong> How far can query-only routing go?</span>
-<span><strong>Current result</strong> Both controls remain aggregate-only baselines rather than promoted results.</span>
-<span><strong>Practical decision</strong> Keep the simple baselines for orientation, not as the current development choice.</span>
+Both controls remain aggregate-only baselines rather than promoted results.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Keep the simple baselines for orientation, not as the current development choice.</span>
 </a>
 
 ## Responses and references
@@ -107,9 +97,8 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="e5-raw-response-refinement" data-themes="responses-references evidence-reliability" href="e5-raw-response-refinement.qmd">
 <span>Mixed · Informational</span>
 <strong>E5 raw-response refinement</strong>
-<span><strong>Pursuit question</strong> Can model responses provide useful ranking evidence?; When do promising signals fail?</span>
-<span><strong>Current result</strong> The refinement provides completed diagnostic evidence but does not create a comparable registered ranking system.</span>
-<span><strong>Practical decision</strong> Use the refinement findings to shape future response tests; do not add a manufactured leaderboard row.</span>
+The refinement provides completed diagnostic evidence but does not create a comparable registered ranking system.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Use the refinement findings to shape future response tests; do not add a manufactured leaderboard row.</span>
 </a>
 
 ### Ranking experiment
@@ -117,23 +106,20 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="response-retrieval" data-themes="responses-references" href="response-retrieval.qmd">
 <span>Negative · Reject</span>
 <strong>Lexical response retrieval</strong>
-<span><strong>Pursuit question</strong> Can model responses provide useful ranking evidence?</span>
-<span><strong>Current result</strong> Direct lexical response retrieval underperformed the established dense control.</span>
-<span><strong>Practical decision</strong> Reject direct lexical response retrieval as the primary ranking path.</span>
+Direct lexical response retrieval underperformed the established dense control.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Reject direct lexical response retrieval as the primary ranking path.</span>
 </a>
 <a class="hub-study-row" data-study-id="response-volume-normalization" data-themes="responses-references" href="response-volume-normalization.qmd">
 <span>Negative · Reject</span>
 <strong>Response-volume normalization</strong>
-<span><strong>Pursuit question</strong> Can model responses provide useful ranking evidence?</span>
-<span><strong>Current result</strong> The normalized response system remained below the established control.</span>
-<span><strong>Practical decision</strong> Do not pursue response-volume normalization as a standalone repair.</span>
+The normalized response system remained below the established control.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Do not pursue response-volume normalization as a standalone repair.</span>
 </a>
 <a class="hub-study-row" data-study-id="source-query-first" data-themes="responses-references evidence-reliability" href="source-query-first.qmd">
 <span>Negative · Stop</span>
 <strong>Source-query-first response evidence</strong>
-<span><strong>Pursuit question</strong> Can model responses provide useful ranking evidence?; When do promising signals fail?</span>
-<span><strong>Current result</strong> The evaluated source-alignment systems did not beat the established control; three constructed variants remain unscored.</span>
-<span><strong>Practical decision</strong> Stop this path in its current form and retain unscored constructions as non-results.</span>
+The evaluated source-alignment systems did not beat the established control; three constructed variants remain unscored.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Stop this path in its current form and retain unscored constructions as non-results.</span>
 </a>
 
 ### Reference review
@@ -141,7 +127,6 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <a class="hub-study-row" data-study-id="four-model-reference-review" data-themes="responses-references evidence-reliability" href="four-model-reference-review.qmd">
 <span>Positive · Adopt</span>
 <strong>Four-model reference-answer review</strong>
-<span><strong>Pursuit question</strong> How reliable must a generated reference be?; Can model responses provide useful ranking evidence?</span>
-<span><strong>Current result</strong> Gemini was the strongest reviewed default, with a material advantage on the purposive sample.</span>
-<span><strong>Practical decision</strong> Use Gemini as the default reference generator while retaining Perplexity evidence and escalation.</span>
+Gemini was the strongest reviewed default, with a material advantage on the purposive sample.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Use Gemini as the default reference generator while retaining Perplexity evidence and escalation.</span>
 </a>

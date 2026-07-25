@@ -5,27 +5,31 @@
 ## Current position by theme
 
 <a class="hub-theme-row" href="generated/themes/candidate-evidence.qmd">
+<span>Adopt · Moderate confidence</span>
 <strong>Candidate evidence</strong>
 <span>Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.</span>
-<span>Adopt · Moderate confidence · 3 questions · 5 studies</span>
+<span class="hub-next-action"><a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
 </a>
 
 <a class="hub-theme-row" href="generated/themes/evidence-reliability.qmd">
+<span>Iterate · Low confidence</span>
 <strong>Evidence reliability</strong>
 <span>Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.</span>
-<span>Iterate · Low confidence · 3 questions · 8 studies</span>
+<span class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.; <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
 </a>
 
 <a class="hub-theme-row" href="generated/themes/query-only-routing.qmd">
+<span>Retain control · Moderate confidence</span>
 <strong>Query-only routing</strong>
 <span>Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.</span>
-<span>Retain control · Moderate confidence · 2 questions · 3 studies</span>
+<span class="hub-next-action"><a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
 </a>
 
 <a class="hub-theme-row" href="generated/themes/responses-references.qmd">
+<span>Iterate · Low confidence</span>
 <strong>Responses and references</strong>
 <span>Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.</span>
-<span>Iterate · Low confidence · 3 questions · 7 studies</span>
+<span class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.; <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.</span>
 </a>
 
 ## Open across themes

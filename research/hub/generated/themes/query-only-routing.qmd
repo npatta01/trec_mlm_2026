@@ -4,47 +4,36 @@ description: "Route a new request using evidence from historical requests before
 toc: false
 ---
 
-## What does this mean?
+<section class="hub-record-hero">
+<p class="hub-record-status">Retain control · Moderate confidence</p>
+<p class="hub-takeaway">Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.</p>
+<p>Route a new request using evidence from historical requests before using candidate responses.</p>
 
-Route a new request using evidence from historical requests before using candidate responses.
+<p class="hub-next-action"><a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+</section>
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## Why does it matter?
 
 Query-only routing is the control path for deciding how far historical query
 similarity can carry model selection without candidate-side response evidence.
 
-## How does it work?
-
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step"><strong>Questions</strong><br>2 questions defines what this theme is trying to learn.</li>
-<li class="hub-process-step"><strong>Evidence</strong><br>3 studies records the current evidence.</li>
-<li class="hub-process-step"><strong>Decision</strong><br>Retain control</li>
-</ol>
-
-## What do we know?
-
-::: {.hub-conclusion}
-### Current conclusion
+## Current conclusion
 
 Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.
-:::
+</details>
 
-**Practical decision**
-
-Retain control
-
-## What is missing?
-
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 **Confidence and evidence boundary**
 
 Moderate confidence. Development-only evidence with repeated tuning on the same queries; hidden-test transfer is unknown.
+</details>
 
-## What happens next?
-
-<a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
-
-## How does it connect?
-
+<details class="hub-details">
+<summary>Relationships and evidence</summary>
 ## Questions in this theme
 
 <div class="hub-question-row">
@@ -72,3 +61,4 @@ Moderate confidence. Development-only evidence with repeated tuning on the same 
 ## Evidence behind this position
 
 <a class="hub-evidence-line" href="../../studies/index.html?theme=query-only-routing">Explore 3 studies linked to this theme in the study library.</a>
+</details>

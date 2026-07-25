@@ -24,11 +24,14 @@ $content-padding-top: 2rem;
 }
 
 :root {
-  --hub-ink: #181818;
+  --hub-paper: #f2efe7;
+  --hub-ink: #171713;
+  --hub-risk: #a64b21;
+  --hub-proposal: #007b72;
   --hub-muted: #595959;
   --hub-rule: #9a9a9a;
   --hub-rule-strong: #3c3c3c;
-  --hub-surface: #fafafa;
+  --hub-surface: var(--hub-paper);
   --bs-body-color: var(--hub-ink);
   --bs-secondary-color: var(--hub-muted);
   --bs-border-color: var(--hub-rule);
@@ -36,7 +39,10 @@ $content-padding-top: 2rem;
 }
 
 body.quarto-dark {
+  --hub-paper: #1d1d1b;
   --hub-ink: #f4f4ef;
+  --hub-risk: #ff9c71;
+  --hub-proposal: #62d1c6;
   --hub-muted: #cacac4;
   --hub-rule: #858580;
   --hub-rule-strong: #e2e2dc;
@@ -48,8 +54,10 @@ body.quarto-dark {
 }
 
 body {
+  background: var(--hub-paper);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(1.05rem, 1vw + .8rem, 1.125rem);
   line-height: 1.6;
 }
 
@@ -61,13 +69,19 @@ h1, h2, h3, h4, h5, h6,
   letter-spacing: -.012em;
 }
 
+h1 {
+  max-width: 15ch;
+  font-size: clamp(2.35rem, 7vw, 4.5rem);
+  line-height: 1.02;
+}
+
 #quarto-document-content > p,
 #quarto-document-content > ul,
 #quarto-document-content > ol,
 .content > p,
 .content > ul,
 .content > ol {
-  max-width: 72ch;
+  max-width: 55ch;
 }
 
 .hub-muted { color: var(--hub-muted); }
@@ -483,6 +497,119 @@ div.hub-question-row > :last-child {
   margin-bottom: 0;
 }
 
+.hub-record-hero {
+  max-width: 55ch;
+  margin-block: 1.5rem 2.5rem;
+  padding: clamp(1.2rem, 3vw, 2rem) 0;
+  border-block: 2px solid var(--hub-rule-strong);
+}
+
+.hub-record-status {
+  width: fit-content;
+  margin-block: 0 .75rem;
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .055em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.hub-takeaway {
+  margin-block: 0 .5rem;
+  color: var(--bs-body-color);
+  font-size: clamp(1.25rem, 2.5vw, 1.65rem);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.hub-next-action {
+  display: block;
+  margin-block: 1rem 0;
+  padding: .75rem 0 .75rem 1rem;
+  border-inline-start: .25rem solid var(--hub-proposal);
+  color: var(--bs-body-color);
+  font-weight: 600;
+}
+
+.hub-details {
+  max-width: 55ch;
+  margin-block: 1rem;
+  border-block: 1px solid var(--bs-border-color);
+}
+
+.hub-details > summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .55rem 0;
+  color: var(--bs-body-color);
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.hub-details > summary::-webkit-details-marker { display: none; }
+
+.hub-details > summary::after {
+  color: var(--hub-proposal);
+  content: "+";
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.hub-details[open] > summary::after { content: "−"; }
+
+.hub-details > summary:focus-visible {
+  outline: .2rem solid var(--hub-proposal);
+  outline-offset: .2rem;
+}
+
+.hub-details > :not(summary) { max-width: 55ch; }
+
+.hub-causal-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 70ch;
+  margin: 1.5rem 0;
+  padding: 1rem 0;
+  border-block: 1px solid var(--bs-border-color);
+}
+
+.hub-causal-current,
+.hub-causal-proposed {
+  min-width: 0;
+  padding: 1rem;
+  border-inline-start: .3rem solid var(--hub-risk);
+  background: color-mix(in srgb, var(--hub-risk) 8%, transparent);
+}
+
+.hub-causal-proposed {
+  border-inline-start-color: var(--hub-proposal);
+  background: color-mix(in srgb, var(--hub-proposal) 8%, transparent);
+}
+
+.hub-causal-change {
+  display: grid;
+  place-items: center;
+  color: var(--hub-proposal);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.hub-causal-change::before { content: "→"; }
+
+.hub-decision-test {
+  grid-column: 1 / -1;
+  padding: .75rem 1rem;
+  border-inline-start: .3rem solid var(--hub-proposal);
+  color: var(--bs-body-color);
+  font-weight: 600;
+}
+
 .hub-idea-status {
   display: inline-flex;
   width: fit-content;
@@ -600,9 +727,23 @@ div.hub-question-row > :last-child {
   .hub-data-grid,
   .hub-decision-strip,
   .hub-background-row,
-  .hub-process {
+  .hub-causal-comparison {
     grid-template-columns: 1fr;
   }
+
+  .hub-causal-comparison {
+    grid-template-areas:
+      "today"
+      "change"
+      "proposed"
+      "decision";
+  }
+
+  .hub-causal-current { grid-area: today; }
+  .hub-causal-change { grid-area: change; min-height: 2rem; }
+  .hub-causal-change::before { content: "↓"; }
+  .hub-causal-proposed { grid-area: proposed; }
+  .hub-decision-test { grid-area: decision; }
 
   .hub-theme-row,
   a.hub-question-row,
@@ -620,8 +761,7 @@ div.hub-question-row > :last-child {
   .hub-decision-strip > div,
   .hub-flow-step,
   .hub-example > div,
-  .hub-compare-card,
-  .hub-process-step {
+  .hub-compare-card {
     padding: 1rem .2rem;
     border-inline-start: 0;
     border-block-start: 1px solid var(--bs-border-color);
@@ -630,37 +770,8 @@ div.hub-question-row > :last-child {
   .hub-decision-strip > div:first-child,
   .hub-flow-step:first-child,
   .hub-example > div:first-child,
-  .hub-compare-card:first-child,
-  .hub-process-step:first-child {
+  .hub-compare-card:first-child {
     border-block-start: 0;
-  }
-
-  .hub-process-step,
-  .hub-process-step:first-child {
-    padding-inline-start: 3.25rem;
-  }
-
-  .hub-process-step::before {
-    position: absolute;
-    inset-block-start: 1rem;
-    inset-inline-start: .2rem;
-    width: 2.35rem;
-    min-height: 2.35rem;
-    margin: 0;
-    border: 1px solid var(--hub-rule-strong);
-    border-radius: 50%;
-    content: counter(hub-process);
-    display: grid;
-    place-items: center;
-  }
-
-  .hub-process-step:not(:last-child)::after {
-    inset-block-start: auto;
-    inset-block-end: -.7rem;
-    inset-inline-start: 1.05rem;
-    inset-inline-end: auto;
-    padding: .05rem .2rem;
-    content: "↓";
   }
 
   .content table {
@@ -719,12 +830,22 @@ div.hub-question-row > :last-child {
   }
 
   .hub-idea-hero,
+  .hub-record-hero,
   .hub-idea-status,
-  .hub-process,
-  .hub-process-step,
-  .hub-process-step::before {
+  .hub-details,
+  .hub-causal-current,
+  .hub-causal-proposed,
+  .hub-decision-test {
     border-color: CanvasText;
     color: CanvasText;
     forced-color-adjust: auto;
   }
+}
+
+@media print {
+  .hub-details:not([open]) > :not(summary) { display: block; }
+  .hub-details > summary::after { display: none; }
+  .hub-record-hero,
+  .hub-details,
+  .hub-causal-comparison { break-inside: avoid; }
 }

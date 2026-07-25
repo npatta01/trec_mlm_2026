@@ -2,43 +2,42 @@
 
 # Reference review trigger
 
-::: {.hub-idea-hero}
+::: {.hub-record-hero .hub-idea-hero}
 <p class="hub-idea-status">Idea · High priority · 2/9 readiness fields complete</p>
 
-## What does this mean?
-
-Flag generated reference answers that need more evidence or a human check before guiding a ranking.
-
-## Why does it matter?
-
-A selective review trigger could reduce avoidable reference failures without reviewing every request.
+<p class="hub-takeaway">Flag generated reference answers that need more evidence or a human check before guiding a ranking.</p>
+<p>A selective review trigger could reduce avoidable reference failures without reviewing every request.</p>
 
 <p class="hub-next-action">Define the local trigger features and acceptance rule.</p>
 :::
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## How does it work?
 
-<ol class="hub-record-path">
-<li class="hub-record-path-step">Measure signals that indicate a generated reference may be unreliable.</li>
-<li class="hub-record-path-step">Route flagged references to grounding or human review.</li>
-<li class="hub-record-path-step">Compare the trigger with always-review and never-review controls.</li>
-</ol>
+- Measure signals that indicate a generated reference may be unreliable.
+- Route flagged references to grounding or human review.
+- Compare the trigger with always-review and never-review controls.
 
 ## What do we know?
 
 The existing audits motivate selective escalation, but the local trigger and its
 acceptance rule are not yet frozen. Completed E5 refinement evidence is recorded
 as a study, not mislabeled as a future ready test.
+</details>
 
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 ## What is missing?
 
 - Decision rule
 - Dependencies
 - Artifact plan
+</details>
 
-## What happens next?
-
-Define the local trigger features and acceptance rule.
+<details class="hub-details">
+<summary>Relationships and technical details</summary>
 
 ## How does it connect?
 
@@ -52,3 +51,4 @@ Define the local trigger features and acceptance rule.
 - <a href="../../questions/failure-conditions.qmd">When do promising signals fail?</a>
 - <a href="../../questions/reference-reliability.qmd">How reliable must a generated reference be?</a>
 - <a href="../../questions/response-evidence.qmd">Can model responses provide useful ranking evidence?</a>
+</details>

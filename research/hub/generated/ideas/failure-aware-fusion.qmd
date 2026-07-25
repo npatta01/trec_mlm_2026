@@ -2,16 +2,11 @@
 
 # Failure-aware evidence fusion
 
-::: {.hub-idea-hero}
+::: {.hub-record-hero .hub-idea-hero}
 <p class="hub-idea-status">Idea · High priority · 2/9 readiness fields complete</p>
 
-## What does this mean?
-
-Use a reliability check to choose which evidence sources should influence each request.
-
-## Why does it matter?
-
-Response and reference evidence help unevenly, so a fixed mixture can hide failures.
+<p class="hub-takeaway">Use a reliability check to choose which evidence sources should influence each request.</p>
+<p>Response and reference evidence help unevenly, so a fixed mixture can hide failures.</p>
 
 <figure class="hub-causal-comparison">
 <section class="hub-causal-current">
@@ -49,28 +44,32 @@ Response and reference evidence help unevenly, so a fixed mixture can hide failu
 <p class="hub-next-action">Define and freeze the reliability signal, fallback, and artifact plan.</p>
 :::
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## How does it work?
 
-<ol class="hub-record-path">
-<li class="hub-record-path-step">Read the new request and estimate which evidence sources are dependable.</li>
-<li class="hub-record-path-step">Choose a bounded evidence mixture using the frozen reliability rule.</li>
-<li class="hub-record-path-step">Rank candidates and compare with the frozen dense/profile control.</li>
-</ol>
+- Read the new request and estimate which evidence sources are dependable.
+- Choose a bounded evidence mixture using the frozen reliability rule.
+- Rank candidates and compare with the frozen dense/profile control.
 
 ## What do we know?
 
 This is an idea, not a result. It needs a frozen decision rule, named
 dependencies, and an artifact plan before it can enter the ready queue.
+</details>
 
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 ## What is missing?
 
 - Decision rule
 - Dependencies
 - Artifact plan
+</details>
 
-## What happens next?
-
-Define and freeze the reliability signal, fallback, and artifact plan.
+<details class="hub-details">
+<summary>Relationships and technical details</summary>
 
 ## How does it connect?
 
@@ -84,3 +83,4 @@ Define and freeze the reliability signal, fallback, and artifact plan.
 - <a href="../../questions/failure-conditions.qmd">When do promising signals fail?</a>
 - <a href="../../questions/reference-reliability.qmd">How reliable must a generated reference be?</a>
 - <a href="../../questions/response-evidence.qmd">Can model responses provide useful ranking evidence?</a>
+</details>

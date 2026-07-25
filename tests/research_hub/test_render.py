@@ -75,11 +75,9 @@ def test_idea_index_and_details_expand_from_canonical_records(
 ) -> None:
     outputs = render_hub_outputs(sample_build)
     index = outputs[Path("research/hub/generated/ideas-index.qmd")]
-    detail = outputs[
-        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
-    ]
+    detail = outputs[Path("research/hub/generated/ideas/test-candidate-evidence.qmd")]
 
-    assert "Test candidate evidence." in index
+    assert "Test candidate evidence." not in index
     assert "hub-idea-row" in index
     assert "## candidate-evidence title" in index
     assert "### Idea" in index
@@ -87,22 +85,12 @@ def test_idea_index_and_details_expand_from_canonical_records(
     assert "2/9 readiness fields complete" in index
     assert "Medium priority" in index
     assert (
-        "<span><strong>Next action:</strong> "
+        '<span class="hub-next-action"><strong>Next action:</strong> '
         "Define the decision rule.</span>"
     ) in index
     assert 'href="../generated/ideas/test-candidate-evidence.qmd"' in index
-    required_sections = (
-        "## What does this mean?",
-        "## Why does it matter?",
-        "## How does it work?",
-        "## What do we know?",
-        "## What is missing?",
-        "## What happens next?",
-        "## How does it connect?",
-    )
-    assert [detail.index(section) for section in required_sections] == sorted(
-        detail.index(section) for section in required_sections
-    )
+    assert detail.index("hub-record-hero") < detail.index("hub-details")
+    assert detail.count('<details class="hub-details">') == 3
 
 
 def test_idea_detail_emits_semantic_visuals_with_every_process_step(
@@ -128,19 +116,13 @@ def test_idea_detail_emits_semantic_visuals_with_every_process_step(
         Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
     ]
 
-    assert "::: {.hub-idea-hero}" in detail
+    assert "::: {.hub-record-hero .hub-idea-hero}" in detail
     assert 'class="hub-idea-status"' in detail
-    assert '<ol class="hub-record-path">' in detail
-    assert detail.count('<li class="hub-record-path-step">') == 2
-    assert (
-        '<li class="hub-record-path-step">Collect &lt;candidate&gt; evidence.</li>'
-        in detail
-    )
-    assert (
-        '<li class="hub-record-path-step">'
-        "Compare it with the query &amp; baseline.</li>"
-        in detail
-    )
+    assert '<details class="hub-details">' in detail
+    assert "<summary>Evidence and current knowledge</summary>" in detail
+    assert "hub-record-path" not in detail
+    assert "- Collect &lt;candidate&gt; evidence." in detail
+    assert "- Compare it with the query &amp; baseline." in detail
 
 
 def test_causal_visual_uses_only_explicit_record_text(
@@ -164,16 +146,9 @@ def test_causal_visual_uses_only_explicit_record_text(
 
     assert "hub-causal-comparison" in detail
     assert detail.count('class="hub-next-action"') == 1
-    assert detail.index("hub-causal-comparison") < detail.index(
-        "## How does it work?"
-    )
-    assert detail.index("hub-next-action") < detail.index(
-        "## How does it work?"
-    )
-    assert (
-        '<p class="hub-next-action">Define the decision rule.</p>'
-        in detail
-    )
+    assert detail.index("hub-causal-comparison") < detail.index("## How does it work?")
+    assert detail.index("hub-next-action") < detail.index("## How does it work?")
+    assert '<p class="hub-next-action">Define the decision rule.</p>' in detail
     assert "Proposed change" not in detail
     assert "<strong>Decision test:</strong>" not in detail
     for text in (
@@ -195,6 +170,40 @@ def test_idea_without_visual_emits_no_placeholder_diagram(
     assert "hub-process" not in detail
 
 
+def test_idea_first_view_precedes_collapsed_evidence(
+    sample_build: HubBuild,
+) -> None:
+    detail = render_test_pages(sample_build)[
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
+    ]
+
+    assert detail.index("hub-takeaway") < detail.index("hub-details")
+    assert detail.index("hub-next-action") < detail.index("hub-details")
+    assert '<details class="hub-details">' in detail
+    assert "<summary>Evidence and current knowledge</summary>" in detail
+    assert "Check whether candidate evidence improves ranking." in detail
+
+
+def test_theme_question_and_study_first_views_precede_collapsed_evidence(
+    sample_build: HubBuild,
+) -> None:
+    outputs = render_hub_outputs(sample_build)
+    pages = (
+        outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")],
+        outputs[Path("research/hub/generated/questions/candidate-evidence.md")],
+        outputs[Path("research/hub/generated/studies/dense-baseline.md")],
+    )
+
+    for page in pages:
+        assert "hub-process hub-record-path" not in page
+        assert page.index("hub-takeaway") < page.index("hub-details")
+        assert page.index("hub-next-action") < page.index("hub-details")
+        assert '<details class="hub-details">' in page
+
+    assert str(sample_build.sources.questions[0].metadata["current_answer"]) in pages[1]
+    assert str(sample_build.sources.studies[0].metadata["conclusion"]) in pages[2]
+
+
 def test_idea_index_shows_fallback_when_priority_is_not_specified(
     sample_build: HubBuild,
 ) -> None:
@@ -209,9 +218,7 @@ def test_idea_index_shows_fallback_when_priority_is_not_specified(
         ),
     )
 
-    index = render_hub_outputs(build)[
-        Path("research/hub/generated/ideas-index.qmd")
-    ]
+    index = render_hub_outputs(build)[Path("research/hub/generated/ideas-index.qmd")]
 
     assert "Priority not specified" in index
     assert "1/9 readiness fields complete" in index
@@ -248,40 +255,21 @@ def test_second_test_record_expands_every_derived_reader_surface(
         Path("research/hub/generated/ideas/second-candidate-test.qmd"),
     }
     assert {
-        path
-        for path in outputs
-        if path.parent == Path("research/hub/generated/ideas")
+        path for path in outputs if path.parent == Path("research/hub/generated/ideas")
     } == expected_details
 
     index = outputs[Path("research/hub/generated/ideas-index.qmd")]
-    theme = outputs[
-        Path("research/hub/generated/themes/candidate-evidence.qmd")
-    ]
-    question = outputs[
-        Path("research/hub/generated/questions/candidate-evidence.md")
-    ]
-    study = outputs[
-        Path("research/hub/generated/studies/dense-baseline.md")
-    ]
+    theme = outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")]
+    question = outputs[Path("research/hub/generated/questions/candidate-evidence.md")]
+    study = outputs[Path("research/hub/generated/studies/dense-baseline.md")]
     catalog = json.loads(outputs[Path("research/hub/catalog.json")])
-    resources = {
-        (row["type"], row["id"]): row for row in catalog["resources"]
-    }
+    resources = {(row["type"], row["id"]): row for row in catalog["resources"]}
 
     assert index.count('class="hub-idea-row"') == 2
     assert "Second candidate test" in index
-    assert (
-        'href="../ideas/second-candidate-test.qmd"'
-        in theme
-    )
-    assert (
-        'href="../generated/ideas/second-candidate-test.qmd"'
-        in question
-    )
-    assert (
-        "(../generated/ideas/second-candidate-test.qmd)"
-        in study
-    )
+    assert 'href="../ideas/second-candidate-test.qmd"' in theme
+    assert 'href="../generated/ideas/second-candidate-test.qmd"' in question
+    assert "(../generated/ideas/second-candidate-test.qmd)" in study
     assert resources[("test", "second-candidate-test")] == {
         "canonical_path": "research/hub/tests/second-candidate-test.qmd",
         "id": "second-candidate-test",
@@ -292,15 +280,17 @@ def test_second_test_record_expands_every_derived_reader_surface(
         "title": "Second candidate test",
         "type": "test",
     }
-    assert "second-candidate-test" in resources[
-        ("theme", "candidate-evidence")
-    ]["related_ids"]
-    assert "second-candidate-test" in resources[
-        ("question", "candidate-evidence")
-    ]["related_ids"]
-    assert "second-candidate-test" in resources[
-        ("study", "dense-baseline")
-    ]["related_ids"]
+    assert (
+        "second-candidate-test"
+        in resources[("theme", "candidate-evidence")]["related_ids"]
+    )
+    assert (
+        "second-candidate-test"
+        in resources[("question", "candidate-evidence")]["related_ids"]
+    )
+    assert (
+        "second-candidate-test" in resources[("study", "dense-baseline")]["related_ids"]
+    )
 
 
 def test_catalog_includes_themes_with_generated_page_paths(
@@ -371,27 +361,19 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
     assert "## Studies" not in summary
     assert "Candidate-side evidence" in summary
     assert "Open across themes" in summary
-    assert "2 questions" in summary
-    assert "2 studies" in summary
+    assert "2 questions" not in summary
+    assert "2 studies" not in summary
 
-    theme_page = outputs[
-        Path("research/hub/generated/themes/candidate-evidence.qmd")
-    ]
-    assert "Current conclusion" in theme_page
-    assert "Practical decision" in theme_page
+    theme_page = outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")]
+    assert "hub-takeaway" in theme_page
+    assert "hub-next-action" in theme_page
     assert "Questions in this theme" in theme_page
     assert "Evidence behind this position" in theme_page
-    meaning = theme_page.split("## What does this mean?", 1)[1].split(
-        "## Why does it matter?", 1
-    )[0]
-    assert str(theme.metadata["plain_english"]) in meaning
+    assert str(theme.metadata["plain_english"]) in theme_page
     assert "Which signals matter?" in theme_page
     assert "What transfers to held-out requests?" in theme_page
-    assert "2 studies" in theme_page
-    assert (
-        "../../studies/index.html?theme=candidate-evidence"
-        in theme_page
-    )
+    assert "Explore 2 studies linked to this theme" in theme_page
+    assert "../../studies/index.html?theme=candidate-evidence" in theme_page
 
     question_index = outputs[Path("research/hub/generated/questions-index.qmd")]
     assert "hub-question-row" in question_index
@@ -411,35 +393,16 @@ def test_theme_question_and_study_details_follow_the_explainer_sequence(
 ) -> None:
     outputs = render_hub_outputs(sample_build)
     pages = (
-        outputs[
-            Path("research/hub/generated/themes/candidate-evidence.qmd")
-        ],
-        outputs[
-            Path("research/hub/generated/questions/candidate-evidence.md")
-        ],
-        outputs[
-            Path("research/hub/generated/studies/dense-baseline.md")
-        ],
+        outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")],
+        outputs[Path("research/hub/generated/questions/candidate-evidence.md")],
+        outputs[Path("research/hub/generated/studies/dense-baseline.md")],
     )
-    required_sections = (
-        "## What does this mean?",
-        "## Why does it matter?",
-        "## How does it work?",
-        "## What do we know?",
-        "## What is missing?",
-        "## What happens next?",
-        "## How does it connect?",
-    )
-
     for page in pages:
-        positions = [page.index(section) for section in required_sections]
-        assert positions == sorted(positions)
-        assert '<ol class="hub-process hub-record-path">' in page
+        assert '<section class="hub-record-hero">' in page
+        assert '<details class="hub-details">' in page
+        assert "hub-record-path" not in page
 
-    assert (
-        '<code class="hub-path">evidence/receipt.md</code>'
-        in pages[1]
-    )
+    assert '<code class="hub-path">evidence/receipt.md</code>' in pages[1]
 
 
 def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
@@ -447,8 +410,7 @@ def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
 ) -> None:
     outputs = render_hub_outputs(sample_build)
     notice = (
-        "**Development evidence only.** Promotion labels do not imply "
-        "held-out results."
+        "**Development evidence only.** Promotion labels do not imply held-out results."
     )
 
     questions = outputs[Path("research/hub/generated/questions-index.qmd")]
@@ -506,17 +468,13 @@ def test_generated_study_detail_contains_decision_and_evidence_sections(
     sample_build: HubBuild,
 ) -> None:
     outputs = render_hub_outputs(sample_build)
-    detail = outputs[
-        Path("research/hub/generated/studies/dense-baseline.md")
-    ]
+    detail = outputs[Path("research/hub/generated/studies/dense-baseline.md")]
 
-    assert "What does this mean?" in detail
     assert "Why does it matter?" in detail
     assert "How does it work?" in detail
     assert "What do we know?" in detail
-    assert "What is missing?" in detail
-    assert "What happens next?" in detail
-    assert "How does it connect?" in detail
+    assert "Limits and readiness" in detail
+    assert "Relationships and technical details" in detail
     assert "Representative runs" in detail
     assert "Artifact custody" in detail
     assert "Canonical evidence" in detail
@@ -527,7 +485,7 @@ def test_generated_study_detail_contains_decision_and_evidence_sections(
     assert "test-candidate-evidence title" in detail
     assert "**Questions**\n\n-" in detail
     assert "**Related studies**\n\n-" in detail
-    assert "**Next tests**\n\n-" in detail
+    assert "## Next tests\n\n-" in detail
 
 
 def test_study_detail_partitions_representative_runs_by_evaluation_scope(
@@ -557,12 +515,12 @@ def test_study_detail_partitions_representative_runs_by_evaluation_scope(
     detail = render_study_detail_pages(build)[
         Path("research/hub/generated/studies/dense-baseline.md")
     ]
-    development = detail.split(
-        "### Evaluation scope: `dev_322x150`", 1
-    )[1].split("### Evaluation scope:", 1)[0]
-    restricted = detail.split(
-        "### Evaluation scope: `restricted_6`", 1
-    )[1].split("## Artifact custody", 1)[0]
+    development = detail.split("### Evaluation scope: `dev_322x150`", 1)[1].split(
+        "### Evaluation scope:", 1
+    )[0]
+    restricted = detail.split("### Evaluation scope: `restricted_6`", 1)[1].split(
+        "## Artifact custody", 1
+    )[0]
 
     assert "dense_nested" in development
     assert "pointwise_qwen_feasibility_6" not in development

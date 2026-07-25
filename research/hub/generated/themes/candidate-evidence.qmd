@@ -4,47 +4,36 @@ description: "Use semantic evidence about candidate models to improve ranking be
 toc: false
 ---
 
-## What does this mean?
+<section class="hub-record-hero">
+<p class="hub-record-status">Adopt · Moderate confidence</p>
+<p class="hub-takeaway">Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.</p>
+<p>Use semantic evidence about candidate models to improve ranking beyond query-only controls.</p>
 
-Use semantic evidence about candidate models to improve ranking beyond query-only controls.
+<p class="hub-next-action"><a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+</section>
 
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
 ## Why does it matter?
 
 Candidate evidence covers labels, behavior summaries, and multiresolution
 profiles used to characterize which models may fit a request.
 
-## How does it work?
-
-<ol class="hub-process hub-record-path">
-<li class="hub-process-step"><strong>Questions</strong><br>3 questions defines what this theme is trying to learn.</li>
-<li class="hub-process-step"><strong>Evidence</strong><br>5 studies records the current evidence.</li>
-<li class="hub-process-step"><strong>Decision</strong><br>Adopt</li>
-</ol>
-
-## What do we know?
-
-::: {.hub-conclusion}
-### Current conclusion
+## Current conclusion
 
 Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.
-:::
+</details>
 
-**Practical decision**
-
-Adopt
-
-## What is missing?
-
+<details class="hub-details">
+<summary>Limits and readiness</summary>
 **Confidence and evidence boundary**
 
 Moderate confidence. Development-only evidence; diagnostic variants and incomplete construction artifacts do not establish hidden-test gains.
+</details>
 
-## What happens next?
-
-<a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
-
-## How does it connect?
-
+<details class="hub-details">
+<summary>Relationships and evidence</summary>
 ## Questions in this theme
 
 <div class="hub-question-row">
@@ -83,3 +72,4 @@ Moderate confidence. Development-only evidence; diagnostic variants and incomple
 ## Evidence behind this position
 
 <a class="hub-evidence-line" href="../../studies/index.html?theme=candidate-evidence">Explore 5 studies linked to this theme in the study library.</a>
+</details>

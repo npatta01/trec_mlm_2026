@@ -3,10 +3,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
+import time
+from urllib.request import urlopen
+
+import json
 
 import pytest
 import yaml
+import websocket
 
 from scripts.normalize_research_hub_links import normalize_links
 from trec_mlm.research_hub.build import build_research_hub
@@ -16,15 +22,117 @@ from trec_mlm.research_hub.render import render_hub_outputs
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _free_local_port() -> int:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
+def test_details_summary_toggles_from_keyboard_in_browser(
+    tmp_path: Path,
+) -> None:
+    detail = render_hub_outputs(build_research_hub(ROOT))[
+        Path("research/hub/generated/ideas/failure-aware-fusion.qmd")
+    ]
+    page = tmp_path / "details.html"
+    page.write_text(f"<!doctype html><body>{detail}</body>", encoding="utf-8")
+    port = _free_local_port()
+    profile = tmp_path / "chrome-profile"
+    browser = shutil.which("google-chrome")
+    assert browser is not None
+    process = subprocess.Popen(
+        [
+            browser,
+            "--headless=new",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--remote-allow-origins=*",
+            f"--remote-debugging-port={port}",
+            f"--user-data-dir={profile}",
+            page.resolve().as_uri(),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        endpoint = f"http://127.0.0.1:{port}/json"
+        for _ in range(30):
+            try:
+                targets = json.loads(urlopen(endpoint, timeout=1).read())
+                break
+            except OSError:
+                time.sleep(0.1)
+        else:
+            pytest.fail("Chrome remote debugging endpoint did not start")
+        target = next(row for row in targets if row["type"] == "page")
+        client = websocket.create_connection(target["webSocketDebuggerUrl"], timeout=5)
+        try:
+
+            def call(
+                method: str, params: dict[str, object] | None = None
+            ) -> dict[str, object]:
+                call.counter += 1
+                client.send(
+                    json.dumps(
+                        {"id": call.counter, "method": method, "params": params or {}}
+                    )
+                )
+                while True:
+                    response = json.loads(client.recv())
+                    if response.get("id") == call.counter:
+                        return response
+
+            call.counter = 0  # type: ignore[attr-defined]
+            focus = call(
+                "Runtime.evaluate",
+                {
+                    "expression": "document.querySelector('summary').focus(); document.activeElement.tagName",
+                    "returnByValue": True,
+                },
+            )
+            assert focus["result"]["result"]["value"] == "SUMMARY"
+            before = call(
+                "Runtime.evaluate",
+                {
+                    "expression": "document.querySelector('details').open",
+                    "returnByValue": True,
+                },
+            )
+            assert before["result"]["result"]["value"] is False
+            key = {
+                "key": "Enter",
+                "code": "Enter",
+                "windowsVirtualKeyCode": 13,
+                "nativeVirtualKeyCode": 13,
+            }
+            call("Input.dispatchKeyEvent", {"type": "keyDown", **key})
+            call(
+                "Input.dispatchKeyEvent",
+                {"type": "char", "text": "\r", "unmodifiedText": "\r", **key},
+            )
+            call("Input.dispatchKeyEvent", {"type": "keyUp", **key})
+            after = call(
+                "Runtime.evaluate",
+                {
+                    "expression": "document.querySelector('details').open",
+                    "returnByValue": True,
+                },
+            )
+            assert after["result"]["result"]["value"] is True
+        finally:
+            client.close()
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
 def test_quarto_renders_generated_idea_library() -> None:
     outputs = render_hub_outputs(build_research_hub(ROOT))
     config = yaml.safe_load((ROOT / "research/hub/_quarto.yml").read_text())
 
     assert Path("research/hub/generated/ideas-index.qmd") in outputs
     assert {
-        path
-        for path in outputs
-        if path.parent == Path("research/hub/generated/ideas")
+        path for path in outputs if path.parent == Path("research/hub/generated/ideas")
     } == {
         Path("research/hub/generated/ideas/failure-aware-fusion.qmd"),
         Path("research/hub/generated/ideas/reference-review-trigger.qmd"),
@@ -101,8 +209,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert "generated/ideas/*.qmd" in config["project"]["render"]
     assert "library/*.qmd" in config["project"]["render"]
     assert config["project"]["pre-render"] == [
-        "uv run --project ../.. python ../../scripts/build_research_hub.py "
-        "--root ../.."
+        "uv run --project ../.. python ../../scripts/build_research_hub.py --root ../.."
     ]
     assert config["project"]["post-render"] == [
         "uv run python ../../scripts/normalize_research_hub_links.py "
@@ -110,13 +217,9 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         "uv run python ../../scripts/audit_research_hub_site.py "
         "--root ../.. --output-dir _site",
     ]
-    assert {
-        row["text"] for row in config["website"]["navbar"]["left"]
-    } >= {"Themes"}
+    assert {row["text"] for row in config["website"]["navbar"]["left"]} >= {"Themes"}
     themes_nav = next(
-        row
-        for row in config["website"]["navbar"]["left"]
-        if row["text"] == "Themes"
+        row for row in config["website"]["navbar"]["left"] if row["text"] == "Themes"
     )
     assert themes_nav["href"] == "themes/index.qmd"
     assert config["execute"]["enabled"] is False
@@ -155,9 +258,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         "collected",
         "generated",
     } <= {row.metadata["category"] for row in build.sources.datasets}
-    qrels = next(
-        row for row in build.sources.datasets if row.record_id == "dev-qrels"
-    )
+    qrels = next(row for row in build.sources.datasets if row.record_id == "dev-qrels")
     assert qrels.metadata["permitted_use"] == "development_evaluation"
     assert all(
         len(row.metadata["representative_system_ids"]) <= 8
@@ -166,8 +267,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     by_study = {row.record_id: row for row in build.sources.studies}
     assert by_study["four-model-reference-review"].metadata["system_ids"] == []
     assert (
-        by_study["grounded-data-quality-audit"].metadata["study_type"]
-        == "data_quality"
+        by_study["grounded-data-quality-audit"].metadata["study_type"] == "data_quality"
     )
 
 
@@ -187,9 +287,7 @@ def test_explainer_and_index_pages_use_readable_custom_layouts() -> None:
 
     assert "{{< include ../generated/questions-index.qmd >}}" in questions
     assert "{{< include ../generated/background-index.qmd >}}" in background
-    assert data.strip().endswith(
-        "{{< include ../generated/data-index.qmd >}}"
-    )
+    assert data.strip().endswith("{{< include ../generated/data-index.qmd >}}")
     assert "Candidate inventory" not in data
     assert "{{< include ../generated/studies-index.qmd >}}" in studies
     assert "{{< include ../generated/themes-index.qmd >}}" in themes
@@ -214,11 +312,14 @@ def test_generated_pages_and_theme_use_the_open_visual_system() -> None:
 
     for class_name in (
         "hub-theme-row",
-        "hub-conclusion",
         "hub-question-row",
         "hub-evidence-line",
         "hub-study-row",
         "hub-background-row",
+        "hub-record-hero",
+        "hub-takeaway",
+        "hub-next-action",
+        "hub-details",
     ):
         assert class_name in generated
         assert f".{class_name}" in theme
@@ -331,21 +432,16 @@ def test_generated_navigation_contains_every_canonical_record() -> None:
     for theme in build.sources.themes:
         assert theme.record_id in summary
         assert theme.record_id in themes
-        assert (
-            Path(f"research/hub/generated/themes/{theme.record_id}.qmd") in outputs
-        )
+        assert Path(f"research/hub/generated/themes/{theme.record_id}.qmd") in outputs
     for question in build.sources.questions:
         assert question.record_id in questions
     for study in build.sources.studies:
         assert study.record_id in studies
-        detail_path = Path(
-            f"research/hub/generated/studies/{study.record_id}.md"
-        )
+        detail_path = Path(f"research/hub/generated/studies/{study.record_id}.md")
         assert detail_path in outputs
         canonical = (ROOT / study.source_path).read_text()
         assert (
-            "{{< include ../generated/studies/"
-            f"{study.record_id}.md >}}"
+            f"{{{{< include ../generated/studies/{study.record_id}.md >}}"
         ) in canonical
         assert "%40" not in outputs[detail_path]
     for resource in build.sources.background:
@@ -382,8 +478,7 @@ def test_contributor_guide_and_complete_record_templates() -> None:
     assert "machine-readable catalog" in guide.lower()
     assert "CONTRIBUTING.md" in rendered_guide
     assert any(
-        row.get("text") == "Contribute"
-        and row.get("href") == "contributing.qmd"
+        row.get("text") == "Contribute" and row.get("href") == "contributing.qmd"
         for row in config["website"]["navbar"]["left"]
     )
 
@@ -600,9 +695,11 @@ Temporary integration-proof record.
         "research/hub/_site/questions/index.html",
     ):
         assert title in (copied_root / path).read_text(), path
-    assert implementation_sentinel in (
-        copied_root / "research/hub/generated/questions-index.qmd"
-    ).read_text()
-    assert implementation_sentinel in (
-        copied_root / "research/hub/_site/questions/index.html"
-    ).read_text()
+    assert (
+        implementation_sentinel
+        in (copied_root / "research/hub/generated/questions-index.qmd").read_text()
+    )
+    assert (
+        implementation_sentinel
+        in (copied_root / "research/hub/_site/questions/index.html").read_text()
+    )

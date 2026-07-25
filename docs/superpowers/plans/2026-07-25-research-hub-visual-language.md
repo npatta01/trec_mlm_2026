@@ -266,7 +266,7 @@ git commit -m "style: apply grayscale research hub theme"
 - Consumes the generated Quarto site.
 - Produces a verified private tailnet preview.
 
-- [ ] **Step 1: Run the complete automated gate**
+- [x] **Step 1: Run the complete automated gate**
 
 ```bash
 uv run --extra dev pytest tests/research_hub -q
@@ -279,14 +279,23 @@ git diff --check
 
 Expected: every command exits zero.
 
-- [ ] **Step 2: Inspect representative pages**
+Verified 2026-07-25: `pytest tests/research_hub -q` reported 102 passed;
+the deterministic generator, Quarto render, generator `--check`, Ruff, and
+`git diff --check` each exited zero.
+
+- [x] **Step 2: Inspect representative pages**
 
 Capture and inspect summary, theme, idea index, idea detail, question, and study
 pages at 1440×1000 dark mode and 390×844 dark mode. Confirm no horizontal
 overflow, clipped copy, low-contrast metadata, or meaning conveyed only by
 color.
 
-- [ ] **Step 3: Sync only the rendered site**
+Verified 2026-07-25: directly inspected true-dark screenshots for summary,
+theme, idea index/detail, question, and study at both viewports. No horizontal
+overflow or clipped active copy was observed; metadata remains legible and
+status distinctions retain text labels and borders in grayscale.
+
+- [x] **Step 3: Sync only the rendered site**
 
 Run:
 
@@ -294,14 +303,23 @@ Run:
 rsync -a --delete research/hub/_site/ /home/npatta01/codex-rendered/plans/trec-2026-research-hub/
 ```
 
-- [ ] **Step 4: Verify private delivery**
+Verified 2026-07-25: synced only `research/hub/_site/`; destination contains
+195 rendered files.
+
+- [x] **Step 4: Verify private delivery**
 
 Confirm `tailscale serve status` reports
 `https://npatta01-framework.tail481212.ts.net (tailnet only)`, key routes return
 HTTP 200, retired raw interactive bundles return HTTP 404, and internal links
 remain inside the rendered root.
 
-- [ ] **Step 5: Commit verification record**
+Verified 2026-07-25: `tailscale serve status` reports
+`https://npatta01-framework.tail481212.ts.net (tailnet only)`. Key hub routes
+returned 200; retired interactive-bundle paths returned 404. The rendered-site
+audit covered 162 HTML pages and 2,666 internal links, with zero missing or
+root-escaping targets.
+
+- [x] **Step 5: Commit verification record**
 
 ```bash
 git add docs/superpowers/plans/2026-07-25-research-hub-visual-language.md

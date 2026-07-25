@@ -200,6 +200,25 @@
       "type": "background"
     },
     {
+      "canonical_path": "research/hub/background/semantic-demand-frames.qmd",
+      "id": "semantic-demand-frames",
+      "related_ids": [
+        "candidate-evidence",
+        "failure-conditions",
+        "query-only-routing"
+      ],
+      "rendered_path": "background/semantic-demand-frames.html",
+      "summary": "A source-backed, factorized vocabulary for testing whether relation, requested-slot, answer-contract, and reasoning features improve analogue matching without replacing response evidence.",
+      "tags": [
+        "answer-contract",
+        "failure-analysis",
+        "relation-aware",
+        "semantic-representation"
+      ],
+      "title": "Semantic-demand frames for relation-aware diagnosis",
+      "type": "background"
+    },
+    {
       "canonical_path": "research/hub/background/team-method-granularity-review.qmd",
       "id": "team-method-granularity-review",
       "related_ids": [

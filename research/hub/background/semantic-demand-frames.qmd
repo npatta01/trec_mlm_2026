@@ -1,0 +1,217 @@
+---
+resource_id: semantic-demand-frames
+title: "Semantic-demand frames for relation-aware diagnosis"
+resource_type: literature_review
+summary: "A source-backed, factorized vocabulary for testing whether relation, requested-slot, answer-contract, and reasoning features improve analogue matching without replacing response evidence."
+canonical_source_path: reports/trec_2025_team_method_granularity_review_2026-07-24.md
+citations: ["QAMR", "BREAK/QDMR", "AmbigQA", "SituatedQA", "EntityQuestions", "KILT"]
+tags: [semantic-representation, relation-aware, answer-contract, failure-analysis]
+question_ids: [failure-conditions, query-only-routing, candidate-evidence]
+reviewed_on: 2026-07-25
+---
+
+## Decision boundary
+
+No reviewed TREC 2025 team used this frame. It is a proposed vocabulary for
+diagnosis and a hypothesis for analogue matching, **not a validated router**.
+The track's closest precedent is historical query-response evidence and its
+observed response behavior, not an explicit entity-relation-answer schema.
+
+## Why coarse taxonomies fail
+
+Surface topic, named entity, and answer type say what a question resembles;
+they do not say what information is required. Two questions can share an
+entity and topic yet request different relations, leave different arguments
+unknown, impose incompatible constraints, require different operations, or
+have different completeness requirements. Conversely, differently worded
+questions can need evidence from the same collection. A coarse label therefore
+cannot establish that a retrieved historical case is an analogue for routing.
+
+## Proposed factorized frame
+
+Use the following fields as inspectable hypotheses rather than as a single
+taxonomy. Each field has precedent in a task where its meaning is grounded;
+that precedent does not establish that it transfers to hidden TREC collections.
+
+| Factor | Diagnostic question | Primary support |
+| --- | --- | --- |
+| Predicate / arguments | What relation is asserted, and which entities fill its roles? | [QAMR](https://aclanthology.org/N18-2089/) represents predicate-argument meaning through question-answer pairs. |
+| Requested slot | Which argument or property is missing from the request? | [EntityQuestions](https://aclanthology.org/2021.emnlp-main.496/) tests simple, entity-rich questions whose requested fact must be retrieved. |
+| Answer contract | Is the expected result a fact, list, count, date, explanation, or qualified answer? | [AmbigQA](https://aclanthology.org/2020.emnlp-main.466/) makes distinct valid answers and clarifying information explicit. |
+| Computation graph | Which ordered operations, joins, filters, comparisons, or aggregations are needed? | [BREAK/QDMR](https://aclanthology.org/2020.tacl-1.13/) decomposes complex questions into ordered reasoning steps. |
+| Entity / context risk | Could the answer change with time, location, speaker, or an implicit entity sense? | [SituatedQA](https://aclanthology.org/2021.emnlp-main.586/) identifies questions whose answers depend on situation. |
+| Ambiguity | Does the wording support multiple information needs that require clarification? | [AmbigQA](https://aclanthology.org/2020.emnlp-main.466/) provides ambiguity-aware QA targets. |
+| Field uncertainty / extraction provenance | How certain is this extraction, what alternatives remain, which extractor or annotation protocol produced it, and which source span supports it? | [KILT](https://aclanthology.org/2021.naacl-main.200/) evaluates provenance as an explicit output alongside task correctness. The per-field extraction audit below is a proposed reproducibility contract, not a result established by KILT. |
+
+### Field-level contract
+
+Every extracted field carries its own `field_metadata`; a record-level source
+is not enough. `confidence` records the extractor or annotator's calibrated
+assessment, while `uncertainty` states what remains unresolved. `alternatives`
+retains plausible competing values (an empty list means none were recorded).
+`extraction` names either a machine extractor and version or a human annotation
+mode and protocol version. `evidence` identifies the source and an exact span
+or stable selector that supports the field. This contract applies recursively
+to predicates, arguments, requested slots, computation steps, answer-contract
+facets, and context facets. Provenance makes an extraction auditable; it does
+not prove that the extraction is correct or useful for ranking.
+
+## Compact example
+
+```yaml
+semantic_graph:
+  field_metadata:
+    confidence: 0.89
+    uncertainty: "The wording does not distinguish legal incorporation from founding."
+    alternatives: [incorporated_by]
+    extraction: {mode: human_annotation, version: semantic-demand-v1}
+    evidence: {source: query_text, span: "Who founded the Example Organization?"}
+  predicate:
+    value: founded_by
+    field_metadata:
+      confidence: 0.91
+      uncertainty: "Founded may refer to legal incorporation."
+      alternatives: [incorporated_by]
+      extraction: {mode: human_annotation, version: semantic-demand-v1}
+      evidence: {source: query_text, span: "founded"}
+  arguments:
+    field_metadata:
+      confidence: 0.94
+      uncertainty: "The founder argument is intentionally unfilled."
+      alternatives: []
+      extraction: {mode: human_annotation, version: semantic-demand-v1}
+      evidence: {source: query_text, span: "Who ... the Example Organization"}
+    values:
+      organization:
+        value: "Example Organization"
+        field_metadata:
+          confidence: 0.98
+          uncertainty: "Entity identity still requires linking."
+          alternatives: []
+          extraction: {mode: human_annotation, version: semantic-demand-v1}
+          evidence: {source: query_text, span: "Example Organization"}
+      person:
+        value: null
+        field_metadata:
+          confidence: 0.97
+          uncertainty: "The answer may contain multiple co-founders."
+          alternatives: [people]
+          extraction: {mode: human_annotation, version: semantic-demand-v1}
+          evidence: {source: query_text, span: "Who"}
+requested_slot:
+  value: person
+  field_metadata:
+    confidence: 0.97
+    uncertainty: "Singular wording may still admit co-founders."
+    alternatives: [people]
+    extraction: {mode: human_annotation, version: semantic-demand-v1}
+    evidence: {source: query_text, span: "Who"}
+computation_steps:
+  values: [identify_organization, resolve_founding_event, return_founder]
+  field_metadata:
+    confidence: 0.76
+    uncertainty: "Entity linking and event resolution may collapse into one step."
+    alternatives: [[identify_organization, return_founder]]
+    extraction: {mode: human_annotation, version: semantic-demand-v1}
+    evidence: {source: query_text, span: "Who founded the Example Organization?"}
+answer_contract:
+  field_metadata:
+    confidence: 0.83
+    uncertainty: "The query does not specify whether all co-founders are required."
+    alternatives: [all_cofounders]
+    extraction: {mode: human_annotation, version: semantic-demand-v1}
+    evidence: {source: query_text, span: "Who"}
+  facets:
+    form:
+      value: named_entity
+      field_metadata:
+        confidence: 0.95
+        uncertainty: "A person name is expected, not an explanation."
+        alternatives: []
+        extraction: {mode: human_annotation, version: semantic-demand-v1}
+        evidence: {source: query_text, span: "Who"}
+    cardinality:
+      value: one_or_more
+      field_metadata:
+        confidence: 0.72
+        uncertainty: "Singular syntax does not exclude co-founders."
+        alternatives: [exactly_one]
+        extraction: {mode: human_annotation, version: semantic-demand-v1}
+        evidence: {source: query_text, span: "Who"}
+    support_required:
+      value: true
+      field_metadata:
+        confidence: 1.0
+        uncertainty: "This requirement comes from the task protocol, not the query."
+        alternatives: []
+        extraction: {mode: human_annotation, version: semantic-demand-v1}
+        evidence: {source: annotation_protocol, span: "support_required: true"}
+context_facets:
+  field_metadata:
+    confidence: 0.68
+    uncertainty: "No time or location is explicit; entity sense remains unresolved."
+    alternatives: [founding_time, legal_jurisdiction]
+    extraction: {mode: human_annotation, version: semantic-demand-v1}
+    evidence: {source: query_text, span: "Example Organization"}
+  facets:
+    temporal:
+      value: unspecified
+      field_metadata:
+        confidence: 0.99
+        uncertainty: "A founding date could disambiguate competing events."
+        alternatives: [founding_time]
+        extraction: {mode: human_annotation, version: semantic-demand-v1}
+        evidence: {source: query_text, span: "Who founded"}
+    location:
+      value: unspecified
+      field_metadata:
+        confidence: 0.99
+        uncertainty: "A jurisdiction could disambiguate organizations."
+        alternatives: [legal_jurisdiction]
+        extraction: {mode: human_annotation, version: semantic-demand-v1}
+        evidence: {source: query_text, span: "Example Organization"}
+    entity_sense:
+      value: unresolved
+      field_metadata:
+        confidence: 0.63
+        uncertainty: "The organization name is not linked to an identifier."
+        alternatives: [candidate_entity_ids]
+        extraction: {mode: human_annotation, version: semantic-demand-v1}
+        evidence: {source: query_text, span: "Example Organization"}
+```
+
+## How it would be used
+
+Retrieve historical query-response cases with lexical, dense, and structural
+evidence. Use the frame to inspect why close cases may differ, then derive
+candidate discrimination from response behavior or reliable response-quality
+labels attached to those cases. Never hard-filter candidates by frame
+agreement: compatible fields do not prove that the same hidden collection can
+support the answer.
+
+## Validation before ranking use
+
+Run a blinded 30-target sample. For every target, provide 10 close and 10
+deliberately distant historical cases, then collect human `yes`, `partial`,
+`no`, or `ambiguous` labels for whether each case supplies the same information
+need. Compare E5 similarity, a direct same-information-need scorer, and
+extracted-field compatibility against those labels. Require extraction-agreement
+checks and ablations (for example, relation alone; relation plus requested slot;
+then constraints and answer contract) before ranking use. Reject the frame as a
+ranking feature if it is not reproducible or does not improve on the direct
+scorer; retain it only for failure analysis.
+
+## Primary sources
+
+- [QAMR](https://aclanthology.org/N18-2089/)
+- [BREAK/QDMR](https://aclanthology.org/2020.tacl-1.13/)
+- [AmbigQA](https://aclanthology.org/2020.emnlp-main.466/)
+- [SituatedQA](https://aclanthology.org/2021.emnlp-main.586/)
+- [EntityQuestions](https://aclanthology.org/2021.emnlp-main.496/)
+- [KILT](https://aclanthology.org/2021.naacl-main.200/)
+
+## Deep dive
+
+Read the tracked [team-method granularity review](team-method-granularity-review.qmd).
+It controls claims about TREC precedent: the review documents what the TREC
+2025 teams actually used and separates that evidence from this proposed frame.

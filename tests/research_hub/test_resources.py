@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
+
+import yaml
 
 from trec_mlm.research_hub.build import build_research_hub
 from trec_mlm.research_hub.render import render_hub_outputs
@@ -69,6 +72,49 @@ def test_background_records_use_audited_sources_and_named_evidence() -> None:
         "../library/reference-model-landscape.qmd"
         in background["reference-model-planning"].body
     )
+    semantic_frames = background["semantic-demand-frames"]
+    assert semantic_frames.metadata["canonical_source_path"] == (
+        "reports/trec_2025_team_method_granularity_review_2026-07-24.md"
+    )
+    normalized = " ".join(semantic_frames.body.split()).lower()
+    assert "no reviewed trec 2025 team used this frame" in normalized
+    assert "not a validated router" in normalized
+    assert "response behavior" in normalized
+    assert "never hard-filter" in normalized
+    yaml_blocks = re.findall(
+        r"```yaml\n(.*?)\n```", semantic_frames.body, flags=re.DOTALL
+    )
+    assert len(yaml_blocks) == 1
+    example = yaml.safe_load(yaml_blocks[0])
+    assert "provenance" not in example
+    extracted_fields = [
+        example["semantic_graph"],
+        example["semantic_graph"]["predicate"],
+        example["semantic_graph"]["arguments"],
+        *example["semantic_graph"]["arguments"]["values"].values(),
+        example["requested_slot"],
+        example["computation_steps"],
+        example["answer_contract"],
+        *example["answer_contract"]["facets"].values(),
+        example["context_facets"],
+        *example["context_facets"]["facets"].values(),
+    ]
+    for field in extracted_fields:
+        metadata = field["field_metadata"]
+        assert {
+            "confidence",
+            "uncertainty",
+            "alternatives",
+            "extraction",
+            "evidence",
+        } <= metadata.keys()
+        assert 0 <= metadata["confidence"] <= 1
+        assert metadata["uncertainty"]
+        assert isinstance(metadata["alternatives"], list)
+        assert {"mode", "version"} <= metadata["extraction"].keys()
+        assert {"source", "span"} <= metadata["evidence"].keys()
+        assert all(metadata["extraction"].values())
+        assert all(metadata["evidence"].values())
     assert "competition" not in background["related-competitions"].title.lower()
     assert "RouterBench" in background["llm-routing-literature"].body
     assert "SRCB" in background["trec-2025-literature"].body

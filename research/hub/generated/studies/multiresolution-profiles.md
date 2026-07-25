@@ -68,6 +68,7 @@ override the existing promoted decision or its evidence-maturity boundary.
 - [Candidate label matching](candidate-label-matching.qmd)
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
 - [Candidate semantic profiles](semantic-profiles.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

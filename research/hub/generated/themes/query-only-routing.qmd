@@ -64,5 +64,5 @@ Moderate confidence. Development-only evidence with repeated tuning on the same 
 
 ## Evidence behind this position
 
-<a class="hub-evidence-line" href="../../studies/index.html?theme=query-only-routing">Explore 3 studies linked to this theme in the study library.</a>
+<a class="hub-evidence-line" href="../../studies/index.html?theme=query-only-routing">Explore 4 studies linked to this theme in the study library.</a>
 </details>

@@ -68,6 +68,7 @@ profiles improve ranking.
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
 - [Multiresolution candidate profiles](multiresolution-profiles.qmd)
 - [Candidate semantic profiles](semantic-profiles.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

@@ -10,7 +10,8 @@
         "failure-conditions",
         "label-ranker-pilots",
         "multiresolution-profiles",
-        "semantic-profiles"
+        "semantic-profiles",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "approaches/candidate-profiles.html",
       "summary": "Describe what each model appears good at, then match that description to the request.",
@@ -32,7 +33,8 @@
         "query-cluster-aggregation",
         "query-controls",
         "query-only-routing",
-        "semantic-profiles"
+        "semantic-profiles",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "approaches/dense-query-retrieval.html",
       "summary": "Find past requests with similar meaning and use what worked for them.",
@@ -198,6 +200,25 @@
       "type": "background"
     },
     {
+      "canonical_path": "research/hub/background/team-method-granularity-review.qmd",
+      "id": "team-method-granularity-review",
+      "related_ids": [
+        "failure-conditions",
+        "query-only-routing",
+        "response-evidence"
+      ],
+      "rendered_path": "background/team-method-granularity-review.html",
+      "summary": "Corrects the proposed rich-taxonomy direction: reviewed TREC 2025 teams used latent retrieval, response evidence, weak quality labels, and learned reranking rather than an explicit entity-relation-answer schema.",
+      "tags": [
+        "reranking",
+        "response-evidence",
+        "taxonomy",
+        "trec-2025"
+      ],
+      "title": "Did TREC teams use relation and answer-type features?",
+      "type": "background"
+    },
+    {
       "canonical_path": "research/hub/background/trec-2025-literature.qmd",
       "id": "trec-2025-literature",
       "related_ids": [
@@ -256,7 +277,8 @@
         "response-retrieval",
         "response-volume-normalization",
         "semantic-profiles",
-        "source-query-first"
+        "source-query-first",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "data/dev-qrels.html",
       "summary": "Organizer labels indicating which candidate models suited each development request.",
@@ -282,7 +304,8 @@
         "response-retrieval",
         "response-volume-normalization",
         "semantic-profiles",
-        "source-query-first"
+        "source-query-first",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "data/dev-queries.html",
       "summary": "Historical user requests used for development.",
@@ -305,7 +328,8 @@
         "grounded-data-quality-audit",
         "response-retrieval",
         "response-volume-normalization",
-        "source-query-first"
+        "source-query-first",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "data/discovery-responses.html",
       "summary": "Collected model responses used as candidate-side evidence in bounded studies.",
@@ -355,7 +379,8 @@
         "response-retrieval",
         "response-volume-normalization",
         "semantic-profiles",
-        "source-query-first"
+        "source-query-first",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "data/run-artifacts.html",
       "summary": "Rankings, metrics, per-query tables, and receipts supporting technical runs.",
@@ -377,7 +402,8 @@
         "label-ranker-pilots",
         "multiresolution-profiles",
         "semantic-failure-clusters",
-        "semantic-profiles"
+        "semantic-profiles",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "questions/candidate-evidence.html",
       "summary": "When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?",
@@ -405,7 +431,8 @@
         "reference-review-trigger",
         "responses-references",
         "semantic-failure-clusters",
-        "source-query-first"
+        "source-query-first",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "questions/failure-conditions.html",
       "summary": "Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?",
@@ -426,7 +453,8 @@
         "query-cluster-aggregation",
         "query-controls",
         "query-only-routing",
-        "semantic-failure-clusters"
+        "semantic-failure-clusters",
+        "sparse-failure-analogue-diagnosis"
       ],
       "rendered_path": "questions/query-only-routing.html",
       "summary": "Can a new request be routed well by comparing it with historical requests, before using candidate responses?",
@@ -2518,6 +2546,35 @@
         "unscored"
       ],
       "title": "Source-query-first response evidence",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/sparse-failure-analogue-diagnosis.qmd",
+      "id": "sparse-failure-analogue-diagnosis",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-profiles",
+        "dense-query-retrieval",
+        "dev-qrels",
+        "dev-queries",
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "query-only-routing",
+        "reference-review-trigger",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/sparse-failure-analogue-diagnosis.html",
+      "summary": "Test whether similar historical or development questions identify the official positive candidate on 75 sole-positive top-ten failures.",
+      "tags": [
+        "analogues",
+        "failure-analysis",
+        "fusion",
+        "query-retrieval"
+      ],
+      "title": "Sparse-failure analogue diagnosis",
       "type": "study"
     },
     {

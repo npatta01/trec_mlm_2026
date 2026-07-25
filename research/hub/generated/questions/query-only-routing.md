@@ -52,6 +52,7 @@ descriptions.
 - [Dense query nearest-neighbor retrieval](../studies/dense-query-knn.qmd)
 - [Query-cluster aggregation](../studies/query-cluster-aggregation.qmd)
 - [Simple query controls](../studies/query-controls.qmd)
+- [Sparse-failure analogue diagnosis](../studies/sparse-failure-analogue-diagnosis.qmd)
 
 The controls establish simple priors; dense k-nearest-neighbor retrieval is the
 stable query-only control; cluster aggregation remains diagnostic or negative.

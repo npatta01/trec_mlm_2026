@@ -77,6 +77,7 @@ claim.
 - [Query-cluster aggregation](query-cluster-aggregation.qmd)
 - [Candidate semantic profiles](semantic-profiles.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

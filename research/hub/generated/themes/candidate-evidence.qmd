@@ -75,5 +75,5 @@ Moderate confidence. Development-only evidence; diagnostic variants and incomple
 
 ## Evidence behind this position
 
-<a class="hub-evidence-line" href="../../studies/index.html?theme=candidate-evidence">Explore 5 studies linked to this theme in the study library.</a>
+<a class="hub-evidence-line" href="../../studies/index.html?theme=candidate-evidence">Explore 6 studies linked to this theme in the study library.</a>
 </details>

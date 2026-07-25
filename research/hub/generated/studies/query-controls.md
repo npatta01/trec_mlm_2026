@@ -71,6 +71,7 @@ preregistered claim, and the original dates remain unknown.
 
 - [Dense query nearest-neighbor retrieval](dense-query-knn.qmd)
 - [Query-cluster aggregation](query-cluster-aggregation.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

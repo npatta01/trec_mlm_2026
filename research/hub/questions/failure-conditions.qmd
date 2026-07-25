@@ -8,7 +8,7 @@ status: open
 current_answer: "Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists."
 confidence: low
 confidence_boundary: "Observed development and audit failures are diagnostic; they do not estimate hidden-test prevalence."
-study_ids: [label-ranker-pilots, query-cluster-aggregation, gemini-grounding-failure-review, grounded-data-quality-audit, e5-raw-response-refinement, candidate-label-matching, source-query-first]
+study_ids: [label-ranker-pilots, query-cluster-aggregation, gemini-grounding-failure-review, grounded-data-quality-audit, e5-raw-response-refinement, candidate-label-matching, source-query-first, sparse-failure-analogue-diagnosis]
 open_subquestions: ["Can failure clusters be detected before a decision?", "Can reliability-aware fusion improve without adding leakage?"]
 next_test_ids: [failure-aware-fusion, semantic-failure-clusters, reference-review-trigger]
 evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_grounded_data_quality_audit_2026-07-23.md]

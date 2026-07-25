@@ -354,11 +354,11 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert build.validation.record_counts == {
         "theme": 4,
         "question": 5,
-        "study": 15,
+        "study": 16,
         "test": 3,
         "approach": 5,
         "dataset": 6,
-        "background": 6,
+        "background": 7,
     }
     assert build.validation.linked_system_count == len(build.ledger.systems) == 98
 

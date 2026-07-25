@@ -44,3 +44,14 @@ Use the dated planning evidence to choose reference generators and review contro
 <span>Dated planning evidence for reference generation, judging, cost, and local-runtime choices.</span>
 </a>
 </div>
+
+## Additional background
+
+Other source-backed context registered by this build.
+
+<div class="hub-background-list">
+<a class="hub-background-row" href="team-method-granularity-review.qmd">
+<strong>Did TREC teams use relation and answer-type features?</strong>
+<span>Corrects the proposed rich-taxonomy direction: reviewed TREC 2025 teams used latent retrieval, response evidence, weak quality labels, and learned reranking rather than an explicit entity-relation-answer schema.</span>
+</a>
+</div>

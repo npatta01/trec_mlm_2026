@@ -71,6 +71,7 @@ hidden-test effectiveness claim.
 
 - [Query-cluster aggregation](query-cluster-aggregation.qmd)
 - [Simple query controls](query-controls.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

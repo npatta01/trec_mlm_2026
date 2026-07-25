@@ -1,0 +1,20 @@
+scope	representation	k	nearest_label_agreement	hit_at_1	hit_at_5	hit_at_10	mrr	median_official_rank	q1_official_rank	q3_official_rank	evidence_status
+pure_1nn	LOO global prior	0		0	2	3	0.0328	86	39	113	receipt_only_unreproduced
+pure_1nn	Word TF-IDF unigram	1	9	1	3	4	0.0416	85	37	111	receipt_only_unreproduced
+pure_1nn	Word TF-IDF 1-2 gram	1	12	2	4	5	0.0551	78	34	102	receipt_only_unreproduced
+pure_1nn	Character TF-IDF 3-5	1	7	0	1	3	0.0242	86	51	113	receipt_only_unreproduced
+pure_1nn	MiniLM-L6	1	9	1	4	6	0.0431	85	44	107	receipt_only_unreproduced
+pure_1nn	E5-small-v2	1	9	3	4	7	0.0653	78	36	111	receipt_only_unreproduced
+pure_1nn	BGE-small	1	11	1	3	3	0.0406	75	40	112	receipt_only_unreproduced
+pure_1nn	MPNet-base-v2	1	7	2	4	7	0.0548	78	38	106	receipt_only_unreproduced
+pure_1nn	E5-Mistral contextual	1	11	4	5	5	0.0753	85	39	108	receipt_only_unreproduced
+best_posthoc_mrr	Word TF-IDF unigram	5		2	6	6	0.0672	70			receipt_only_unreproduced_posthoc
+best_posthoc_mrr	Word TF-IDF 1-2 gram	3		2	4	7	0.0562	79			receipt_only_unreproduced_posthoc
+best_posthoc_mrr	Character TF-IDF 3-5	20		0	1	4	0.0265	75			receipt_only_unreproduced_posthoc
+best_posthoc_mrr	MiniLM-L6	10		1	5	6	0.0523	71			receipt_only_unreproduced_posthoc
+best_posthoc_mrr	E5-small-v2	1	9	3	4	7	0.0653	78	36	111	receipt_only_unreproduced_posthoc
+best_posthoc_mrr	BGE-small	5		2	4	5	0.0601	59			receipt_only_unreproduced_posthoc
+best_posthoc_mrr	MPNet-base-v2	1	7	2	4	7	0.0548	78	38	106	receipt_only_unreproduced_posthoc
+best_posthoc_mrr	E5-Mistral contextual	3		5	8	10	0.0997	72	33	99	receipt_only_unreproduced_posthoc
+frozen_control	Repository TF-IDF 1-2 gram	10		1	2	6	0.0426				receipt_only_control
+frozen_control	MPNet-base-v2	50		0	2	3	0.028812	82			receipt_only_control

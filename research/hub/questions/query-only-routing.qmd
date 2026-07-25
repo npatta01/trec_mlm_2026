@@ -8,7 +8,7 @@ status: partially_answered
 current_answer: "Dense query neighbors are a useful stable control, but candidate-side evidence improved development results."
 confidence: moderate
 confidence_boundary: "Development-only evidence; repeated tuning on the same queries may overfit and the hidden test is unavailable."
-study_ids: [query-controls, dense-query-knn, query-cluster-aggregation]
+study_ids: [query-controls, dense-query-knn, query-cluster-aggregation, sparse-failure-analogue-diagnosis]
 open_subquestions: ["Which query representation transfers best beyond development?", "Can cluster evidence help without unstable tuning?"]
 next_test_ids: [semantic-failure-clusters]
 evidence_refs: [reports/trec_2026_experiment_ledger.md]

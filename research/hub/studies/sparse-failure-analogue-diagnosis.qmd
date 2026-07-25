@@ -1,0 +1,38 @@
+---
+study_id: sparse-failure-analogue-diagnosis
+title: "Sparse-failure analogue diagnosis"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, query-only-routing, candidate-evidence]
+study_type: audit
+question_ids: [failure-conditions, query-only-routing, candidate-evidence]
+approach_ids: [dense-query-retrieval, candidate-profiles]
+status: concluded
+outcome: negative
+objective: "Test whether similar historical or development questions identify the official positive candidate on 75 sole-positive top-ten failures."
+hypothesis: "Fine-grained query analogues will transfer enough candidate evidence to explain or recover a material share of the 75 failures."
+rationale: "The promoted fusion had 75 zero-nDCG sole-positive failures, and the released history made analogue transfer directly testable without target-response access."
+rationale_provenance: contemporaneous
+protocol_summary: "Freeze the 75-case cohort, screen historical analogues without target qrels, run leave-one-query-out lexical and dense transfer, and separate fusion dilution from missing evidence."
+conclusion: "Query analogues rarely identify the official positive: only 11 of 75 had strong or corroborated pre-qrel evidence, and 54 of 75 had no top-ten positive from either promoted component."
+decision: reject
+decision_summary: "Do not treat ordinary query-neighbor transfer or another static fusion weight as the missing ranking signal; test stronger response-evidence reranking instead."
+system_ids: []
+representative_system_ids: []
+comparison_system_ids: []
+evidence_refs: [reports/trec_2026_sparse_failure_analogue_diagnostic.md, reports/trec_2026_sparse_failure_analogue_diagnostic.json, reports/trec_2026_sparse_failure_cause_diagnostic.json, reports/trec_2026_ranking_diagnosis.artifact.json]
+dataset_ids: [dev-queries, dev-qrels, discovery-responses, run-artifacts]
+started_on: 2026-07-17
+concluded_on: 2026-07-17
+supersedes: []
+superseded_by: []
+limitations: "Development-only post-hoc audit. Target candidate responses and assessor rationale are unavailable; historical attempts are not correctness labels; the multi-representation transfer sweep is an unreproduced exploratory receipt, and its best setting is not an unbiased estimate."
+tags: [failure-analysis, analogues, fusion, query-retrieval]
+---
+
+{{< include ../generated/studies/sparse-failure-analogue-diagnosis.md >}}
+
+The diagnostic separates two actionable conditions. In 21 cases one component
+already ranked the official positive in its top ten and equal reciprocal-rank
+fusion vetoed it. In the other 54, neither component supplied a top-ten signal,
+so reweighting those same lists cannot recover the positive without new
+evidence.

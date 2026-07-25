@@ -74,6 +74,7 @@ ledger, not this narrative page.
 - [Candidate label matching](candidate-label-matching.qmd)
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
 - [Multiresolution candidate profiles](multiresolution-profiles.qmd)
+- [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)
 
 ## Representative runs
 

@@ -8,19 +8,10 @@
 ## What does this mean?
 
 Use a reliability check to choose which evidence sources should influence each request.
-:::
 
 ## Why does it matter?
 
 Response and reference evidence help unevenly, so a fixed mixture can hide failures.
-
-## How does it work?
-
-<ol class="hub-record-path">
-<li class="hub-record-path-step">Read the new request and estimate which evidence sources are dependable.</li>
-<li class="hub-record-path-step">Choose a bounded evidence mixture using the frozen reliability rule.</li>
-<li class="hub-record-path-step">Rank candidates and compare with the frozen dense/profile control.</li>
-</ol>
 
 <figure class="hub-causal-comparison">
 <section class="hub-causal-current">
@@ -33,7 +24,7 @@ Response and reference evidence help unevenly, so a fixed mixture can hide failu
 <li>Generated reference</li>
 </ul>
 </section>
-<div class="hub-causal-change">Proposed change</div>
+<div class="hub-causal-change" aria-hidden="true"></div>
 <section class="hub-causal-proposed">
 <h3>Proposed</h3>
 <p>A reliability gate chooses the evidence mixture.</p>
@@ -52,8 +43,19 @@ Response and reference evidence help unevenly, so a fixed mixture can hide failu
 </div>
 </dl>
 </section>
-<figcaption class="hub-decision-test"><strong>Decision test:</strong> Does the adaptive mixture beat the frozen dense/profile control?</figcaption>
+<figcaption class="hub-decision-test">Does the adaptive mixture beat the frozen dense/profile control?</figcaption>
 </figure>
+
+<p class="hub-next-action">Define and freeze the reliability signal, fallback, and artifact plan.</p>
+:::
+
+## How does it work?
+
+<ol class="hub-record-path">
+<li class="hub-record-path-step">Read the new request and estimate which evidence sources are dependable.</li>
+<li class="hub-record-path-step">Choose a bounded evidence mixture using the frozen reliability rule.</li>
+<li class="hub-record-path-step">Rank candidates and compare with the frozen dense/profile control.</li>
+</ol>
 
 ## What do we know?
 

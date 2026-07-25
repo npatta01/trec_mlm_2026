@@ -304,6 +304,70 @@ def test_validation_rejects_unsupported_visual_type(
         )
 
 
+@pytest.mark.parametrize("visual_type", [[], {}, ""])
+def test_validation_rejects_non_string_or_empty_visual_type(
+    visual_type: object,
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={
+            **minimal_sources.tests[0].metadata,
+            "visual": {"type": visual_type},
+        },
+    )
+
+    with pytest.raises(ValueError, match="visual.type must be a nonempty string"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_non_string_visual_keys(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={
+            **minimal_sources.tests[0].metadata,
+            "visual": {**CAUSAL_VISUAL, 1: "invalid", "misspelling": "invalid"},
+        },
+    )
+
+    with pytest.raises(ValueError, match="visual keys must be strings"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_non_string_proposed_route_keys(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    routes = list(CAUSAL_VISUAL["proposed_routes"])
+    routes[0] = {**routes[0], 1: "invalid", "misspelling": "invalid"}
+    idea = replace(
+        minimal_sources.tests[0],
+        metadata={
+            **minimal_sources.tests[0].metadata,
+            "visual": {**CAUSAL_VISUAL, "proposed_routes": routes},
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="visual.proposed_routes keys must be strings",
+    ):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(idea,)), ledger_build, tmp_path
+        )
+
+
 def test_validation_accepts_record_without_visual(
     minimal_sources: HubSources,
     ledger_build: LedgerBuild,

@@ -1189,7 +1189,7 @@ def _render_record_visual(record: HubRecord) -> list[str]:
         [
             "</ul>",
             "</section>",
-            '<div class="hub-causal-change">Proposed change</div>',
+            '<div class="hub-causal-change" aria-hidden="true"></div>',
             '<section class="hub-causal-proposed">',
             f"<h3>{html.escape(str(visual.get('proposed_label', '')))}</h3>",
             f"<p>{html.escape(str(visual.get('proposed_summary', '')))}</p>",
@@ -1212,7 +1212,7 @@ def _render_record_visual(record: HubRecord) -> list[str]:
             "</dl>",
             "</section>",
             (
-                '<figcaption class="hub-decision-test"><strong>Decision test:</strong> '
+                '<figcaption class="hub-decision-test">'
                 f"{html.escape(str(visual.get('decision_test', '')))}</figcaption>"
             ),
             "</figure>",
@@ -1242,16 +1242,28 @@ def _render_test_page(build: HubBuild, test: HubRecord) -> str:
         "## What does this mean?",
         "",
         html.escape(str(test.metadata.get("plain_english", ""))),
-        ":::",
         "",
         "## Why does it matter?",
         "",
         html.escape(str(test.metadata.get("why_it_matters", ""))),
-        "",
-        "## How does it work?",
-        "",
-        '<ol class="hub-record-path">',
     ]
+    visual = _render_record_visual(test)
+    if visual:
+        lines.extend(["", *visual])
+    lines.extend(
+        [
+            "",
+            (
+                '<p class="hub-next-action">'
+                f"{html.escape(str(test.metadata.get('next_action', '')))}</p>"
+            ),
+            ":::",
+            "",
+            "## How does it work?",
+            "",
+            '<ol class="hub-record-path">',
+        ]
+    )
     lines.extend(
         f'<li class="hub-record-path-step">{html.escape(step)}</li>'
         for step in mechanism_steps
@@ -1262,9 +1274,6 @@ def _render_test_page(build: HubBuild, test: HubRecord) -> str:
             "",
         ]
     )
-    visual = _render_record_visual(test)
-    if visual:
-        lines.extend([*visual, ""])
     lines.extend(
         [
             "## What do we know?",

@@ -8,11 +8,13 @@
 ## What does this mean?
 
 Flag generated reference answers that need more evidence or a human check before guiding a ranking.
-:::
 
 ## Why does it matter?
 
 A selective review trigger could reduce avoidable reference failures without reviewing every request.
+
+<p class="hub-next-action">Define the local trigger features and acceptance rule.</p>
+:::
 
 ## How does it work?
 

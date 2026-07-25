@@ -8,11 +8,13 @@
 ## What does this mean?
 
 Group similar ranking failures to find request types where a method repeatedly struggles.
-:::
 
 ## Why does it matter?
 
 Recurring failure patterns could show where a ranking method needs a different evidence strategy or should not be used.
+
+<p class="hub-next-action">State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+:::
 
 ## How does it work?
 

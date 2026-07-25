@@ -124,6 +124,15 @@ def _require_visual_string(
     return value.strip()
 
 
+def _require_string_keys(
+    record: HubRecord,
+    mapping: Mapping[object, object],
+    field: str,
+) -> None:
+    if any(not isinstance(key, str) for key in mapping):
+        raise ValueError(f"{record.source_path}: {field} keys must be strings")
+
+
 def validate_visual(record: HubRecord) -> None:
     """Validate an optional explicit visual model attached to a record."""
 
@@ -132,7 +141,8 @@ def validate_visual(record: HubRecord) -> None:
         return
     if not isinstance(visual, Mapping):
         raise ValueError(f"{record.source_path}: visual must be a mapping")
-    visual_type = visual.get("type")
+    _require_string_keys(record, visual, "visual")
+    visual_type = _require_visual_string(record, visual, "type")
     if visual_type not in VISUAL_TYPES:
         raise ValueError(
             f"{record.source_path}: visual.type must be one of "
@@ -178,6 +188,7 @@ def validate_visual(record: HubRecord) -> None:
             raise ValueError(
                 f"{record.source_path}: visual.proposed_routes must contain mappings"
             )
+        _require_string_keys(record, route, "visual.proposed_routes")
         unknown_route_fields = set(route) - {"label", "action"}
         if unknown_route_fields:
             raise ValueError(

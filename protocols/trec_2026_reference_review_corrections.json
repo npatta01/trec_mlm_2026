@@ -1,0 +1,14 @@
+{
+  "schema_version": "reference-review-corrections-v1",
+  "review_set": "trec-2026-four-model-reference-review-400",
+  "corrections": [
+    {
+      "question_id": "161490",
+      "left": "response_c",
+      "right": "response_d",
+      "from_outcome": "left_better",
+      "to_outcome": "right_better",
+      "reason": "The locked tiers, pointwise scores, and rationale all place response_d above response_c; the recorded directional outcome was inconsistent with those three fields."
+    }
+  ]
+}

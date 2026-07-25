@@ -1,0 +1,38 @@
+---
+study_id: response-volume-normalization
+title: "Response-volume normalization"
+primary_theme_id: responses-references
+theme_ids: [responses-references]
+study_type: ranking_experiment
+question_ids: [response-evidence]
+approach_ids: [response-evidence]
+status: concluded
+outcome: negative
+objective: "Test whether limiting response evidence volume repairs the response-retrieval baseline."
+hypothesis: "A top-response normalization reduces volume bias and improves ranking."
+rationale: "The tracked protocol and result receipt define this bounded refinement."
+rationale_provenance: contemporaneous
+protocol_summary: "Normalize response contribution while retaining the frozen evaluation scope."
+conclusion: "The normalized response system remained below the established control."
+decision: reject
+decision_summary: "Do not pursue response-volume normalization as a standalone repair."
+system_ids: [response_top10sum_nested]
+representative_system_ids: [response_top10sum_nested]
+evidence_refs: [protocols/trec_2026_response_volume_normalization.md, reports/trec_2026_response_volume_normalization_results.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, discovery-responses, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Single aggregate-only development result with local artifact gaps."
+tags: [responses, normalization, negative]
+---
+
+{{< include ../generated/studies/response-volume-normalization.md >}}
+
+<!--
+## Decision
+
+The bounded normalization did not repair the direct response path. This
+negative result is retained separately from later response refinements.
+-->

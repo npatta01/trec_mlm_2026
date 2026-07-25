@@ -1,0 +1,43 @@
+---
+study_id: dense-query-knn
+title: "Dense query nearest-neighbor retrieval"
+primary_theme_id: query-only-routing
+theme_ids: [query-only-routing]
+study_type: ranking_experiment
+question_ids: [query-only-routing]
+approach_ids: [dense-query-retrieval]
+status: concluded
+outcome: positive
+objective: "Compare dense query encoders and neighborhood sizes for transferring candidate relevance."
+hypothesis: "Semantic query neighbors improve on simple query controls."
+rationale: "Reconstructed from the dense-query result receipt and ledger."
+rationale_provenance: reconstructed
+protocol_summary: "Evaluate four embedding families across fixed neighborhood sizes on the development set."
+conclusion: "Dense retrieval established the stable query-only control; parameter variants remain diagnostic."
+decision: retain_control
+decision_summary: "Retain dense_nested as the frozen query-only control."
+system_ids: [dense_nested, "bge_small_en_v1_5@1", "bge_small_en_v1_5@3", "bge_small_en_v1_5@5", "bge_small_en_v1_5@10", "bge_small_en_v1_5@20", "bge_small_en_v1_5@50", "bge_small_en_v1_5@100", "e5_small_v2@1", "e5_small_v2@3", "e5_small_v2@5", "e5_small_v2@10", "e5_small_v2@20", "e5_small_v2@50", "e5_small_v2@100", "minilm_l6@1", "minilm_l6@3", "minilm_l6@5", "minilm_l6@10", "minilm_l6@20", "minilm_l6@50", "minilm_l6@100", "mpnet_base_v2@1", "mpnet_base_v2@3", "mpnet_base_v2@5", "mpnet_base_v2@10", "mpnet_base_v2@20", "mpnet_base_v2@50", "mpnet_base_v2@100"]
+representative_system_ids: [dense_nested, "mpnet_base_v2@50", "mpnet_base_v2@20"]
+evidence_refs: [reports/trec_2026_dense_query_knn_results.json, reports/trec_2026_dense_query_knn_per_query.tsv]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, generated-embeddings, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Development-only and adaptively explored; most variants have aggregate-only evidence."
+tags: [dense, queries, knn]
+---
+
+{{< include ../generated/studies/dense-query-knn.md >}}
+
+<!--
+## Decision
+
+Keep `dense_nested` as the frozen control. The full encoder-by-neighborhood
+grid is available in the technical run registry, not repeated here.
+
+## Evidence boundary
+
+The study transfers qrel-derived development evidence and cannot support a
+hidden-test effectiveness claim.
+-->

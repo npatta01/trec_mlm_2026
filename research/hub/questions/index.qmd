@@ -1,0 +1,7 @@
+---
+title: "Research Questions"
+description: "Current research questions and their bounded answers."
+toc: false
+---
+
+{{< include ../generated/questions-index.qmd >}}

@@ -1,0 +1,7 @@
+---
+title: "Research themes"
+description: "Current positions organized by stable areas of inquiry."
+toc: false
+---
+
+{{< include ../generated/themes-index.qmd >}}

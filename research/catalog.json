@@ -1,0 +1,2633 @@
+{
+  "resources": [
+    {
+      "canonical_path": "research/hub/approaches/candidate-profiles.qmd",
+      "id": "candidate-profiles",
+      "related_ids": [
+        "behavior-profile",
+        "candidate-evidence",
+        "candidate-label-matching",
+        "failure-conditions",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "semantic-profiles"
+      ],
+      "rendered_path": "approaches/candidate-profiles.html",
+      "summary": "Describe what each model appears good at, then match that description to the request.",
+      "tags": [
+        "candidates",
+        "profiles",
+        "semantics"
+      ],
+      "title": "Candidate profiles",
+      "type": "approach"
+    },
+    {
+      "canonical_path": "research/hub/approaches/dense-query-retrieval.qmd",
+      "id": "dense-query-retrieval",
+      "related_ids": [
+        "candidate-evidence",
+        "dense-query-knn",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "query-only-routing",
+        "semantic-profiles"
+      ],
+      "rendered_path": "approaches/dense-query-retrieval.html",
+      "summary": "Find past requests with similar meaning and use what worked for them.",
+      "tags": [
+        "embeddings",
+        "queries",
+        "retrieval"
+      ],
+      "title": "Dense query retrieval",
+      "type": "approach"
+    },
+    {
+      "canonical_path": "research/hub/approaches/reference-generation.qmd",
+      "id": "reference-generation",
+      "related_ids": [
+        "failure-conditions",
+        "four-model-reference-review",
+        "gemini-grounding-failure-review",
+        "grounded-data-quality-audit",
+        "reference-reliability",
+        "response-evidence"
+      ],
+      "rendered_path": "approaches/reference-generation.html",
+      "summary": "Create a comparison answer, but treat it as evidence to review rather than an oracle.",
+      "tags": [
+        "grounding",
+        "references",
+        "review"
+      ],
+      "title": "Reference generation and review",
+      "type": "approach"
+    },
+    {
+      "canonical_path": "research/hub/approaches/reranking.qmd",
+      "id": "reranking",
+      "related_ids": [
+        "candidate-evidence",
+        "e5-raw-response-refinement",
+        "failure-conditions",
+        "label-ranker-pilots",
+        "response-evidence",
+        "semantic-profiles",
+        "source-query-first"
+      ],
+      "rendered_path": "approaches/reranking.html",
+      "summary": "Start with candidates, then use an additional signal to improve their order.",
+      "tags": [
+        "fusion",
+        "learning",
+        "reranking"
+      ],
+      "title": "Learned and heuristic reranking",
+      "type": "approach"
+    },
+    {
+      "canonical_path": "research/hub/approaches/response-evidence.qmd",
+      "id": "response-evidence",
+      "related_ids": [
+        "e5-raw-response-refinement",
+        "failure-conditions",
+        "response-evidence",
+        "response-retrieval",
+        "response-volume-normalization",
+        "source-query-first"
+      ],
+      "rendered_path": "approaches/response-evidence.html",
+      "summary": "Read what candidates answered, not only their identifiers or profiles.",
+      "tags": [
+        "responses",
+        "retrieval"
+      ],
+      "title": "Response evidence",
+      "type": "approach"
+    },
+    {
+      "canonical_path": "research/hub/background/llm-routing-literature.qmd",
+      "id": "llm-routing-literature",
+      "related_ids": [
+        "candidate-evidence",
+        "failure-conditions",
+        "query-only-routing"
+      ],
+      "rendered_path": "background/llm-routing-literature.html",
+      "summary": "What expert finding, model routing, and simple retrieval contribute under different task rules.",
+      "tags": [
+        "expert-finding",
+        "literature",
+        "routing"
+      ],
+      "title": "Wider LLM-routing literature",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/background/methods-landscape.qmd",
+      "id": "methods-landscape",
+      "related_ids": [
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence"
+      ],
+      "rendered_path": "background/methods-landscape.html",
+      "summary": "A staged method ladder for retrieval, candidate evidence, weak labels, and learned fusion.",
+      "tags": [
+        "evaluation",
+        "methods",
+        "retrieval"
+      ],
+      "title": "Methods landscape",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/background/prior-participant-approaches.qmd",
+      "id": "prior-participant-approaches",
+      "related_ids": [
+        "candidate-evidence",
+        "query-only-routing",
+        "response-evidence"
+      ],
+      "rendered_path": "background/prior-participant-approaches.html",
+      "summary": "How six 2025 teams converted queries, responses, profiles, and weak labels into expert rankings.",
+      "tags": [
+        "methods",
+        "participants",
+        "prior-art"
+      ],
+      "title": "Prior participant approaches",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/background/reference-model-planning.qmd",
+      "id": "reference-model-planning",
+      "related_ids": [
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence"
+      ],
+      "rendered_path": "background/reference-model-planning.html",
+      "summary": "Dated planning evidence for reference generation, judging, cost, and local-runtime choices.",
+      "tags": [
+        "judging",
+        "local-inference",
+        "planning",
+        "reference-models"
+      ],
+      "title": "Reference-model planning \u2014 July 21, 2026",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/background/related-competitions.qmd",
+      "id": "related-competitions",
+      "related_ids": [
+        "query-only-routing",
+        "response-evidence"
+      ],
+      "rendered_path": "background/related-competitions.html",
+      "summary": "Neighboring evaluations that test retrieval, routing, judging, or distribution shift under different contracts.",
+      "tags": [
+        "benchmarks",
+        "comparability",
+        "routing-evaluation"
+      ],
+      "title": "Adjacent benchmarks and routing evaluations",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/background/trec-2025-literature.qmd",
+      "id": "trec-2025-literature",
+      "related_ids": [
+        "candidate-evidence",
+        "query-only-routing",
+        "response-evidence"
+      ],
+      "rendered_path": "background/trec-2025-literature.html",
+      "summary": "The prior task, its strongest evidence families, and the limits of its official evaluation.",
+      "tags": [
+        "llm-routing",
+        "prior-art",
+        "trec-2025"
+      ],
+      "title": "What the 2025 Million LLMs track taught us",
+      "type": "background"
+    },
+    {
+      "canonical_path": "research/hub/data/candidate-inventory.qmd",
+      "id": "candidate-inventory",
+      "related_ids": [
+        "behavior-profile",
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
+      "rendered_path": "data/candidate-inventory.html",
+      "summary": "The identifiers of the 150 LLMs that each query must rank.",
+      "tags": [
+        "candidates",
+        "development",
+        "provided"
+      ],
+      "title": "Candidate inventory",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/data/dev-qrels.qmd",
+      "id": "dev-qrels",
+      "related_ids": [
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
+      "rendered_path": "data/dev-qrels.html",
+      "summary": "Organizer labels indicating which candidate models suited each development request.",
+      "tags": [
+        "development",
+        "provided",
+        "qrels"
+      ],
+      "title": "Development relevance judgments",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/data/dev-queries.qmd",
+      "id": "dev-queries",
+      "related_ids": [
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
+      "rendered_path": "data/dev-queries.html",
+      "summary": "Historical user requests used for development.",
+      "tags": [
+        "development",
+        "provided",
+        "queries"
+      ],
+      "title": "Development queries",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/data/discovery-responses.qmd",
+      "id": "discovery-responses",
+      "related_ids": [
+        "behavior-profile",
+        "e5-raw-response-refinement",
+        "four-model-reference-review",
+        "gemini-grounding-failure-review",
+        "grounded-data-quality-audit",
+        "response-retrieval",
+        "response-volume-normalization",
+        "source-query-first"
+      ],
+      "rendered_path": "data/discovery-responses.html",
+      "summary": "Collected model responses used as candidate-side evidence in bounded studies.",
+      "tags": [
+        "collected",
+        "private",
+        "responses"
+      ],
+      "title": "Discovery responses",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/data/generated-embeddings.qmd",
+      "id": "generated-embeddings",
+      "related_ids": [
+        "behavior-profile",
+        "candidate-label-matching",
+        "dense-query-knn",
+        "e5-raw-response-refinement",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "semantic-profiles"
+      ],
+      "rendered_path": "data/generated-embeddings.html",
+      "summary": "Machine-generated vectors and summaries used to compare queries or describe candidates.",
+      "tags": [
+        "embeddings",
+        "generated",
+        "profiles"
+      ],
+      "title": "Generated embeddings and profiles",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/data/run-artifacts.qmd",
+      "id": "run-artifacts",
+      "related_ids": [
+        "behavior-profile",
+        "candidate-label-matching",
+        "dense-query-knn",
+        "four-model-reference-review",
+        "gemini-grounding-failure-review",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "query-cluster-aggregation",
+        "query-controls",
+        "response-retrieval",
+        "response-volume-normalization",
+        "semantic-profiles",
+        "source-query-first"
+      ],
+      "rendered_path": "data/run-artifacts.html",
+      "summary": "Rankings, metrics, per-query tables, and receipts supporting technical runs.",
+      "tags": [
+        "generated",
+        "metrics",
+        "runs"
+      ],
+      "title": "Run evidence artifacts",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/questions/candidate-evidence.qmd",
+      "id": "candidate-evidence",
+      "related_ids": [
+        "behavior-profile",
+        "candidate-evidence",
+        "candidate-label-matching",
+        "label-ranker-pilots",
+        "multiresolution-profiles",
+        "semantic-failure-clusters",
+        "semantic-profiles"
+      ],
+      "rendered_path": "questions/candidate-evidence.html",
+      "summary": "When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?",
+      "tags": [
+        "candidate-evidence",
+        "profiles"
+      ],
+      "title": "Can candidate-side semantic evidence improve query-only retrieval?",
+      "type": "question"
+    },
+    {
+      "canonical_path": "research/hub/questions/failure-conditions.qmd",
+      "id": "failure-conditions",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-label-matching",
+        "e5-raw-response-refinement",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "gemini-grounding-failure-review",
+        "grounded-data-quality-audit",
+        "label-ranker-pilots",
+        "query-cluster-aggregation",
+        "query-only-routing",
+        "reference-review-trigger",
+        "responses-references",
+        "semantic-failure-clusters",
+        "source-query-first"
+      ],
+      "rendered_path": "questions/failure-conditions.html",
+      "summary": "Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?",
+      "tags": [
+        "diagnostics",
+        "failure-analysis",
+        "reliability"
+      ],
+      "title": "When do promising signals fail?",
+      "type": "question"
+    },
+    {
+      "canonical_path": "research/hub/questions/query-only-routing.qmd",
+      "id": "query-only-routing",
+      "related_ids": [
+        "candidate-evidence",
+        "dense-query-knn",
+        "query-cluster-aggregation",
+        "query-controls",
+        "query-only-routing",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "questions/query-only-routing.html",
+      "summary": "Can a new request be routed well by comparing it with historical requests, before using candidate responses?",
+      "tags": [
+        "queries",
+        "retrieval",
+        "routing"
+      ],
+      "title": "How far can query-only routing go?",
+      "type": "question"
+    },
+    {
+      "canonical_path": "research/hub/questions/reference-reliability.qmd",
+      "id": "reference-reliability",
+      "related_ids": [
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "four-model-reference-review",
+        "gemini-grounding-failure-review",
+        "grounded-data-quality-audit",
+        "reference-review-trigger",
+        "responses-references"
+      ],
+      "rendered_path": "questions/reference-reliability.html",
+      "summary": "When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?",
+      "tags": [
+        "grounding",
+        "references",
+        "reliability"
+      ],
+      "title": "How reliable must a generated reference be?",
+      "type": "question"
+    },
+    {
+      "canonical_path": "research/hub/questions/response-evidence.qmd",
+      "id": "response-evidence",
+      "related_ids": [
+        "e5-raw-response-refinement",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "four-model-reference-review",
+        "reference-review-trigger",
+        "response-retrieval",
+        "response-volume-normalization",
+        "responses-references",
+        "source-query-first"
+      ],
+      "rendered_path": "questions/response-evidence.html",
+      "summary": "Does comparing a request or reference answer with candidate responses help choose the best models?",
+      "tags": [
+        "reranking",
+        "responses",
+        "retrieval"
+      ],
+      "title": "Can model responses provide useful ranking evidence?",
+      "type": "question"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "a1_top2_k10",
+      "related_ids": [
+        "multiresolution-profiles"
+      ],
+      "rendered_path": "generated/runs/a1_top2_k10.html",
+      "summary": "Issue-18 multiresolution profile diagnostic a1_top2_k10.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "multiresolution_profiles",
+        "stored_per_query"
+      ],
+      "title": "a1_top2_k10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "a1_top2_k10_dense_equal",
+      "related_ids": [
+        "multiresolution-profiles"
+      ],
+      "rendered_path": "generated/runs/a1_top2_k10_dense_equal.html",
+      "summary": "Issue-18 multiresolution profile diagnostic a1_top2_k10_dense_equal.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "multiresolution_profiles",
+        "stored_per_query"
+      ],
+      "title": "a1_top2_k10_dense_equal",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_m3_contextual",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/bge_m3_contextual.html",
+      "summary": "Reviewed contextual label-embedding sweep result: BGE-M3 contextual.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_m3_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@1",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@1.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=1.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@1",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@10",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@10.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=10.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@100",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@100.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=100.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@20",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@20.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=20.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@20",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@3",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@3.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=3.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@3",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@5",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@5.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=5.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@5",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bge_small_en_v1_5@50",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/bge_small_en_v1_5@50.html",
+      "summary": "Fixed dense query-neighbor diagnostic using bge_small_en_v1_5 with k=50.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "bge_small_en_v1_5@50",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__query_response__aggressive__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__query_response__aggressive__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__query_response__aggressive__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__query_response__aggressive__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__query_response__aggressive__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__query_response__aggressive__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__query_response__aggressive__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__query_response__aggressive__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__query_response__aggressive__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__query_response__aggressive__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__query_response__basic__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__query_response__basic__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__query_response__basic__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__query_response__basic__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__query_response__basic__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__query_response__basic__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__query_response__basic__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__query_response__basic__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__query_response__basic__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__query_response__basic__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__query_response__basic__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__query_response__basic__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__response_only__aggressive__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__response_only__aggressive__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__response_only__aggressive__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__response_only__aggressive__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__response_only__aggressive__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__response_only__aggressive__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__response_only__aggressive__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__response_only__aggressive__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__response_only__aggressive__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__response_only__aggressive__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__response_only__basic__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__response_only__basic__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__response_only__basic__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__response_only__basic__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__response_only__basic__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__response_only__basic__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__response_only__basic__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__response_only__basic__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25__response_only__basic__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25__response_only__basic__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25__response_only__basic__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25__response_only__basic__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__query_response__aggressive__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__query_response__aggressive__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__query_response__aggressive__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__query_response__aggressive__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__query_response__aggressive__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__query_response__aggressive__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__query_response__aggressive__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__query_response__aggressive__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__aggressive__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__query_response__aggressive__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__query_response__basic__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__query_response__basic__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__query_response__basic__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__query_response__basic__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__query_response__basic__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__query_response__basic__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__query_response__basic__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__query_response__basic__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__query_response__basic__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__query_response__basic__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__response_only__aggressive__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__response_only__aggressive__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__response_only__aggressive__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__response_only__aggressive__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__response_only__aggressive__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__response_only__aggressive__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__response_only__aggressive__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__response_only__aggressive__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__aggressive__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__response_only__aggressive__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__response_only__basic__d100",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__response_only__basic__d100.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d100.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__response_only__basic__d100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__response_only__basic__d1000",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__response_only__basic__d1000.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d1000.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__response_only__basic__d1000",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "bm25_rm3__response_only__basic__d500",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/bm25_rm3__response_only__basic__d500.html",
+      "summary": "Fixed response-retrieval grid diagnostic bm25_rm3__response_only__basic__d500.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "response_retrieval"
+      ],
+      "title": "bm25_rm3__response_only__basic__d500",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "contextual_e5",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/contextual_e5.html",
+      "summary": "Frozen contextual E5 question-to-capability-label matching control.",
+      "tags": [
+        "candidate_label_matching",
+        "dev_322x150",
+        "stable_control",
+        "stored_per_query"
+      ],
+      "title": "contextual_e5",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "dense_e5_equal",
+      "related_ids": [
+        "semantic-profiles"
+      ],
+      "rendered_path": "generated/runs/dense_e5_equal.html",
+      "summary": "Equal-weight fusion of dense query neighbors and contextual E5 labels.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "semantic_profiles",
+        "valid_negative"
+      ],
+      "title": "dense_e5_equal",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "dense_nested",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/dense_nested.html",
+      "summary": "Nested leave-one-query-out dense query-neighbor grade transfer with MPNet/k selection.",
+      "tags": [
+        "dense_query_knn",
+        "dev_322x150",
+        "stable_control",
+        "stored_per_query"
+      ],
+      "title": "dense_nested",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "dense_profile_dense_heavy",
+      "related_ids": [
+        "semantic-profiles"
+      ],
+      "rendered_path": "generated/runs/dense_profile_dense_heavy.html",
+      "summary": "Dense-heavy fixed fusion with semantic profiles.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "semantic_profiles",
+        "valid_negative"
+      ],
+      "title": "dense_profile_dense_heavy",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "dense_profile_e5_equal",
+      "related_ids": [
+        "semantic-profiles"
+      ],
+      "rendered_path": "generated/runs/dense_profile_e5_equal.html",
+      "summary": "Three-way equal-weight dense/profile/contextual-E5 fusion.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "semantic_profiles",
+        "valid_negative"
+      ],
+      "title": "dense_profile_e5_equal",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "dense_profile_equal",
+      "related_ids": [
+        "semantic-profiles"
+      ],
+      "rendered_path": "generated/runs/dense_profile_equal.html",
+      "summary": "Equal-weight reciprocal-rank fusion of dense query neighbors and semantic profiles.",
+      "tags": [
+        "dev_322x150",
+        "promoted_development",
+        "semantic_profiles",
+        "stored_per_query"
+      ],
+      "title": "dense_profile_equal",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "dense_profile_profile_heavy",
+      "related_ids": [
+        "semantic-profiles"
+      ],
+      "rendered_path": "generated/runs/dense_profile_profile_heavy.html",
+      "summary": "Profile-heavy fixed fusion reproduced as issue-18 Track A.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "semantic_profiles",
+        "stored_per_query"
+      ],
+      "title": "dense_profile_profile_heavy",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "discovery_behavior_topic_v1",
+      "related_ids": [
+        "behavior-profile"
+      ],
+      "rendered_path": "generated/runs/discovery_behavior_topic_v1.html",
+      "summary": "One descriptive behavior/topic profile per candidate built from official discovery history.",
+      "tags": [
+        "behavior_profile",
+        "constructed_not_evaluated",
+        "unscored"
+      ],
+      "title": "discovery_behavior_topic_v1",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_initial_terminal_token_invalid",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/e5_initial_terminal_token_invalid.html",
+      "summary": "Superseded initial E5 label-embedding attempt with an omitted model-specific terminal-token contract.",
+      "tags": [
+        "candidate_label_matching",
+        "invalid",
+        "invalid_unscored"
+      ],
+      "title": "e5_initial_terminal_token_invalid",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@1",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@1.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=1.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@1",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@10",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@10.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=10.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@100",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@100.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=100.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@20",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@20.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=20.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@20",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@3",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@3.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=3.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@3",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@5",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@5.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=5.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@5",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "e5_small_v2@50",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/e5_small_v2@50.html",
+      "summary": "Fixed dense query-neighbor diagnostic using e5_small_v2 with k=50.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "e5_small_v2@50",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "firstmistral_listwise",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/firstmistral_listwise.html",
+      "summary": "Purpose-trained FirstMistral first-token-logit listwise pilot.",
+      "tags": [
+        "label_ranker_pilots",
+        "restricted_12x20",
+        "restricted_diagnostic",
+        "restricted_pilot"
+      ],
+      "title": "firstmistral_listwise",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "generated_listwise",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/generated_listwise.html",
+      "summary": "Generic generated-list ranking pilot that failed complete-permutation validation.",
+      "tags": [
+        "invalid",
+        "invalid_unscored",
+        "label_ranker_pilots",
+        "stopped_unscored"
+      ],
+      "title": "generated_listwise",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "generated_listwise_feasibility_6",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/generated_listwise_feasibility_6.html",
+      "summary": "Six-query generated-listwise feasibility pilot with an unreliable generic output format.",
+      "tags": [
+        "diagnostic_only",
+        "label_ranker_pilots",
+        "restricted_6",
+        "restricted_diagnostic"
+      ],
+      "title": "generated_listwise_feasibility_6",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "global_prior",
+      "related_ids": [
+        "query-controls"
+      ],
+      "rendered_path": "generated/runs/global_prior.html",
+      "summary": "Leave-one-query-out global candidate-grade prior.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "query_controls",
+        "stable_control"
+      ],
+      "title": "global_prior",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "grouprank_7b",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/grouprank_7b.html",
+      "summary": "GroupRank smoke test whose two exact-output protocols failed.",
+      "tags": [
+        "invalid",
+        "invalid_unscored",
+        "label_ranker_pilots",
+        "stopped_unscored"
+      ],
+      "title": "grouprank_7b",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "hard_cluster_k20_preflight",
+      "related_ids": [
+        "query-cluster-aggregation"
+      ],
+      "rendered_path": "generated/runs/hard_cluster_k20_preflight.html",
+      "summary": "Post-hoc mean candidate grades from the assigned hard query cluster at k=20.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "query_cluster_aggregation"
+      ],
+      "title": "hard_cluster_k20_preflight",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "hard_cluster_k40_preflight",
+      "related_ids": [
+        "query-cluster-aggregation"
+      ],
+      "rendered_path": "generated/runs/hard_cluster_k40_preflight.html",
+      "summary": "Post-hoc mean candidate grades from the assigned hard query cluster at k=40.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "query_cluster_aggregation"
+      ],
+      "title": "hard_cluster_k40_preflight",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "jina_v5_contextual",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/jina_v5_contextual.html",
+      "summary": "Reviewed contextual label-embedding sweep result: Jina v5 small contextual.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "jina_v5_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "local_domain_prior",
+      "related_ids": [
+        "query-cluster-aggregation"
+      ],
+      "rendered_path": "generated/runs/local_domain_prior.html",
+      "summary": "Nested local-neighbor, hard query-cluster domain, and global-prior blend.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "query_cluster_aggregation",
+        "valid_negative"
+      ],
+      "title": "local_domain_prior",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "matched_neighbor_k20_preflight",
+      "related_ids": [
+        "query-cluster-aggregation"
+      ],
+      "rendered_path": "generated/runs/matched_neighbor_k20_preflight.html",
+      "summary": "Post-hoc equal-support positive-cosine neighbor control matched to k=20 hard-cluster support.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "query_cluster_aggregation"
+      ],
+      "title": "matched_neighbor_k20_preflight",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "matched_neighbor_k40_preflight",
+      "related_ids": [
+        "query-cluster-aggregation"
+      ],
+      "rendered_path": "generated/runs/matched_neighbor_k40_preflight.html",
+      "summary": "Post-hoc equal-support positive-cosine neighbor control matched to k=40 hard-cluster support.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "query_cluster_aggregation"
+      ],
+      "title": "matched_neighbor_k40_preflight",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@1",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@1.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=1.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@1",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@10",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@10.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=10.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@100",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@100.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=100.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@20",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@20.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=20.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@20",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@3",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@3.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=3.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@3",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@5",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@5.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=5.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@5",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "minilm_l6@50",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/minilm_l6@50.html",
+      "summary": "Fixed dense query-neighbor diagnostic using minilm_l6 with k=50.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "minilm_l6@50",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@1",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@1.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=1.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@1",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@10",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@10.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=10.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@100",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@100.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=100.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@100",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@20",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@20.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=20.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@20",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@3",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@3.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=3.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@3",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@5",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@5.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=5.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@5",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_base_v2@50",
+      "related_ids": [
+        "dense-query-knn"
+      ],
+      "rendered_path": "generated/runs/mpnet_base_v2@50.html",
+      "summary": "Fixed dense query-neighbor diagnostic using mpnet_base_v2 with k=50.",
+      "tags": [
+        "aggregate_only",
+        "dense_query_knn",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "mpnet_base_v2@50",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "mpnet_raw_label",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/mpnet_raw_label.html",
+      "summary": "Zero-shot cosine matching between questions and raw candidate labels.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "stable_control"
+      ],
+      "title": "mpnet_raw_label",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "nomic_v15_contextual",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/nomic_v15_contextual.html",
+      "summary": "Reviewed contextual label-embedding sweep result: Nomic Embed v1.5 contextual.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "nomic_v15_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "pointwise_qwen",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/pointwise_qwen.html",
+      "summary": "Qwen pointwise restricted reranking pilot.",
+      "tags": [
+        "label_ranker_pilots",
+        "restricted_12x20",
+        "restricted_diagnostic",
+        "restricted_pilot"
+      ],
+      "title": "pointwise_qwen",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "pointwise_qwen_feasibility_6",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/pointwise_qwen_feasibility_6.html",
+      "summary": "Six-query pointwise Qwen feasibility pilot; its early top-three signal weakened in the later 12-query diagnostic.",
+      "tags": [
+        "label_ranker_pilots",
+        "restricted_6",
+        "restricted_diagnostic",
+        "restricted_pilot"
+      ],
+      "title": "pointwise_qwen_feasibility_6",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "profile_only",
+      "related_ids": [
+        "semantic-profiles"
+      ],
+      "rendered_path": "generated/runs/profile_only.html",
+      "summary": "Frozen candidate semantic-response profile ranking.",
+      "tags": [
+        "dev_322x150",
+        "semantic_profiles",
+        "stable_control",
+        "stored_per_query"
+      ],
+      "title": "profile_only",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "qwen06b_contextual",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/qwen06b_contextual.html",
+      "summary": "Reviewed contextual label-embedding sweep result: Qwen3-Embedding 0.6B contextual.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "qwen06b_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "qwen4b_contextual",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/qwen4b_contextual.html",
+      "summary": "Reviewed contextual label-embedding sweep result: Qwen3-Embedding 4B contextual.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "qwen4b_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "qwen8b_contextual",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/qwen8b_contextual.html",
+      "summary": "Reviewed contextual label-embedding sweep result: Qwen3-Embedding 8B contextual.",
+      "tags": [
+        "aggregate_only",
+        "candidate_label_matching",
+        "dev_322x150",
+        "diagnostic_only"
+      ],
+      "title": "qwen8b_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "qwen8b_initial_terminal_token_invalid",
+      "related_ids": [
+        "candidate-label-matching"
+      ],
+      "rendered_path": "generated/runs/qwen8b_initial_terminal_token_invalid.html",
+      "summary": "Superseded initial Qwen8B label-embedding attempt with an omitted model-specific terminal-token contract.",
+      "tags": [
+        "candidate_label_matching",
+        "invalid",
+        "invalid_unscored"
+      ],
+      "title": "qwen8b_initial_terminal_token_invalid",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "r1_multires_max",
+      "related_ids": [
+        "multiresolution-profiles"
+      ],
+      "rendered_path": "generated/runs/r1_multires_max.html",
+      "summary": "Issue-18 multiresolution profile diagnostic r1_multires_max.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "multiresolution_profiles",
+        "stored_per_query"
+      ],
+      "title": "r1_multires_max",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "r1_multires_max_dense_equal",
+      "related_ids": [
+        "multiresolution-profiles"
+      ],
+      "rendered_path": "generated/runs/r1_multires_max_dense_equal.html",
+      "summary": "Issue-18 multiresolution profile diagnostic r1_multires_max_dense_equal.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "multiresolution_profiles",
+        "stored_per_query"
+      ],
+      "title": "r1_multires_max_dense_equal",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "response_sumscore_nested",
+      "related_ids": [
+        "response-retrieval"
+      ],
+      "rendered_path": "generated/runs/response_sumscore_nested.html",
+      "summary": "Nested response-level BM25/RM3 retrieval with sum aggregation and configuration selection.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "response_retrieval",
+        "valid_negative"
+      ],
+      "title": "response_sumscore_nested",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "response_top10sum_nested",
+      "related_ids": [
+        "response-volume-normalization"
+      ],
+      "rendered_path": "generated/runs/response_top10sum_nested.html",
+      "summary": "Nested response-volume-normalized retrieval; every fold selected top10_sum.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "response_volume_normalization",
+        "valid_negative"
+      ],
+      "title": "response_top10sum_nested",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "restricted_contextual_e5",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/restricted_contextual_e5.html",
+      "summary": "Restricted contextual E5 control.",
+      "tags": [
+        "diagnostic_only",
+        "label_ranker_pilots",
+        "restricted_12x20",
+        "restricted_diagnostic"
+      ],
+      "title": "restricted_contextual_e5",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "restricted_qwen4b_contextual",
+      "related_ids": [
+        "label-ranker-pilots"
+      ],
+      "rendered_path": "generated/runs/restricted_qwen4b_contextual.html",
+      "summary": "Restricted contextual Qwen4B control.",
+      "tags": [
+        "diagnostic_only",
+        "label_ranker_pilots",
+        "restricted_12x20",
+        "restricted_diagnostic"
+      ],
+      "title": "restricted_qwen4b_contextual",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "source_alignment__k10",
+      "related_ids": [
+        "source-query-first"
+      ],
+      "rendered_path": "generated/runs/source_alignment__k10.html",
+      "summary": "Source-query alignment grid candidate with k=10; no standalone aggregate was reported.",
+      "tags": [
+        "constructed_not_evaluated",
+        "diagnostic_only",
+        "source_query_first",
+        "unscored"
+      ],
+      "title": "source_alignment__k10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "source_alignment__k20",
+      "related_ids": [
+        "source-query-first"
+      ],
+      "rendered_path": "generated/runs/source_alignment__k20.html",
+      "summary": "Source-query alignment grid candidate with k=20; no standalone aggregate was reported.",
+      "tags": [
+        "constructed_not_evaluated",
+        "diagnostic_only",
+        "source_query_first",
+        "unscored"
+      ],
+      "title": "source_alignment__k20",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "source_alignment__k40",
+      "related_ids": [
+        "source-query-first"
+      ],
+      "rendered_path": "generated/runs/source_alignment__k40.html",
+      "summary": "Source-query alignment grid candidate with k=40; no standalone aggregate was reported.",
+      "tags": [
+        "constructed_not_evaluated",
+        "diagnostic_only",
+        "source_query_first",
+        "unscored"
+      ],
+      "title": "source_alignment__k40",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "source_alignment_nested",
+      "related_ids": [
+        "source-query-first"
+      ],
+      "rendered_path": "generated/runs/source_alignment_nested.html",
+      "summary": "Nested source-query-first lexical response alignment.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "source_query_first",
+        "valid_negative"
+      ],
+      "title": "source_alignment_nested",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "target_response_same_k",
+      "related_ids": [
+        "source-query-first"
+      ],
+      "rendered_path": "generated/runs/target_response_same_k.html",
+      "summary": "Nonselecting target-to-response diagnostic at the source-alignment selected k.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "diagnostic_only",
+        "source_query_first"
+      ],
+      "title": "target_response_same_k",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "tfidf_fixed_k10",
+      "related_ids": [
+        "query-controls"
+      ],
+      "rendered_path": "generated/runs/tfidf_fixed_k10.html",
+      "summary": "Fixed k=10 TF-IDF query-neighbor grade transfer control.",
+      "tags": [
+        "aggregate_only",
+        "dev_322x150",
+        "query_controls",
+        "stable_control"
+      ],
+      "title": "tfidf_fixed_k10",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "x1_multires_top2",
+      "related_ids": [
+        "multiresolution-profiles"
+      ],
+      "rendered_path": "generated/runs/x1_multires_top2.html",
+      "summary": "Issue-18 multiresolution profile diagnostic x1_multires_top2.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "multiresolution_profiles",
+        "stored_per_query"
+      ],
+      "title": "x1_multires_top2",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "x1_multires_top2_dense_equal",
+      "related_ids": [
+        "multiresolution-profiles"
+      ],
+      "rendered_path": "generated/runs/x1_multires_top2_dense_equal.html",
+      "summary": "Issue-18 multiresolution profile diagnostic x1_multires_top2_dense_equal.",
+      "tags": [
+        "dev_322x150",
+        "diagnostic_only",
+        "multiresolution_profiles",
+        "stored_per_query"
+      ],
+      "title": "x1_multires_top2_dense_equal",
+      "type": "run"
+    },
+    {
+      "canonical_path": "research/hub/studies/behavior-profile.qmd",
+      "id": "behavior-profile",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-inventory",
+        "candidate-profiles",
+        "discovery-responses",
+        "generated-embeddings",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/behavior-profile.html",
+      "summary": "Construct a candidate profile from discovery-response behavior and topics.",
+      "tags": [
+        "behavior",
+        "profiles",
+        "unscored"
+      ],
+      "title": "Discovery behavior profile",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/candidate-label-matching.qmd",
+      "id": "candidate-label-matching",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-inventory",
+        "candidate-profiles",
+        "dev-qrels",
+        "dev-queries",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "generated-embeddings",
+        "reference-review-trigger",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/candidate-label-matching.html",
+      "summary": "Test raw and contextual candidate labels as semantic ranking evidence.",
+      "tags": [
+        "candidates",
+        "contextual",
+        "labels"
+      ],
+      "title": "Candidate label matching",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/dense-query-knn.qmd",
+      "id": "dense-query-knn",
+      "related_ids": [
+        "candidate-inventory",
+        "dense-query-retrieval",
+        "dev-qrels",
+        "dev-queries",
+        "generated-embeddings",
+        "query-only-routing",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/dense-query-knn.html",
+      "summary": "Compare dense query encoders and neighborhood sizes for transferring candidate relevance.",
+      "tags": [
+        "dense",
+        "knn",
+        "queries"
+      ],
+      "title": "Dense query nearest-neighbor retrieval",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/e5-raw-response-refinement.qmd",
+      "id": "e5-raw-response-refinement",
+      "related_ids": [
+        "candidate-inventory",
+        "dev-qrels",
+        "dev-queries",
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "generated-embeddings",
+        "reference-review-trigger",
+        "reranking",
+        "response-evidence",
+        "responses-references",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/e5-raw-response-refinement.html",
+      "summary": "Evaluate bounded E5 refinements over raw response evidence outside the run registry.",
+      "tags": [
+        "e5",
+        "refinement",
+        "responses"
+      ],
+      "title": "E5 raw-response refinement",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/four-model-reference-review.qmd",
+      "id": "four-model-reference-review",
+      "related_ids": [
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "reference-generation",
+        "reference-reliability",
+        "reference-review-trigger",
+        "response-evidence",
+        "responses-references",
+        "run-artifacts"
+      ],
+      "rendered_path": "studies/four-model-reference-review.html",
+      "summary": "Select a default reference generator using a frozen blinded review.",
+      "tags": [
+        "blinded",
+        "model-review",
+        "references"
+      ],
+      "title": "Four-model reference-answer review",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/gemini-grounding-failure-review.qmd",
+      "id": "gemini-grounding-failure-review",
+      "related_ids": [
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "reference-generation",
+        "reference-reliability",
+        "reference-review-trigger",
+        "responses-references",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/gemini-grounding-failure-review.html",
+      "summary": "Measure whether Search grounding repairs audited Gemini reference failures.",
+      "tags": [
+        "failures",
+        "grounding",
+        "references"
+      ],
+      "title": "Gemini grounding failure review",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/grounded-data-quality-audit.qmd",
+      "id": "grounded-data-quality-audit",
+      "related_ids": [
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "reference-generation",
+        "reference-reliability",
+        "reference-review-trigger",
+        "responses-references",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/grounded-data-quality-audit.html",
+      "summary": "Check completeness, uncertainty, duplication, Search use, and provenance risks in the grounded corpus.",
+      "tags": [
+        "audit",
+        "data-quality",
+        "grounding"
+      ],
+      "title": "Grounded reference data-quality audit",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/label-ranker-pilots.qmd",
+      "id": "label-ranker-pilots",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-inventory",
+        "candidate-profiles",
+        "dev-qrels",
+        "dev-queries",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "reference-review-trigger",
+        "reranking",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/label-ranker-pilots.html",
+      "summary": "Assess pointwise, listwise, and groupwise label-ranker feasibility.",
+      "tags": [
+        "feasibility",
+        "reranking",
+        "restricted"
+      ],
+      "title": "Label-ranker feasibility pilots",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/multiresolution-profiles.qmd",
+      "id": "multiresolution-profiles",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-inventory",
+        "candidate-profiles",
+        "dense-query-retrieval",
+        "dev-qrels",
+        "dev-queries",
+        "generated-embeddings",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/multiresolution-profiles.html",
+      "summary": "Test profile summaries at multiple semantic resolutions.",
+      "tags": [
+        "diagnostic",
+        "multiresolution",
+        "profiles"
+      ],
+      "title": "Multiresolution candidate profiles",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/query-cluster-aggregation.qmd",
+      "id": "query-cluster-aggregation",
+      "related_ids": [
+        "candidate-inventory",
+        "dense-query-retrieval",
+        "dev-qrels",
+        "dev-queries",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "generated-embeddings",
+        "query-only-routing",
+        "reference-review-trigger",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/query-cluster-aggregation.html",
+      "summary": "Test local domain priors and matched-neighbor cluster aggregation.",
+      "tags": [
+        "aggregation",
+        "clusters",
+        "queries"
+      ],
+      "title": "Query-cluster aggregation",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/query-controls.qmd",
+      "id": "query-controls",
+      "related_ids": [
+        "candidate-inventory",
+        "dense-query-retrieval",
+        "dev-qrels",
+        "dev-queries",
+        "query-only-routing",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/query-controls.html",
+      "summary": "Establish global-prior and sparse query-neighbor controls.",
+      "tags": [
+        "controls",
+        "queries"
+      ],
+      "title": "Simple query controls",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/response-retrieval.qmd",
+      "id": "response-retrieval",
+      "related_ids": [
+        "candidate-inventory",
+        "dev-qrels",
+        "dev-queries",
+        "discovery-responses",
+        "failure-aware-fusion",
+        "reference-review-trigger",
+        "response-evidence",
+        "responses-references",
+        "run-artifacts"
+      ],
+      "rendered_path": "studies/response-retrieval.html",
+      "summary": "Evaluate BM25 and RM3 retrieval over candidate responses.",
+      "tags": [
+        "bm25",
+        "responses",
+        "rm3"
+      ],
+      "title": "Lexical response retrieval",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/response-volume-normalization.qmd",
+      "id": "response-volume-normalization",
+      "related_ids": [
+        "candidate-inventory",
+        "dev-qrels",
+        "dev-queries",
+        "discovery-responses",
+        "failure-aware-fusion",
+        "reference-review-trigger",
+        "response-evidence",
+        "responses-references",
+        "run-artifacts"
+      ],
+      "rendered_path": "studies/response-volume-normalization.html",
+      "summary": "Test whether limiting response evidence volume repairs the response-retrieval baseline.",
+      "tags": [
+        "negative",
+        "normalization",
+        "responses"
+      ],
+      "title": "Response-volume normalization",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/semantic-profiles.qmd",
+      "id": "semantic-profiles",
+      "related_ids": [
+        "candidate-evidence",
+        "candidate-inventory",
+        "candidate-profiles",
+        "dense-query-retrieval",
+        "dev-qrels",
+        "dev-queries",
+        "generated-embeddings",
+        "reranking",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/semantic-profiles.html",
+      "summary": "Evaluate whether candidate semantic profiles improve ranking.",
+      "tags": [
+        "candidate-evidence",
+        "fusion",
+        "profiles"
+      ],
+      "title": "Candidate semantic profiles",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/source-query-first.qmd",
+      "id": "source-query-first",
+      "related_ids": [
+        "candidate-inventory",
+        "dev-qrels",
+        "dev-queries",
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "failure-conditions",
+        "reference-review-trigger",
+        "reranking",
+        "response-evidence",
+        "responses-references",
+        "run-artifacts",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "studies/source-query-first.html",
+      "summary": "Test whether source-query alignment should precede target-response evidence.",
+      "tags": [
+        "responses",
+        "source-alignment",
+        "unscored"
+      ],
+      "title": "Source-query-first response evidence",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/ideas/failure-aware-fusion.qmd",
+      "id": "failure-aware-fusion",
+      "related_ids": [
+        "evidence-reliability",
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence",
+        "responses-references"
+      ],
+      "rendered_path": "generated/ideas/failure-aware-fusion.html",
+      "summary": "Use a reliability check to choose which evidence sources should influence each request.",
+      "tags": [
+        "fusion",
+        "reliability"
+      ],
+      "title": "Failure-aware evidence fusion",
+      "type": "test"
+    },
+    {
+      "canonical_path": "research/hub/ideas/reference-review-trigger.qmd",
+      "id": "reference-review-trigger",
+      "related_ids": [
+        "evidence-reliability",
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence",
+        "responses-references"
+      ],
+      "rendered_path": "generated/ideas/reference-review-trigger.html",
+      "summary": "Flag generated reference answers that need more evidence or a human check before guiding a ranking.",
+      "tags": [
+        "escalation",
+        "references",
+        "reliability"
+      ],
+      "title": "Reference review trigger",
+      "type": "test"
+    },
+    {
+      "canonical_path": "research/hub/ideas/semantic-failure-clusters.qmd",
+      "id": "semantic-failure-clusters",
+      "related_ids": [
+        "candidate-evidence",
+        "evidence-reliability",
+        "failure-conditions",
+        "query-only-routing"
+      ],
+      "rendered_path": "generated/ideas/semantic-failure-clusters.html",
+      "summary": "Group similar ranking failures to find request types where a method repeatedly struggles.",
+      "tags": [
+        "clusters",
+        "failure-analysis"
+      ],
+      "title": "Semantic failure clusters",
+      "type": "test"
+    },
+    {
+      "canonical_path": "research/hub/themes/candidate-evidence.qmd",
+      "id": "candidate-evidence",
+      "related_ids": [
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "generated/themes/candidate-evidence.html",
+      "summary": "Use semantic evidence about candidate models to improve ranking beyond query-only controls.",
+      "tags": [],
+      "title": "Candidate evidence",
+      "type": "theme"
+    },
+    {
+      "canonical_path": "research/hub/themes/evidence-reliability.qmd",
+      "id": "evidence-reliability",
+      "related_ids": [
+        "failure-aware-fusion",
+        "reference-review-trigger",
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "generated/themes/evidence-reliability.html",
+      "summary": "Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.",
+      "tags": [],
+      "title": "Evidence reliability",
+      "type": "theme"
+    },
+    {
+      "canonical_path": "research/hub/themes/query-only-routing.qmd",
+      "id": "query-only-routing",
+      "related_ids": [
+        "semantic-failure-clusters"
+      ],
+      "rendered_path": "generated/themes/query-only-routing.html",
+      "summary": "Route a new request using evidence from historical requests before using candidate responses.",
+      "tags": [],
+      "title": "Query-only routing",
+      "type": "theme"
+    },
+    {
+      "canonical_path": "research/hub/themes/responses-references.qmd",
+      "id": "responses-references",
+      "related_ids": [
+        "failure-aware-fusion",
+        "reference-review-trigger"
+      ],
+      "rendered_path": "generated/themes/responses-references.html",
+      "summary": "Use candidate responses or generated reference answers as evidence for choosing models.",
+      "tags": [],
+      "title": "Responses and references",
+      "type": "theme"
+    }
+  ],
+  "version": 1
+}

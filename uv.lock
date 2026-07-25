@@ -2675,6 +2675,7 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -2703,6 +2704,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pystemmer", marker = "extra == 'response'", specifier = "==3.1.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4,<9" },
+    { name = "pyyaml", specifier = ">=6.0.3,<7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12,<1" },
     { name = "scikit-learn", marker = "extra == 'dense'", specifier = "==1.9.0" },
     { name = "sentence-transformers", marker = "extra == 'dense'", specifier = ">=5.1.0,<6" },

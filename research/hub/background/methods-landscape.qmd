@@ -1,0 +1,48 @@
+---
+resource_id: methods-landscape
+title: "Methods landscape"
+resource_type: methods_landscape
+summary: "A staged method ladder for retrieval, candidate evidence, weak labels, and learned fusion."
+canonical_source_path: reports/trec_2026_approaches_guide.artifact.json
+citations:
+  - "TREC 2026 approaches guide and its 80-source primary-source registry"
+  - "Cawley and Talbot (2010), selection bias and nested evaluation"
+  - "Guo et al. (2017), calibration of modern neural networks"
+tags: [methods, retrieval, evaluation]
+question_ids: [response-evidence, reference-reliability, failure-conditions]
+reviewed_on: 2026-07-24
+---
+
+The methods landscape is a sequence of evidence questions, not a menu of
+features to combine at once. Begin with controls that reveal the data's
+structure, add historical response evidence, and introduce weak supervision or
+learned fusion only after each component has an auditable held-out signal.
+
+## Method ladder
+
+1. **Stable controls:** rank by a fold-local global prior, sparse similar-query
+   retrieval, and frozen dense query retrieval.
+2. **Evidence retrieval:** index historical responses and query-response pairs;
+   compare sparse, dense, and rank-fused retrieval; aggregate back to candidates
+   with counts and normalization visible.
+3. **Candidate summaries:** test behavior, topic, refusal, length, and
+   confidence profiles only for improvement beyond the raw evidence that
+   generated them.
+4. **Weak labels:** grade historical responses with explicit rubrics, blinded
+   candidate identity, multiple judge configurations, saved raw votes, and
+   calibration against separately reviewed examples.
+5. **Learning to rank:** combine out-of-fold component predictions at the query
+   group level. With only hundreds of independent questions, 150 candidate rows
+   per question do not create thousands of independent training examples.
+
+Every tuning choice, prior, clustering step, weak-label calibration, and fusion
+weight stays inside the training side of evaluation. Development gains remain
+development evidence; they are not hidden-test claims.
+
+## Deep dive
+
+Use the source-backed [wider routing review](llm-routing-literature.qmd) for
+task-shape comparisons and primary papers, then follow the study and protocol
+pages for the local experiment-design boundaries. The complete audited registry
+remains at `reports/trec_2026_approaches_guide.artifact.json` for repository
+agents.

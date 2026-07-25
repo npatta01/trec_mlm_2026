@@ -1,0 +1,43 @@
+---
+title: "discovery_behavior_topic_v1"
+---
+
+# `discovery_behavior_topic_v1`
+
+This run was constructed but not evaluated; no effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** One descriptive behavior/topic profile per candidate built from official discovery history.
+- **source_system_id:** `discovery-behavior-topic-v1`
+- **Experiment family:** `behavior_profile`
+- **Evaluation scope:** `constructed_not_evaluated`
+- **Evidence status:** `unscored`
+- **Promotion status:** `constructed_not_evaluated`
+- **Artifact state:** `tracked_complete`
+- **Qrel usage:** `not_evaluated`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 7759
+- **Candidates per query:** 150
+- **nDCG@10:** —
+- **MRR:** —
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `behavior-profile`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_llm_profiles.json`
+- **SHA-256:** `86d592388514caabbbfeac8fe756c9a8a64526e065c75859a99f055ae1bc5224`
+- **Ranking coverage:** `none`
+- **Blocker:** This artifact is a candidate profile construction, not a query-ranking effectiveness evaluation.
+
+## Caveats
+
+- `behavior_not_effectiveness`
+- `confidence_not_correctness`

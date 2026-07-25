@@ -1,0 +1,67 @@
+---
+resource_id: related-competitions
+title: "Adjacent benchmarks and routing evaluations"
+resource_type: benchmark
+summary: "Neighboring evaluations that test retrieval, routing, judging, or distribution shift under different contracts."
+canonical_source_path: reports/trec_2026_approaches_guide.artifact.json
+citations:
+  - "Thakur et al. (2021), BEIR"
+  - "Muennighoff et al. (2023), MTEB"
+  - "Hu et al. (2024), RouterBench"
+  - "Li et al. (2026), LLMRouterBench"
+  - "Zheng et al. (2023), MT-Bench and Chatbot Arena"
+tags: [benchmarks, routing-evaluation, comparability]
+question_ids: [query-only-routing, response-evidence]
+reviewed_on: 2026-07-24
+---
+
+Adjacent evaluations are useful when they isolate a capability that the Million
+LLMs task also needs. They are not alternate editions of the same leaderboard.
+Their candidate pools, evidence available at decision time, labels, metrics, and
+optimization targets define distinct evaluation contracts.
+
+## What each neighboring family can teach
+
+**Routing evaluations.** RouterBench exposes a query-by-model performance matrix
+for learning query-dependent selection, while LLMRouterBench compares routing
+methods under a unified protocol and highlights the importance of simple
+baselines. RouteLLM uses preference data to learn a cost-aware router. These
+evaluations support complementarity features, pairwise supervision, and
+baseline discipline. They commonly select among fewer real models and may
+optimize cost, rather than produce a full ordering of 150 fixed IDs.
+
+**Retrieval benchmarks.** BEIR evaluates zero-shot information retrieval across
+heterogeneous domains, and MTEB compares embedding behavior over many tasks.
+They justify testing sparse and dense retrieval together and warn that no
+encoder dominates every domain. Their scores cannot choose a TREC router:
+retrieving documents or embedding pairs is an upstream capability, not the
+track's candidate-ranking outcome.
+
+**Answer and judge evaluations.** MT-Bench and Chatbot Arena helped establish
+pairwise LLM judging and human preference comparisons. Subsequent primary work
+documents order bias, verbosity bias, and evaluator self-preference. Those
+findings motivate blinded candidates, reversed answer order, multiple judges,
+criterion-specific rubrics, and preserved disagreements when creating weak
+labels. They do not turn an LLM judge's vote into an official qrel.
+
+**Distribution-shift evaluations.** WILDS and shift-detection research make the
+evaluation boundary explicit: average in-distribution validation can conceal
+failures on changed topics or sources. For this task, query-cluster holdouts and
+slice analysis are robustness checks, not substitutes for the organizer's
+hidden set.
+
+## Comparability rule
+
+Borrow the evaluation design or evidence signal, then recreate it within the
+current 150-candidate, no-test-time-call protocol. Never compare an external
+benchmark's quality, accuracy, preference rate, or cost saving directly with
+TREC nDCG@10 or MRR. Only same-data, same-split, same-metric development runs
+belong in local method comparisons.
+
+## Deep dive
+
+Start with [RouterBench](https://arxiv.org/abs/2403.12031),
+[BEIR](https://datasets-benchmarks-proceedings.neurips.cc/paper/2021/hash/65b9eea6e1cd2a47751a186f-Abstract-round2.html),
+and [WILDS](https://proceedings.mlr.press/v139/koh21a.html) for the routing,
+retrieval, and shift contracts. The full audited registry remains at
+`reports/trec_2026_approaches_guide.artifact.json` for repository agents.

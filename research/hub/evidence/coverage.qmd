@@ -1,0 +1,7 @@
+---
+title: "Coverage"
+description: "Which questions and approaches have evidence, including mixed or invalid outcomes."
+page-layout: full
+---
+
+{{< include ../generated/coverage.qmd >}}

@@ -1,0 +1,12 @@
+---
+title: "Start Here"
+description: "A plain-English route into the task, evaluation, and vocabulary."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "title"
+  fields: [title, description]
+---
+
+Start with the problem and worked example. Then use the evaluation guide and
+glossary when a project term is unfamiliar.

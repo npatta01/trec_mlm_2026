@@ -1,0 +1,47 @@
+---
+title: "qwen4b_contextual"
+---
+
+# `qwen4b_contextual`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Reviewed contextual label-embedding sweep result: Qwen3-Embedding 4B contextual.
+- **source_system_id:** `Qwen3-Embedding 4B contextual`
+- **Experiment family:** `candidate_label_matching`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `aggregate_only`
+- **Promotion status:** `diagnostic_only`
+- **Artifact state:** `tracked_report_snapshot`
+- **Qrel usage:** `evaluation_only`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.342000
+- **MRR:** 0.390200
+- **Zero-nDCG queries:** 115
+
+## Linked studies
+
+- `candidate-label-matching`
+
+## Evidence receipt
+
+- **Source:** `docs/results/2026-07-13-expert-label-ranking-study.md`
+- **SHA-256:** `9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d`
+- **Ranking coverage:** `none`
+- **Blocker:** The reviewed study preserves this aggregate row and artifact hashes, but no tracked complete ranking or per-query metric vector.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `development_only`
+- `external_encoder_taxonomy`
+- `missing_raw_artifacts`
+- `qwen4b_repeatability_failure`

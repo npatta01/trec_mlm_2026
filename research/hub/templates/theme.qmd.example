@@ -1,0 +1,15 @@
+---
+theme_id: replace-theme-id
+title: "Replace with a durable research theme"
+plain_english: "State the research area in language a new reader can understand."
+current_conclusion: "State the current bounded conclusion without overstating the evidence."
+decision: pending
+confidence: low
+confidence_boundary: "State what the available evidence cannot establish."
+next_test_ids: []
+updated_on: 2026-07-24
+evidence_refs: [reports/replace-with-canonical-evidence.md]
+---
+
+Explain the durable scope of this theme and any interpretation boundary not
+captured in front matter.

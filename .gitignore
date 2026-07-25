@@ -8,3 +8,6 @@ artifacts/
 reports/trec_2026_baseline_recommendation.chart.json
 reports/trec_2026_baseline_recommendation.html
 reports/trec_2026_baseline_recommendation.source.html
+# Quarto research-hub render products
+research/hub/.quarto/
+research/hub/_site/

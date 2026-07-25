@@ -1,0 +1,23 @@
+---
+test_id: semantic-failure-clusters
+title: "Semantic failure clusters"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, query-only-routing, candidate-evidence]
+stage: idea
+summary: "Group development failures to test whether recurring query types predict method weakness."
+plain_english: "Group similar ranking failures to find request types where a method repeatedly struggles."
+why_it_matters: "Recurring failure patterns could show where a ranking method needs a different evidence strategy or should not be used."
+mechanism_steps:
+  - "Represent development failures using bounded query and ranking evidence."
+  - "Cluster similar failures and describe the resulting query types."
+  - "Test whether the clusters predict weakness on a held-out development partition."
+next_action: "State a falsifiable hypothesis and evaluation boundary for the clustering test."
+linked_question_ids: [failure-conditions, query-only-routing, candidate-evidence]
+missing_readiness_fields: [hypothesis, decision_rule, evaluation_boundary, artifact_plan]
+priority: medium
+tags: [clusters, failure-analysis]
+---
+
+Clustering can describe repeated failures, but a useful test still needs a
+falsifiable hypothesis and a boundary that prevents tuning on evaluation
+labels.

@@ -1,0 +1,21 @@
+---
+dataset_id: dev-qrels
+title: "Development relevance judgments"
+plain_english: "Organizer labels indicating which candidate models suited each development request."
+category: provided
+provenance: "Organizer-provided qrels documented by the tracked manifest."
+method: "Read graded query-candidate judgments from the standard qrels file."
+version: "tracked file manifest"
+sharing: repository
+repository_path: data/dev/llm_dev_qrels.txt
+sensitivity: project_internal
+leakage_constraints: "Development evaluation only; never use a held-out query's qrels to construct its ranking."
+permitted_use: development_evaluation
+study_ids: [candidate-label-matching, dense-query-knn, e5-raw-response-refinement, label-ranker-pilots, multiresolution-profiles, query-cluster-aggregation, query-controls, response-retrieval, response-volume-normalization, semantic-profiles, source-query-first]
+availability: tracked_complete
+reproducibility: "Verified by data/dev/file_manifest.tsv."
+tags: [qrels, development, provided]
+---
+
+Qrels are evaluation labels. They are not candidate descriptions, reference
+answers, or permitted construction evidence for a held-out request.

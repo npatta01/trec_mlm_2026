@@ -1,0 +1,14 @@
+---
+title: "Approaches"
+description: "Technical families connected to questions and studies."
+listing:
+  contents: ["*.qmd"]
+  type: grid
+  sort: "title"
+  filter-ui: true
+  sort-ui: true
+  fields: [title, summary]
+---
+
+An approach is a reusable technical idea, not a conclusion. Its page preserves
+positive, negative, mixed, restricted, and diagnostic evidence.

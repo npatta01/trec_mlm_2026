@@ -1,0 +1,7 @@
+---
+title: "Research summary"
+description: "Current conclusions, decisions, open questions, and next tests."
+page-layout: full
+---
+
+{{< include generated/summary.qmd >}}

@@ -1,0 +1,10 @@
+---
+title: "Studies"
+description: "Decision-relevant experiments, audits, and reviews."
+toc: false
+format:
+  html:
+    include-after-body: ../assets/ledger-script.html
+---
+
+{{< include ../generated/studies-index.qmd >}}

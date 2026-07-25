@@ -1,0 +1,124 @@
+---
+title: "The task in plain English"
+description: "How a request becomes a ranked list of candidate LLMs—and what evidence may be used."
+toc: true
+---
+
+## What are we building?
+
+For every new user request, the system must order **150 candidate LLMs** from
+most to least promising. It does not answer the request itself. It chooses which
+models should get the first opportunity to answer it.
+
+::: {.hub-task-flow aria-label="The four stages of the ranking task"}
+::: {.hub-flow-step}
+<span class="hub-step-number">1</span>
+
+### New request
+
+The text a user submits, such as a factual question, coding problem, or request
+for advice.
+:::
+
+::: {.hub-flow-step}
+<span class="hub-step-number">2</span>
+
+### Available evidence
+
+Similar historical requests, candidate profiles, or previously collected model
+responses—depending on the study.
+:::
+
+::: {.hub-flow-step}
+<span class="hub-step-number">3</span>
+
+### Ranking method
+
+A method scores how well each candidate appears to fit this particular request.
+:::
+
+::: {.hub-flow-step}
+<span class="hub-step-number">4</span>
+
+### Ordered candidates
+
+The result is a list from rank 1 through rank 150. Better-suited models should
+appear nearer the top.
+:::
+:::
+
+## A tracked development example
+
+::: {.hub-example}
+::: {.hub-example-request}
+**Tracked development request**
+
+“Who became the second Karmapa Lama?”
+:::
+
+::: {.hub-example-evidence}
+**Construction**
+
+The router uses allowed construction evidence to order all 150 candidate IDs.
+It does **not** use this request's relevance grades while constructing that
+ranking.
+:::
+
+::: {.hub-example-result}
+**Evaluation afterward**
+
+The tracked development qrels assign grade 2 to these candidate identifiers:
+
+- `Cultures`
+- `People_by_time`
+- `Scholars_and_academics_by_subject`
+
+After construction, evaluation compares the router's complete 150-candidate
+ordering with those grades.
+:::
+:::
+
+This example shows the construction/evaluation boundary. It **does not claim**
+that any current method produced a particular ordering, ranked these three
+candidates correctly, or placed them above the other candidates.
+
+## How do we know whether a ranking is good?
+
+For the **development requests**, the organizers provide relevance judgments
+(qrels): labels indicating which candidates were suitable for each historical
+request. We compare a method's ranking with those labels using ranking metrics.
+
+The crucial distinction is:
+
+::: {.hub-compare-grid}
+::: {.hub-compare-card}
+### Construction evidence
+
+Information the method is allowed to use to produce a ranking, such as request
+text, historical training examples, profiles, or bounded response evidence.
+:::
+
+::: {.hub-compare-card}
+### Evaluation evidence
+
+The relevance labels used afterward to measure the ranking. A request's own
+labels must not be used to construct its ranking.
+:::
+:::
+
+## What are the studies trying to learn?
+
+The studies compare different evidence sources and ranking strategies:
+
+- Is request similarity alone a strong baseline?
+- Does evidence describing each candidate improve that baseline?
+- Can model responses or a generated reference answer help?
+- When do those signals become unreliable?
+
+::: {.hub-evidence-boundary}
+### The evidence boundary
+
+All effectiveness results in this hub are **development evidence**. Hidden-test
+relevance labels are unavailable. A method that improves development results is
+promising, but that does not yet prove it will improve the hidden test.
+:::

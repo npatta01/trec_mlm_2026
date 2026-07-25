@@ -1,0 +1,6 @@
+---
+title: "Background"
+description: "Source-backed prior work, adjacent evaluations, and methods."
+---
+
+{{< include ../generated/background-index.qmd >}}

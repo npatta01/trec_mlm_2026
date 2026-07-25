@@ -1,0 +1,34 @@
+---
+study_id: replace-study-id
+title: "Replace with the study title"
+primary_theme_id: replace-theme-id
+theme_ids: [replace-theme-id]
+study_type: ranking_experiment
+question_ids: [replace-question-id]
+approach_ids: [replace-approach-id]
+status: concluded
+outcome: inconclusive
+objective: "State why this study was run."
+hypothesis: "State the frozen, testable expectation."
+rationale: "State the contemporaneous or reconstructed reason for the study."
+rationale_provenance: contemporaneous
+protocol_summary: "State the protocol and deliberate comparison."
+conclusion: "State the bounded result."
+decision: informational
+decision_summary: "State the practical decision and why the evidence supports it."
+system_ids: []
+representative_system_ids: []
+comparison_system_ids: []
+evidence_refs: [reports/replace-with-canonical-evidence.md]
+dataset_ids: [replace-dataset-id]
+started_on: 2026-07-24
+concluded_on: 2026-07-24
+supersedes: []
+superseded_by: []
+limitations: "State evaluation-scope, leakage, custody, and generalization limits."
+tags: []
+---
+
+{{< include ../generated/studies/STUDY_ID.md >}}
+
+Add domain-specific prose that should remain human-authored.

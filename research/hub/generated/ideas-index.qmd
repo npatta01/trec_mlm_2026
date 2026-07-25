@@ -1,0 +1,30 @@
+::: {.hub-evidence-notice}
+**Development evidence only.** Promotion labels do not imply held-out results.
+:::
+
+Ideas are prospective work, not results. Open a row for the full explanation, evidence boundary, and remaining readiness work.
+
+## Evidence reliability
+
+### Idea
+
+<div class="hub-idea-list">
+<a class="hub-idea-row" data-test-id="failure-aware-fusion" data-themes="evidence-reliability responses-references" href="../generated/ideas/failure-aware-fusion.qmd">
+<span>Idea · High priority · 2/9 readiness fields complete</span>
+<strong>Failure-aware evidence fusion</strong>
+<span>Use a reliability check to choose which evidence sources should influence each request.</span>
+<span class="hub-next-action"><strong>Next action:</strong> Define and freeze the reliability signal, fallback, and artifact plan.</span>
+</a>
+<a class="hub-idea-row" data-test-id="reference-review-trigger" data-themes="evidence-reliability responses-references" href="../generated/ideas/reference-review-trigger.qmd">
+<span>Idea · High priority · 2/9 readiness fields complete</span>
+<strong>Reference review trigger</strong>
+<span>Flag generated reference answers that need more evidence or a human check before guiding a ranking.</span>
+<span class="hub-next-action"><strong>Next action:</strong> Define the local trigger features and acceptance rule.</span>
+</a>
+<a class="hub-idea-row" data-test-id="semantic-failure-clusters" data-themes="evidence-reliability query-only-routing candidate-evidence" href="../generated/ideas/semantic-failure-clusters.qmd">
+<span>Idea · Medium priority · 2/9 readiness fields complete</span>
+<strong>Semantic failure clusters</strong>
+<span>Group similar ranking failures to find request types where a method repeatedly struggles.</span>
+<span class="hub-next-action"><strong>Next action:</strong> State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
+</a>
+</div>

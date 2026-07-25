@@ -1,0 +1,38 @@
+---
+study_id: response-retrieval
+title: "Lexical response retrieval"
+primary_theme_id: responses-references
+theme_ids: [responses-references]
+study_type: ranking_experiment
+question_ids: [response-evidence]
+approach_ids: [response-evidence]
+status: concluded
+outcome: negative
+objective: "Evaluate BM25 and RM3 retrieval over candidate responses."
+hypothesis: "Response text provides lexical evidence that improves candidate ranking."
+rationale: "The tracked protocol and result receipt define the comparison."
+rationale_provenance: contemporaneous
+protocol_summary: "Compare query-plus-response and response-only indexes across analyzers and depths."
+conclusion: "Direct lexical response retrieval underperformed the established dense control."
+decision: reject
+decision_summary: "Reject direct lexical response retrieval as the primary ranking path."
+system_ids: [response_sumscore_nested, bm25__query_response__aggressive__d100, bm25__query_response__aggressive__d500, bm25__query_response__aggressive__d1000, bm25__query_response__basic__d100, bm25__query_response__basic__d500, bm25__query_response__basic__d1000, bm25__response_only__aggressive__d100, bm25__response_only__aggressive__d500, bm25__response_only__aggressive__d1000, bm25__response_only__basic__d100, bm25__response_only__basic__d500, bm25__response_only__basic__d1000, bm25_rm3__query_response__aggressive__d100, bm25_rm3__query_response__aggressive__d500, bm25_rm3__query_response__aggressive__d1000, bm25_rm3__query_response__basic__d100, bm25_rm3__query_response__basic__d500, bm25_rm3__query_response__basic__d1000, bm25_rm3__response_only__aggressive__d100, bm25_rm3__response_only__aggressive__d500, bm25_rm3__response_only__aggressive__d1000, bm25_rm3__response_only__basic__d100, bm25_rm3__response_only__basic__d500, bm25_rm3__response_only__basic__d1000]
+representative_system_ids: [response_sumscore_nested, bm25_rm3__response_only__basic__d500, bm25_rm3__query_response__basic__d500]
+evidence_refs: [protocols/trec_2026_response_retrieval.md, reports/trec_2026_response_retrieval_results.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, discovery-responses, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Development-only aggregate evidence; local construction artifacts are incomplete."
+tags: [responses, bm25, rm3]
+---
+
+{{< include ../generated/studies/response-retrieval.md >}}
+
+<!--
+## Decision
+
+Do not use lexical response retrieval as the primary path. The full parameter
+grid remains available for audit in the run registry.
+-->

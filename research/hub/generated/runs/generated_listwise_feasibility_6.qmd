@@ -1,0 +1,49 @@
+---
+title: "generated_listwise_feasibility_6"
+---
+
+# `generated_listwise_feasibility_6`
+
+This restricted or invalid evaluation scope is not directly comparable with full development runs.
+
+## Evidence contract
+
+- **Method:** Six-query generated-listwise feasibility pilot with an unreliable generic output format.
+- **source_system_id:** `Six-question LLM pilot / generated listwise`
+- **Experiment family:** `label_ranker_pilots`
+- **Evaluation scope:** `restricted_6`
+- **Evidence status:** `restricted_diagnostic`
+- **Promotion status:** `diagnostic_only`
+- **Artifact state:** `tracked_report_snapshot`
+- **Qrel usage:** `restricted_selection_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 6
+- **Candidates per query:** —
+- **nDCG@10:** —
+- **MRR:** —
+- **Zero-nDCG queries:** —
+
+## Linked studies
+
+- `label-ranker-pilots`
+
+## Evidence receipt
+
+- **Source:** `docs/results/2026-07-13-expert-label-ranking-study.md`
+- **SHA-256:** `9c77824edd0f1194a0f501c4504a0178b001b48d6bd77bae62d5bb2d73f8a71d`
+- **Ranking coverage:** `none`
+- **Blocker:** The tracked study reports only the 3/6 top-three feasibility count; candidate-set size and complete per-query metrics are not preserved.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `development_only`
+- `external_encoder_taxonomy`
+- `missing_raw_artifacts`
+- `restricted_not_comparable`
+- `restricted_qrel_assisted`
+- `six_query_signal_did_not_scale`

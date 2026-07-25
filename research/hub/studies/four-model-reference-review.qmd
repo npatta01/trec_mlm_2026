@@ -1,0 +1,43 @@
+---
+study_id: four-model-reference-review
+title: "Four-model reference-answer review"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
+study_type: reference_review
+question_ids: [reference-reliability, response-evidence]
+approach_ids: [reference-generation]
+status: concluded
+outcome: positive
+objective: "Select a default reference generator using a frozen blinded review."
+rationale: "The dated review records the sample, thresholds, judgments, and decision."
+rationale_provenance: contemporaneous
+protocol_summary: "Blind 400 questions across four generators, preserve ties, and review difficult slices."
+conclusion: "Gemini was the strongest reviewed default, with a material advantage on the purposive sample."
+decision: adopt
+decision_summary: "Use Gemini as the default reference generator while retaining Perplexity evidence and escalation."
+system_ids: []
+representative_system_ids: []
+evidence_refs: [reports/trec_2026_four_model_reference_review_2026-07-21.md, reports/trec_2026_four_model_per_question_rankings.tsv]
+dataset_ids: [discovery-responses, run-artifacts]
+started_on: unknown
+concluded_on: 2026-07-21
+supersedes: []
+superseded_by: []
+limitations: "No discovery gold set; the purposive sample overweights difficult questions and the review is qualitative."
+tags: [references, model-review, blinded]
+---
+
+{{< include ../generated/studies/four-model-reference-review.md >}}
+
+<!--
+## Decision
+
+Use Gemini as the default reference pivot, not as an oracle. Preserve the
+existing Perplexity answer and route material disagreements or uncertainty to
+review.
+
+## Why there is no run row
+
+This reviewed reference generators; it did not evaluate a registered TREC
+ranking system. Creating a leaderboard row would manufacture comparability.
+-->

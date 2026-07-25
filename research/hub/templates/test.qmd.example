@@ -1,0 +1,42 @@
+---
+test_id: replace-test-id
+title: "Replace with the proposed test"
+primary_theme_id: replace-theme-id
+theme_ids: [replace-theme-id]
+stage: ready
+summary: "State the decision-relevant test."
+plain_english: "Explain the idea in language a new contributor can understand."
+why_it_matters: "Explain what decision or outcome this test could improve."
+mechanism_steps:
+  - "Describe the first concrete step."
+  - "Describe how the result will be evaluated."
+linked_question_ids: [replace-question-id]
+missing_readiness_fields: []
+hypothesis: "State the frozen expectation."
+rationale: "Explain why this is the next useful test."
+expected_signal: "State the result pattern that would support the hypothesis."
+decision_rule: "State what result causes adoption, rejection, iteration, or stopping."
+dependencies: "List required inputs, software, and prior decisions."
+priority: medium
+evaluation_boundary: "Name the evaluation scope and forbidden comparisons."
+artifact_plan: "Name the outputs and receipts that will be retained."
+next_action: "State one concrete next action."
+tags: []
+# Optional curated visual; omit this mapping when no explicit comparison is ready.
+# visual:
+#   type: causal_comparison
+#   current_label: "Today"
+#   current_summary: "State the limitation of the current approach."
+#   current_items:
+#     - "Name one current evidence source."
+#   change_label: "Name the transition into the proposed approach."
+#   proposed_label: "Proposed"
+#   proposed_summary: "State the proposed decision mechanism."
+#   proposed_routes:
+#     - label: "Condition"
+#       action: "Action selected for that condition."
+#   decision_test: "State the control comparison that decides this proposal."
+---
+
+Record any context needed to execute the test without turning the proposal into
+a result claim.

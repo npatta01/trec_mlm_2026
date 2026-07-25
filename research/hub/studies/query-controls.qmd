@@ -1,0 +1,43 @@
+---
+study_id: query-controls
+title: "Simple query controls"
+primary_theme_id: query-only-routing
+theme_ids: [query-only-routing]
+study_type: ranking_experiment
+question_ids: [query-only-routing]
+approach_ids: [dense-query-retrieval]
+status: concluded
+outcome: mixed
+objective: "Establish global-prior and sparse query-neighbor controls."
+hypothesis: "Simple transferred development evidence provides a useful floor for later query methods."
+rationale: "Reconstructed from the tracked dense-query receipt and run registry."
+rationale_provenance: reconstructed
+protocol_summary: "Evaluate two fixed controls on the full development scope."
+conclusion: "Both controls remain aggregate-only baselines rather than promoted results."
+decision: retain_control
+decision_summary: "Keep the simple baselines for orientation, not as the current development choice."
+system_ids: [global_prior, tfidf_fixed_k10]
+representative_system_ids: [global_prior, tfidf_fixed_k10]
+evidence_refs: [reports/trec_2026_dense_query_knn_results.json, reports/trec_2026_experiment_ledger.md]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Aggregate-only development evidence; the original start and conclusion dates are not recorded."
+tags: [controls, queries]
+---
+
+{{< include ../generated/studies/query-controls.md >}}
+
+<!--
+## Decision
+
+Retain these as simple orientation points. Exact metrics, caveats, and source
+pointers remain in the run registry.
+
+## History boundary
+
+The rationale is reconstructed from tracked outputs. It is not described as a
+preregistered claim, and the original dates remain unknown.
+-->

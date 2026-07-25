@@ -1,0 +1,38 @@
+::: {.hub-evidence-notice}
+**Development evidence only.** Promotion labels do not imply held-out results.
+:::
+
+Start with the question and its current bounded answer; open a row for supporting studies, limitations, and next tests.
+
+<div class="hub-question-list">
+<a class="hub-question-row" href="failure-conditions.qmd">
+<span>Open · Low confidence</span>
+<strong>When do promising signals fail?</strong>
+<span>Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?</span>
+<span class="hub-next-action">Failure-aware evidence fusion: Define and freeze the reliability signal, fallback, and artifact plan.</span>
+</a>
+<a class="hub-question-row" href="candidate-evidence.qmd">
+<span>Partially answered · Moderate confidence</span>
+<strong>Can candidate-side semantic evidence improve query-only retrieval?</strong>
+<span>When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?</span>
+<span class="hub-next-action">Semantic failure clusters: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
+</a>
+<a class="hub-question-row" href="query-only-routing.qmd">
+<span>Partially answered · Moderate confidence</span>
+<strong>How far can query-only routing go?</strong>
+<span>Can a new request be routed well by comparing it with historical requests, before using candidate responses?</span>
+<span class="hub-next-action">Semantic failure clusters: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
+</a>
+<a class="hub-question-row" href="reference-reliability.qmd">
+<span>Partially answered · Moderate confidence</span>
+<strong>How reliable must a generated reference be?</strong>
+<span>When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?</span>
+<span class="hub-next-action">Failure-aware evidence fusion: Define and freeze the reliability signal, fallback, and artifact plan.</span>
+</a>
+<a class="hub-question-row" href="response-evidence.qmd">
+<span>Partially answered · Low confidence</span>
+<strong>Can model responses provide useful ranking evidence?</strong>
+<span>Does comparing a request or reference answer with candidate responses help choose the best models?</span>
+<span class="hub-next-action">Failure-aware evidence fusion: Define and freeze the reliability signal, fallback, and artifact plan.</span>
+</a>
+</div>

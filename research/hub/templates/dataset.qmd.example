@@ -1,0 +1,20 @@
+---
+dataset_id: replace-dataset-id
+title: "Replace with the dataset title"
+plain_english: "Explain what the data contains."
+category: provided
+provenance: "State who created or collected the data and under what process."
+method: "State how the repository representation was produced."
+version: "Replace with a date, release, or content identifier."
+repository_path: data/replace-with-tracked-path
+sensitivity: public
+sharing: repository
+leakage_constraints: "State which labels or responses construction may not use."
+permitted_use: "State the allowed construction, evaluation, or analysis use."
+study_ids: []
+availability: "State whether the complete data is present."
+reproducibility: "State what another contributor needs to reproduce it."
+representative_sample: "Optionally identify a safe, tracked sample."
+---
+
+Describe material data-quality or interpretation constraints.

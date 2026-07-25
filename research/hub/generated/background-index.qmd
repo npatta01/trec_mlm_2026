@@ -1,0 +1,46 @@
+These resources synthesize the controlling reviews and preserve the boundary between development evidence, prior-track results, and adjacent research.
+
+## TREC 2025
+
+Start with the task and then inspect how participants turned historical behavior into model rankings.
+
+<div class="hub-background-list">
+<a class="hub-background-row" href="trec-2025-literature.qmd">
+<strong>What the 2025 Million LLMs track taught us</strong>
+<span>The prior task, its strongest evidence families, and the limits of its official evaluation.</span>
+</a>
+<a class="hub-background-row" href="prior-participant-approaches.qmd">
+<strong>Prior participant approaches</strong>
+<span>How six 2025 teams converted queries, responses, profiles, and weak labels into expert rankings.</span>
+</a>
+</div>
+
+## Wider methods and evaluations
+
+Connect expert finding, retrieval, routing, and evaluation research to this task without importing results across incompatible settings.
+
+<div class="hub-background-list">
+<a class="hub-background-row" href="methods-landscape.qmd">
+<strong>Methods landscape</strong>
+<span>A staged method ladder for retrieval, candidate evidence, weak labels, and learned fusion.</span>
+</a>
+<a class="hub-background-row" href="llm-routing-literature.qmd">
+<strong>Wider LLM-routing literature</strong>
+<span>What expert finding, model routing, and simple retrieval contribute under different task rules.</span>
+</a>
+<a class="hub-background-row" href="related-competitions.qmd">
+<strong>Adjacent benchmarks and routing evaluations</strong>
+<span>Neighboring evaluations that test retrieval, routing, judging, or distribution shift under different contracts.</span>
+</a>
+</div>
+
+## Current model and reference planning
+
+Use the dated planning evidence to choose reference generators and review controls; it is not candidate-ranking evidence.
+
+<div class="hub-background-list">
+<a class="hub-background-row" href="reference-model-planning.qmd">
+<strong>Reference-model planning — July 21, 2026</strong>
+<span>Dated planning evidence for reference generation, judging, cost, and local-runtime choices.</span>
+</a>
+</div>

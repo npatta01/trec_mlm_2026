@@ -1,0 +1,7 @@
+---
+title: "Ideas & Tests"
+description: "Prospective work separated by readiness."
+toc: false
+---
+
+{{< include ../generated/ideas-index.qmd >}}

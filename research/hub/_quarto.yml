@@ -1,0 +1,77 @@
+quarto-required: "1.9.38"
+project:
+  type: website
+  output-dir: _site
+  render:
+    - "index.qmd"
+    - "contributing.qmd"
+    - "start-here/*.qmd"
+    - "background/*.qmd"
+    - "data/*.qmd"
+    - "questions/*.qmd"
+    - "studies/*.qmd"
+    - "ideas/index.qmd"
+    - "approaches/*.qmd"
+    - "protocols/*.qmd"
+    - "evidence/*.qmd"
+    - "themes/index.qmd"
+    - "library/*.qmd"
+    - "generated/themes/*.qmd"
+    - "generated/ideas/*.qmd"
+    - "generated/runs/*.qmd"
+  pre-render:
+    - "uv run --project ../.. python ../../scripts/build_research_hub.py --root ../.."
+  post-render:
+    - "uv run python ../../scripts/normalize_research_hub_links.py --root ../.. --output-dir _site"
+    - "uv run python ../../scripts/audit_research_hub_site.py --root ../.. --output-dir _site"
+  resources:
+    - assets/ledger.js
+    - assets/fonts/
+    - catalog.json
+website:
+  title: "TREC 2026 Research Hub"
+  search: true
+  navbar:
+    left:
+      - text: "Start Here"
+        href: start-here/index.qmd
+      - text: "Background"
+        href: background/index.qmd
+      - text: "Data"
+        href: data/index.qmd
+      - text: "Themes"
+        href: themes/index.qmd
+      - text: "Research"
+        menu:
+          - text: "Questions"
+            href: questions/index.qmd
+          - text: "Studies"
+            href: studies/index.qmd
+          - text: "Ideas & Tests"
+            href: ideas/index.qmd
+          - text: "Approaches"
+            href: approaches/index.qmd
+      - text: "Protocols"
+        href: protocols/index.qmd
+      - text: "Evidence"
+        menu:
+          - text: "Coverage"
+            href: evidence/coverage.qmd
+          - text: "History"
+            href: evidence/history.qmd
+          - text: "Runs"
+            href: evidence/runs.qmd
+      - text: "Contribute"
+        href: contributing.qmd
+format:
+  html:
+    theme:
+      light: [cosmo, assets/theme.scss]
+      dark: [darkly, assets/theme.scss]
+    html-math-method: plain
+    toc: true
+    anchor-sections: true
+    smooth-scroll: true
+    link-external-icon: true
+execute:
+  enabled: false

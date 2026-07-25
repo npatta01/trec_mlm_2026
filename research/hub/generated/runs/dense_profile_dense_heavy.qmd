@@ -1,0 +1,49 @@
+---
+title: "dense_profile_dense_heavy"
+---
+
+# `dense_profile_dense_heavy`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Dense-heavy fixed fusion with semantic profiles.
+- **source_system_id:** `dense_profile_dense_heavy`
+- **Experiment family:** `semantic_profiles`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `aggregate_only`
+- **Promotion status:** `valid_negative`
+- **Artifact state:** `local_artifact_missing`
+- **Qrel usage:** `training_and_evaluation`
+- **per_query_available:** `false`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.410328
+- **MRR:** 0.446773
+- **Zero-nDCG queries:** 101
+
+## Linked studies
+
+- `semantic-profiles`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_candidate_semantic_profiles_results.json`
+- **SHA-256:** `21cfe833c2d48658c6c8ecceffa5a2d9e5a27646e11bfc2a58769f80074ff31a`
+- **Ranking coverage:** `none`
+- **Blocker:** The semantic receipt references an ignored evaluation per-query artifact by digest, but that file and any corresponding issue-18 map are absent.
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `aggregate_per_query_missing`
+- `confidence_not_correctness`
+- `development_only`
+- `external_encoder_taxonomy`
+- `missing_raw_artifacts`
+- `profile_qrel_seal_deviation`
+- `qrel_transferred_training`

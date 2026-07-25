@@ -1,0 +1,6 @@
+---
+title: "Reference-model landscape — July 21, 2026"
+description: "Dated planning evidence for reference generation and judging."
+---
+
+{{< include ../../../reports/trec_2026_reference_model_landscape_2026-07-21.md >}}

@@ -1,0 +1,7 @@
+---
+title: "Data Catalog"
+description: "What data exists, where it came from, and how it may be used."
+toc: true
+---
+
+{{< include ../generated/data-index.qmd >}}

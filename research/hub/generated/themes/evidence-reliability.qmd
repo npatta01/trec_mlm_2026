@@ -1,0 +1,80 @@
+---
+title: "Evidence reliability"
+description: "Identify when ranking and reference evidence is trustworthy enough to use and when it needs review."
+toc: false
+---
+
+<section class="hub-record-hero">
+<p class="hub-record-status">Iterate · Low confidence</p>
+<p class="hub-takeaway">Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.</p>
+<p>Identify when ranking and reference evidence is trustworthy enough to use and when it needs review.</p>
+
+<p class="hub-next-action"><a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.</p>
+</section>
+
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
+## Why does it matter?
+
+Evidence reliability spans failure diagnosis, provenance, evaluation scope,
+and escalation decisions for generated references and ranking signals.
+
+## Current conclusion
+
+Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.
+</details>
+
+<details class="hub-details">
+<summary>Limits and readiness</summary>
+**Confidence and evidence boundary**
+
+Low confidence. Audits use purposive or known-failure samples and do not estimate hidden-test prevalence.
+</details>
+
+<details class="hub-details">
+<summary>Relationships and evidence</summary>
+## Other linked tests
+
+- <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
+- <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+
+## Questions in this theme
+
+<div class="hub-question-row">
+<h3><a href="../../questions/failure-conditions.qmd">When do promising signals fail?</a></h3>
+<p>Which request types, evidence gaps, and operational constraints make a ranking or reference method unreliable?</p>
+<p><strong>Current bounded answer</strong><br>Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists.</p>
+<p><strong>Still open</strong></p>
+<ul>
+<li>Can failure clusters be detected before a decision?</li>
+<li>Can reliability-aware fusion improve without adding leakage?</li>
+</ul>
+</div>
+
+<div class="hub-question-row">
+<h3><a href="../../questions/reference-reliability.qmd">How reliable must a generated reference be?</a></h3>
+<p>When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?</p>
+<p><strong>Current bounded answer</strong><br>Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.</p>
+<p><strong>Still open</strong></p>
+<ul>
+<li>Can a local judge reproduce the escalation set?</li>
+<li>How often does grounding harm an initially good answer?</li>
+</ul>
+</div>
+
+<div class="hub-question-row">
+<h3><a href="../../questions/response-evidence.qmd">Can model responses provide useful ranking evidence?</a></h3>
+<p>Does comparing a request or reference answer with candidate responses help choose the best models?</p>
+<p><strong>Current bounded answer</strong><br>Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.</p>
+<p><strong>Still open</strong></p>
+<ul>
+<li>Can reliable references support a leakage-safe reranker?</li>
+<li>Which response failures are predictable before ranking?</li>
+</ul>
+</div>
+
+## Evidence behind this position
+
+<a class="hub-evidence-line" href="../../studies/index.html?theme=evidence-reliability">Explore 8 studies linked to this theme in the study library.</a>
+</details>

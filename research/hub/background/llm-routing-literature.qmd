@@ -1,0 +1,66 @@
+---
+resource_id: llm-routing-literature
+title: "Wider LLM-routing literature"
+resource_type: literature_review
+summary: "What expert finding, model routing, and simple retrieval contribute under different task rules."
+canonical_source_path: reports/trec_2026_approaches_guide.artifact.json
+citations:
+  - "Balog, Azzopardi, and de Rijke (2006), Formal Models for Expert Finding"
+  - "Hu et al. (2024), RouterBench"
+  - "Ong et al. (2024), RouteLLM"
+  - "Feng, Shen, and You (2025), GraphRouter"
+  - "Li et al. (2026), LLMRouterBench"
+tags: [routing, expert-finding, literature]
+question_ids: [query-only-routing, candidate-evidence, failure-conditions]
+reviewed_on: 2026-07-24
+---
+
+LLM routing and expert finding share a premise: capability is
+query-dependent, so a dispatcher should match the question to the candidate
+rather than rely only on a global winner. They diverge in what the dispatcher
+can observe and what it must optimize. TREC 2026 requires a complete ranking of
+150 fixed candidate IDs without live test-time calls. Many routing papers choose
+one model from a smaller menu, inspect current outputs, or trade quality against
+cost and latency.
+
+## Evidence ideas that transfer
+
+Classical expert finding supplies the most direct structural analogy. Balog,
+Azzopardi, and de Rijke distinguish candidate profiles from an evidence-first
+document model: retrieve relevant work samples, associate them with experts,
+then aggregate. Macdonald and Ounis compare voting and score fusion, while
+ReDDE estimates a resource's relevant-document mass. Together they motivate
+response retrieval, score normalization, capped aggregation, and uncertainty
+gates when local evidence is diffuse.
+
+Modern routing expands the feature space. RouterBench organizes historical
+query-by-model outcomes so routers can learn complementarity. RouteLLM learns
+from preference data. GraphRouter represents query, task, and model
+relationships explicitly. ContextualRouter retrieves similar past queries,
+which closely resembles the current dense-neighbor control. FrugalGPT and
+LLM-Blender support cascades or output comparison, but depend on actions and
+objectives that the track does not expose.
+
+The broader evidence also protects simple baselines. LLMRouterBench reports
+that sophisticated routers can be difficult to distinguish from simpler
+alternatives under unified evaluation. That supports an experiment ladder:
+global prior, sparse and dense similar-query retrieval, response retrieval,
+query-candidate interactions, then learned or graph-based fusion. Complexity
+earns a role only if it improves held-out query groups over those controls.
+
+## What does not transfer
+
+Published routing gains are not expected TREC gains. Candidate count, model
+identity, available outputs, cost objective, labels, and data split can all
+differ. Live-output selection and cost thresholds are especially incompatible
+with a no-test-time-call, full-ranking task. The literature proposes evidence
+signals; only current, query-grouped development evaluation can establish local
+utility, and it still cannot establish hidden-test performance.
+
+## Deep dive
+
+Read the primary [RouterBench paper](https://arxiv.org/abs/2403.12031) and
+[LLMRouterBench evaluation](https://aclanthology.org/2026.findings-acl.1881/)
+alongside this page's task-shape and transfer boundaries. The complete audited
+source registry remains machine-readable at
+`reports/trec_2026_approaches_guide.artifact.json` in the repository.

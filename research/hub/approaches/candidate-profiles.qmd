@@ -1,0 +1,13 @@
+---
+approach_id: candidate-profiles
+title: "Candidate profiles"
+summary: "Represent each candidate with labels, behaviors, topics, or semantic descriptions."
+plain_english: "Describe what each model appears good at, then match that description to the request."
+question_ids: [candidate-evidence, failure-conditions]
+study_ids: [candidate-label-matching, behavior-profile, semantic-profiles, multiresolution-profiles, label-ranker-pilots]
+current_assessment: "Semantic profile fusion is promoted on development evidence; profile-only remains a qrel-free control."
+tags: [candidates, profiles, semantics]
+---
+
+Profile construction varies by study. The approach page does not collapse
+distinct provenance or artifact states into one score.

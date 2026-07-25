@@ -1,0 +1,15 @@
+---
+theme_id: responses-references
+title: "Responses and references"
+plain_english: "Use candidate responses or generated reference answers as evidence for choosing models."
+current_conclusion: "Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence."
+decision: iterate
+confidence: low
+confidence_boundary: "Most ranking evidence is development-only, some response data is private or local, and reference quality varies by case."
+next_test_ids: [failure-aware-fusion, reference-review-trigger]
+updated_on: 2026-07-24
+evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_e5_raw_response_refinement_results.md]
+---
+
+This theme keeps response-derived ranking evidence and generated reference
+evidence together while preserving their distinct evaluation boundaries.

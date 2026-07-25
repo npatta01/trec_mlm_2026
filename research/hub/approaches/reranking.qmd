@@ -1,0 +1,13 @@
+---
+approach_id: reranking
+title: "Learned and heuristic reranking"
+summary: "Reorder candidates using labels, response features, or combined evidence."
+plain_english: "Start with candidates, then use an additional signal to improve their order."
+question_ids: [candidate-evidence, response-evidence, failure-conditions]
+study_ids: [label-ranker-pilots, source-query-first, semantic-profiles, e5-raw-response-refinement]
+current_assessment: "Early label and response rerankers are mixed; profile fusion is the promoted development decision."
+tags: [reranking, fusion, learning]
+---
+
+Reranking spans restricted pilots, invalid attempts, negative results, and one
+promoted profile fusion. Those evidence states remain separate.

@@ -1,0 +1,15 @@
+---
+theme_id: evidence-reliability
+title: "Evidence reliability"
+plain_english: "Identify when ranking and reference evidence is trustworthy enough to use and when it needs review."
+current_conclusion: "Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists."
+decision: iterate
+confidence: low
+confidence_boundary: "Audits use purposive or known-failure samples and do not estimate hidden-test prevalence."
+next_test_ids: [failure-aware-fusion, reference-review-trigger, semantic-failure-clusters]
+updated_on: 2026-07-24
+evidence_refs: [reports/trec_2026_four_model_reference_review_2026-07-21.md, reports/trec_2026_grounded_data_quality_audit_2026-07-23.md]
+---
+
+Evidence reliability spans failure diagnosis, provenance, evaluation scope,
+and escalation decisions for generated references and ranking signals.

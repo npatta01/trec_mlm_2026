@@ -1,0 +1,38 @@
+---
+study_id: multiresolution-profiles
+title: "Multiresolution candidate profiles"
+primary_theme_id: candidate-evidence
+theme_ids: [candidate-evidence]
+study_type: ranking_experiment
+question_ids: [candidate-evidence]
+approach_ids: [candidate-profiles, dense-query-retrieval]
+status: concluded
+outcome: mixed
+objective: "Test profile summaries at multiple semantic resolutions."
+hypothesis: "Combining broad and focused profile evidence improves on the promoted equal-weight fusion."
+rationale: "The tracked amendment and issue-18 evaluation define the variants."
+rationale_provenance: contemporaneous
+protocol_summary: "Construct six frozen multiresolution variants and evaluate them on the full development scope."
+conclusion: "Several variants are strong development diagnostics, but none displaced the promoted decision."
+decision: retain_control
+decision_summary: "Retain the promoted semantic-profile system; keep multiresolution variants diagnostic."
+system_ids: [a1_top2_k10, a1_top2_k10_dense_equal, r1_multires_max, r1_multires_max_dense_equal, x1_multires_top2, x1_multires_top2_dense_equal]
+representative_system_ids: [x1_multires_top2, x1_multires_top2_dense_equal, r1_multires_max, a1_top2_k10]
+evidence_refs: [protocols/trec_2026_multiresolution_profiles_amendment.md, reports/trec_2026_issue18_pr17head_evaluation.json, reports/trec_2026_issue18_pr17head_results.json]
+dataset_ids: [dev-queries, dev-qrels, candidate-inventory, generated-embeddings, run-artifacts]
+started_on: unknown
+concluded_on: unknown
+supersedes: []
+superseded_by: []
+limitations: "Development diagnostics with missing construction artifacts; no hidden-test evidence."
+tags: [profiles, multiresolution, diagnostic]
+---
+
+{{< include ../generated/studies/multiresolution-profiles.md >}}
+
+<!--
+## Decision
+
+Keep these variants as diagnostics. A larger development score alone does not
+override the existing promoted decision or its evidence-maturity boundary.
+-->

@@ -1,0 +1,52 @@
+---
+title: "x1_multires_top2"
+---
+
+# `x1_multires_top2`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Issue-18 multiresolution profile diagnostic x1_multires_top2.
+- **source_system_id:** `x1_multires_top2`
+- **Experiment family:** `multiresolution_profiles`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `stored_per_query`
+- **Promotion status:** `diagnostic_only`
+- **Artifact state:** `construction_artifact_missing`
+- **Qrel usage:** `evaluation_only`
+- **per_query_available:** `true`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.436409
+- **MRR:** 0.464610
+- **Zero-nDCG queries:** 83
+
+## Linked studies
+
+- `multiresolution-profiles`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_issue18_pr17head_evaluation.json`
+- **SHA-256:** `60a45dc4317bd2b886b9b2fb993e912bbd2edbe69acca75e5bbcb53fd293e4d2`
+- **Ranking coverage:** `per_query_metrics_only`
+
+## Evidence indexes
+
+- **Per-query evidence:** `reports/trec_2026_experiment_per_query.tsv`
+- **Relevant-candidate slice evidence:** `reports/trec_2026_experiment_topic_slices.tsv`
+- **Positive-density slice evidence:** `reports/trec_2026_experiment_density_slices.tsv`
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `confidence_not_correctness`
+- `development_only`
+- `external_encoder_taxonomy`
+- `issue18_not_restorable`
+- `issue18_query_sensitivity_stop`

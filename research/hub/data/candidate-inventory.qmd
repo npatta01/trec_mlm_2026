@@ -1,0 +1,21 @@
+---
+dataset_id: candidate-inventory
+title: "Candidate inventory"
+plain_english: "The identifiers of the 150 LLMs that each query must rank."
+category: provided
+provenance: "Derived without response text from organizer development records."
+method: "Collect distinct candidate identifiers and verify the expected count."
+version: "tracked development data"
+sharing: repository
+repository_path: data/dev/llm_dev_data.tsv
+sensitivity: project_internal
+leakage_constraints: "Identifiers alone do not establish candidate capability."
+permitted_use: "development_construction and development_evaluation"
+study_ids: [behavior-profile, candidate-label-matching, dense-query-knn, e5-raw-response-refinement, label-ranker-pilots, multiresolution-profiles, query-cluster-aggregation, query-controls, response-retrieval, response-volume-normalization, semantic-profiles, source-query-first]
+availability: tracked_complete
+reproducibility: "Recreate from the tracked development TSV."
+tags: [candidates, development, provided]
+---
+
+The inventory defines what must be ranked. Candidate IDs should not be mistaken
+for trustworthy natural-language capability descriptions.

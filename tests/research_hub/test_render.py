@@ -67,6 +67,25 @@ def test_render_catalog_is_deterministic(sample_build: HubBuild) -> None:
     )
 
 
+def test_idea_index_and_details_expand_from_canonical_records(
+    sample_build: HubBuild,
+) -> None:
+    outputs = render_hub_outputs(sample_build)
+    index = outputs[Path("research/hub/generated/ideas-index.qmd")]
+    detail = outputs[
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
+    ]
+
+    assert "Test candidate evidence." in index
+    assert "hub-idea-row" in index
+    assert "What this idea means" in detail
+    assert "Why it matters" in detail
+    assert "How it would work" in detail
+    assert "What is missing" in detail
+    assert "What happens next" in detail
+    assert "Related research" in detail
+
+
 def test_catalog_includes_themes_with_generated_page_paths(
     sample_build: HubBuild,
 ) -> None:

@@ -94,6 +94,7 @@ def test_render_hub_outputs_has_exact_deterministic_path_contract(
         Path("research/hub/generated/summary.qmd"),
         Path("research/hub/generated/background-index.qmd"),
         Path("research/hub/generated/data-index.qmd"),
+        Path("research/hub/generated/ideas-index.qmd"),
         Path("research/hub/generated/themes-index.qmd"),
         Path("research/hub/generated/questions-index.qmd"),
         Path("research/hub/generated/studies-index.qmd"),
@@ -101,6 +102,7 @@ def test_render_hub_outputs_has_exact_deterministic_path_contract(
         Path("research/hub/generated/history.qmd"),
         Path("research/hub/generated/runs.qmd"),
         Path("research/hub/generated/themes/candidate-evidence.qmd"),
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd"),
         Path("research/hub/generated/studies/dense-baseline.md"),
         *{
             Path(f"research/hub/generated/runs/{system.system_id}.qmd")

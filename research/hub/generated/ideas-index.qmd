@@ -1,0 +1,26 @@
+::: {.hub-evidence-notice}
+**Development evidence only.** Promotion labels do not imply held-out results.
+:::
+
+Ideas are prospective work, not results. Open a row for the full explanation, evidence boundary, and remaining readiness work.
+
+<div class="hub-idea-list">
+<a class="hub-idea-row" data-test-id="failure-aware-fusion" data-themes="evidence-reliability responses-references" href="ideas/failure-aware-fusion.qmd">
+<strong>Failure-aware evidence fusion</strong>
+<span>Choose the evidence source most likely to be trustworthy for each request.</span>
+<span>Select evidence sources using a query-level reliability signal.</span>
+<span>Idea · High priority · 6/9 readiness fields complete</span>
+</a>
+<a class="hub-idea-row" data-test-id="reference-review-trigger" data-themes="evidence-reliability responses-references" href="ideas/reference-review-trigger.qmd">
+<strong>Reference review trigger</strong>
+<span>Flag generated reference answers that need more evidence or a human check before guiding a ranking.</span>
+<span>Predict which generated references need grounding or human review.</span>
+<span>Idea · High priority · 6/9 readiness fields complete</span>
+</a>
+<a class="hub-idea-row" data-test-id="semantic-failure-clusters" data-themes="evidence-reliability query-only-routing candidate-evidence" href="ideas/semantic-failure-clusters.qmd">
+<strong>Semantic failure clusters</strong>
+<span>Group similar ranking failures to find request types where a method repeatedly struggles.</span>
+<span>Group development failures to test whether recurring query types predict method weakness.</span>
+<span>Idea · Medium priority · 5/9 readiness fields complete</span>
+</a>
+</div>

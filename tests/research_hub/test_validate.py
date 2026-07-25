@@ -232,6 +232,36 @@ def test_validation_rejects_ready_test_without_decision_rule(
         )
 
 
+@pytest.mark.parametrize("field", ["plain_english", "why_it_matters", "next_action"])
+def test_validation_requires_test_explainer_fields(
+    field: str,
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    test = minimal_sources.tests[0]
+    test = replace(test, metadata={**test.metadata, field: ""})
+
+    with pytest.raises(ValueError, match=field):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(test,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_requires_nonempty_test_mechanism_steps(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    test = minimal_sources.tests[0]
+    test = replace(test, metadata={**test.metadata, "mechanism_steps": []})
+
+    with pytest.raises(ValueError, match="mechanism_steps must not be empty"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(test,)), ledger_build, tmp_path
+        )
+
+
 def test_validation_rejects_unknown_study_system(
     minimal_sources: HubSources,
     ledger_build: LedgerBuild,

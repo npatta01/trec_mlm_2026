@@ -269,6 +269,12 @@ def validate_test(record: HubRecord) -> None:
     require_string_list(record, "theme_ids")
     stage = require_choice(record, "stage", TEST_STAGES)
     require_string(record, "summary")
+    require_string(record, "plain_english")
+    require_string(record, "why_it_matters")
+    mechanism_steps = require_string_list(record, "mechanism_steps")
+    if not mechanism_steps:
+        raise ValueError(f"{record.source_path}: mechanism_steps must not be empty")
+    require_string(record, "next_action")
     require_string_list(record, "linked_question_ids")
     missing_readiness_fields = require_string_list(record, "missing_readiness_fields")
     unknown_fields = _unknown_ids(missing_readiness_fields, set(READY_FIELDS))

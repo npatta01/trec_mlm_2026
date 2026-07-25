@@ -5,6 +5,13 @@ primary_theme_id: evidence-reliability
 theme_ids: [evidence-reliability, responses-references]
 stage: idea
 summary: "Select evidence sources using a query-level reliability signal."
+plain_english: "Choose the evidence source most likely to be trustworthy for each request."
+why_it_matters: "A ranking method can fail when it relies on evidence that is unreliable for the current request."
+mechanism_steps:
+  - "Estimate the reliability of each available evidence source for a request."
+  - "Weight or exclude evidence sources according to that reliability estimate."
+  - "Compare the resulting ranking with fixed evidence-source controls."
+next_action: "Freeze the reliability signal and the decision rule for the comparison."
 linked_question_ids: [failure-conditions, response-evidence, reference-reliability]
 missing_readiness_fields: [decision_rule, dependencies, artifact_plan]
 priority: high

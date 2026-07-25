@@ -5,8 +5,15 @@ primary_theme_id: evidence-reliability
 theme_ids: [evidence-reliability, responses-references]
 stage: idea
 summary: "Predict which generated references need grounding or human review."
+plain_english: "Flag generated reference answers that need more evidence or a human check before guiding a ranking."
+why_it_matters: "A selective review trigger could reduce avoidable reference failures without reviewing every request."
+mechanism_steps:
+  - "Measure signals that indicate a generated reference may be unreliable."
+  - "Route flagged references to grounding or human review."
+  - "Compare the trigger with always-review and never-review controls."
+next_action: "Define the local trigger features and acceptance rule."
 linked_question_ids: [reference-reliability, response-evidence, failure-conditions]
-missing_readiness_fields: [decision_rule, dependencies, artifact_plan, next_action]
+missing_readiness_fields: [decision_rule, dependencies, artifact_plan]
 priority: high
 tags: [references, escalation, reliability]
 ---

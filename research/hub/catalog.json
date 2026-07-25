@@ -2467,7 +2467,7 @@
       "id": "failure-aware-fusion",
       "related_ids": [],
       "rendered_path": "ideas/failure-aware-fusion.html",
-      "summary": "Select evidence sources using a query-level reliability signal.",
+      "summary": "Choose the evidence source most likely to be trustworthy for each request.",
       "tags": [
         "fusion",
         "reliability"
@@ -2480,7 +2480,7 @@
       "id": "reference-review-trigger",
       "related_ids": [],
       "rendered_path": "ideas/reference-review-trigger.html",
-      "summary": "Predict which generated references need grounding or human review.",
+      "summary": "Flag generated reference answers that need more evidence or a human check before guiding a ranking.",
       "tags": [
         "escalation",
         "references",
@@ -2494,7 +2494,7 @@
       "id": "semantic-failure-clusters",
       "related_ids": [],
       "rendered_path": "ideas/semantic-failure-clusters.html",
-      "summary": "Group development failures to test whether recurring query types predict method weakness.",
+      "summary": "Group similar ranking failures to find request types where a method repeatedly struggles.",
       "tags": [
         "clusters",
         "failure-analysis"

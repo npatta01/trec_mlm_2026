@@ -13,6 +13,7 @@ from trec_mlm.pointwise_runner import (
     _validate_run_container,
     _validated_same_identity_record,
 )
+from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
 
 _REVIEWERS = ("advisor", "claude")
@@ -156,9 +157,8 @@ def sanitize_summary(summary: Mapping[str, object]) -> dict[str, object]:
             if type(judge) is str and judge.startswith(_JUDGE_PREFIX)
         },
         "diagnostic_proxies": {
-            proxy: _public_proxy_metrics(metrics)
-            for proxy, metrics in sorted(diagnostics.items())
-            if type(proxy) is str
+            reason: _public_proxy_metrics(diagnostics[reason])
+            for reason in DIAGNOSTIC_REASONS
         },
     }
 
@@ -232,6 +232,15 @@ def _validate_cases(cases: Sequence[CandidateCase]) -> list[CandidateCase]:
         raise ValueError("cases must contain CandidateCase values")
     if len({case.response_id for case in cases}) != len(cases):
         raise ValueError("case response IDs must be unique")
+    reasons = [case.selection_reason for case in cases]
+    if (
+        len(reasons) != len(DIAGNOSTIC_REASONS)
+        or len(set(reasons)) != len(reasons)
+        or set(reasons) != set(DIAGNOSTIC_REASONS)
+    ):
+        raise ValueError(
+            "cases must contain each frozen Task 2 diagnostic reasons exactly once"
+        )
     return list(cases)
 
 
@@ -398,7 +407,7 @@ def _diagnostic_rollups(
     consensus: Mapping[str, str | None],
 ) -> dict[str, object]:
     result: dict[str, object] = {}
-    for proxy in sorted({case.selection_reason for case in cases}):
+    for proxy in DIAGNOSTIC_REASONS:
         case_ids = [
             case.response_id for case in cases if case.selection_reason == proxy
         ]

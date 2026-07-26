@@ -75,3 +75,18 @@ The reporting CLI expects the Task 2/3/5 private layout:
 directory and mode-0600 inputs, but does not add new external hash arguments;
 the run/reviewer validators still fail closed on content-identity and schema
 drift before reporting.
+
+## P1 redaction follow-up
+
+The diagnostic-proxy boundary now imports the frozen ten Task 2
+`DIAGNOSTIC_REASONS`. Summary construction rejects unknown, missing, and
+duplicate selection reasons before validating run records or building any
+output. Public sanitization iterates only that frozen allowlist, so even an
+arbitrary extra key injected into an otherwise valid private summary cannot be
+serialized. The regression uses `candidate answer: PRIVATE SECRET` as the
+hostile selection reason and verifies that the public JSON does not contain the
+secret.
+
+Focused P1 verification passed: `50 passed` across Task 6 reporting, Task 2
+sampling, and Task 5 review tests; focused Ruff lint, format, and
+`git diff --check` also passed.

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import hashlib
 import json
 from pathlib import Path
+
+import pytest
 
 from scripts.build_pointwise_judge_smoke_report import main
 from trec_mlm.pointwise_judge import CandidateCase
@@ -13,27 +15,20 @@ from trec_mlm.pointwise_report import (
     sanitize_summary,
 )
 from trec_mlm.pointwise_runner import FROZEN_DECISION_SCHEMA_SHA256
+from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
 
 CASES = [
     CandidateCase(
-        question_id="q-private-1",
-        response_id="r-private-1",
-        question="Who wrote the private play?",
-        reference_answer="Private reference answer.",
-        candidate_answer="Private candidate answer.",
-        strata=("high_overlap_control",),
-        selection_reason="high_overlap_control",
-    ),
-    CandidateCase(
-        question_id="q-private-2",
-        response_id="r-private-2",
-        question="What private temperature applies?",
-        reference_answer="Private reference temperature.",
-        candidate_answer="Private candidate temperature.",
-        strata=("number_or_date_mismatch_proxy",),
-        selection_reason="number_or_date_mismatch_proxy",
-    ),
+        question_id=f"q-private-{index}",
+        response_id=f"r-private-{index}",
+        question=f"Private question {index}?",
+        reference_answer=f"Private reference answer {index}.",
+        candidate_answer=f"Private candidate answer {index}.",
+        strata=(reason,),
+        selection_reason=reason,
+    )
+    for index, reason in enumerate(DIAGNOSTIC_REASONS, start=1)
 ]
 
 
@@ -189,14 +184,20 @@ def _inputs() -> dict[str, object]:
             "local-secret-a": _run(
                 "local-secret-a",
                 "org/private-secret-a",
-                [_decision("good"), _decision("partial")],
+                [_decision("good") for _ in CASES],
             ),
             "local-secret-b": _run(
-                "local-secret-b", "org/private-secret-b", [_decision("incorrect"), None]
+                "local-secret-b",
+                "org/private-secret-b",
+                [
+                    _decision("incorrect"),
+                    *[_decision("good") for _ in CASES[1:-1]],
+                    None,
+                ],
             ),
         },
-        "advisor_review": _review("advisor", ["good", "partial"]),
-        "claude_review": _review("claude", ["good", "partial"]),
+        "advisor_review": _review("advisor", ["good" for _ in CASES]),
+        "claude_review": _review("claude", ["good" for _ in CASES]),
         "sealed_judge_aliases": {
             "judge_a": "local-secret-a",
             "judge_b": "local-secret-b",
@@ -221,9 +222,9 @@ def test_summary_reports_schema_failures_false_confidence_and_consensus_only() -
     judge_a = summary["judges"]["judge_a"]
     judge_b = summary["judges"]["judge_b"]
     assert judge_a["schema_success"] == 1.0
-    assert judge_a["repair_rate"] == 0.5
-    assert judge_b["schema_success"] == 0.5
-    assert judge_b["failure_rate"] == 0.5
+    assert judge_a["repair_rate"] == 0.1
+    assert judge_b["schema_success"] == 0.9
+    assert judge_b["failure_rate"] == 0.1
     assert judge_b["false_confident_errors"] == 1
     assert judge_a["model_reviewer_consensus_exact_agreement"] == 1.0
     assert summary["reviewers"]["pass2_disagreement_count"] == 0
@@ -250,15 +251,52 @@ def test_sanitized_summary_is_a_whitelist_without_private_text_or_identities() -
         "path",
     ]:
         assert secret not in text.casefold()
-    assert sanitized["case_count"] == 2
+    assert sanitized["case_count"] == 10
     assert set(sanitized["judges"]) == {"judge_a", "judge_b"}
+
+
+def test_unknown_diagnostic_reason_cannot_become_a_public_key() -> None:
+    inputs = _inputs()
+    secret = "candidate answer: PRIVATE SECRET"
+    inputs["cases"] = [replace(CASES[0], selection_reason=secret), *CASES[1:]]
+
+    with pytest.raises(ValueError, match="diagnostic reasons"):
+        build_smoke_summary(**inputs)
+
+    summary = build_smoke_summary(**_inputs())
+    summary["diagnostic_proxies"][secret] = summary["diagnostic_proxies"][
+        DIAGNOSTIC_REASONS[0]
+    ]
+    public = json.dumps(sanitize_summary(summary))
+    assert "PRIVATE SECRET" not in public
+    assert set(sanitize_summary(summary)["diagnostic_proxies"]) == set(
+        DIAGNOSTIC_REASONS
+    )
+
+
+@pytest.mark.parametrize(
+    "cases",
+    [
+        CASES[:-1],
+        [*CASES[:-1], replace(CASES[-1], selection_reason=DIAGNOSTIC_REASONS[0])],
+    ],
+    ids=["missing", "duplicate"],
+)
+def test_summary_requires_each_frozen_diagnostic_reason_once(
+    cases: list[CandidateCase],
+) -> None:
+    inputs = _inputs()
+    inputs["cases"] = cases
+
+    with pytest.raises(ValueError, match="diagnostic reasons exactly once"):
+        build_smoke_summary(**inputs)
 
 
 def test_private_report_contains_case_data_and_both_reviewer_passes() -> None:
     report = render_private_report(build_smoke_summary(**_inputs()))
 
-    assert "Who wrote the private play?" in report
-    assert "Private candidate answer." in report
+    assert "Private question 1?" in report
+    assert "Private candidate answer 1." in report
     assert "Advisor pass 1" in report
     assert "Claude pass 2" in report
     assert "judge_a" in report
@@ -303,7 +341,9 @@ def test_report_cli_writes_private_and_sanitized_outputs_from_fabricated_artifac
     assert (artifact_dir / "smoke-review.md").exists()
     assert (artifact_dir / "smoke-summary.json").exists()
     assert output.exists()
-    assert "Private candidate answer." in (artifact_dir / "smoke-review.md").read_text()
+    assert (
+        "Private candidate answer 1." in (artifact_dir / "smoke-review.md").read_text()
+    )
     public = output.read_text()
-    assert "Private candidate answer." not in public
+    assert "Private candidate answer 1." not in public
     assert "local-secret-a" not in public

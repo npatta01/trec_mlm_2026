@@ -227,6 +227,13 @@ def _load_cases(manifest: dict[str, Any]) -> list[CandidateCase]:
         raise ValueError("pointwise manifest cases do not match frozen reason order")
     if version == 2:
         by_response_id = {case.response_id: case for case in cases}
+        canonical_reused_ids = [
+            cases[index].response_id for index in range(0, len(cases), cases_per_reason)
+        ]
+        if manifest["reused_smoke_response_ids"] != canonical_reused_ids:
+            raise ValueError(
+                "reused smoke response IDs do not match canonical reserved positions"
+            )
         try:
             reused_reasons = [
                 by_response_id[response_id].selection_reason

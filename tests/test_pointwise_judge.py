@@ -52,6 +52,24 @@ def test_render_messages_keeps_reference_provisional() -> None:
     assert "CANDIDATE RESPONSE" in content
 
 
+def test_render_messages_hides_diagnostic_selection_metadata() -> None:
+    case = CandidateCase(
+        question_id="q2",
+        response_id="r2",
+        question="Question?",
+        reference_answer="Reference.",
+        candidate_answer="Candidate.",
+        strata=("low_overlap_error_proxy", "entity_mismatch_proxy"),
+        selection_reason="entity_mismatch_proxy",
+    )
+    content = render_judge_messages(case, CONTRACT)[-1]["content"]
+
+    assert "DIAGNOSTIC STRATA" not in content
+    assert "SELECTION REASON" not in content
+    assert "low_overlap_error_proxy" not in content
+    assert "entity_mismatch_proxy" not in content
+
+
 def test_load_prompt_contract_loads_frozen_prompt_and_schema() -> None:
     assert CONTRACT.prompt_path == PROTOCOL_DIR / "pointwise-v1.txt"
     assert CONTRACT.schema_path == PROTOCOL_DIR / "decision-v1.schema.json"

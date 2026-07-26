@@ -104,9 +104,7 @@ def render_judge_messages(
                 f"QUESTION:\n{case.question}\n\n"
                 "PROVISIONAL REFERENCE (may be incomplete or wrong):\n"
                 f"{case.reference_answer}\n\n"
-                f"CANDIDATE RESPONSE:\n{case.candidate_answer}\n\n"
-                f"DIAGNOSTIC STRATA: {', '.join(case.strata)}\n"
-                f"SELECTION REASON: {case.selection_reason}"
+                f"CANDIDATE RESPONSE:\n{case.candidate_answer}"
             ),
         },
     ]

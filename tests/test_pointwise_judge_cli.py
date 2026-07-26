@@ -1059,11 +1059,20 @@ def _run_valid_preflight(
             str(entry["model_id"]),
             "--revision",
             str(entry["checkpoint"]["revision"]),
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
             "--max-model-len",
             "4096",
             "--max-num-seqs",
             "1",
+            "--gpu-memory-utilization",
+            "0.85",
         ]
+        if alias == "qwen36-27b-fp8":
+            argv.extend(["--limit-mm-per-prompt", '{"image":0,"video":0}'])
+        argv.append("--enforce-eager")
     else:
         argv = [
             "llama-server",
@@ -1246,13 +1255,59 @@ def test_runtime_argv_configuration_rejects_duplicate_or_ambiguous_flags(
         preflight_cli._configuration_from_argv(argv, runtime)
 
 
-def test_vllm_argv_binds_exact_model_and_revision_in_equals_form() -> None:
+@pytest.mark.parametrize(
+    ("model_id", "revision", "argv"),
+    [
+        (
+            "Qwen/Qwen3.6-27B-FP8",
+            "e89b16ebf1988b3d6befa7de50abc2d76f26eb09",
+            [
+                "vllm",
+                "serve",
+                "Qwen/Qwen3.6-27B-FP8",
+                "--revision=e89b16ebf1988b3d6befa7de50abc2d76f26eb09",
+                "--host=0.0.0.0",
+                "--port=8000",
+                "--max-model-len=4096",
+                "--max-num-seqs=1",
+                "--gpu-memory-utilization=0.85",
+                '--limit-mm-per-prompt={"image":0,"video":0}',
+                "--enforce-eager",
+            ],
+        ),
+        (
+            "openai/gpt-oss-20b",
+            "6cee5e81ee83917806bbde320786a8fb61efebee",
+            [
+                "vllm",
+                "serve",
+                "openai/gpt-oss-20b",
+                "--revision",
+                "6cee5e81ee83917806bbde320786a8fb61efebee",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--max-model-len",
+                "4096",
+                "--max-num-seqs",
+                "1",
+                "--gpu-memory-utilization",
+                "0.85",
+                "--enforce-eager",
+            ],
+        ),
+    ],
+)
+def test_vllm_argv_accepts_exact_task9_grammar(
+    model_id: str, revision: str, argv: list[str]
+) -> None:
     preflight_cli._validate_model_argv(
-        ["vllm", "serve", "model-a", "--revision=revision-a"],
+        argv,
         runtime="vllm-rocm",
-        model_id="model-a",
-        checkpoint_path="/cache/snapshots/revision-a",
-        checkpoint_revision="revision-a",
+        model_id=model_id,
+        checkpoint_path=f"/cache/snapshots/{revision}",
+        checkpoint_revision=revision,
     )
 
 
@@ -1276,7 +1331,7 @@ def test_vllm_argv_binds_exact_model_and_revision_in_equals_form() -> None:
 def test_vllm_argv_rejects_missing_wrong_duplicate_revision_or_competing_model(
     argv: list[str],
 ) -> None:
-    with pytest.raises(ValueError, match="revision|model"):
+    with pytest.raises(ValueError, match="revision|model|option"):
         preflight_cli._validate_model_argv(
             argv,
             runtime="vllm-rocm",
@@ -1284,6 +1339,89 @@ def test_vllm_argv_rejects_missing_wrong_duplicate_revision_or_competing_model(
             checkpoint_path="/cache/snapshots/revision-a",
             checkpoint_revision="revision-a",
         )
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--mod=other"],
+        ["--model-p=other"],
+        ["-mother"],
+        ["--max-model-l=2048"],
+        ["--gpu-memory=0.20"],
+        ["--served-model-name=other"],
+        ["--host=0.0.0.0"],
+        ["--enforce-eager"],
+    ],
+)
+def test_vllm_argv_rejects_unknown_prefix_attached_alias_and_duplicate_options(
+    extra: list[str],
+) -> None:
+    argv = [
+        "vllm",
+        "serve",
+        "model-a",
+        "--revision=revision-a",
+        "--host=0.0.0.0",
+        "--port=8000",
+        "--max-model-len=4096",
+        "--max-num-seqs=1",
+        "--gpu-memory-utilization=0.85",
+        "--enforce-eager",
+        *extra,
+    ]
+    with pytest.raises(ValueError, match="argv|option|model"):
+        preflight_cli._validate_model_argv(
+            argv,
+            runtime="vllm-rocm",
+            model_id="model-a",
+            checkpoint_path="/cache/snapshots/revision-a",
+            checkpoint_revision="revision-a",
+        )
+
+
+@pytest.mark.parametrize(
+    "alias", ["--mod=other", "--model-p=other", "-mother", "-m=other"]
+)
+def test_llama_argv_rejects_abbreviated_or_attached_model_alias(alias: str) -> None:
+    with pytest.raises(ValueError, match="model|argv"):
+        preflight_cli._validate_model_argv(
+            [
+                "llama-server",
+                "--model=/models/frozen.gguf",
+                "--ctx-size=4096",
+                "--parallel=1",
+                alias,
+            ],
+            runtime="lemonade-llamacpp-rocm",
+            model_id="model-a",
+            checkpoint_path="/models/frozen.gguf",
+            checkpoint_revision=None,
+        )
+
+
+def test_llama_argv_accepts_exact_task9_short_model_flag() -> None:
+    preflight_cli._validate_model_argv(
+        [
+            "llama-server",
+            "-m",
+            "/models/frozen.gguf",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
+            "--ctx-size",
+            "4096",
+            "--parallel",
+            "1",
+            "--n-gpu-layers",
+            "999",
+        ],
+        runtime="lemonade-llamacpp-rocm-custom",
+        model_id="model-a",
+        checkpoint_path="/models/frozen.gguf",
+        checkpoint_revision=None,
+    )
 
 
 def test_preflight_host_thresholds_accept_exact_plan_boundaries() -> None:

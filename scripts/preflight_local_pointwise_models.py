@@ -956,13 +956,105 @@ def _validate_model_argv(
             raise ValueError("vLLM argv does not bind the selected model")
         if type(checkpoint_revision) is not str or not checkpoint_revision:
             raise ValueError("vLLM registry checkpoint revision is invalid")
-        if _single_string_flag(argv, "--revision") != checkpoint_revision:
+        options = _strict_vllm_task9_options(argv, serve_indexes[0] + 2)
+        if options["--revision"] != checkpoint_revision:
             raise ValueError("vLLM argv does not bind the selected revision")
-        if any(_has_flag(argv, name) for name in ("--model", "--model-path", "-m")):
-            raise ValueError("vLLM argv contains a competing model or path flag")
         return
-    if _single_string_flag(argv, "--model") != checkpoint_path:
+    if _single_llama_model_flag(argv) != checkpoint_path:
         raise ValueError("llama.cpp argv does not bind the observed checkpoint")
+
+
+_VLLM_TASK9_VALUE_OPTIONS = frozenset(
+    {
+        "--revision",
+        "--host",
+        "--port",
+        "--max-model-len",
+        "--max-num-seqs",
+        "--gpu-memory-utilization",
+        "--limit-mm-per-prompt",
+    }
+)
+_VLLM_TASK9_REQUIRED_OPTIONS = _VLLM_TASK9_VALUE_OPTIONS - {"--limit-mm-per-prompt"}
+
+
+def _strict_vllm_task9_options(argv: list[str], options_start: int) -> dict[str, str]:
+    if any(item.startswith("-") for item in argv[: options_start - 2]):
+        raise ValueError("vLLM argv contains an option before the serve command")
+    values: dict[str, str] = {}
+    enforce_eager = False
+    index = options_start
+    while index < len(argv):
+        token = argv[index]
+        if token == "--enforce-eager":
+            if enforce_eager:
+                raise ValueError("duplicate vLLM argv option --enforce-eager")
+            enforce_eager = True
+            index += 1
+            continue
+        if not token.startswith("--"):
+            raise ValueError(f"unknown vLLM argv option: {token}")
+        if "=" in token:
+            name, value = token.split("=", 1)
+            index += 1
+        else:
+            name = token
+            if index + 1 >= len(argv):
+                raise ValueError(f"vLLM argv option {name} has no value")
+            value = argv[index + 1]
+            index += 2
+        if name not in _VLLM_TASK9_VALUE_OPTIONS:
+            raise ValueError(f"unknown vLLM argv option: {name}")
+        if name in values:
+            raise ValueError(f"duplicate vLLM argv option: {name}")
+        if not value:
+            raise ValueError(f"vLLM argv option {name} has an empty value")
+        values[name] = value
+    missing = _VLLM_TASK9_REQUIRED_OPTIONS - values.keys()
+    if "--revision" in missing:
+        raise ValueError("vLLM argv is missing the pinned revision option")
+    if missing or not enforce_eager:
+        raise ValueError("vLLM argv does not match the required Task 9 option set")
+    exact = {
+        "--host": "0.0.0.0",
+        "--port": "8000",
+        "--max-model-len": "4096",
+        "--max-num-seqs": "1",
+        "--gpu-memory-utilization": "0.85",
+    }
+    if any(values[name] != expected for name, expected in exact.items()):
+        raise ValueError("vLLM argv does not match the frozen Task 9 option values")
+    limit = values.get("--limit-mm-per-prompt")
+    if limit is not None and limit != '{"image":0,"video":0}':
+        raise ValueError("vLLM argv multimodal limit is not the frozen Task 9 value")
+    return values
+
+
+def _single_llama_model_flag(argv: list[str]) -> str:
+    if "--" in argv:
+        raise ValueError("runtime argv option terminator is forbidden")
+    values: list[str] = []
+    for index, token in enumerate(argv):
+        if token in {"--model", "-m"}:
+            if index + 1 >= len(argv):
+                raise ValueError("llama.cpp model option has no value")
+            values.append(argv[index + 1])
+        elif token.startswith("--model="):
+            values.append(token[len("--model=") :])
+        elif _is_llama_model_alias_trick(token):
+            raise ValueError("llama.cpp argv contains an ambiguous model option")
+    if len(values) != 1 or not values[0]:
+        raise ValueError("llama.cpp argv must contain exactly one model option")
+    return values[0]
+
+
+def _is_llama_model_alias_trick(token: str) -> bool:
+    name = token.split("=", 1)[0]
+    long_alias = name.startswith("--") and (
+        "--model".startswith(name) or name.startswith("--model")
+    )
+    attached_short = token.startswith("-m") and token != "-m"
+    return long_alias or attached_short
 
 
 def _single_integer_flag(argv: list[str], name: str) -> int:
@@ -986,10 +1078,6 @@ def _single_string_flag(argv: list[str], name: str) -> str:
     if len(values) != 1 or not values[0]:
         raise ValueError(f"runtime argv must contain exactly one {name}")
     return values[0]
-
-
-def _has_flag(argv: list[str], name: str) -> bool:
-    return any(item == name or item.startswith(f"{name}=") for item in argv)
 
 
 def _json_values_equal(left: object, right: object) -> bool:

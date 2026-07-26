@@ -8,6 +8,7 @@ import pytest
 
 import scripts.build_pointwise_judge_smoke as smoke_cli
 from scripts.build_pointwise_judge_smoke import main
+import scripts.preflight_local_pointwise_models as preflight_cli
 import scripts.run_local_pointwise_judge as runner_cli
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
@@ -918,3 +919,281 @@ def test_runner_cli_rejects_duplicate_input_keys_before_server_call(
 
     with pytest.raises(ValueError, match="duplicate JSON key"):
         runner_cli.main(args)
+
+
+class _FabricatedPreflightDependencies:
+    def __init__(self, *, entry: dict[str, object], model_id: str) -> None:
+        checkpoint = entry["checkpoint"]
+        assert isinstance(checkpoint, dict)
+        self.commands = {
+            ("lemonade", "--version"): "lemonade version 11.5.0\n",
+            ("rocminfo",): "Name: gfx1151\n",
+        }
+        self.files = {
+            Path("/fabricated/server_models.json"): b'{"registry":"fixture"}',
+            Path("/fabricated/backend_versions.json"): json.dumps(
+                {
+                    "llamacpp": {"rocm-stable": "b9752"},
+                    "vllm": {"rocm": "vllm0.20.1-rocm7.12.0"},
+                }
+            ).encode(),
+        }
+        self.checkpoint = {
+            "path": f"/fabricated/{checkpoint['gguf_filename'] or checkpoint['revision']}",
+            "revision": checkpoint["revision"] or "not-applicable",
+            "size_bytes": checkpoint["expected_bytes"],
+            "sha256": checkpoint["sha256"],
+        }
+        self.visible_memory_bytes = int(checkpoint["expected_bytes"]) + 9 * 1024**3
+        self.free_disk_bytes = 9 * 1024**3
+        self.endpoint_model = model_id
+        self.canary_raw = json.dumps(_valid_decision())
+        self.canary_success = True
+        self.configuration = {
+            "context_tokens": 4096,
+            "temperature": 0,
+            "max_output_tokens": 384,
+            "max_concurrency": 1,
+        }
+
+    def run_command(self, argv: tuple[str, ...]) -> str:
+        return self.commands[argv]
+
+    def read_bytes(self, path: Path) -> bytes:
+        return self.files[path]
+
+    def inspect_checkpoint(
+        self, path: Path, checkpoint: dict[str, object]
+    ) -> dict[str, object]:
+        return dict(self.checkpoint)
+
+    def available_memory_bytes(self) -> int:
+        return self.visible_memory_bytes
+
+    def available_disk_bytes(self, path: Path) -> int:
+        return self.free_disk_bytes
+
+    def runtime_configuration(self) -> dict[str, object]:
+        return dict(self.configuration)
+
+    def request_json(
+        self, method: str, url: str, payload: object | None
+    ) -> dict[str, object]:
+        if method == "GET":
+            return {"object": "list", "data": [{"id": self.endpoint_model}]}
+        if not self.canary_success:
+            return {"model": self.endpoint_model, "choices": [], "usage": {}}
+        return {
+            "model": self.endpoint_model,
+            "choices": [{"message": {"content": self.canary_raw}}],
+            "usage": {"total_tokens": 20},
+        }
+
+
+def _preflight_source_pins(
+    dependencies: _FabricatedPreflightDependencies,
+) -> preflight_cli.SourcePins:
+    return preflight_cli.SourcePins(
+        lemonade_models_path=Path("/fabricated/server_models.json"),
+        lemonade_models_sha256=hashlib.sha256(
+            dependencies.files[Path("/fabricated/server_models.json")]
+        ).hexdigest(),
+        backend_versions_path=Path("/fabricated/backend_versions.json"),
+        backend_versions_sha256=hashlib.sha256(
+            dependencies.files[Path("/fabricated/backend_versions.json")]
+        ).hexdigest(),
+        lemonade_version="11.5.0",
+        llamacpp_backend_version="b9752",
+        vllm_backend_version="vllm0.20.1-rocm7.12.0",
+    )
+
+
+def _run_valid_preflight(
+    *,
+    alias: str = "qwen36-35b-a3b-gguf",
+    mutate: object | None = None,
+    download_occurred: bool = False,
+) -> dict[str, object]:
+    registry = _valid_registry()
+    entry = registry["models"][alias]
+    assert isinstance(entry, dict)
+    dependencies = _FabricatedPreflightDependencies(
+        entry=entry, model_id=str(entry["model_id"])
+    )
+    source_pins = _preflight_source_pins(dependencies)
+    if mutate is not None:
+        assert callable(mutate)
+        mutate(registry, dependencies)
+    return preflight_cli.run_preflight(
+        registry,
+        model_alias=alias,
+        base_url="http://127.0.0.1:13305/v1",
+        registry_sha256="a" * 64,
+        checkpoint_path=Path("/fabricated/checkpoint"),
+        dependencies=dependencies,
+        source_pins=source_pins,
+        download_occurred=download_occurred,
+        startup_seconds=2.5,
+    )
+
+
+def test_preflight_registry_contains_exact_approved_local_pool() -> None:
+    registry = preflight_cli.load_registry(
+        Path("protocols/pointwise_judge_bakeoff/local-models-v1.json")
+    )
+    assert set(registry["models"]) == {
+        "qwen36-35b-a3b-gguf",
+        "qwen36-27b-fp8",
+        "gpt-oss-20b",
+        "gemma4-31b-q4",
+    }
+
+
+def test_preflight_builds_task3_accepted_self_hashed_receipt() -> None:
+    receipt = _run_valid_preflight()
+    assert receipt["passed"] is True
+    body = dict(receipt)
+    stored_hash = body.pop("receipt_sha256")
+    assert stored_hash == _canonical_hash(body)
+    selected = _valid_registry()["models"]["qwen36-35b-a3b-gguf"]
+    runner_cli.validate_runtime_receipt(
+        receipt,
+        model_alias="qwen36-35b-a3b-gguf",
+        model_id="Qwen3.6-35B-A3B-GGUF",
+        endpoint="http://127.0.0.1:13305/v1",
+        registry_sha256="a" * 64,
+        registry_entry=selected,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda registry, deps: setattr(deps, "endpoint_model", "wrong-model"),
+        lambda registry, deps: deps.checkpoint.__setitem__("size_bytes", 1),
+        lambda registry, deps: deps.checkpoint.__setitem__("sha256", "0" * 64),
+        lambda registry, deps: deps.checkpoint.__setitem__(
+            "path", "/fabricated/wrong.gguf"
+        ),
+        lambda registry, deps: deps.commands.__setitem__(
+            ("rocminfo",), "Name: gfx1100\n"
+        ),
+        lambda registry, deps: setattr(deps, "visible_memory_bytes", 1),
+        lambda registry, deps: setattr(deps, "free_disk_bytes", 1),
+        lambda registry, deps: deps.commands.__setitem__(
+            ("lemonade", "--version"), "lemonade version 11.4.0\n"
+        ),
+        lambda registry, deps: setattr(deps, "canary_raw", "not-json"),
+        lambda registry, deps: setattr(deps, "canary_success", False),
+        lambda registry, deps: setattr(
+            deps,
+            "canary_raw",
+            json.dumps({**_valid_decision(), "unexpected": True}),
+        ),
+        lambda registry, deps: registry["models"]["qwen36-35b-a3b-gguf"][
+            "configuration"
+        ].__setitem__("context_tokens", 2048),
+        lambda registry, deps: deps.configuration.__setitem__("max_output_tokens", 385),
+    ],
+)
+def test_preflight_fails_closed_on_runtime_drift(mutate: object) -> None:
+    assert _run_valid_preflight(mutate=mutate)["passed"] is False
+
+
+def test_preflight_fails_closed_on_non_loopback_endpoint() -> None:
+    registry = _valid_registry()
+    entry = registry["models"]["qwen36-35b-a3b-gguf"]
+    dependencies = _FabricatedPreflightDependencies(
+        entry=entry, model_id=str(entry["model_id"])
+    )
+    result = preflight_cli.run_preflight(
+        registry,
+        model_alias="qwen36-35b-a3b-gguf",
+        base_url="http://0.0.0.0:13305/v1",
+        registry_sha256="a" * 64,
+        checkpoint_path=Path("/fabricated/checkpoint"),
+        dependencies=dependencies,
+        source_pins=_preflight_source_pins(dependencies),
+        download_occurred=False,
+        startup_seconds=2.5,
+    )
+    assert result["passed"] is False
+
+
+def test_preflight_fails_closed_on_checkpoint_revision_drift() -> None:
+    assert (
+        _run_valid_preflight(
+            alias="qwen36-27b-fp8",
+            mutate=lambda registry, deps: deps.checkpoint.__setitem__(
+                "revision", "drift"
+            ),
+        )["passed"]
+        is False
+    )
+
+
+def test_preflight_fails_closed_on_wrong_backend_version() -> None:
+    registry = _valid_registry()
+    entry = registry["models"]["qwen36-35b-a3b-gguf"]
+    dependencies = _FabricatedPreflightDependencies(
+        entry=entry, model_id=str(entry["model_id"])
+    )
+    pins = _preflight_source_pins(dependencies)
+    pins = preflight_cli.SourcePins(
+        lemonade_models_path=pins.lemonade_models_path,
+        lemonade_models_sha256=pins.lemonade_models_sha256,
+        backend_versions_path=pins.backend_versions_path,
+        backend_versions_sha256=pins.backend_versions_sha256,
+        lemonade_version=pins.lemonade_version,
+        llamacpp_backend_version="wrong",
+        vllm_backend_version=pins.vllm_backend_version,
+    )
+    assert (
+        preflight_cli.run_preflight(
+            registry,
+            model_alias="qwen36-35b-a3b-gguf",
+            base_url="http://127.0.0.1:13305/v1",
+            registry_sha256="a" * 64,
+            checkpoint_path=Path("/fabricated/checkpoint"),
+            dependencies=dependencies,
+            source_pins=pins,
+            download_occurred=False,
+            startup_seconds=2.5,
+        )["passed"]
+        is False
+    )
+
+
+def test_preflight_fails_closed_on_source_file_drift() -> None:
+    def mutate(registry: object, dependencies: object) -> None:
+        dependencies.files[Path("/fabricated/server_models.json")] += b"drift"
+
+    assert _run_valid_preflight(mutate=mutate)["passed"] is False
+
+
+def test_preflight_rejects_download_for_unauthorized_model() -> None:
+    assert (
+        _run_valid_preflight(alias="gpt-oss-20b", download_occurred=True)["passed"]
+        is False
+    )
+
+
+def test_preflight_writes_private_receipt_atomically(tmp_path: Path) -> None:
+    receipt = _run_valid_preflight()
+    output = tmp_path / "private" / "runtime.json"
+    preflight_cli.write_runtime_receipt(output, receipt)
+    assert stat.S_IMODE(output.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    assert json.loads(output.read_text()) == receipt
+    assert not list(output.parent.glob("*.tmp"))
+
+
+def test_hf_tree_commitment_sorts_paths_and_binds_sizes_and_hashes() -> None:
+    files = [
+        {"path": "weights/b.bin", "size_bytes": 2, "sha256": "b" * 64},
+        {"path": "a.json", "size_bytes": 1, "sha256": "a" * 64},
+    ]
+    assert preflight_cli.checkpoint_tree_commitment(files) == (
+        3,
+        "1f4f651d6567761316a1846c6edd6b67c5f7d2f4e640c4eb3da4ca59712727cf",
+    )

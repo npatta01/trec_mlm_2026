@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "models": {
+    "qwen36-35b-a3b-gguf": {
+      "model_id": "Qwen3.6-35B-A3B-GGUF",
+      "runtime": "lemonade-llamacpp-rocm",
+      "new_download_authorized": true,
+      "checkpoint": {
+        "revision": null,
+        "gguf_filename": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+        "expected_bytes": 22360456160,
+        "sha256": "707a55a8a4397ecde44de0c499d3e68c1ad1d240d1da65826b4949d1043f4450"
+      },
+      "configuration": {
+        "context_tokens": 4096,
+        "temperature": 0,
+        "max_output_tokens": 384,
+        "max_concurrency": 1
+      }
+    },
+    "qwen36-27b-fp8": {
+      "model_id": "Qwen/Qwen3.6-27B-FP8",
+      "runtime": "vllm-rocm",
+      "new_download_authorized": false,
+      "checkpoint": {
+        "revision": "e89b16ebf1988b3d6befa7de50abc2d76f26eb09",
+        "gguf_filename": null,
+        "expected_bytes": 30890040900,
+        "sha256": "ae0af1f6c52be45fc3abcd3ac838117d451037b2434b139e4f3fe848b7d3cce9"
+      },
+      "configuration": {
+        "context_tokens": 4096,
+        "temperature": 0,
+        "max_output_tokens": 384,
+        "max_concurrency": 1
+      }
+    },
+    "gpt-oss-20b": {
+      "model_id": "openai/gpt-oss-20b",
+      "runtime": "vllm-rocm",
+      "new_download_authorized": false,
+      "checkpoint": {
+        "revision": "6cee5e81ee83917806bbde320786a8fb61efebee",
+        "gguf_filename": null,
+        "expected_bytes": 27550545436,
+        "sha256": "1a7f6a6e2d0e6b82ede2dde15e6154fe8e1442a7a8a42fcacb9f2596509162fa"
+      },
+      "configuration": {
+        "context_tokens": 4096,
+        "temperature": 0,
+        "max_output_tokens": 384,
+        "max_concurrency": 1
+      }
+    },
+    "gemma4-31b-q4": {
+      "model_id": "google/gemma-4-31B-it-qat-q4_0-gguf",
+      "runtime": "lemonade-llamacpp-rocm-custom",
+      "new_download_authorized": false,
+      "checkpoint": {
+        "revision": null,
+        "gguf_filename": "gemma-4-31B_q4_0-it.gguf",
+        "expected_bytes": 17651001568,
+        "sha256": "179cfb99212709597eae5929112cfca677e1bbf566178b479ae1da0c4772874b"
+      },
+      "configuration": {
+        "context_tokens": 4096,
+        "temperature": 0,
+        "max_output_tokens": 384,
+        "max_concurrency": 1
+      }
+    }
+  }
+}

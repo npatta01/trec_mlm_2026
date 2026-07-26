@@ -36,6 +36,7 @@ _REVIEW_ROW_KEYS = DECISION_KEYS | {
 }
 _MAX_FINDINGS = 16
 _MAX_FINDING_WORDS = 120
+_MIN_OPTIONAL_IDENTITY_TOKEN_LENGTH = 4
 
 
 def build_independent_review_packet(
@@ -51,6 +52,7 @@ def build_critique_packet(
     runs: Mapping[str, Mapping[str, object]],
     *,
     seed: int = 2026,
+    forbidden_identity_tokens: Collection[str] = (),
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
     """Build pass 2 with only anonymous terminal judge outcomes."""
     validated_cases = _validate_cases(cases)
@@ -70,6 +72,7 @@ def build_critique_packet(
     model_to_judge = {model: judge for judge, model in judge_to_model.items()}
     expected_ids = {case.response_id for case in validated_cases}
     decisions: dict[str, dict[str, dict[str, object]]] = {}
+    identity_tokens = _identity_tokens(forbidden_identity_tokens)
     shared_prompt: str | None = None
     for model_alias in aliases:
         raw_run = runs[model_alias]
@@ -82,6 +85,9 @@ def build_critique_packet(
             raise ValueError(f"invalid run {model_alias}: {error}") from error
         if run["model_alias"] != model_alias:
             raise ValueError(f"run {model_alias} has conflicting model identity")
+        _add_identity_token(identity_tokens, model_alias, mandatory=True)
+        _add_identity_token(identity_tokens, run["model_alias"], mandatory=True)
+        _add_identity_token(identity_tokens, run["model_id"], mandatory=True)
         if run["schema_sha256"] != FROZEN_DECISION_SCHEMA_SHA256:
             raise ValueError(f"run {model_alias} does not use the frozen schema")
         if shared_prompt is None:
@@ -128,6 +134,9 @@ def build_critique_packet(
                     "decision": dict(record["decision"]),
                 }
             decisions[judge_alias][case.response_id] = outcome
+
+    if _contains_identity_text(decisions, identity_tokens):
+        raise ValueError("critique packet contains forbidden identity text")
 
     packet: list[dict[str, object]] = []
     for case in validated_cases:
@@ -387,6 +396,54 @@ def _letter(index: int) -> str:
     if not 0 <= index < 26:
         raise ValueError("at most 26 anonymous judges are supported")
     return chr(ord("a") + index)
+
+
+def _identity_tokens(values: Collection[str]) -> set[str]:
+    tokens: set[str] = set()
+    if isinstance(values, (str, bytes)):
+        raise ValueError("forbidden identity tokens must be a collection of strings")
+    try:
+        for value in values:
+            _add_identity_token(tokens, value, mandatory=False)
+    except TypeError as error:
+        raise ValueError(
+            "forbidden identity tokens must be a collection of strings"
+        ) from error
+    return tokens
+
+
+def _add_identity_token(tokens: set[str], value: object, *, mandatory: bool) -> None:
+    if type(value) is not str or not value.strip():
+        raise ValueError("identity tokens must be nonempty strings")
+    normalized = value.strip().casefold()
+    if mandatory or len(normalized) >= _MIN_OPTIONAL_IDENTITY_TOKEN_LENGTH:
+        tokens.add(normalized)
+    basename = normalized.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    if len(basename) >= _MIN_OPTIONAL_IDENTITY_TOKEN_LENGTH:
+        tokens.add(basename)
+
+
+def _contains_identity_text(value: object, tokens: set[str]) -> bool:
+    if type(value) is str:
+        text = value.casefold()
+        return any(_contains_exact_token(text, token) for token in tokens)
+    if type(value) is list:
+        return any(_contains_identity_text(item, tokens) for item in value)
+    if type(value) is dict:
+        return any(_contains_identity_text(item, tokens) for item in value.values())
+    return False
+
+
+def _contains_exact_token(text: str, token: str) -> bool:
+    start = 0
+    while (index := text.find(token, start)) >= 0:
+        end = index + len(token)
+        left_ok = index == 0 or not (token[0].isalnum() and text[index - 1].isalnum())
+        right_ok = end == len(text) or not (token[-1].isalnum() and text[end].isalnum())
+        if left_ok and right_ok:
+            return True
+        start = index + 1
+    return False
 
 
 def _alias_digest(seed: int, alias: str) -> bytes:

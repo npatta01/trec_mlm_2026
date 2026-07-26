@@ -30,6 +30,7 @@ def _parser() -> argparse.ArgumentParser:
     packets.add_argument("--manifest-sha256", required=True)
     packets.add_argument("--runs-dir", type=Path, required=True)
     packets.add_argument("--run-sha256", action="append", default=[], required=True)
+    packets.add_argument("--forbidden-identity", action="append", default=[])
     packets.add_argument("--output-dir", type=Path, required=True)
     packets.add_argument("--seed", type=int, default=2026)
     return parser
@@ -161,7 +162,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     cases, runs = _load_inputs(args)
     independent = build_independent_review_packet(cases)
-    critique, sealed = build_critique_packet(cases, runs, seed=args.seed)
+    critique, sealed = build_critique_packet(
+        cases,
+        runs,
+        seed=args.seed,
+        forbidden_identity_tokens=args.forbidden_identity,
+    )
 
     _private_output_dir(args.output_dir)
     _publish_private(args.output_dir / "independent-review-packet.json", independent)

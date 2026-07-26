@@ -124,3 +124,38 @@ Task 5.
   single-user private artifact generation is covered.
 - The full suite remains subject to the unrelated Quarto/Chrome sandbox
   limitations above.
+
+## P1 review fix — decision identity leakage
+
+A valid Task 1 decision could previously copy a model alias or model ID into its
+rationale, which would then pass through to the anonymous critique packet.
+
+TDD RED reproduced the leak for the run alias and exact model ID, plus
+caller-supplied runtime identity, checkpoint path/basename, and executable
+basename tokens. The initial six-case probe failed because the packet builder
+did not yet accept or scan forbidden identity tokens. A follow-up benign-text
+probe failed when naive substring matching treated `server` inside `observer`
+as an identity.
+
+GREEN now derives mandatory case-insensitive tokens from every validated input
+mapping alias, run `model_alias`, and run `model_id`, including nontrivial
+basename forms. Callers can add receipt-only runtime/backend/checkpoint
+identifiers, paths, revisions, and executable names through
+`forbidden_identity_tokens` (or repeated CLI `--forbidden-identity` options),
+because Task 3 run caches retain only the receipt hash rather than receipt
+contents. Optional/common tokens shorter than four characters are ignored,
+while full alias/model identifiers remain mandatory. Boundary-aware matching
+avoids substring false positives. Every string nested in every successful
+decision is scanned only after all runs validate and before packet construction;
+failure output remains the fixed anonymous enum. On a match the builder fails
+with one generic error and never redacts or alters the decision.
+
+Post-fix verification:
+
+```text
+Task 5: 26 passed
+Task 1–5 regression: 261 passed
+Ruff check: clean
+Ruff format --check: clean
+git diff --check: clean
+```

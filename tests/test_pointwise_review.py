@@ -263,6 +263,77 @@ def test_critique_packet_represents_terminal_failure_without_internals() -> None
         assert forbidden not in serialized
 
 
+def _replace_run_rationale(runs: dict[str, object], alias: str, rationale: str) -> None:
+    record = runs[alias]["records"]["r1"]
+    decision = {**record["decision"], "rationale": rationale}
+    raw = json.dumps(decision)
+    record["decision"] = decision
+    record["attempts"][0]["parsed"] = decision
+    record["attempts"][0]["raw"] = raw
+    record["attempts"][0]["response_body"]["choices"][0]["message"]["content"] = raw
+
+
+@pytest.mark.parametrize(
+    ("rationale", "caller_tokens"),
+    [
+        ("The org/private-alpha model gave the requested fact.", ()),
+        ("The LOCAL-ALPHA result gave the requested fact.", ()),
+        (
+            "The checkpoint-Q4_K.gguf result gave the requested fact.",
+            ("/models/checkpoint-Q4_K.gguf",),
+        ),
+        (
+            "The VLLM-ROCM runtime gave the requested fact.",
+            ("vllm-rocm",),
+        ),
+        (
+            "The server result gave the requested fact.",
+            ("/opt/private-runtime/bin/server",),
+        ),
+    ],
+)
+def test_critique_packet_rejects_identity_text_in_valid_decisions(
+    rationale: str, caller_tokens: tuple[str, ...]
+) -> None:
+    runs = json.loads(json.dumps(RUNS))
+    _replace_run_rationale(runs, "local-alpha", rationale)
+
+    with pytest.raises(ValueError, match="forbidden identity text") as error:
+        build_critique_packet(
+            CASES,
+            runs,
+            seed=2026,
+            forbidden_identity_tokens=caller_tokens,
+        )
+
+    assert "local-alpha" not in str(error.value).casefold()
+    assert "private-alpha" not in str(error.value).casefold()
+    assert "vllm" not in str(error.value).casefold()
+    assert "checkpoint" not in str(error.value).casefold()
+
+
+def test_critique_packet_allows_benign_rationale_with_generic_words() -> None:
+    runs = json.loads(json.dumps(RUNS))
+    _replace_run_rationale(
+        runs,
+        "local-alpha",
+        "An observer's local assessment uses a private source and gives the right fact.",
+    )
+
+    packet, _ = build_critique_packet(
+        CASES,
+        runs,
+        seed=2026,
+        forbidden_identity_tokens=(
+            "/models/checkpoint-Q4_K.gguf",
+            "vllm-rocm",
+            "/opt/private-runtime/bin/server",
+        ),
+    )
+
+    assert packet[0]["judges"]
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

@@ -10,6 +10,7 @@ from trec_mlm.pointwise_sampling import (
     CandidateResponse,
     GroundedReference,
     iter_discovery_responses,
+    load_discovery_questions,
     load_grounded_references,
     select_diagnostic_cases,
 )
@@ -274,6 +275,123 @@ def test_discovery_loader_rejects_duplicate_response_keys(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="duplicate discovery response ID"):
         list(iter_discovery_responses(path))
+
+
+def test_discovery_loader_rejects_escaped_equivalent_question_keys(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "discovery.json"
+    path.write_text(
+        """{
+  "q1": {
+    "query": "First question?",
+    "responses": {
+      "candidate-a": "First answer."
+    }
+  },
+  "\\u00711": {
+    "query": "Duplicate decoded question?",
+    "responses": {
+      "candidate-b": "Second answer."
+    }
+  }
+}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate discovery question ID: q1"):
+        load_discovery_questions(path)
+
+
+@pytest.mark.parametrize(
+    ("name", "corrupt"),
+    [
+        (
+            "missing_response_comma",
+            lambda text: text.replace(
+                '      "candidate-a": "First answer.",',
+                '      "candidate-a": "First answer."',
+            ),
+        ),
+        (
+            "extra_response_comma",
+            lambda text: text.replace(
+                '      "candidate-b": "Second answer."',
+                '      "candidate-b": "Second answer.",',
+            ),
+        ),
+        (
+            "missing_question_comma",
+            lambda text: text.replace('  },\n  "q2"', '  }\n  "q2"'),
+        ),
+        (
+            "extra_final_question_comma",
+            lambda text: text.replace("  }\n}", "  },\n}"),
+        ),
+        ("premature_eof", lambda text: text.rsplit("\n", 1)[0]),
+    ],
+)
+def test_discovery_loader_rejects_invalid_comma_and_eof_transitions(
+    tmp_path: Path, name: str, corrupt
+) -> None:
+    del name
+    path = tmp_path / "discovery.json"
+    valid = json.dumps(
+        {
+            "q1": {
+                "query": "First question?",
+                "responses": {
+                    "candidate-a": "First answer.",
+                    "candidate-b": "Second answer.",
+                },
+            },
+            "q2": {
+                "query": "Second question?",
+                "responses": {"candidate-c": "Third answer."},
+            },
+        },
+        indent=2,
+    )
+    path.write_text(corrupt(valid), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="discovery syntax"):
+        list(iter_discovery_responses(path))
+
+
+def test_discovery_loaders_parse_canonical_multi_question_writer_format(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "discovery.json"
+    path.write_text(
+        json.dumps(
+            {
+                "q1": {
+                    "query": "First question?",
+                    "responses": {
+                        "candidate-a": "First answer.",
+                        "candidate-b": "Second answer.",
+                    },
+                },
+                "q2": {
+                    "query": "Second question?",
+                    "responses": {"candidate-c": "Third answer."},
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_discovery_questions(path) == {
+        "q1": "First question?",
+        "q2": "Second question?",
+    }
+    assert list(iter_discovery_responses(path)) == [
+        CandidateResponse("q1", "candidate-a", "First answer."),
+        CandidateResponse("q1", "candidate-b", "Second answer."),
+        CandidateResponse("q2", "candidate-c", "Third answer."),
+    ]
 
 
 def test_selection_rejects_missing_references_or_insufficient_unique_pairs() -> None:

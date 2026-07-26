@@ -92,6 +92,23 @@ def test_load_prompt_contract_loads_frozen_prompt_and_schema() -> None:
 
 
 @pytest.mark.parametrize(
+    "schema_text",
+    [
+        '{"title":"first","title":"second"}',
+        '{"title":"Pointwise Judge Decision v1","maximum":NaN}',
+    ],
+)
+def test_load_prompt_contract_rejects_ambiguous_or_nonfinite_schema_json(
+    tmp_path: Path, schema_text: str
+) -> None:
+    (tmp_path / "pointwise-v1.txt").write_text("fixture", encoding="utf-8")
+    (tmp_path / "decision-v1.schema.json").write_text(schema_text, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate|non-finite"):
+        load_prompt_contract(tmp_path)
+
+
+@pytest.mark.parametrize(
     ("field", "value", "message"),
     [
         ("label", "excellent", "label"),

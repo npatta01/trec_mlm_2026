@@ -74,7 +74,11 @@ def load_prompt_contract(protocol_dir: Path) -> PromptContract:
     schema_path = protocol_dir / "decision-v1.schema.json"
     prompt = prompt_path.read_text(encoding="utf-8")
     try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        schema = json.loads(
+            schema_path.read_text(encoding="utf-8"),
+            object_pairs_hook=_object_without_duplicate_keys,
+            parse_constant=_reject_nonfinite_json,
+        )
     except json.JSONDecodeError as error:
         raise ValueError("decision schema is not valid JSON") from error
     if type(schema) is not dict:
@@ -166,6 +170,10 @@ def decision_to_dict(decision: JudgeDecision) -> dict[str, object]:
         "confidence": decision.confidence,
         "rationale": decision.rationale,
     }
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON value is forbidden: {value}")
 
 
 def _closed_string(value: dict[str, Any], field: str, allowed: frozenset[str]) -> str:

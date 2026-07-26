@@ -60,6 +60,8 @@ _RUNTIME_RECEIPT_KEYS = {
     "model_alias",
     "model_id",
     "registry_sha256",
+    "schema_sha256",
+    "launch_evidence_sha256",
     "runtime",
     "hardware",
     "checkpoint",
@@ -89,6 +91,9 @@ _FROZEN_CONFIGURATION = {
     "max_output_tokens": 384,
     "max_concurrency": 1,
 }
+FROZEN_DECISION_SCHEMA_SHA256 = (
+    "84557061030827f09f94063a85ccbaa5324797b958963af503342ae1fce6c69b"
+)
 
 
 class JudgeCall(Protocol):
@@ -166,6 +171,8 @@ def call_openai_judge(
     payload = {
         "model": model,
         "messages": [dict(message) for message in messages],
+        "temperature": 0,
+        "max_tokens": 384,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
@@ -211,7 +218,11 @@ def call_openai_judge(
         raise RuntimeError("judge endpoint request failed") from error
 
     try:
-        body = json.loads(raw_body.decode("utf-8"))
+        body = json.loads(
+            raw_body.decode("utf-8"),
+            object_pairs_hook=_object_without_duplicate_keys,
+            parse_constant=_reject_nonfinite_json,
+        )
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("judge response body is not valid UTF-8 JSON") from error
     if type(body) is not dict:
@@ -332,6 +343,10 @@ def validate_runtime_receipt(
         or value["registry_sha256"] != registry_sha256
     ):
         raise ValueError("runtime receipt registry hash is not externally anchored")
+    if value["schema_sha256"] != FROZEN_DECISION_SCHEMA_SHA256:
+        raise ValueError("runtime receipt schema hash is not frozen")
+    if not _is_sha256(value["launch_evidence_sha256"]):
+        raise ValueError("runtime receipt launch evidence hash is invalid")
 
     runtime = _exact_mapping(
         value["runtime"],
@@ -915,6 +930,10 @@ def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, An
             raise ValueError(f"duplicate JSON key in run output: {key}")
         value[key] = item
     return value
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON value is forbidden: {value}")
 
 
 def _write_json_atomically(path: Path, payload: object) -> None:

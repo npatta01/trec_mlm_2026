@@ -104,7 +104,9 @@ class FakeHTTPResponse:
         final_url: str = "http://127.0.0.1:13305/v1/chat/completions",
         content_length: str | None = None,
     ) -> None:
-        self.body = json.dumps(body).encode("utf-8")
+        self.body = (
+            body if isinstance(body, bytes) else json.dumps(body).encode("utf-8")
+        )
         self.status = status
         self.final_url = final_url
         self.headers = (
@@ -222,6 +224,8 @@ def test_openai_call_sends_strict_schema_and_returns_complete_private_body(
     assert seen["payload"] == {
         "model": "model-a",
         "messages": [{"role": "user", "content": "judge this"}],
+        "temperature": 0,
+        "max_tokens": 384,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
@@ -231,6 +235,29 @@ def test_openai_call_sends_strict_schema_and_returns_complete_private_body(
             },
         },
     }
+
+
+def test_openai_call_rejects_duplicate_response_body_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = (
+        b'{"model":"wrong","model":"model-a","choices":'
+        b'[{"message":{"content":"{}"}}],"usage":{}}'
+    )
+    monkeypatch.setattr(
+        runner,
+        "_open_no_redirect",
+        lambda request, timeout: FakeHTTPResponse(raw),
+    )
+
+    with pytest.raises(ValueError, match="duplicate"):
+        call_openai_judge(
+            "http://127.0.0.1:13305/v1",
+            "model-a",
+            [],
+            CONTRACT.schema,
+            timeout_seconds=1,
+        )
 
 
 @pytest.mark.parametrize(
@@ -245,7 +272,7 @@ def test_openai_call_sends_strict_schema_and_returns_complete_private_body(
         (_response_body(VALID_DECISION_JSON, usage={"total_tokens": True}), "usage"),
         (
             _response_body(VALID_DECISION_JSON, usage={"total_tokens": math.nan}),
-            "usage",
+            "non-finite",
         ),
     ],
 )

@@ -10,6 +10,7 @@ import scripts.build_pointwise_judge_smoke as smoke_cli
 from scripts.build_pointwise_judge_smoke import main
 import scripts.preflight_local_pointwise_models as preflight_cli
 import scripts.run_local_pointwise_judge as runner_cli
+from trec_mlm.pointwise_judge import load_prompt_contract
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
 
@@ -417,6 +418,8 @@ def _valid_runtime_receipt(registry_sha256: str) -> dict[str, object]:
         "model_alias": "qwen36-35b-a3b-gguf",
         "model_id": "Qwen3.6-35B-A3B-GGUF",
         "registry_sha256": registry_sha256,
+        "schema_sha256": "84557061030827f09f94063a85ccbaa5324797b958963af503342ae1fce6c69b",
+        "launch_evidence_sha256": "c" * 64,
         "runtime": {
             "name": "lemonade-llamacpp-rocm",
             "version": "1.0",
@@ -944,17 +947,13 @@ class _FabricatedPreflightDependencies:
             "size_bytes": checkpoint["expected_bytes"],
             "sha256": checkpoint["sha256"],
         }
-        self.visible_memory_bytes = int(checkpoint["expected_bytes"]) + 9 * 1024**3
-        self.free_disk_bytes = 9 * 1024**3
+        self.visible_memory_bytes = 100 * 1024**3
+        self.free_disk_bytes = 50 * 1024**3
         self.endpoint_model = model_id
         self.canary_raw = json.dumps(_valid_decision())
         self.canary_success = True
-        self.configuration = {
-            "context_tokens": 4096,
-            "temperature": 0,
-            "max_output_tokens": 384,
-            "max_concurrency": 1,
-        }
+        self.process = {"start_ticks": 987654, "argv": []}
+        self.requests = 0
 
     def run_command(self, argv: tuple[str, ...]) -> str:
         return self.commands[argv]
@@ -973,12 +972,17 @@ class _FabricatedPreflightDependencies:
     def available_disk_bytes(self, path: Path) -> int:
         return self.free_disk_bytes
 
-    def runtime_configuration(self) -> dict[str, object]:
-        return dict(self.configuration)
+    def process_observation(self, pid: int) -> dict[str, object]:
+        assert pid == 4242
+        return {
+            "start_ticks": self.process["start_ticks"],
+            "argv": list(self.process["argv"]),
+        }
 
     def request_json(
         self, method: str, url: str, payload: object | None
     ) -> dict[str, object]:
+        self.requests += 1
         if method == "GET":
             return {"object": "list", "data": [{"id": self.endpoint_model}]}
         if not self.canary_success:
@@ -1013,6 +1017,10 @@ def _run_valid_preflight(
     alias: str = "qwen36-35b-a3b-gguf",
     mutate: object | None = None,
     download_occurred: bool = False,
+    schema_override: dict[str, object] | None = None,
+    schema_sha256: str = "84557061030827f09f94063a85ccbaa5324797b958963af503342ae1fce6c69b",
+    base_url: str = "http://127.0.0.1:13305/v1",
+    source_pins_transform: object | None = None,
 ) -> dict[str, object]:
     registry = _valid_registry()
     entry = registry["models"][alias]
@@ -1020,20 +1028,78 @@ def _run_valid_preflight(
     dependencies = _FabricatedPreflightDependencies(
         entry=entry, model_id=str(entry["model_id"])
     )
+    if entry["runtime"] == "vllm-rocm":
+        argv = [
+            "vllm",
+            "serve",
+            str(entry["model_id"]),
+            "--max-model-len",
+            "4096",
+            "--max-num-seqs",
+            "1",
+        ]
+    else:
+        argv = [
+            "llama-server",
+            "--model",
+            str(dependencies.checkpoint["path"]),
+            "--ctx-size",
+            "4096",
+            "--parallel",
+            "1",
+        ]
+    dependencies.process["argv"] = argv
+    launch_body: dict[str, object] = {
+        "version": 1,
+        "model_alias": alias,
+        "model_id": entry["model_id"],
+        "base_url": base_url,
+        "runtime": entry["runtime"],
+        "process": {"pid": 4242, "start_ticks": 987654, "argv": argv},
+        "started_monotonic_ns": 1_000_000_000,
+        "ready_monotonic_ns": 3_500_000_000,
+        "checkpoint_before": dict(dependencies.checkpoint),
+        "checkpoint_after": dict(dependencies.checkpoint),
+        "download_events": [],
+    }
+    launch_evidence = {
+        **launch_body,
+        "evidence_sha256": _canonical_hash(launch_body),
+    }
+    if download_occurred:
+        launch_evidence["checkpoint_before"] = None
+        launch_evidence["download_events"] = [
+            {
+                "model_alias": alias,
+                "started_monotonic_ns": 1_100_000_000,
+                "completed_monotonic_ns": 3_000_000_000,
+                "expected_bytes": dependencies.checkpoint["size_bytes"],
+                "sha256": dependencies.checkpoint["sha256"],
+            }
+        ]
+        _rehash(launch_evidence, "evidence_sha256")
+    dependencies.launch_evidence = launch_evidence
+    launch_evidence_sha256 = _canonical_hash(launch_evidence)
     source_pins = _preflight_source_pins(dependencies)
+    if source_pins_transform is not None:
+        assert callable(source_pins_transform)
+        source_pins = source_pins_transform(source_pins)
     if mutate is not None:
         assert callable(mutate)
         mutate(registry, dependencies)
+    contract = load_prompt_contract(Path("protocols/pointwise_judge_bakeoff"))
     return preflight_cli.run_preflight(
         registry,
         model_alias=alias,
-        base_url="http://127.0.0.1:13305/v1",
+        base_url=base_url,
         registry_sha256="a" * 64,
         checkpoint_path=Path("/fabricated/checkpoint"),
         dependencies=dependencies,
         source_pins=source_pins,
-        download_occurred=download_occurred,
-        startup_seconds=2.5,
+        schema=contract.schema if schema_override is None else schema_override,
+        schema_sha256=schema_sha256,
+        launch_evidence=launch_evidence,
+        launch_evidence_sha256=launch_evidence_sha256,
     )
 
 
@@ -1052,6 +1118,12 @@ def test_preflight_registry_contains_exact_approved_local_pool() -> None:
 def test_preflight_builds_task3_accepted_self_hashed_receipt() -> None:
     receipt = _run_valid_preflight()
     assert receipt["passed"] is True
+    assert receipt["schema_sha256"] == (
+        "84557061030827f09f94063a85ccbaa5324797b958963af503342ae1fce6c69b"
+    )
+    assert receipt["launch_evidence_sha256"]
+    assert receipt["startup_seconds"] == 2.5
+    assert receipt["download_occurred"] is False
     body = dict(receipt)
     stored_hash = body.pop("receipt_sha256")
     assert stored_hash == _canonical_hash(body)
@@ -1064,6 +1136,52 @@ def test_preflight_builds_task3_accepted_self_hashed_receipt() -> None:
         registry_sha256="a" * 64,
         registry_entry=selected,
     )
+
+
+def test_preflight_rejects_replaced_or_wrongly_hashed_canary_schema() -> None:
+    assert _run_valid_preflight(schema_override={})["passed"] is False
+    assert _run_valid_preflight(schema_sha256="0" * 64)["passed"] is False
+
+
+def test_preflight_derives_authorized_download_from_launch_journal() -> None:
+    receipt = _run_valid_preflight(download_occurred=True)
+    assert receipt["passed"] is True
+    assert receipt["download_occurred"] is True
+
+
+def test_preflight_host_thresholds_accept_exact_plan_boundaries() -> None:
+    assert _run_valid_preflight()["passed"] is True
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda registry, deps: setattr(deps, "visible_memory_bytes", 100 * 1024**3 - 1),
+        lambda registry, deps: setattr(deps, "free_disk_bytes", 50 * 1024**3 - 1),
+    ],
+)
+def test_preflight_host_thresholds_reject_one_byte_below_plan(
+    mutate: object,
+) -> None:
+    assert _run_valid_preflight(mutate=mutate)["passed"] is False
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda registry, deps: deps.launch_evidence.__setitem__(
+            "ready_monotonic_ns", 999_999_999
+        ),
+        lambda registry, deps: deps.launch_evidence["process"].__setitem__(
+            "start_ticks", 1
+        ),
+        lambda registry, deps: deps.launch_evidence.__setitem__(
+            "download_events", [{"untrusted": True}]
+        ),
+    ],
+)
+def test_preflight_rejects_launch_evidence_drift(mutate: object) -> None:
+    assert _run_valid_preflight(mutate=mutate)["passed"] is False
 
 
 @pytest.mark.parametrize(
@@ -1093,7 +1211,9 @@ def test_preflight_builds_task3_accepted_self_hashed_receipt() -> None:
         lambda registry, deps: registry["models"]["qwen36-35b-a3b-gguf"][
             "configuration"
         ].__setitem__("context_tokens", 2048),
-        lambda registry, deps: deps.configuration.__setitem__("max_output_tokens", 385),
+        lambda registry, deps: deps.process.__setitem__(
+            "argv", ["llama-server", "--ctx-size", "2048", "--parallel", "1"]
+        ),
     ],
 )
 def test_preflight_fails_closed_on_runtime_drift(mutate: object) -> None:
@@ -1101,23 +1221,7 @@ def test_preflight_fails_closed_on_runtime_drift(mutate: object) -> None:
 
 
 def test_preflight_fails_closed_on_non_loopback_endpoint() -> None:
-    registry = _valid_registry()
-    entry = registry["models"]["qwen36-35b-a3b-gguf"]
-    dependencies = _FabricatedPreflightDependencies(
-        entry=entry, model_id=str(entry["model_id"])
-    )
-    result = preflight_cli.run_preflight(
-        registry,
-        model_alias="qwen36-35b-a3b-gguf",
-        base_url="http://0.0.0.0:13305/v1",
-        registry_sha256="a" * 64,
-        checkpoint_path=Path("/fabricated/checkpoint"),
-        dependencies=dependencies,
-        source_pins=_preflight_source_pins(dependencies),
-        download_occurred=False,
-        startup_seconds=2.5,
-    )
-    assert result["passed"] is False
+    assert _run_valid_preflight(base_url="http://0.0.0.0:13305/v1")["passed"] is False
 
 
 def test_preflight_fails_closed_on_checkpoint_revision_drift() -> None:
@@ -1133,35 +1237,18 @@ def test_preflight_fails_closed_on_checkpoint_revision_drift() -> None:
 
 
 def test_preflight_fails_closed_on_wrong_backend_version() -> None:
-    registry = _valid_registry()
-    entry = registry["models"]["qwen36-35b-a3b-gguf"]
-    dependencies = _FabricatedPreflightDependencies(
-        entry=entry, model_id=str(entry["model_id"])
-    )
-    pins = _preflight_source_pins(dependencies)
-    pins = preflight_cli.SourcePins(
-        lemonade_models_path=pins.lemonade_models_path,
-        lemonade_models_sha256=pins.lemonade_models_sha256,
-        backend_versions_path=pins.backend_versions_path,
-        backend_versions_sha256=pins.backend_versions_sha256,
-        lemonade_version=pins.lemonade_version,
-        llamacpp_backend_version="wrong",
-        vllm_backend_version=pins.vllm_backend_version,
-    )
-    assert (
-        preflight_cli.run_preflight(
-            registry,
-            model_alias="qwen36-35b-a3b-gguf",
-            base_url="http://127.0.0.1:13305/v1",
-            registry_sha256="a" * 64,
-            checkpoint_path=Path("/fabricated/checkpoint"),
-            dependencies=dependencies,
-            source_pins=pins,
-            download_occurred=False,
-            startup_seconds=2.5,
-        )["passed"]
-        is False
-    )
+    def wrong_backend(pins: preflight_cli.SourcePins) -> preflight_cli.SourcePins:
+        return preflight_cli.SourcePins(
+            lemonade_models_path=pins.lemonade_models_path,
+            lemonade_models_sha256=pins.lemonade_models_sha256,
+            backend_versions_path=pins.backend_versions_path,
+            backend_versions_sha256=pins.backend_versions_sha256,
+            lemonade_version=pins.lemonade_version,
+            llamacpp_backend_version="wrong",
+            vllm_backend_version=pins.vllm_backend_version,
+        )
+
+    assert _run_valid_preflight(source_pins_transform=wrong_backend)["passed"] is False
 
 
 def test_preflight_fails_closed_on_source_file_drift() -> None:
@@ -1197,3 +1284,157 @@ def test_hf_tree_commitment_sorts_paths_and_binds_sizes_and_hashes() -> None:
         3,
         "1f4f651d6567761316a1846c6edd6b67c5f7d2f4e640c4eb3da4ca59712727cf",
     )
+
+
+def _fabricated_hf_snapshot(tmp_path: Path) -> tuple[Path, Path, Path]:
+    repository = tmp_path / "models--owner--model"
+    blobs = repository / "blobs"
+    snapshot = repository / "snapshots" / "revision-a"
+    blobs.mkdir(parents=True)
+    snapshot.mkdir(parents=True)
+    digest = hashlib.sha256(b"weight-bytes").hexdigest()
+    target = blobs / digest
+    target.write_bytes(b"weight-bytes")
+    logical = snapshot / "model.safetensors"
+    logical.symlink_to(Path("../../blobs") / digest)
+    return snapshot, logical, target
+
+
+def test_hf_checkpoint_inspection_accepts_only_in_root_cache_symlinks(
+    tmp_path: Path,
+) -> None:
+    snapshot, _, target = _fabricated_hf_snapshot(tmp_path)
+    row = {
+        "path": "model.safetensors",
+        "size_bytes": len(b"weight-bytes"),
+        "sha256": hashlib.sha256(b"weight-bytes").hexdigest(),
+    }
+    expected_size, expected_hash = preflight_cli.checkpoint_tree_commitment([row])
+    observed = preflight_cli.SystemDependencies().inspect_checkpoint(
+        snapshot,
+        {"revision": "revision-a"},
+    )
+    assert observed["size_bytes"] == expected_size == target.stat().st_size
+    assert observed["sha256"] == expected_hash
+
+
+def test_hf_checkpoint_inspection_rejects_symlink_escape(tmp_path: Path) -> None:
+    snapshot, logical, _ = _fabricated_hf_snapshot(tmp_path)
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"outside")
+    logical.unlink()
+    logical.symlink_to(outside)
+
+    with pytest.raises(ValueError, match="blob root"):
+        preflight_cli.SystemDependencies().inspect_checkpoint(
+            snapshot, {"revision": "revision-a"}
+        )
+
+
+def test_hf_checkpoint_inspection_rejects_hardlink_ambiguity(tmp_path: Path) -> None:
+    snapshot, _, target = _fabricated_hf_snapshot(tmp_path)
+    os.link(target, target.with_name("second-link"))
+
+    with pytest.raises(ValueError, match="hardlink"):
+        preflight_cli.SystemDependencies().inspect_checkpoint(
+            snapshot, {"revision": "revision-a"}
+        )
+
+
+@pytest.mark.parametrize("race", ["logical_link", "target"])
+def test_hf_checkpoint_inspection_rejects_mutation_during_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    race: str,
+) -> None:
+    snapshot, logical, target = _fabricated_hf_snapshot(tmp_path)
+    replacement = target.with_name("f" * 64)
+    replacement.write_bytes(b"replacement")
+    real_read = os.read
+    raced = False
+
+    def racing_read(descriptor: int, size: int) -> bytes:
+        nonlocal raced
+        chunk = real_read(descriptor, size)
+        if not raced:
+            raced = True
+            if race == "logical_link":
+                logical.unlink()
+                logical.symlink_to(Path("../../blobs") / replacement.name)
+            else:
+                os.replace(replacement, target)
+        return chunk
+
+    monkeypatch.setattr(preflight_cli.os, "read", racing_read)
+
+    with pytest.raises(ValueError, match="changed during hash"):
+        preflight_cli.SystemDependencies().inspect_checkpoint(
+            snapshot, {"revision": "revision-a"}
+        )
+    assert raced is True
+
+
+def test_runtime_receipt_writer_rejects_symlinked_parent_or_final(
+    tmp_path: Path,
+) -> None:
+    receipt = _run_valid_preflight()
+    real_parent = tmp_path / "real"
+    real_parent.mkdir(mode=0o700)
+    linked_parent = tmp_path / "linked"
+    linked_parent.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(ValueError, match="real directory"):
+        preflight_cli.write_runtime_receipt(linked_parent / "runtime.json", receipt)
+
+    safe_parent = tmp_path / "safe"
+    safe_output = safe_parent / "source.json"
+    preflight_cli.write_runtime_receipt(safe_output, receipt)
+    final_link = safe_parent / "linked.json"
+    final_link.symlink_to(safe_output.name)
+    with pytest.raises(ValueError, match="regular file|symlink"):
+        preflight_cli.write_runtime_receipt(final_link, receipt)
+
+
+def test_runtime_receipt_writer_never_overwrites_concurrent_different_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = _run_valid_preflight()
+    output = tmp_path / "private" / "runtime.json"
+    real_link = os.link
+    raced = False
+
+    def racing_link(
+        source: object,
+        destination: object,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+        follow_symlinks: bool = True,
+    ) -> None:
+        nonlocal raced
+        raced = True
+        competing = output.parent / str(destination)
+        competing.write_text("{}\n", encoding="utf-8")
+        competing.chmod(0o600)
+        real_link(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+            follow_symlinks=follow_symlinks,
+        )
+
+    monkeypatch.setattr(preflight_cli.os, "link", racing_link)
+    with pytest.raises(ValueError, match="different runtime receipt"):
+        preflight_cli.write_runtime_receipt(output, receipt)
+    assert raced is True
+    assert output.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_preflight_json_loader_rejects_duplicate_and_nonfinite_values(
+    tmp_path: Path,
+) -> None:
+    for raw in (b'{"a":1,"a":1}', b'{"value":NaN}'):
+        path = tmp_path / hashlib.sha256(raw).hexdigest()
+        path.write_bytes(raw)
+        with pytest.raises(ValueError, match="duplicate|non-finite"):
+            preflight_cli.load_registry(path)

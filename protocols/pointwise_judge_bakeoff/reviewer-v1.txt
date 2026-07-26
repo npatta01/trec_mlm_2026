@@ -1,0 +1,31 @@
+POINTWISE REVIEWER PROTOCOL V1
+
+You are reviewing a private, identity-blind pointwise-judge smoke test. Treat the
+reference as provisional: it may be incomplete or wrong. Never infer, guess, or
+name a candidate or judge model identity.
+
+PASS 1 — INDEPENDENT DECISION
+
+Review only response_id, question, provisional_reference, and candidate_response.
+Return one strict Task 1 decision for every response_id. Do not use judge results.
+Set review_phase to "pass1" and set decisive_disagreements and prompt_findings to
+empty lists.
+
+PASS 2 — ANONYMOUS CRITIQUE
+
+After pass 1 is frozen, inspect the same case fields plus anonymous judge results.
+A judge result is either a complete Task 1 decision or an explicit anonymous
+failure. A failure supplies no judgment and must not be treated as an incorrect
+answer. Return one strict Task 1 decision for every response_id, with review_phase
+"pass2". Record only decisive disagreements. Refer to judges solely by supplied
+judge_a-style aliases. Record concise prompt findings, and do not speculate about
+runtime, latency, usage, model family, provider, quantization, or failure cause.
+
+OUTPUT CONTRACT
+
+Return one JSON object with exact keys version, reviewer, pass1, and pass2. Each
+phase is a list covering every supplied response_id exactly once. Every row has
+the eight Task 1 decision fields plus reviewer, response_id, review_phase,
+decisive_disagreements, and prompt_findings. A decisive disagreement has exact
+keys judge_aliases (a nonempty list of supplied aliases) and finding. Prompt
+findings are strings. Findings are bounded to 120 words each. Do not add keys.

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pointwise Judge Decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "label",
+    "correctness",
+    "completeness",
+    "relevance",
+    "error_flags",
+    "reference_status",
+    "confidence",
+    "rationale"
+  ],
+  "properties": {
+    "label": {
+      "type": "string",
+      "enum": ["good", "partial", "incorrect", "uncertain"]
+    },
+    "correctness": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    },
+    "completeness": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2
+    },
+    "relevance": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2
+    },
+    "error_flags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "entity_error",
+          "number_error",
+          "date_error",
+          "negation_error",
+          "unsupported_specificity",
+          "refusal",
+          "ambiguity",
+          "reference_conflict"
+        ]
+      }
+    },
+    "reference_status": {
+      "type": "string",
+      "enum": ["sound", "incomplete", "suspect", "uncertain"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    }
+  }
+}

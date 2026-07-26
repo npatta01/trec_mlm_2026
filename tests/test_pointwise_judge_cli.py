@@ -6,6 +6,8 @@ import pytest
 
 import scripts.build_pointwise_judge_smoke as smoke_cli
 from scripts.build_pointwise_judge_smoke import main
+import scripts.run_local_pointwise_judge as runner_cli
+from trec_mlm.pointwise_judge import CandidateCase
 
 
 def _write_inputs(
@@ -294,3 +296,102 @@ def test_cli_rejects_existing_manifest_with_nonprivate_mode(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="smoke manifest must have mode 0600"):
         main(args)
+
+
+def test_runner_cli_consumes_private_manifest_and_runtime_receipt_without_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = CandidateCase(
+        question_id="q-private",
+        response_id="r-blind",
+        question="Who wrote Hamlet?",
+        reference_answer="William Shakespeare wrote Hamlet.",
+        candidate_answer="Shakespeare wrote Hamlet.",
+        strata=("high_overlap_control",),
+        selection_reason="high_overlap_control",
+    )
+    manifest = tmp_path / "smoke_manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manifest_hash": "fixture-hash",
+                "cases": [
+                    {
+                        "question_id": case.question_id,
+                        "response_id": case.response_id,
+                        "question": case.question,
+                        "reference_answer": case.reference_answer,
+                        "candidate_answer": case.candidate_answer,
+                        "strata": list(case.strata),
+                        "selection_reason": case.selection_reason,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest.chmod(0o600)
+    receipt = tmp_path / "runtime.json"
+    receipt.write_text(
+        json.dumps({"runtime": "fabricated", "passed": True}), encoding="utf-8"
+    )
+    receipt.chmod(0o600)
+    protocol_dir = Path("protocols/pointwise_judge_bakeoff")
+    output = tmp_path / "run.json"
+    seen: list[tuple[str, str, object]] = []
+
+    def fake_call(endpoint, model, messages, schema, *, timeout_seconds):
+        seen.append((endpoint, model, messages))
+        raw = json.dumps(
+            {
+                "label": "good",
+                "correctness": 4,
+                "completeness": 2,
+                "relevance": 2,
+                "error_flags": [],
+                "reference_status": "sound",
+                "confidence": "high",
+                "rationale": "The response correctly identifies the author.",
+            }
+        )
+        return raw, {
+            "model": model,
+            "choices": [{"message": {"content": raw}}],
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(runner_cli, "call_openai_judge", fake_call)
+
+    assert (
+        runner_cli.main(
+            [
+                "--manifest",
+                str(manifest),
+                "--protocol-dir",
+                str(protocol_dir),
+                "--model-alias",
+                "judge-a",
+                "--model-id",
+                "model-a",
+                "--base-url",
+                "http://127.0.0.1:13305/v1",
+                "--runtime-receipt",
+                str(receipt),
+                "--output",
+                str(output),
+                "--timeout-seconds",
+                "12.5",
+            ]
+        )
+        == 0
+    )
+    assert seen[0][0:2] == ("http://127.0.0.1:13305/v1", "model-a")
+    assert case.question in seen[0][2][1]["content"]
+    assert (
+        json.loads(output.read_text(encoding="utf-8"))["records"]["r-blind"][
+            "decision"
+        ]["label"]
+        == "good"
+    )
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600

@@ -9,12 +9,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import tempfile
 from typing import Any, Sequence
 
 from trec_mlm.pointwise_sampling import (
     DIAGNOSTIC_REASONS,
     iter_discovery_responses,
+    load_discovery_questions,
     load_grounded_references,
     select_diagnostic_cases,
 )
@@ -38,12 +40,16 @@ def _sha256_file(path: Path) -> str:
 
 
 def _manifest_hash(payload: dict[str, Any]) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _write_json_atomically(path: Path, payload: object, *, mode: int) -> None:
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
     temporary = Path(temporary_name)
     try:
         os.fchmod(descriptor, mode)
@@ -60,21 +66,72 @@ def _write_json_atomically(path: Path, payload: object, *, mode: int) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _load_json_object(path: Path, description: str) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_object_without_duplicate_keys,
+        )
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{description} is not valid JSON") from error
+    if type(value) is not dict:
+        raise ValueError(f"{description} must be a JSON object")
+    return value
+
+
+def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key in existing artifact: {key}")
+        result[key] = value
+    return result
+
+
+def _validate_existing_output(
+    manifest_path: Path,
+    sealed_path: Path,
+    manifest: dict[str, Any],
+    sealed: dict[str, str],
+) -> None:
+    existing = _load_json_object(manifest_path, "existing smoke manifest")
+    existing_body = dict(existing)
+    stored_hash = existing_body.pop("manifest_hash", None)
+    if type(stored_hash) is not str or stored_hash != _manifest_hash(existing_body):
+        raise ValueError("invalid existing manifest hash")
+    if stored_hash != manifest["manifest_hash"]:
+        raise ValueError("output already exists with a different manifest hash")
+    if not sealed_path.exists():
+        raise ValueError("output already exists without sealed candidates")
+    existing_sealed = _load_json_object(sealed_path, "existing sealed candidates")
+    if existing_sealed != sealed:
+        raise ValueError("sealed candidates do not match regenerated selection")
+    if stat.S_IMODE(sealed_path.stat().st_mode) != 0o600:
+        raise ValueError("sealed candidates must have mode 0600")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    references = load_grounded_references(args.grounded)
+    source_hashes = {
+        "discovery": _sha256_file(args.discovery),
+        "grounded": _sha256_file(args.grounded),
+    }
+    questions = load_discovery_questions(args.discovery)
+    references = load_grounded_references(args.grounded, questions=questions)
     cases, sealed = select_diagnostic_cases(
         references,
         iter_discovery_responses(args.discovery),
         seed=args.seed,
     )
+    if source_hashes != {
+        "discovery": _sha256_file(args.discovery),
+        "grounded": _sha256_file(args.grounded),
+    }:
+        raise ValueError("source changed during selection")
     manifest_body: dict[str, Any] = {
         "version": 1,
         "seed": args.seed,
-        "sources": {
-            "discovery": {"sha256": _sha256_file(args.discovery)},
-            "grounded": {"sha256": _sha256_file(args.grounded)},
-        },
+        "sources": {name: {"sha256": digest} for name, digest in source_hashes.items()},
         "selection_reasons": list(DIAGNOSTIC_REASONS),
         "cases": [asdict(case) for case in cases],
     }
@@ -86,15 +143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if output_dir.exists():
         if not output_dir.is_dir() or not manifest_path.exists():
             raise ValueError("output already exists without a smoke manifest")
-        try:
-            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
-            raise ValueError("output already exists with an invalid smoke manifest") from error
-        if existing.get("manifest_hash") != manifest["manifest_hash"]:
-            raise ValueError("output already exists with a different manifest hash")
-        if not sealed_path.exists():
-            raise ValueError("output already exists without sealed candidates")
-        sealed_path.chmod(0o600)
+        _validate_existing_output(manifest_path, sealed_path, manifest, sealed)
         return 0
 
     output_dir.mkdir(parents=True)

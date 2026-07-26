@@ -301,3 +301,56 @@ The full repository probe produced `1062 passed, 3 skipped, 6 failed in
 23.95s`. The failures are the same restricted-host baseline: four Quarto
 cache/database failures and two Chrome crashpad socket failures. No real private
 artifact, registry, network endpoint, or model server was used.
+
+## Review fix round 3
+
+The final planned review round removed Python equality coercion from trusted
+decision evidence. A centralized structural JSON comparator now requires exact
+container and scalar types, exact string mapping keys, recursive list equality,
+and finite numeric values. Consequently, `true` is distinct from `1`, `false`
+is distinct from `0`, and `1.0` is distinct from `1`. NaN and infinity are
+rejected rather than normalized.
+
+The comparator is used for cached `attempt.parsed`, final cached decisions, and
+runtime-receipt canary raw/parsed consistency. Nearby equality checks were
+audited: identity/model/hash/failure comparisons contain validated strings;
+configuration fields already have exact bool-sensitive validation and
+explicitly permit integer or float temperature; usage intentionally permits
+integer and float counts but rejects booleans and non-finite values before
+aggregation. The Task 1 score parser already used exact `type(value) is int`;
+direct coverage now includes booleans for correctness, completeness, and
+relevance.
+
+### Round-3 RED/GREEN evidence
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_runner.py \
+  -k 'boolean_substitution or type_correct_cached_integer' -v
+```
+
+RED: `4 failed, 1 passed`. Both `1 -> true` and `0 -> false` tampering in
+`attempt.parsed` and the final decision were silently reused with zero calls;
+the legitimate integer cache passed. GREEN after structural comparison:
+all five passed. Additional integer/float and non-finite regressions also pass.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_judge_cli.py \
+  -k boolean_substitution_in_anchored_canary -v
+```
+
+RED: `1 failed`; externally anchored canary evidence with raw correctness `1`
+and parsed correctness `true` reached the forbidden model call. GREEN: `1
+passed` before any call.
+
+### Round-3 final verification
+
+- Focused Task 1–3 suite: `145 passed in 0.19s`.
+- Ruff and format: all checks passed across the four changed Python files.
+- Scoped secret scan: no matches.
+- Full probe: `1074 passed, 3 skipped, 6 failed in 23.91s`; the same four
+  Quarto cache/database and two Chrome crashpad socket restrictions remain.
+
+No private input, network endpoint, or model server was used. The frozen prompt
+and schema were not changed.

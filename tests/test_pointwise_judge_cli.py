@@ -668,6 +668,31 @@ def test_runner_cli_rejects_inauthentic_runtime_receipt_before_server_call(
     assert not output.exists()
 
 
+def test_runner_cli_rejects_boolean_substitution_in_anchored_canary_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, receipt, registry = _write_runner_inputs(tmp_path)
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    raw_decision = {
+        **_valid_decision(),
+        "label": "incorrect",
+        "correctness": 1,
+    }
+    payload["canary"]["raw"] = json.dumps(raw_decision)
+    payload["canary"]["parsed"] = {**raw_decision, "correctness": True}
+    _rehash(payload, "receipt_sha256")
+    receipt.write_text(json.dumps(payload), encoding="utf-8")
+    args = _runner_args(manifest, receipt, registry, tmp_path / "run.json")
+    monkeypatch.setattr(
+        runner_cli,
+        "call_openai_judge",
+        lambda *args, **kwargs: pytest.fail("server call must not occur"),
+    )
+
+    with pytest.raises(ValueError, match="canary"):
+        runner_cli.main(args)
+
+
 def test_runner_cli_rejects_rehashed_registry_tampering_before_server_call(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

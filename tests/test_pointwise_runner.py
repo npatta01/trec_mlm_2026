@@ -677,6 +677,89 @@ def test_resume_fails_closed_on_same_identity_completed_record_corruption(
         )
 
 
+@pytest.mark.parametrize(
+    ("location", "field", "tampered"),
+    [
+        ("attempt", "correctness", True),
+        ("attempt", "completeness", False),
+        ("decision", "correctness", True),
+        ("decision", "completeness", False),
+        ("attempt", "correctness", 1.0),
+        ("decision", "correctness", math.nan),
+    ],
+)
+def test_resume_rejects_type_confused_or_nonfinite_cached_scores(
+    tmp_path: Path, location: str, field: str, tampered: object
+) -> None:
+    numeric_decision = {
+        **VALID_DECISION,
+        "label": "incorrect",
+        "correctness": 1,
+        "completeness": 0,
+    }
+    output = tmp_path / "run.json"
+    run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([json.dumps(numeric_decision)]),
+    )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    record = payload["records"][CASE.response_id]
+    target = (
+        record["attempts"][0]["parsed"] if location == "attempt" else record[location]
+    )
+    target[field] = tampered
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="corrupt reusable record"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )
+
+
+def test_resume_reuses_type_correct_cached_integer_scores_without_call(
+    tmp_path: Path,
+) -> None:
+    numeric_decision = {
+        **VALID_DECISION,
+        "label": "incorrect",
+        "correctness": 1,
+        "completeness": 0,
+    }
+    output = tmp_path / "run.json"
+    expected = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([json.dumps(numeric_decision)]),
+    )
+
+    actual = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([]),
+    )
+
+    assert actual["records"][CASE.response_id] == expected["records"][CASE.response_id]
+
+
 def test_resume_fails_closed_on_same_identity_partial_record_corruption(
     tmp_path: Path,
 ) -> None:

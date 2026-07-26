@@ -420,7 +420,11 @@ def validate_runtime_receipt(
         parsed_canary = decision_to_dict(parse_judge_decision(canary["raw"]))
     except ValueError as error:
         raise ValueError("runtime receipt canary raw decision is invalid") from error
-    if canary["parsed"] != parsed_canary:
+    try:
+        canary_matches = _json_values_equal(canary["parsed"], parsed_canary)
+    except ValueError as error:
+        raise ValueError("runtime receipt canary parsed decision is invalid") from error
+    if not canary_matches:
         raise ValueError("runtime receipt canary parsed decision does not match raw")
     startup = value["startup_seconds"]
     if type(startup) not in {int, float} or not math.isfinite(startup) or startup < 0:
@@ -775,7 +779,7 @@ def _validated_cached_attempt(
         return dict(value), "invalid", None, str(error), usage
     if set(value) != {"raw", "response_body", "parsed"}:
         raise ValueError("invalid successful-attempt keys")
-    if value["parsed"] != parsed:
+    if not _json_values_equal(value["parsed"], parsed):
         raise ValueError("parsed attempt does not match raw output")
     return dict(value), "valid", parsed, None, usage
 
@@ -799,8 +803,37 @@ def _require_success_outcome(
     failure: object,
     parsed: dict[str, object] | None,
 ) -> None:
-    if failure is not None or parsed is None or decision != parsed:
+    if (
+        failure is not None
+        or parsed is None
+        or not _json_values_equal(decision, parsed)
+    ):
         raise ValueError("successful outcome does not match parsed attempt")
+
+
+def _json_values_equal(left: object, right: object) -> bool:
+    """Compare JSON values structurally without Python's bool/number coercions."""
+    for value in (left, right):
+        if type(value) is float and not math.isfinite(value):
+            raise ValueError("non-finite number is not a valid trusted JSON value")
+    if type(left) is not type(right):
+        return False
+    if left is None or type(left) in {str, bool, int, float}:
+        return left == right
+    if type(left) is list:
+        return len(left) == len(right) and all(
+            _json_values_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right, strict=True)
+        )
+    if type(left) is dict:
+        if any(type(key) is not str for key in left) or any(
+            type(key) is not str for key in right
+        ):
+            raise ValueError("trusted JSON object keys must be strings")
+        return set(left) == set(right) and all(
+            _json_values_equal(left[key], right[key]) for key in left
+        )
+    raise ValueError("unsupported value at trusted JSON boundary")
 
 
 def _is_sha256(value: object) -> bool:

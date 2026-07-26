@@ -235,6 +235,47 @@ def test_discovery_loader_streams_pretty_printed_responses(tmp_path: Path) -> No
     ]
 
 
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        lambda text: text + "TRAILING MALFORMED SYNTAX\n",
+        lambda text: text.replace('    "responses": {', '    "responses" BROKEN {'),
+    ],
+)
+def test_discovery_loader_rejects_unmatched_or_trailing_syntax(
+    tmp_path: Path, corruption
+) -> None:
+    path = tmp_path / "discovery.json"
+    valid = json.dumps(
+        {"q1": {"query": "Question?", "responses": {"candidate-a": "Answer."}}},
+        indent=2,
+    )
+    path.write_text(corruption(valid), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="discovery syntax"):
+        list(iter_discovery_responses(path))
+
+
+def test_discovery_loader_rejects_duplicate_response_keys(tmp_path: Path) -> None:
+    path = tmp_path / "discovery.json"
+    path.write_text(
+        """{
+  "q1": {
+    "query": "Question?",
+    "responses": {
+      "candidate-a": "First answer.",
+      "candidate-a": "Second answer."
+    }
+  }
+}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate discovery response ID"):
+        list(iter_discovery_responses(path))
+
+
 def test_selection_rejects_missing_references_or_insufficient_unique_pairs() -> None:
     references, responses = _diagnostic_fixture()
     with pytest.raises(ValueError, match="missing grounded reference"):

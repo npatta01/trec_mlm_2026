@@ -111,6 +111,7 @@ def test_cli_writes_blind_manifest_and_private_seal_atomically(tmp_path: Path) -
     assert set(manifest["sources"]) == {"discovery", "grounded"}
     assert all(source["sha256"] for source in manifest["sources"].values())
     assert all(candidate not in manifest_text for candidate in sealed.values())
+    assert stat.S_IMODE((output / "smoke_manifest.json").stat().st_mode) == 0o600
     assert stat.S_IMODE((output / "sealed_candidates.json").stat().st_mode) == 0o600
     assert not list(output.glob("*.tmp"))
 
@@ -160,25 +161,42 @@ def test_cli_supports_canonical_generation_records_without_questions(
     )
 
 
-def test_cli_fails_if_a_source_changes_during_selection(
+def test_cli_consumes_the_exact_snapshot_hashed_during_an_a_b_a_source_race(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     discovery, grounded = _write_inputs(tmp_path)
+    original = discovery.read_text(encoding="utf-8")
+    transient = original.replace(
+        "beneath the Pacific Ocean", "beneath the Atlantic Ocean"
+    )
     real_hash = smoke_cli._sha256_file
-    calls = 0
+    real_snapshot = getattr(smoke_cli, "_snapshot_source", None)
+    discovery_hash_calls = 0
 
-    def mutating_hash(path: Path) -> str:
-        nonlocal calls
-        calls += 1
-        if calls == 3:
+    def racing_hash(path: Path) -> str:
+        nonlocal discovery_hash_calls
+        digest = real_hash(path)
+        if path == discovery:
+            discovery_hash_calls += 1
             discovery.write_text(
-                discovery.read_text(encoding="utf-8") + "\n", encoding="utf-8"
+                transient if discovery_hash_calls == 1 else original,
+                encoding="utf-8",
             )
-        return real_hash(path)
+        return digest
 
-    monkeypatch.setattr(smoke_cli, "_sha256_file", mutating_hash)
+    def racing_snapshot(path: Path, snapshot_dir: Path, name: str):
+        assert real_snapshot is not None
+        snapshot = real_snapshot(path, snapshot_dir, name)
+        if path == discovery:
+            discovery.write_text(transient, encoding="utf-8")
+            discovery.write_text(original, encoding="utf-8")
+        return snapshot
 
-    with pytest.raises(ValueError, match="source changed during selection"):
+    monkeypatch.setattr(smoke_cli, "_sha256_file", racing_hash)
+    monkeypatch.setattr(smoke_cli, "_snapshot_source", racing_snapshot, raising=False)
+
+    output = tmp_path / "out"
+    assert (
         main(
             [
                 "--discovery",
@@ -186,9 +204,17 @@ def test_cli_fails_if_a_source_changes_during_selection(
                 "--grounded",
                 str(grounded),
                 "--output-dir",
-                str(tmp_path / "out"),
+                str(output),
             ]
         )
+        == 0
+    )
+
+    manifest = json.loads((output / "smoke_manifest.json").read_text())
+    candidates = {case["candidate_answer"] for case in manifest["cases"]}
+    assert "It is beneath the Pacific Ocean." in candidates
+    assert "It is beneath the Atlantic Ocean." not in candidates
+    assert manifest["sources"]["discovery"]["sha256"] == real_hash(discovery)
 
 
 def test_cli_rejects_tampered_existing_manifest(tmp_path: Path) -> None:
@@ -249,4 +275,22 @@ def test_cli_rejects_existing_seal_with_nonprivate_mode(tmp_path: Path) -> None:
     (output / "sealed_candidates.json").chmod(0o644)
 
     with pytest.raises(ValueError, match="mode 0600"):
+        main(args)
+
+
+def test_cli_rejects_existing_manifest_with_nonprivate_mode(tmp_path: Path) -> None:
+    discovery, grounded = _write_inputs(tmp_path)
+    output = tmp_path / "out"
+    args = [
+        "--discovery",
+        str(discovery),
+        "--grounded",
+        str(grounded),
+        "--output-dir",
+        str(output),
+    ]
+    assert main(args) == 0
+    (output / "smoke_manifest.json").chmod(0o644)
+
+    with pytest.raises(ValueError, match="smoke manifest must have mode 0600"):
         main(args)

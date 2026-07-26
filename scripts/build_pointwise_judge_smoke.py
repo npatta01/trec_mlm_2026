@@ -39,6 +39,28 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _snapshot_source(path: Path, snapshot_dir: Path, name: str) -> tuple[Path, str]:
+    """Copy and hash one source through the same bounded-memory byte stream."""
+    descriptor, snapshot_name = tempfile.mkstemp(
+        prefix=f"{name}-", suffix=path.suffix, dir=snapshot_dir
+    )
+    snapshot = Path(snapshot_name)
+    digest = hashlib.sha256()
+    try:
+        os.fchmod(descriptor, 0o600)
+        with path.open("rb") as source, os.fdopen(descriptor, "wb") as destination:
+            descriptor = -1
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+                destination.write(chunk)
+            destination.flush()
+            os.fsync(destination.fileno())
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    return snapshot, digest.hexdigest()
+
+
 def _manifest_hash(payload: dict[str, Any]) -> str:
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -94,6 +116,12 @@ def _validate_existing_output(
     manifest: dict[str, Any],
     sealed: dict[str, str],
 ) -> None:
+    if stat.S_IMODE(manifest_path.stat().st_mode) != 0o600:
+        raise ValueError("smoke manifest must have mode 0600")
+    if not sealed_path.exists():
+        raise ValueError("output already exists without sealed candidates")
+    if stat.S_IMODE(sealed_path.stat().st_mode) != 0o600:
+        raise ValueError("sealed candidates must have mode 0600")
     existing = _load_json_object(manifest_path, "existing smoke manifest")
     existing_body = dict(existing)
     stored_hash = existing_body.pop("manifest_hash", None)
@@ -101,63 +129,62 @@ def _validate_existing_output(
         raise ValueError("invalid existing manifest hash")
     if stored_hash != manifest["manifest_hash"]:
         raise ValueError("output already exists with a different manifest hash")
-    if not sealed_path.exists():
-        raise ValueError("output already exists without sealed candidates")
     existing_sealed = _load_json_object(sealed_path, "existing sealed candidates")
     if existing_sealed != sealed:
         raise ValueError("sealed candidates do not match regenerated selection")
-    if stat.S_IMODE(sealed_path.stat().st_mode) != 0o600:
-        raise ValueError("sealed candidates must have mode 0600")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    source_hashes = {
-        "discovery": _sha256_file(args.discovery),
-        "grounded": _sha256_file(args.grounded),
-    }
-    questions = load_discovery_questions(args.discovery)
-    references = load_grounded_references(args.grounded, questions=questions)
-    cases, sealed = select_diagnostic_cases(
-        references,
-        iter_discovery_responses(args.discovery),
-        seed=args.seed,
-    )
-    if source_hashes != {
-        "discovery": _sha256_file(args.discovery),
-        "grounded": _sha256_file(args.grounded),
-    }:
-        raise ValueError("source changed during selection")
-    manifest_body: dict[str, Any] = {
-        "version": 1,
-        "seed": args.seed,
-        "sources": {name: {"sha256": digest} for name, digest in source_hashes.items()},
-        "selection_reasons": list(DIAGNOSTIC_REASONS),
-        "cases": [asdict(case) for case in cases],
-    }
-    manifest = {**manifest_body, "manifest_hash": _manifest_hash(manifest_body)}
+    with tempfile.TemporaryDirectory(prefix="pointwise-smoke-sources-") as temporary:
+        snapshot_dir = Path(temporary)
+        snapshot_dir.chmod(0o700)
+        discovery, discovery_hash = _snapshot_source(
+            args.discovery, snapshot_dir, "discovery"
+        )
+        grounded, grounded_hash = _snapshot_source(
+            args.grounded, snapshot_dir, "grounded"
+        )
+        source_hashes = {"discovery": discovery_hash, "grounded": grounded_hash}
+        questions = load_discovery_questions(discovery)
+        references = load_grounded_references(grounded, questions=questions)
+        cases, sealed = select_diagnostic_cases(
+            references,
+            iter_discovery_responses(discovery),
+            seed=args.seed,
+        )
+        manifest_body: dict[str, Any] = {
+            "version": 1,
+            "seed": args.seed,
+            "sources": {
+                name: {"sha256": digest} for name, digest in source_hashes.items()
+            },
+            "selection_reasons": list(DIAGNOSTIC_REASONS),
+            "cases": [asdict(case) for case in cases],
+        }
+        manifest = {**manifest_body, "manifest_hash": _manifest_hash(manifest_body)}
 
-    output_dir: Path = args.output_dir
-    manifest_path = output_dir / "smoke_manifest.json"
-    sealed_path = output_dir / "sealed_candidates.json"
-    if output_dir.exists():
-        if not output_dir.is_dir() or not manifest_path.exists():
-            raise ValueError("output already exists without a smoke manifest")
-        _validate_existing_output(manifest_path, sealed_path, manifest, sealed)
-        return 0
+        output_dir: Path = args.output_dir
+        manifest_path = output_dir / "smoke_manifest.json"
+        sealed_path = output_dir / "sealed_candidates.json"
+        if output_dir.exists():
+            if not output_dir.is_dir() or not manifest_path.exists():
+                raise ValueError("output already exists without a smoke manifest")
+            _validate_existing_output(manifest_path, sealed_path, manifest, sealed)
+            return 0
 
-    output_dir.mkdir(parents=True)
-    try:
-        _write_json_atomically(sealed_path, sealed, mode=0o600)
-        _write_json_atomically(manifest_path, manifest, mode=0o600)
-    except BaseException:
-        sealed_path.unlink(missing_ok=True)
-        manifest_path.unlink(missing_ok=True)
+        output_dir.mkdir(parents=True)
         try:
-            output_dir.rmdir()
-        except OSError:
-            pass
-        raise
+            _write_json_atomically(sealed_path, sealed, mode=0o600)
+            _write_json_atomically(manifest_path, manifest, mode=0o600)
+        except BaseException:
+            sealed_path.unlink(missing_ok=True)
+            manifest_path.unlink(missing_ok=True)
+            try:
+                output_dir.rmdir()
+            except OSError:
+                pass
+            raise
     return 0
 
 

@@ -28,9 +28,12 @@ DIAGNOSTIC_REASONS = (
     "possible_reference_conflict_proxy",
 )
 
-_QUERY_RE = re.compile(r'^  "([^"]+)": \{$')
-_QUERY_TEXT_RE = re.compile(r'^    "query": (.+)$')
-_RESPONSE_RE = re.compile(r'^      "([^"]+)": (.+)$')
+_JSON_STRING_PATTERN = r'"(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'
+_QUERY_RE = re.compile(rf"^  ({_JSON_STRING_PATTERN}): \{{$")
+_QUERY_TEXT_RE = re.compile(rf'^    "query": ({_JSON_STRING_PATTERN}),$')
+_RESPONSE_RE = re.compile(
+    rf"^      ({_JSON_STRING_PATTERN}): ({_JSON_STRING_PATTERN})(,?)$"
+)
 _TOKEN_RE = re.compile(r"\b[\w'-]+\b", re.UNICODE)
 _NUMBER_OR_DATE_RE = re.compile(r"\b\d{1,4}(?:[.,]\d+)?\b")
 _NEGATION_RE = re.compile(
@@ -58,6 +61,12 @@ class CandidateResponse:
     question_id: str
     candidate_id: str
     answer: str
+
+
+@dataclass(frozen=True, slots=True)
+class _DiscoveryQuestion:
+    question_id: str
+    question: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,31 +145,9 @@ def load_grounded_references(
 def load_discovery_questions(path: Path) -> dict[str, str]:
     """Validate and load only question IDs/text from the discovery source."""
     questions: dict[str, str] = {}
-    query_id: str | None = None
-    with Path(path).open("r", encoding="utf-8") as handle:
-        for line_number, raw_line in enumerate(handle, 1):
-            line = raw_line.rstrip("\r\n")
-            match = _QUERY_RE.match(line)
-            if match:
-                if query_id is not None and query_id not in questions:
-                    raise ValueError(f"discovery question {query_id} has no query text")
-                query_id = match.group(1)
-                if not query_id.strip():
-                    raise ValueError(
-                        f"empty discovery question ID at line {line_number}"
-                    )
-                if query_id in questions:
-                    raise ValueError(f"duplicate discovery question ID: {query_id}")
-                continue
-            match = _QUERY_TEXT_RE.match(line)
-            if match and query_id is not None:
-                if query_id in questions:
-                    raise ValueError(f"duplicate discovery query text for {query_id}")
-                questions[query_id] = _decode_nonempty_json_string(
-                    match.group(1), line_number
-                )
-    if query_id is not None and query_id not in questions:
-        raise ValueError(f"discovery question {query_id} has no query text")
+    for item in _iter_discovery_items(path):
+        if isinstance(item, _DiscoveryQuestion):
+            questions[item.question_id] = item.question
     if not questions:
         raise ValueError("no discovery questions found")
     return questions
@@ -168,41 +155,101 @@ def load_discovery_questions(path: Path) -> dict[str, str]:
 
 def iter_discovery_responses(path: Path) -> Iterator[CandidateResponse]:
     """Stream candidates from the official pretty-printed discovery JSON."""
-    query_id: str | None = None
-    query_seen = False
     found = False
+    for item in _iter_discovery_items(path):
+        if isinstance(item, CandidateResponse):
+            found = True
+            yield item
+    if not found:
+        raise ValueError("no discovery responses found")
+
+
+def _iter_discovery_items(
+    path: Path,
+) -> Iterator[_DiscoveryQuestion | CandidateResponse]:
+    """Validate every JSON line while retaining at most one question's IDs."""
+    state = "root"
+    query_id: str | None = None
+    question_ids: set[str] = set()
+    response_ids: set[str] = set()
+    response_required = False
+
     with Path(path).open("r", encoding="utf-8") as handle:
         for line_number, raw_line in enumerate(handle, 1):
             line = raw_line.rstrip("\r\n")
-            match = _QUERY_RE.match(line)
-            if match:
-                query_id = match.group(1)
-                query_seen = False
-                if not query_id.strip():
+
+            if state == "root" and line == "{":
+                state = "question_or_end"
+                continue
+            if state in {"question_or_end", "question_required"}:
+                if state == "question_or_end" and line == "}":
+                    state = "done"
+                    continue
+                match = _QUERY_RE.fullmatch(line)
+                if not match:
+                    _raise_discovery_syntax(line_number, state)
+                query_id = _decode_nonempty_json_string(match.group(1), line_number)
+                if query_id in question_ids:
+                    raise ValueError(f"duplicate discovery question ID: {query_id}")
+                question_ids.add(query_id)
+                response_ids = set()
+                state = "query"
+                continue
+            if state == "query":
+                match = _QUERY_TEXT_RE.fullmatch(line)
+                if not match or query_id is None:
+                    _raise_discovery_syntax(line_number, state)
+                question = _decode_nonempty_json_string(match.group(1), line_number)
+                yield _DiscoveryQuestion(query_id, question)
+                state = "responses_open"
+                continue
+            if state == "responses_open" and line == '    "responses": {':
+                state = "responses"
+                response_required = False
+                continue
+            if state == "responses":
+                if line == "    }" and not response_required:
+                    state = "question_close"
+                    continue
+                match = _RESPONSE_RE.fullmatch(line)
+                if not match or query_id is None:
+                    _raise_discovery_syntax(line_number, state)
+                candidate_id = _decode_nonempty_json_string(match.group(1), line_number)
+                if candidate_id in response_ids:
                     raise ValueError(
-                        f"empty discovery question ID at line {line_number}"
+                        f"duplicate discovery response ID {candidate_id} for {query_id}"
                     )
+                response_ids.add(candidate_id)
+                answer = _decode_nonempty_json_string(match.group(2), line_number)
+                yield CandidateResponse(query_id, candidate_id, answer)
+                if match.group(3):
+                    response_required = True
+                else:
+                    state = "responses_close"
                 continue
-            match = _QUERY_TEXT_RE.match(line)
-            if match and query_id is not None:
-                query = _decode_nonempty_json_string(match.group(1), line_number)
-                query_seen = bool(query)
+            if state == "responses_close" and line == "    }":
+                state = "question_close"
                 continue
-            match = _RESPONSE_RE.match(line)
-            if not match or query_id is None:
+            if state == "question_close":
+                if line == "  },":
+                    state = "question_required"
+                    continue
+                if line == "  }":
+                    state = "root_close"
+                    continue
+            if state == "root_close" and line == "}":
+                state = "done"
                 continue
-            if not query_seen:
-                raise ValueError(
-                    f"discovery response before query text at line {line_number}"
-                )
-            candidate_id = match.group(1)
-            if not candidate_id.strip():
-                raise ValueError(f"empty discovery candidate ID at line {line_number}")
-            answer = _decode_nonempty_json_string(match.group(2), line_number)
-            found = True
-            yield CandidateResponse(query_id, candidate_id, answer)
-    if not found:
-        raise ValueError("no discovery responses found")
+            if state == "done" and not line.strip():
+                continue
+            _raise_discovery_syntax(line_number, state)
+
+    if state != "done":
+        raise ValueError(f"invalid discovery syntax: unexpected EOF in {state}")
+
+
+def _raise_discovery_syntax(line_number: int, state: str) -> None:
+    raise ValueError(f"invalid discovery syntax at line {line_number} in {state}")
 
 
 def select_diagnostic_cases(

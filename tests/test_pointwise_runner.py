@@ -19,6 +19,7 @@ from trec_mlm.pointwise_runner import (
 )
 
 
+TEST_MAX_RESPONSE_BYTES = 1024 * 1024
 CASE = CandidateCase(
     question_id="q1",
     response_id="r1",
@@ -98,10 +99,15 @@ class FakeHTTPResponse:
         *,
         status: int = 200,
         final_url: str = "http://127.0.0.1:13305/v1/chat/completions",
+        content_length: str | None = None,
     ) -> None:
         self.body = json.dumps(body).encode("utf-8")
         self.status = status
         self.final_url = final_url
+        self.headers = (
+            {} if content_length is None else {"Content-Length": content_length}
+        )
+        self.read_sizes: list[int] = []
 
     def __enter__(self) -> FakeHTTPResponse:
         return self
@@ -112,8 +118,9 @@ class FakeHTTPResponse:
     def geturl(self) -> str:
         return self.final_url
 
-    def read(self) -> bytes:
-        return self.body
+    def read(self, size: int = -1) -> bytes:
+        self.read_sizes.append(size)
+        return self.body if size < 0 else self.body[:size]
 
 
 def test_loopback_transport_disables_ambient_http_proxies(
@@ -280,6 +287,61 @@ def test_openai_call_rejects_a_redirected_final_url(
         )
 
 
+@pytest.mark.parametrize("content_length", [str(1024 * 1024 + 1), "invalid", "-1"])
+def test_openai_call_rejects_invalid_or_oversized_declared_content_length(
+    monkeypatch: pytest.MonkeyPatch, content_length: str
+) -> None:
+    response = FakeHTTPResponse(
+        _response_body(VALID_DECISION_JSON), content_length=content_length
+    )
+    monkeypatch.setattr(runner, "_open_no_redirect", lambda request, timeout: response)
+
+    with pytest.raises(ValueError, match="Content-Length|too large"):
+        call_openai_judge(
+            "http://127.0.0.1:13305/v1",
+            "model-a",
+            [{"role": "user", "content": "judge this"}],
+            CONTRACT.schema,
+            timeout_seconds=10,
+        )
+    assert response.read_sizes == []
+
+
+def test_openai_call_bounds_undeclared_response_read_to_max_plus_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = FakeHTTPResponse(_response_body("x" * TEST_MAX_RESPONSE_BYTES))
+    monkeypatch.setattr(runner, "_open_no_redirect", lambda request, timeout: response)
+
+    with pytest.raises(ValueError, match="too large"):
+        call_openai_judge(
+            "http://127.0.0.1:13305/v1",
+            "model-a",
+            [{"role": "user", "content": "judge this"}],
+            CONTRACT.schema,
+            timeout_seconds=10,
+        )
+    assert response.read_sizes == [TEST_MAX_RESPONSE_BYTES + 1]
+
+
+def test_openai_call_rejects_body_shorter_than_declared_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = FakeHTTPResponse(_response_body(VALID_DECISION_JSON))
+    response.headers["Content-Length"] = str(len(response.body) + 1)
+    monkeypatch.setattr(runner, "_open_no_redirect", lambda request, timeout: response)
+
+    with pytest.raises(ValueError, match="Content-Length"):
+        call_openai_judge(
+            "http://127.0.0.1:13305/v1",
+            "model-a",
+            [{"role": "user", "content": "judge this"}],
+            CONTRACT.schema,
+            timeout_seconds=10,
+        )
+    assert response.read_sizes == [TEST_MAX_RESPONSE_BYTES + 1]
+
+
 def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     tmp_path: Path,
 ) -> None:
@@ -312,6 +374,29 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
     assert stat.S_IMODE(output.parent.stat().st_mode) == 0o700
     assert not list(output.parent.glob("*.tmp"))
+
+
+def test_run_cases_rejects_nonprivate_existing_parent_before_cache_read(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "shared"
+    parent.mkdir(mode=0o755)
+    parent.chmod(0o755)
+    output = parent / "run.json"
+    output.write_text("not-json", encoding="utf-8")
+    output.chmod(0o600)
+
+    with pytest.raises(ValueError, match="parent.*0700"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )
+    assert output.read_text(encoding="utf-8") == "not-json"
 
 
 def test_run_cases_records_explicit_failure_after_exactly_one_repair(
@@ -468,3 +553,136 @@ def test_resume_rejects_record_when_any_content_address_changes(
     assert record["model_id"] == model_id
     assert record["elapsed_seconds"] >= 0
     assert record["usage"]["total_tokens"] == 20
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "decision",
+        "usage",
+        "raw",
+        "body",
+        "parsed",
+        "attempt_count",
+        "unknown_key",
+        "invalid_failure",
+        "both_outcomes",
+    ],
+)
+def test_resume_fails_closed_on_same_identity_completed_record_corruption(
+    tmp_path: Path, corruption: str
+) -> None:
+    output = tmp_path / "run.json"
+    run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([VALID_DECISION_JSON]),
+    )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    record = payload["records"][CASE.response_id]
+    attempt = record["attempts"][0]
+    if corruption == "decision":
+        record["decision"] = {"tampered": True}
+    elif corruption == "usage":
+        record["usage"]["total_tokens"] += 1
+    elif corruption == "raw":
+        attempt["raw"] = json.dumps({**VALID_DECISION, "label": "partial"})
+    elif corruption == "body":
+        attempt["response_body"]["model"] = "foreign-model"
+    elif corruption == "parsed":
+        attempt["parsed"] = {**VALID_DECISION, "confidence": "low"}
+    elif corruption == "attempt_count":
+        record["attempts"].append(attempt)
+    elif corruption == "unknown_key":
+        record["untrusted"] = True
+    elif corruption == "invalid_failure":
+        record["decision"] = None
+        record["failure"] = {"type": "retry_later", "message": "not terminal"}
+    elif corruption == "both_outcomes":
+        record["failure"] = {
+            "type": "invalid_decision_after_repair",
+            "message": "fabricated",
+        }
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="corrupt reusable record"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )
+
+
+def test_resume_fails_closed_on_same_identity_partial_record_corruption(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "run.json"
+    with pytest.raises(KeyboardInterrupt):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall(["not-json", KeyboardInterrupt()]),
+        )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    payload["records"][CASE.response_id]["attempts"][0]["parsed"] = VALID_DECISION
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="corrupt reusable record"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )
+
+
+@pytest.mark.parametrize(
+    "corruption", ["unknown_key", "wrong_version", "record_conflict"]
+)
+def test_resume_fails_closed_on_corrupt_run_container(
+    tmp_path: Path, corruption: str
+) -> None:
+    output = tmp_path / "run.json"
+    run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([VALID_DECISION_JSON]),
+    )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    if corruption == "unknown_key":
+        payload["untrusted"] = True
+    elif corruption == "wrong_version":
+        payload["version"] = 2
+    else:
+        payload["model_id"] = "foreign-model"
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="corrupt existing run"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )

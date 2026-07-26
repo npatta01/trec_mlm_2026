@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import stat
@@ -7,7 +8,7 @@ import pytest
 import scripts.build_pointwise_judge_smoke as smoke_cli
 from scripts.build_pointwise_judge_smoke import main
 import scripts.run_local_pointwise_judge as runner_cli
-from trec_mlm.pointwise_judge import CandidateCase
+from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
 
 def _write_inputs(
@@ -298,63 +299,144 @@ def test_cli_rejects_existing_manifest_with_nonprivate_mode(tmp_path: Path) -> N
         main(args)
 
 
-def test_runner_cli_consumes_private_manifest_and_runtime_receipt_without_network(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    case = CandidateCase(
-        question_id="q-private",
-        response_id="r-blind",
-        question="Who wrote Hamlet?",
-        reference_answer="William Shakespeare wrote Hamlet.",
-        candidate_answer="Shakespeare wrote Hamlet.",
-        strata=("high_overlap_control",),
-        selection_reason="high_overlap_control",
-    )
+def _canonical_hash(value: object) -> str:
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _valid_decision() -> dict[str, object]:
+    return {
+        "label": "good",
+        "correctness": 4,
+        "completeness": 2,
+        "relevance": 2,
+        "error_flags": [],
+        "reference_status": "sound",
+        "confidence": "high",
+        "rationale": "The response correctly identifies the answer.",
+    }
+
+
+def _valid_runner_manifest() -> dict[str, object]:
+    cases = [
+        {
+            "question_id": f"q-{index}",
+            "response_id": f"r-{index}",
+            "question": f"Fabricated question {index}?",
+            "reference_answer": f"Fabricated reference {index}.",
+            "candidate_answer": f"Fabricated answer {index}.",
+            "strata": [reason],
+            "selection_reason": reason,
+        }
+        for index, reason in enumerate(DIAGNOSTIC_REASONS)
+    ]
+    body: dict[str, object] = {
+        "version": 1,
+        "seed": 2026,
+        "sources": {
+            "discovery": {"sha256": "a" * 64},
+            "grounded": {"sha256": "b" * 64},
+        },
+        "selection_reasons": list(DIAGNOSTIC_REASONS),
+        "cases": cases,
+    }
+    return {**body, "manifest_hash": _canonical_hash(body)}
+
+
+def _valid_runtime_receipt() -> dict[str, object]:
+    decision = _valid_decision()
+    body: dict[str, object] = {
+        "version": 1,
+        "passed": True,
+        "model_alias": "judge-a",
+        "model_id": "model-a",
+        "registry_sha256": "c" * 64,
+        "runtime": {
+            "name": "fixture-runtime",
+            "version": "1.0",
+            "backend_version": "2.0",
+        },
+        "hardware": {
+            "gpu_arch": "gfx1151",
+            "visible_memory_bytes": 64 * 1024**3,
+            "free_disk_bytes": 100 * 1024**3,
+        },
+        "checkpoint": {
+            "path": "/models/fixture-model",
+            "revision": "fixture-revision",
+            "size_bytes": 123456,
+            "sha256": "d" * 64,
+        },
+        "endpoint": {
+            "base_url": "http://127.0.0.1:13305/v1",
+            "models": ["model-a"],
+        },
+        "configuration": {
+            "context_tokens": 4096,
+            "temperature": 0,
+            "max_output_tokens": 384,
+            "max_concurrency": 1,
+        },
+        "canary": {
+            "passed": True,
+            "raw": json.dumps(decision),
+            "parsed": decision,
+        },
+        "startup_seconds": 1.25,
+        "download_occurred": False,
+    }
+    return {**body, "receipt_sha256": _canonical_hash(body)}
+
+
+def _write_runner_inputs(tmp_path: Path) -> tuple[Path, Path]:
     manifest = tmp_path / "smoke_manifest.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "manifest_hash": "fixture-hash",
-                "cases": [
-                    {
-                        "question_id": case.question_id,
-                        "response_id": case.response_id,
-                        "question": case.question,
-                        "reference_answer": case.reference_answer,
-                        "candidate_answer": case.candidate_answer,
-                        "strata": list(case.strata),
-                        "selection_reason": case.selection_reason,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
+    manifest.write_text(json.dumps(_valid_runner_manifest()), encoding="utf-8")
     manifest.chmod(0o600)
     receipt = tmp_path / "runtime.json"
-    receipt.write_text(
-        json.dumps({"runtime": "fabricated", "passed": True}), encoding="utf-8"
-    )
+    receipt.write_text(json.dumps(_valid_runtime_receipt()), encoding="utf-8")
     receipt.chmod(0o600)
-    protocol_dir = Path("protocols/pointwise_judge_bakeoff")
+    return manifest, receipt
+
+
+def _runner_args(manifest: Path, receipt: Path, output: Path) -> list[str]:
+    return [
+        "--manifest",
+        str(manifest),
+        "--protocol-dir",
+        "protocols/pointwise_judge_bakeoff",
+        "--model-alias",
+        "judge-a",
+        "--model-id",
+        "model-a",
+        "--base-url",
+        "http://127.0.0.1:13305/v1",
+        "--runtime-receipt",
+        str(receipt),
+        "--output",
+        str(output),
+        "--timeout-seconds",
+        "12.5",
+    ]
+
+
+def _rehash(payload: dict[str, object], hash_key: str) -> None:
+    body = dict(payload)
+    body.pop(hash_key, None)
+    payload[hash_key] = _canonical_hash(body)
+
+
+def test_runner_cli_consumes_authentic_manifest_and_runtime_receipt_without_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, receipt = _write_runner_inputs(tmp_path)
     output = tmp_path / "run.json"
     seen: list[tuple[str, str, object]] = []
 
     def fake_call(endpoint, model, messages, schema, *, timeout_seconds):
         seen.append((endpoint, model, messages))
-        raw = json.dumps(
-            {
-                "label": "good",
-                "correctness": 4,
-                "completeness": 2,
-                "relevance": 2,
-                "error_flags": [],
-                "reference_status": "sound",
-                "confidence": "high",
-                "rationale": "The response correctly identifies the author.",
-            }
-        )
+        raw = json.dumps(_valid_decision())
         return raw, {
             "model": model,
             "choices": [{"message": {"content": raw}}],
@@ -363,35 +445,121 @@ def test_runner_cli_consumes_private_manifest_and_runtime_receipt_without_networ
 
     monkeypatch.setattr(runner_cli, "call_openai_judge", fake_call)
 
-    assert (
-        runner_cli.main(
-            [
-                "--manifest",
-                str(manifest),
-                "--protocol-dir",
-                str(protocol_dir),
-                "--model-alias",
-                "judge-a",
-                "--model-id",
-                "model-a",
-                "--base-url",
-                "http://127.0.0.1:13305/v1",
-                "--runtime-receipt",
-                str(receipt),
-                "--output",
-                str(output),
-                "--timeout-seconds",
-                "12.5",
-            ]
-        )
-        == 0
-    )
+    assert runner_cli.main(_runner_args(manifest, receipt, output)) == 0
     assert seen[0][0:2] == ("http://127.0.0.1:13305/v1", "model-a")
-    assert case.question in seen[0][2][1]["content"]
+    assert "Fabricated question 0?" in seen[0][2][1]["content"]
+    assert len(seen) == len(DIAGNOSTIC_REASONS)
     assert (
-        json.loads(output.read_text(encoding="utf-8"))["records"]["r-blind"][
-            "decision"
-        ]["label"]
+        json.loads(output.read_text(encoding="utf-8"))["records"]["r-0"]["decision"][
+            "label"
+        ]
         == "good"
     )
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ["body", "hash", "version", "schema", "selection_reasons"],
+)
+def test_runner_cli_rejects_inauthentic_manifest_before_server_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    manifest, receipt = _write_runner_inputs(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    if corruption == "body":
+        payload["cases"][0]["question"] = "tampered"
+    elif corruption == "hash":
+        payload["manifest_hash"] = "0" * 64
+    elif corruption == "version":
+        payload["version"] = 2
+        _rehash(payload, "manifest_hash")
+    elif corruption == "schema":
+        payload.pop("sources")
+        _rehash(payload, "manifest_hash")
+    elif corruption == "selection_reasons":
+        payload["selection_reasons"] = list(reversed(DIAGNOSTIC_REASONS))
+        _rehash(payload, "manifest_hash")
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(
+        runner_cli,
+        "call_openai_judge",
+        lambda *args, **kwargs: pytest.fail("server call must not occur"),
+    )
+    output = tmp_path / "run.json"
+
+    with pytest.raises(ValueError, match="manifest"):
+        runner_cli.main(_runner_args(manifest, receipt, output))
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "body",
+        "hash",
+        "version",
+        "foreign_alias",
+        "foreign_model",
+        "failed",
+        "configuration",
+        "configuration_type",
+        "canary",
+    ],
+)
+def test_runner_cli_rejects_inauthentic_runtime_receipt_before_server_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    manifest, receipt = _write_runner_inputs(tmp_path)
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    if corruption == "body":
+        payload["runtime"]["version"] = "tampered"
+    elif corruption == "hash":
+        payload["receipt_sha256"] = "0" * 64
+    elif corruption == "version":
+        payload["version"] = 2
+        _rehash(payload, "receipt_sha256")
+    elif corruption == "foreign_alias":
+        payload["model_alias"] = "judge-b"
+        _rehash(payload, "receipt_sha256")
+    elif corruption == "foreign_model":
+        payload["model_id"] = "model-b"
+        _rehash(payload, "receipt_sha256")
+    elif corruption == "failed":
+        payload["passed"] = False
+        _rehash(payload, "receipt_sha256")
+    elif corruption == "configuration":
+        payload["configuration"]["context_tokens"] = 2048
+        _rehash(payload, "receipt_sha256")
+    elif corruption == "configuration_type":
+        payload["configuration"]["max_concurrency"] = True
+        _rehash(payload, "receipt_sha256")
+    elif corruption == "canary":
+        payload["canary"]["parsed"] = {"tampered": True}
+        _rehash(payload, "receipt_sha256")
+    receipt.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(
+        runner_cli,
+        "call_openai_judge",
+        lambda *args, **kwargs: pytest.fail("server call must not occur"),
+    )
+    output = tmp_path / "run.json"
+
+    with pytest.raises(ValueError, match="receipt"):
+        runner_cli.main(_runner_args(manifest, receipt, output))
+    assert not output.exists()
+
+
+def test_runner_cli_rejects_duplicate_private_input_keys_before_server_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, receipt = _write_runner_inputs(tmp_path)
+    manifest.write_text('{"version": 1, "version": 1}', encoding="utf-8")
+    monkeypatch.setattr(
+        runner_cli,
+        "call_openai_judge",
+        lambda *args, **kwargs: pytest.fail("server call must not occur"),
+    )
+
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        runner_cli.main(_runner_args(manifest, receipt, tmp_path / "run.json"))

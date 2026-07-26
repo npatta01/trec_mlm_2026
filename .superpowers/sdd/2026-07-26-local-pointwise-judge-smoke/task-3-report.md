@@ -142,3 +142,89 @@ implementation commit.
   baseline.
 - The real CLI remains intentionally unexecuted until a separately verified
   local model server and genuine private manifest/runtime receipt are available.
+
+## Review fix round 1
+
+All four rejected review findings were addressed with regression-first changes:
+
+1. **Cache integrity now fails closed.** A same-identity complete or partial
+   record is reusable only after exact record-key, attempt-state, parsed/raw,
+   response-body, model, usage-total, failure, and outcome validation. Corrupt
+   run containers and container/record identity conflicts raise instead of
+   silently reusing or rerunning. Legitimate content-identity changes still
+   rerun the case.
+2. **CLI private inputs are authenticated before inference.** The Task 2
+   manifest must have its exact version-1 schema, source hashes, ordered frozen
+   diagnostic reasons, ten exact case rows, uniqueness invariants, and a valid
+   canonical manifest hash. The Task 4 receipt format had not yet been
+   implemented, so Task 3 defines and validates a minimum explicit version-1
+   receipt consistent with the plan: exact keys, canonical receipt hash,
+   successful preflight, requested alias/model and endpoint binding, registry
+   and checkpoint hashes, runtime/backend versions, `gfx1151`/memory/disk
+   evidence, exact frozen decoding settings, endpoint model list, reparsed
+   schema canary, startup time, and download flag.
+3. **HTTP reads are bounded.** Responses are capped at 1 MiB. Oversized,
+   malformed, or negative `Content-Length` values are rejected before reading;
+   undeclared responses are read at most cap-plus-one, and declared short reads
+   fail closed.
+4. **Cache parents are private before access.** An existing output parent must
+   be a real directory with exact mode `0700` before the existing cache is read.
+
+### Review RED/GREEN evidence
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_runner.py -k same_identity -v
+```
+
+Initial RED: `10 failed`; nine corrupt completed records were silently reused
+and one corrupt partial record was silently rerun. After strict validators and
+two additional run-container cases, GREEN: `12 passed`.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_judge_cli.py -k runner_cli -v
+```
+
+Initial RED: the valid fixture and duplicate-key case passed, while all `13`
+manifest/receipt corruption cases reached the injected forbidden server call.
+GREEN after exact validation: `15 passed`. A self-review type-confusion case
+(`max_concurrency=True`) then failed RED and passed GREEN after strict numeric
+type validation.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_runner.py -k 'content_length or undeclared_response' -v
+```
+
+Initial RED: `5 failed` across declared oversized/invalid/negative lengths,
+undeclared oversized content, and a short declared body. GREEN after bounded
+reads: all five passed. The existing non-private-parent regression likewise
+failed RED because cache JSON was parsed first and passed GREEN after moving the
+exact-mode check ahead of cache access.
+
+### Review-round final verification
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_runner.py tests/test_pointwise_judge_cli.py \
+  tests/test_pointwise_judge.py tests/test_pointwise_sampling.py -v
+```
+
+Outcome: `110 passed in 0.17s`.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run ruff check \
+  trec_mlm/pointwise_runner.py scripts/run_local_pointwise_judge.py \
+  tests/test_pointwise_runner.py tests/test_pointwise_judge_cli.py
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run ruff format --check \
+  trec_mlm/pointwise_runner.py scripts/run_local_pointwise_judge.py \
+  tests/test_pointwise_runner.py tests/test_pointwise_judge_cli.py
+```
+
+Outcome: `All checks passed!` and `4 files already formatted`.
+
+The scoped secret scan returned no matches. The full repository suite produced
+`1039 passed, 3 skipped, 6 failed in 24.00s`; the same four Quarto and two
+Chrome sandbox failures remain outside Task 3. No real private artifact,
+network endpoint, or model server was used.

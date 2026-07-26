@@ -238,7 +238,7 @@ def call_openai_judge(
     content = first["message"].get("content")
     if type(content) is not str or not content.strip():
         raise ValueError("judge response content must not be empty")
-    _validated_usage(body.get("usage"))
+    _validated_response_usage(body.get("usage"))
     return content, body
 
 
@@ -478,6 +478,7 @@ def run_cases(
         raise ValueError(
             "runtime receipt schema hash does not match the frozen contract"
         )
+    backend_response_model = _trusted_backend_response_model(runtime_receipt, model_id)
     output_path = Path(output_path)
     _prepare_private_parent(output_path.parent)
     existing = _load_existing_run(output_path)
@@ -505,7 +506,12 @@ def run_cases(
     reusable_records: dict[str, _ReusableRecord] = {}
     for response_id, identity in identities.items():
         cached = existing_records.get(response_id)
-        reusable = _validate_reusable_record(cached, identity, response_id)
+        reusable = _validate_reusable_record(
+            cached,
+            identity,
+            response_id,
+            backend_response_model=backend_response_model,
+        )
         if reusable is not None:
             if existing is None:
                 raise RuntimeError("unreachable reusable record without existing run")
@@ -551,14 +557,16 @@ def run_cases(
             if type(raw) is not str or not isinstance(response_body, Mapping):
                 raise ValueError("judge call returned an invalid result")
             body = dict(response_body)
+            if body.get("model") != backend_response_model:
+                raise ValueError("judge call returned the wrong backend model")
             attempt: dict[str, object] = {
                 "raw": raw,
                 "response_body": body,
                 "logical_model_id": model_id,
-                "backend_model_id": body.get("model"),
+                "backend_model_id": backend_response_model,
                 "parsed": None,
             }
-            _merge_usage(usage, _validated_usage(body.get("usage")))
+            _merge_usage(usage, _validated_response_usage(body.get("usage")))
             try:
                 parsed = decision_to_dict(parse_judge_decision(raw))
             except ValueError as error:
@@ -610,6 +618,19 @@ def validate_frozen_judge_contract(contract: PromptContract) -> str:
 
 
 def _validated_usage(value: object) -> dict[str, int | float]:
+    if type(value) is not dict:
+        raise ValueError("aggregate usage must be a JSON object")
+    result: dict[str, int | float] = {}
+    for key, amount in value.items():
+        if type(key) is not str or type(amount) not in {int, float}:
+            raise ValueError("aggregate usage must contain only numeric fields")
+        if not math.isfinite(amount) or amount < 0:
+            raise ValueError("aggregate usage values must be finite and nonnegative")
+        result[key] = amount
+    return result
+
+
+def _validated_response_usage(value: object) -> dict[str, int | float]:
     if type(value) is not dict:
         raise ValueError("judge response usage must be a JSON object")
     result: dict[str, int | float] = {}
@@ -669,6 +690,15 @@ def _record_identity(
     }
 
 
+def _trusted_backend_response_model(
+    runtime_receipt: Mapping[str, object], model_id: str
+) -> str:
+    value = runtime_receipt.get("backend_response_model", model_id)
+    if type(value) is not str or not value:
+        raise ValueError("runtime receipt backend response model is invalid")
+    return value
+
+
 def _validate_run_container(value: dict[str, Any]) -> None:
     if set(value) != _RUN_KEYS:
         raise ValueError("corrupt existing run: expected exact top-level keys")
@@ -705,7 +735,11 @@ def _require_reusable_container_identity(
 
 
 def _validate_reusable_record(
-    value: object, identity: Mapping[str, str], response_id: str
+    value: object,
+    identity: Mapping[str, str],
+    response_id: str,
+    *,
+    backend_response_model: str,
 ) -> _ReusableRecord | None:
     if value is None:
         return None
@@ -714,13 +748,20 @@ def _validate_reusable_record(
     if any(value.get(key) != expected for key, expected in identity.items()):
         return None
     try:
-        return _validated_same_identity_record(value, identity)
+        return _validated_same_identity_record(
+            value,
+            identity,
+            backend_response_model=backend_response_model,
+        )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"corrupt reusable record {response_id}: {error}") from error
 
 
 def _validated_same_identity_record(
-    value: dict[str, Any], identity: Mapping[str, str]
+    value: dict[str, Any],
+    identity: Mapping[str, str],
+    *,
+    backend_response_model: str,
 ) -> _ReusableRecord:
     if set(value) != _RECORD_KEYS:
         raise ValueError("expected exact record keys")
@@ -755,7 +796,9 @@ def _validated_same_identity_record(
     aggregate_usage: dict[str, int | float] = {}
     for attempt in attempts:
         validated, stage, parsed, error, usage = _validated_cached_attempt(
-            attempt, value["model_id"]
+            attempt,
+            value["model_id"],
+            backend_response_model=backend_response_model,
         )
         validated_attempts.append(validated)
         stages.append(stage)
@@ -804,7 +847,10 @@ def _validated_same_identity_record(
 
 
 def _validated_cached_attempt(
-    value: object, model_id: str
+    value: object,
+    model_id: str,
+    *,
+    backend_response_model: str,
 ) -> tuple[
     dict[str, object],
     str,
@@ -820,7 +866,12 @@ def _validated_cached_attempt(
     if logical_model_id != model_id:
         raise ValueError("attempt logical model does not match record")
     body = value.get("response_body")
-    usage = _validated_cached_response_body(body, backend_model_id, raw)
+    usage = _validated_cached_response_body(
+        body,
+        backend_model_id,
+        raw,
+        backend_response_model=backend_response_model,
+    )
     try:
         parsed = decision_to_dict(parse_judge_decision(raw))
     except ValueError as error:
@@ -850,11 +901,15 @@ def _validated_cached_attempt(
 
 
 def _validated_cached_response_body(
-    value: object, backend_model_id: object, raw: str
+    value: object,
+    backend_model_id: object,
+    raw: str,
+    *,
+    backend_response_model: str,
 ) -> dict[str, int | float]:
     if (
         type(value) is not dict
-        or type(backend_model_id) is not str
+        or backend_model_id != backend_response_model
         or value.get("model") != backend_model_id
     ):
         raise ValueError("attempt response has wrong model")
@@ -862,9 +917,9 @@ def _validated_cached_response_body(
     if type(choices) is not list or not choices or type(choices[0]) is not dict:
         raise ValueError("attempt response has invalid choices")
     message = choices[0].get("message")
-    if type(message) is not dict or message.get("content") != raw or not raw.strip():
+    if type(message) is not dict or message.get("content") != raw:
         raise ValueError("attempt response content does not match raw output")
-    return _validated_usage(value.get("usage"))
+    return _validated_response_usage(value.get("usage"))
 
 
 def _require_success_outcome(

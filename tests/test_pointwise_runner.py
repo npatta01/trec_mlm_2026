@@ -459,7 +459,10 @@ def test_run_cases_preserves_backend_body_and_logical_model_separately(
         model_id="model-a",
         contract=CONTRACT,
         output_path=tmp_path / "run.json",
-        runtime_receipt=RECEIPT,
+        runtime_receipt={
+            **RECEIPT,
+            "backend_response_model": "/verified/checkpoint.gguf",
+        },
         call=canonical_backend_call,
     )
 
@@ -647,6 +650,34 @@ def test_resume_revalidates_cached_duplicate_key_output_and_issues_only_repair(
     assert result["records"][CASE.response_id]["decision"] == VALID_DECISION
 
 
+def test_resume_accepts_preserved_empty_invalid_attempt_after_successful_repair(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "run.json"
+    first = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall(["", VALID_DECISION_JSON]),
+    )
+    assert first["records"][CASE.response_id]["attempts"][0]["raw"] == ""
+
+    resumed = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([]),
+    )
+
+    assert resumed["records"][CASE.response_id]["decision"] == VALID_DECISION
+
+
 @pytest.mark.parametrize(
     "changed",
     ["input", "prompt", "model_alias", "model_id", "runtime_receipt"],
@@ -765,6 +796,69 @@ def test_resume_fails_closed_on_same_identity_completed_record_corruption(
             contract=CONTRACT,
             output_path=output,
             runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )
+
+
+def test_resume_rejects_structured_metadata_in_aggregate_record_usage(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "run.json"
+    run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=ScriptedCall([VALID_DECISION_JSON]),
+    )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    payload["records"][CASE.response_id]["usage"]["prompt_tokens_details"] = {
+        "cached_tokens": 3
+    }
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="corrupt reusable record.*usage"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([]),
+        )
+
+
+def test_resume_rejects_self_consistent_foreign_backend_model(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "run.json"
+    pinned_receipt = {**RECEIPT, "backend_response_model": "model-a"}
+    run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=pinned_receipt,
+        call=ScriptedCall([VALID_DECISION_JSON]),
+    )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    attempt = payload["records"][CASE.response_id]["attempts"][0]
+    attempt["backend_model_id"] = "foreign-model"
+    attempt["response_body"]["model"] = "foreign-model"
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="corrupt reusable record.*model"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=pinned_receipt,
             call=ScriptedCall([]),
         )
 

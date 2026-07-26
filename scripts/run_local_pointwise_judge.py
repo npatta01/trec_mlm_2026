@@ -33,13 +33,17 @@ _CASE_KEYS = {
     "strata",
     "selection_reason",
 }
-_MANIFEST_KEYS = {
+_VERSION_1_MANIFEST_KEYS = {
     "version",
     "seed",
     "sources",
     "selection_reasons",
     "cases",
     "manifest_hash",
+}
+_VERSION_2_MANIFEST_KEYS = _VERSION_1_MANIFEST_KEYS | {
+    "cases_per_reason",
+    "reused_smoke_response_ids",
 }
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
 
@@ -146,26 +150,53 @@ def _load_json_from_opened_file(
 
 
 def _load_cases(manifest: dict[str, Any]) -> list[CandidateCase]:
-    if set(manifest) != _MANIFEST_KEYS:
-        raise ValueError("smoke manifest must contain exact Task 2 keys")
+    version = manifest.get("version")
+    if type(version) is not int or version not in {1, 2}:
+        raise ValueError("pointwise manifest version must be 1 or 2")
+    expected_keys = (
+        _VERSION_1_MANIFEST_KEYS if version == 1 else _VERSION_2_MANIFEST_KEYS
+    )
+    if set(manifest) != expected_keys:
+        raise ValueError(
+            f"pointwise manifest must contain exact version {version} keys"
+        )
     body = dict(manifest)
     stored_hash = body.pop("manifest_hash")
     if not _is_sha256(stored_hash) or stored_hash != _canonical_hash(body):
-        raise ValueError("smoke manifest hash does not match its body")
-    if type(manifest["version"]) is not int or manifest["version"] != 1:
-        raise ValueError("smoke manifest version must be 1")
+        raise ValueError("pointwise manifest hash does not match its body")
     if type(manifest["seed"]) is not int:
-        raise ValueError("smoke manifest seed must be an integer")
-    _validate_sources(manifest["sources"])
+        raise ValueError("pointwise manifest seed must be an integer")
+    _validate_sources(manifest["sources"], version=version)
     if manifest["selection_reasons"] != list(DIAGNOSTIC_REASONS):
-        raise ValueError("smoke manifest selection reasons are not frozen")
+        raise ValueError("pointwise manifest selection reasons are not frozen")
+    cases_per_reason = 1
+    if version == 2:
+        cases_per_reason = manifest["cases_per_reason"]
+        if type(cases_per_reason) is not int or cases_per_reason != 10:
+            raise ValueError("version 2 cases_per_reason must be 10")
+        reused_ids = manifest["reused_smoke_response_ids"]
+        if (
+            type(reused_ids) is not list
+            or len(reused_ids) != len(DIAGNOSTIC_REASONS)
+            or len(set(reused_ids)) != len(reused_ids)
+            or any(
+                type(response_id) is not str or not response_id
+                for response_id in reused_ids
+            )
+        ):
+            raise ValueError(
+                "version 2 manifest must contain exactly ten reused smoke response IDs"
+            )
     rows = manifest.get("cases")
-    if type(rows) is not list or len(rows) != len(DIAGNOSTIC_REASONS):
-        raise ValueError("smoke manifest must contain exactly ten cases")
+    expected_case_count = len(DIAGNOSTIC_REASONS) * cases_per_reason
+    if type(rows) is not list or len(rows) != expected_case_count:
+        if version == 1:
+            raise ValueError("version 1 manifest must contain exactly ten cases")
+        raise ValueError("version 2 manifest must contain exactly 100 cases")
     cases: list[CandidateCase] = []
     for row in rows:
         if type(row) is not dict or set(row) != _CASE_KEYS:
-            raise ValueError("smoke manifest case must contain exact keys")
+            raise ValueError("pointwise manifest case must contain exact keys")
         values = dict(row)
         strata = values["strata"]
         if (
@@ -173,33 +204,54 @@ def _load_cases(manifest: dict[str, Any]) -> list[CandidateCase]:
             or not strata
             or any(type(item) is not str or not item for item in strata)
         ):
-            raise ValueError("smoke manifest case strata must be strings")
+            raise ValueError("pointwise manifest case strata must be strings")
         values["strata"] = tuple(strata)
         if any(
             type(values[key]) is not str or not values[key]
             for key in _CASE_KEYS - {"strata"}
         ):
-            raise ValueError("smoke manifest case strings must not be empty")
+            raise ValueError("pointwise manifest case strings must not be empty")
         if values["selection_reason"] not in strata:
-            raise ValueError("smoke manifest selection reason must be a case stratum")
+            raise ValueError(
+                "pointwise manifest selection reason must be a case stratum"
+            )
         cases.append(CandidateCase(**values))
     if len({case.response_id for case in cases}) != len(cases):
-        raise ValueError("smoke manifest response IDs must be unique")
+        raise ValueError("pointwise manifest response IDs must be unique")
     if len({case.question_id for case in cases}) != len(cases):
-        raise ValueError("smoke manifest question IDs must be unique")
-    if [case.selection_reason for case in cases] != list(DIAGNOSTIC_REASONS):
-        raise ValueError("smoke manifest cases do not match frozen reason order")
+        raise ValueError("pointwise manifest question IDs must be unique")
+    expected_reason_order = [
+        reason for reason in DIAGNOSTIC_REASONS for _ in range(cases_per_reason)
+    ]
+    if [case.selection_reason for case in cases] != expected_reason_order:
+        raise ValueError("pointwise manifest cases do not match frozen reason order")
+    if version == 2:
+        by_response_id = {case.response_id: case for case in cases}
+        try:
+            reused_reasons = [
+                by_response_id[response_id].selection_reason
+                for response_id in manifest["reused_smoke_response_ids"]
+            ]
+        except KeyError as error:
+            raise ValueError(
+                "reused smoke response ID is absent from version 2 cases"
+            ) from error
+        if reused_reasons != list(DIAGNOSTIC_REASONS):
+            raise ValueError("reused smoke cases do not match frozen reason order")
     return cases
 
 
-def _validate_sources(value: object) -> None:
-    if type(value) is not dict or set(value) != {"discovery", "grounded"}:
-        raise ValueError("smoke manifest must contain exact source identities")
+def _validate_sources(value: object, *, version: int) -> None:
+    expected_sources = {"discovery", "grounded"}
+    if version == 2:
+        expected_sources.add("smoke_manifest")
+    if type(value) is not dict or set(value) != expected_sources:
+        raise ValueError("pointwise manifest must contain exact source identities")
     for source in value.values():
         if type(source) is not dict or set(source) != {"sha256"}:
-            raise ValueError("smoke manifest source must contain one hash")
+            raise ValueError("pointwise manifest source must contain one hash")
         if not _is_sha256(source["sha256"]):
-            raise ValueError("smoke manifest source hash is invalid")
+            raise ValueError("pointwise manifest source hash is invalid")
 
 
 def _canonical_hash(value: object) -> str:

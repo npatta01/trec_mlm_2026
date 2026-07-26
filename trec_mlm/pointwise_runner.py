@@ -70,6 +70,25 @@ _RUNTIME_RECEIPT_KEYS = {
     "download_occurred",
     "receipt_sha256",
 }
+_LOCAL_MODEL_ALIASES = {
+    "qwen36-35b-a3b-gguf",
+    "qwen36-27b-fp8",
+    "gpt-oss-20b",
+    "gemma4-31b-q4",
+}
+_REGISTRY_ENTRY_KEYS = {
+    "model_id",
+    "runtime",
+    "new_download_authorized",
+    "checkpoint",
+    "configuration",
+}
+_FROZEN_CONFIGURATION = {
+    "context_tokens": 4096,
+    "temperature": 0,
+    "max_output_tokens": 384,
+    "max_concurrency": 1,
+}
 
 
 class JudgeCall(Protocol):
@@ -226,12 +245,73 @@ def _declared_content_length(headers: object) -> int | None:
     return length
 
 
+def validate_local_model_registry(
+    registry: Mapping[str, object], *, model_alias: str, model_id: str
+) -> dict[str, object]:
+    """Validate Task 4's version-1 registry and return the selected descriptor."""
+    value = dict(registry)
+    if set(value) != {"version", "models"}:
+        raise ValueError("local model registry must contain exact version-1 keys")
+    if type(value["version"]) is not int or value["version"] != 1:
+        raise ValueError("local model registry version must be 1")
+    models = value["models"]
+    if type(models) is not dict or set(models) != _LOCAL_MODEL_ALIASES:
+        raise ValueError("local model registry must contain the exact approved aliases")
+    validated: dict[str, dict[str, object]] = {}
+    for alias, untrusted_entry in models.items():
+        entry = _exact_mapping(
+            untrusted_entry, _REGISTRY_ENTRY_KEYS, f"local model registry entry {alias}"
+        )
+        _require_nonempty_strings(
+            entry, {"model_id", "runtime"}, f"local model registry entry {alias}"
+        )
+        if type(entry["new_download_authorized"]) is not bool:
+            raise ValueError("local model registry download authorization is invalid")
+        checkpoint = _exact_mapping(
+            entry["checkpoint"],
+            {"revision", "gguf_filename", "expected_bytes", "sha256"},
+            f"local model registry checkpoint {alias}",
+        )
+        revision = checkpoint["revision"]
+        filename = checkpoint["gguf_filename"]
+        if not (
+            (type(revision) is str and bool(revision) and filename is None)
+            or (revision is None and type(filename) is str and bool(filename))
+        ):
+            raise ValueError(
+                "local model registry checkpoint must pin one revision or GGUF filename"
+            )
+        _require_nonnegative_integer(
+            checkpoint["expected_bytes"],
+            "local model registry expected checkpoint bytes",
+            positive=True,
+        )
+        if not _is_sha256(checkpoint["sha256"]):
+            raise ValueError("local model registry checkpoint hash is invalid")
+        configuration = _exact_mapping(
+            entry["configuration"],
+            set(_FROZEN_CONFIGURATION),
+            f"local model registry configuration {alias}",
+        )
+        if not _is_frozen_configuration(configuration):
+            raise ValueError("local model registry configuration is not frozen")
+        validated[alias] = entry
+    if model_alias not in validated:
+        raise ValueError("requested model alias is not in local model registry")
+    selected = validated[model_alias]
+    if selected["model_id"] != model_id:
+        raise ValueError("local model registry does not match requested model ID")
+    return selected
+
+
 def validate_runtime_receipt(
     receipt: Mapping[str, object],
     *,
     model_alias: str,
     model_id: str,
     endpoint: str,
+    registry_sha256: str,
+    registry_entry: Mapping[str, object],
 ) -> dict[str, object]:
     """Validate the version-1 preflight evidence required before inference."""
     value = dict(receipt)
@@ -247,8 +327,11 @@ def validate_runtime_receipt(
         raise ValueError("runtime receipt must record a successful preflight")
     if value["model_alias"] != model_alias or value["model_id"] != model_id:
         raise ValueError("runtime receipt does not match requested model identity")
-    if not _is_sha256(value["registry_sha256"]):
-        raise ValueError("runtime receipt registry hash is invalid")
+    if (
+        not _is_sha256(value["registry_sha256"])
+        or value["registry_sha256"] != registry_sha256
+    ):
+        raise ValueError("runtime receipt registry hash is not externally anchored")
 
     runtime = _exact_mapping(
         value["runtime"],
@@ -256,6 +339,8 @@ def validate_runtime_receipt(
         "runtime receipt runtime",
     )
     _require_nonempty_strings(runtime, set(runtime), "runtime receipt runtime")
+    if runtime["name"] != registry_entry["runtime"]:
+        raise ValueError("runtime receipt runtime does not match registry")
     hardware = _exact_mapping(
         value["hardware"],
         {"gpu_arch", "visible_memory_bytes", "free_disk_bytes"},
@@ -285,6 +370,21 @@ def validate_runtime_receipt(
     )
     if not _is_sha256(checkpoint["sha256"]):
         raise ValueError("runtime receipt checkpoint hash is invalid")
+    registry_checkpoint = registry_entry["checkpoint"]
+    if (
+        checkpoint["size_bytes"] != registry_checkpoint["expected_bytes"]
+        or checkpoint["sha256"] != registry_checkpoint["sha256"]
+    ):
+        raise ValueError("runtime receipt checkpoint does not match registry")
+    registry_revision = registry_checkpoint["revision"]
+    registry_filename = registry_checkpoint["gguf_filename"]
+    if registry_revision is not None and checkpoint["revision"] != registry_revision:
+        raise ValueError("runtime receipt checkpoint revision does not match registry")
+    if (
+        registry_filename is not None
+        and Path(checkpoint["path"]).name != registry_filename
+    ):
+        raise ValueError("runtime receipt GGUF filename does not match registry")
 
     endpoint_record = _exact_mapping(
         value["endpoint"], {"base_url", "models"}, "runtime receipt endpoint"
@@ -306,21 +406,10 @@ def validate_runtime_receipt(
         {"context_tokens", "temperature", "max_output_tokens", "max_concurrency"},
         "runtime receipt configuration",
     )
-    if (
-        configuration
-        != {
-            "context_tokens": 4096,
-            "temperature": 0,
-            "max_output_tokens": 384,
-            "max_concurrency": 1,
-        }
-        or any(
-            type(configuration[key]) is not int
-            for key in ("context_tokens", "max_output_tokens", "max_concurrency")
-        )
-        or type(configuration["temperature"]) not in {int, float}
-    ):
+    if not _is_frozen_configuration(configuration):
         raise ValueError("runtime receipt does not match frozen decoding configuration")
+    if configuration != registry_entry["configuration"]:
+        raise ValueError("runtime receipt configuration does not match registry")
 
     canary = _exact_mapping(
         value["canary"], {"passed", "raw", "parsed"}, "runtime receipt canary"
@@ -338,7 +427,20 @@ def validate_runtime_receipt(
         raise ValueError("runtime receipt startup_seconds is invalid")
     if type(value["download_occurred"]) is not bool:
         raise ValueError("runtime receipt download flag is invalid")
+    if value["download_occurred"] and not registry_entry["new_download_authorized"]:
+        raise ValueError("runtime receipt records an unauthorized download")
     return value
+
+
+def _is_frozen_configuration(value: Mapping[str, object]) -> bool:
+    return (
+        value == _FROZEN_CONFIGURATION
+        and all(
+            type(value[key]) is int
+            for key in ("context_tokens", "max_output_tokens", "max_concurrency")
+        )
+        and type(value["temperature"]) in {int, float}
+    )
 
 
 def run_cases(

@@ -60,6 +60,9 @@ VALID_DECISION = {
     "rationale": "The response gives the correct author directly.",
 }
 VALID_DECISION_JSON = json.dumps(VALID_DECISION)
+DUPLICATE_KEY_DECISION_JSON = VALID_DECISION_JSON.replace(
+    '"label": "good"', '"label": "incorrect", "label": "good"', 1
+)
 
 
 def _response_body(
@@ -376,6 +379,28 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert not list(output.parent.glob("*.tmp"))
 
 
+def test_run_cases_repairs_a_live_decision_with_duplicate_object_keys(
+    tmp_path: Path,
+) -> None:
+    call = ScriptedCall([DUPLICATE_KEY_DECISION_JSON, VALID_DECISION_JSON])
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=tmp_path / "run.json",
+        runtime_receipt=RECEIPT,
+        call=call,
+    )
+
+    record = result["records"][CASE.response_id]
+    assert record["attempts"][0]["raw"] == DUPLICATE_KEY_DECISION_JSON
+    assert "duplicate JSON key" in record["attempts"][0]["error"]
+    assert record["decision"] == VALID_DECISION
+    assert len(call.requests) == 2
+
+
 def test_run_cases_rejects_nonprivate_existing_parent_before_cache_read(
     tmp_path: Path,
 ) -> None:
@@ -494,6 +519,37 @@ def test_interruption_during_repair_preserves_raw_attempt_and_resumes_with_repai
     assert len(resumed.requests) == 1
     assert "not-json" in resumed.requests[0]["messages"][-1]["content"]
     assert len(result["records"][CASE.response_id]["attempts"]) == 2
+    assert result["records"][CASE.response_id]["decision"] == VALID_DECISION
+
+
+def test_resume_revalidates_cached_duplicate_key_output_and_issues_only_repair(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "run.json"
+    with pytest.raises(KeyboardInterrupt):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=CONTRACT,
+            output_path=output,
+            runtime_receipt=RECEIPT,
+            call=ScriptedCall([DUPLICATE_KEY_DECISION_JSON, KeyboardInterrupt()]),
+        )
+    resumed = ScriptedCall([VALID_DECISION_JSON])
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=output,
+        runtime_receipt=RECEIPT,
+        call=resumed,
+    )
+
+    assert len(resumed.requests) == 1
+    assert DUPLICATE_KEY_DECISION_JSON in resumed.requests[0]["messages"][-1]["content"]
     assert result["records"][CASE.response_id]["decision"] == VALID_DECISION
 
 

@@ -295,11 +295,15 @@ only a corrected object under the unchanged schema.
 ```bash
 uv run python scripts/run_local_pointwise_judge.py \
   --manifest artifacts/pointwise_judge_bakeoff/smoke-v1/smoke_manifest.json \
+  --manifest-sha256 <independently-reviewed-manifest-sha256> \
   --protocol-dir protocols/pointwise_judge_bakeoff \
+  --registry protocols/pointwise_judge_bakeoff/local-models-v1.json \
+  --registry-sha256 <independently-reviewed-registry-sha256> \
   --model-alias qwen36-35b-a3b-gguf \
   --model-id Qwen3.6-35B-A3B-GGUF \
   --base-url http://127.0.0.1:13305/v1 \
   --runtime-receipt artifacts/pointwise_judge_bakeoff/smoke-v1/runtime/qwen36-35b-a3b-gguf.json \
+  --runtime-receipt-sha256 <independently-reviewed-receipt-sha256> \
   --output artifacts/pointwise_judge_bakeoff/smoke-v1/runs/qwen36-35b-a3b-gguf.json
 ```
 

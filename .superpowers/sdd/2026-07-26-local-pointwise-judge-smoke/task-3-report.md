@@ -228,3 +228,76 @@ The scoped secret scan returned no matches. The full repository suite produced
 `1039 passed, 3 skipped, 6 failed in 24.00s`; the same four Quarto and two
 Chrome sandbox failures remain outside Task 3. No real private artifact,
 network endpoint, or model server was used.
+
+## Review fix round 2
+
+All three rejected findings were addressed:
+
+1. **Authenticity now comes from out-of-band commitments.** The CLI requires
+   independently supplied SHA-256 values for the exact manifest, runtime
+   receipt, and Task 4 registry bytes. In-band manifest/receipt hashes remain
+   useful integrity checks but are no longer treated as trust anchors. Rehashed
+   file tampering fails against the unchanged external digest before inference.
+2. **The Task 4 registry contract is explicit and bound to the receipt.** Until
+   Task 4 creates the reviewed file, tests use a fabricated version-1 registry
+   with exact top-level structure and the exact four aliases from the plan. Each
+   descriptor has exact model ID/runtime/download authorization, exactly one
+   cached revision or GGUF filename, expected bytes/checkpoint hash, and frozen
+   `4096/0/384/1` settings. The selected descriptor must match the requested
+   alias/model and the receipt's registry hash, runtime, checkpoint, settings,
+   and download evidence.
+3. **Decisions and private inputs fail closed at their byte boundaries.** Raw
+   decisions reject duplicate JSON object keys, including live and cached repair
+   paths. Manifest, receipt, and registry loading uses one opened descriptor with
+   `O_NOFOLLOW`/`O_CLOEXEC` where available, `fstat`, bounded cap-plus-one reads,
+   exact opened-byte hashing, duplicate-key parsing, and post-read inode/metadata
+   comparison. Symlinks, path swaps, unsafe modes, and inputs over 4 MiB are
+   rejected before any model call.
+
+### Round-2 RED/GREEN evidence
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_judge_cli.py \
+  -k requires_independent_input_digest_anchors -v
+```
+
+RED: `1 failed`; the old unanchored invocation reached the injected forbidden
+model call. GREEN: `1 passed` after making the three external digests and
+registry path required CLI inputs.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_judge_cli.py \
+  -k 'consumes_authentic or inauthentic_manifest or inauthentic_runtime or rehashed_registry' -v
+```
+
+RED: `3 failed, 13 passed`; rehashed manifest and receipt bodies plus a changed
+registry reached the forbidden call. GREEN: `16 passed` after descriptor-bound
+external hashing and registry/receipt validation.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_judge.py -k duplicate_object_keys -v
+```
+
+RED: `1 failed` because duplicate `label` keys were silently accepted. GREEN:
+`1 passed`; live and cached repair regressions subsequently passed as well.
+
+### Round-2 final verification
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task3-runner uv run pytest \
+  tests/test_pointwise_runner.py tests/test_pointwise_judge_cli.py \
+  tests/test_pointwise_judge.py tests/test_pointwise_sampling.py -q
+```
+
+Outcome: `135 passed` after the final input-duplicate coverage expansion.
+
+Ruff and format checks passed across all six changed Python files. The scoped
+code/test secret scan produced no matches.
+
+The full repository probe produced `1062 passed, 3 skipped, 6 failed in
+23.95s`. The failures are the same restricted-host baseline: four Quarto
+cache/database failures and two Chrome crashpad socket failures. No real private
+artifact, registry, network endpoint, or model server was used.

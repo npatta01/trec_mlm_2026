@@ -7,6 +7,7 @@ import argparse
 from functools import partial
 import hashlib
 import json
+import os
 from pathlib import Path
 import stat
 from typing import Any, Sequence
@@ -15,6 +16,7 @@ from trec_mlm.pointwise_judge import CandidateCase, load_prompt_contract
 from trec_mlm.pointwise_runner import (
     call_openai_judge,
     run_cases,
+    validate_local_model_registry,
     validate_loopback_endpoint,
     validate_runtime_receipt,
 )
@@ -38,38 +40,111 @@ _MANIFEST_KEYS = {
     "cases",
     "manifest_hash",
 }
+_MAX_INPUT_BYTES = 4 * 1024 * 1024
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--protocol-dir", type=Path, required=True)
+    parser.add_argument("--registry", type=Path, required=True)
+    parser.add_argument("--registry-sha256", required=True)
     parser.add_argument("--model-alias", required=True)
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--runtime-receipt", type=Path, required=True)
+    parser.add_argument("--runtime-receipt-sha256", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     return parser
 
 
-def _load_private_json(path: Path, description: str) -> dict[str, Any]:
-    if stat.S_IMODE(path.stat().st_mode) != 0o600:
-        raise ValueError(f"{description} must have mode 0600")
+def _load_json_from_opened_file(
+    path: Path,
+    description: str,
+    *,
+    expected_sha256: str,
+    private: bool,
+) -> dict[str, Any]:
+    if not _is_sha256(expected_sha256):
+        raise ValueError(f"{description} expected SHA-256 is invalid")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError(f"{description} could not be opened safely") from error
+    try:
+        os.set_inheritable(descriptor, False)
+        opened_before = os.fstat(descriptor)
+        if not stat.S_ISREG(opened_before.st_mode):
+            raise ValueError(f"{description} must be a regular file")
+        mode = stat.S_IMODE(opened_before.st_mode)
+        if private and mode != 0o600:
+            raise ValueError(f"{description} must have mode 0600")
+        if not private and mode not in {0o600, 0o640, 0o644}:
+            raise ValueError(f"{description} has an unsafe protocol-file mode")
+        if opened_before.st_size > _MAX_INPUT_BYTES:
+            raise ValueError(f"{description} is too large")
+        chunks: list[bytes] = []
+        total = 0
+        while total <= _MAX_INPUT_BYTES:
+            chunk = os.read(descriptor, min(65536, _MAX_INPUT_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        if total > _MAX_INPUT_BYTES:
+            raise ValueError(f"{description} is too large")
+        opened_after = os.fstat(descriptor)
+        try:
+            path_after = os.stat(path, follow_symlinks=False)
+        except OSError as error:
+            raise ValueError(f"{description} changed during read") from error
+        identity_before = (
+            opened_before.st_dev,
+            opened_before.st_ino,
+            opened_before.st_size,
+            opened_before.st_mtime_ns,
+            opened_before.st_ctime_ns,
+        )
+        identity_after = (
+            opened_after.st_dev,
+            opened_after.st_ino,
+            opened_after.st_size,
+            opened_after.st_mtime_ns,
+            opened_after.st_ctime_ns,
+        )
+        path_identity = (
+            path_after.st_dev,
+            path_after.st_ino,
+            path_after.st_size,
+            path_after.st_mtime_ns,
+            path_after.st_ctime_ns,
+        )
+        if (
+            not stat.S_ISREG(path_after.st_mode)
+            or identity_before != identity_after
+            or identity_after != path_identity
+        ):
+            raise ValueError(f"{description} changed during read")
+        raw = b"".join(chunks)
+        if hashlib.sha256(raw).hexdigest() != expected_sha256:
+            raise ValueError(f"{description} does not match expected SHA-256")
         value = json.loads(
-            path.read_text(encoding="utf-8"),
+            raw.decode("utf-8"),
             object_pairs_hook=_object_without_duplicate_keys,
         )
-    except json.JSONDecodeError as error:
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f"{description} is not valid JSON") from error
+    finally:
+        os.close(descriptor)
     if type(value) is not dict:
         raise ValueError(f"{description} must be a JSON object")
     return value
 
 
-def _load_cases(path: Path) -> list[CandidateCase]:
-    manifest = _load_private_json(path, "smoke manifest")
+def _load_cases(manifest: dict[str, Any]) -> list[CandidateCase]:
     if set(manifest) != _MANIFEST_KEYS:
         raise ValueError("smoke manifest must contain exact Task 2 keys")
     body = dict(manifest)
@@ -153,12 +228,36 @@ def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, An
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     endpoint = validate_loopback_endpoint(args.base_url)
-    cases = _load_cases(args.manifest)
+    manifest = _load_json_from_opened_file(
+        args.manifest,
+        "smoke manifest",
+        expected_sha256=args.manifest_sha256,
+        private=True,
+    )
+    cases = _load_cases(manifest)
+    registry = _load_json_from_opened_file(
+        args.registry,
+        "local model registry",
+        expected_sha256=args.registry_sha256,
+        private=False,
+    )
+    registry_entry = validate_local_model_registry(
+        registry,
+        model_alias=args.model_alias,
+        model_id=args.model_id,
+    )
     receipt = validate_runtime_receipt(
-        _load_private_json(args.runtime_receipt, "runtime receipt"),
+        _load_json_from_opened_file(
+            args.runtime_receipt,
+            "runtime receipt",
+            expected_sha256=args.runtime_receipt_sha256,
+            private=True,
+        ),
         model_alias=args.model_alias,
         model_id=args.model_id,
         endpoint=endpoint,
+        registry_sha256=args.registry_sha256,
+        registry_entry=registry_entry,
     )
     contract = load_prompt_contract(args.protocol_dir)
     call = partial(

@@ -125,7 +125,7 @@ def render_judge_messages(
 def parse_judge_decision(raw: str) -> JudgeDecision:
     """Parse a decision only when it satisfies the frozen domain contract."""
     try:
-        value = json.loads(raw)
+        value = json.loads(raw, object_pairs_hook=_object_without_duplicate_keys)
     except json.JSONDecodeError as error:
         raise ValueError("decision is not valid JSON") from error
     if type(value) is not dict or set(value) != DECISION_KEYS:
@@ -175,7 +175,9 @@ def _closed_string(value: dict[str, Any], field: str, allowed: frozenset[str]) -
     return item
 
 
-def _bounded_integer(value: dict[str, Any], field: str, minimum: int, maximum: int) -> int:
+def _bounded_integer(
+    value: dict[str, Any], field: str, minimum: int, maximum: int
+) -> int:
     item = value[field]
     if type(item) is not int or not minimum <= item <= maximum:
         raise ValueError(f"invalid {field}")
@@ -198,4 +200,13 @@ def _rationale(value: object) -> str:
     words = value.split()
     if not 1 <= len(words) <= 80:
         raise ValueError("rationale must contain 1 to 80 words")
+    return value
+
+
+def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key in decision: {key}")
+        value[key] = item
     return value

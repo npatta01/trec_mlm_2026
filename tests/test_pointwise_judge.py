@@ -43,6 +43,15 @@ def test_parse_judge_decision_rejects_extra_keys() -> None:
         parse_judge_decision(raw)
 
 
+def test_parse_judge_decision_rejects_duplicate_object_keys() -> None:
+    raw = json.dumps(VALID_DECISION).replace(
+        '"label": "good"', '"label": "incorrect", "label": "good"', 1
+    )
+
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        parse_judge_decision(raw)
+
+
 def test_render_messages_keeps_reference_provisional() -> None:
     messages = render_judge_messages(CASE, CONTRACT)
     content = messages[-1]["content"]
@@ -119,9 +128,7 @@ def test_parse_judge_decision_enforces_rationale_word_bound(rationale: str) -> N
         parse_judge_decision(json.dumps({**VALID_DECISION, "rationale": rationale}))
 
 
-@pytest.mark.parametrize(
-    ("correctness", "relevance"), [(3, 2), (4, 1)]
-)
+@pytest.mark.parametrize(("correctness", "relevance"), [(3, 2), (4, 1)])
 def test_parse_judge_decision_gates_good_label(
     correctness: int, relevance: int
 ) -> None:

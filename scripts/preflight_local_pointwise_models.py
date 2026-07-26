@@ -77,6 +77,25 @@ FROZEN_SOURCE_PINS = SourcePins(
     vllm_backend_version="vllm0.20.1-rocm7.12.0",
 )
 
+VLLM_TASK9_IMAGE_SHA256 = (
+    "3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28"
+)
+VLLM_TASK9_ENTRYPOINT = ("vllm", "serve")
+VLLM_TASK9_CMD = None
+LLAMACPP_TASK9_ENTRYPOINT = ("/app/llama-server",)
+LLAMACPP_TASK9_CMD = None
+LEMONADE_LLAMA_ARGV_CONTRACT_V1 = {
+    "version": 1,
+    "lemonade_version": "11.5.0",
+    "server_models_sha256": (
+        "da2a602ad6fa21ea0cd16017076937dea4aaf0391b32eef08229a457aff21747"
+    ),
+    "backend_versions_sha256": (
+        "bb40c70709fdf9065123d24c8ed2a8f05e0d16a5e8e08cc69ba6a7d381df75b6"
+    ),
+    "executable": "llama-server",
+}
+
 
 class PreflightDependencies(Protocol):
     def run_command(self, argv: tuple[str, ...]) -> str: ...
@@ -947,21 +966,24 @@ def _validate_model_argv(
     if type(argv) is not list or any(type(item) is not str for item in argv):
         raise ValueError("runtime argv is invalid")
     if runtime == "vllm-rocm":
-        serve_indexes = [index for index, item in enumerate(argv) if item == "serve"]
-        if (
-            len(serve_indexes) != 1
-            or serve_indexes[0] + 1 >= len(argv)
-            or argv[serve_indexes[0] + 1] != model_id
-        ):
-            raise ValueError("vLLM argv does not bind the selected model")
+        if argv[:3] != [*VLLM_TASK9_ENTRYPOINT, model_id]:
+            raise ValueError("vLLM argv entrypoint does not bind the selected model")
         if type(checkpoint_revision) is not str or not checkpoint_revision:
             raise ValueError("vLLM registry checkpoint revision is invalid")
-        options = _strict_vllm_task9_options(argv, serve_indexes[0] + 2)
+        options = _strict_vllm_task9_options(argv, 3)
         if options["--revision"] != checkpoint_revision:
             raise ValueError("vLLM argv does not bind the selected revision")
+        limit = options.get("--limit-mm-per-prompt")
+        if model_id == "Qwen/Qwen3.6-27B-FP8":
+            if limit != '{"image":0,"video":0}':
+                raise ValueError("Qwen vLLM argv requires the frozen multimodal limit")
+        elif model_id == "openai/gpt-oss-20b":
+            if limit is not None:
+                raise ValueError("gpt-oss vLLM argv forbids the multimodal limit")
+        else:
+            raise ValueError("vLLM argv model has no frozen Task 9 contract")
         return
-    if _single_llama_model_flag(argv) != checkpoint_path:
-        raise ValueError("llama.cpp argv does not bind the observed checkpoint")
+    _validate_llama_task9_argv(argv, runtime=runtime, checkpoint_path=checkpoint_path)
 
 
 _VLLM_TASK9_VALUE_OPTIONS = frozenset(
@@ -979,8 +1001,6 @@ _VLLM_TASK9_REQUIRED_OPTIONS = _VLLM_TASK9_VALUE_OPTIONS - {"--limit-mm-per-prom
 
 
 def _strict_vllm_task9_options(argv: list[str], options_start: int) -> dict[str, str]:
-    if any(item.startswith("-") for item in argv[: options_start - 2]):
-        raise ValueError("vLLM argv contains an option before the serve command")
     values: dict[str, str] = {}
     enforce_eager = False
     index = options_start
@@ -1030,31 +1050,68 @@ def _strict_vllm_task9_options(argv: list[str], options_start: int) -> dict[str,
     return values
 
 
-def _single_llama_model_flag(argv: list[str]) -> str:
-    if "--" in argv:
-        raise ValueError("runtime argv option terminator is forbidden")
-    values: list[str] = []
-    for index, token in enumerate(argv):
-        if token in {"--model", "-m"}:
-            if index + 1 >= len(argv):
-                raise ValueError("llama.cpp model option has no value")
-            values.append(argv[index + 1])
-        elif token.startswith("--model="):
-            values.append(token[len("--model=") :])
-        elif _is_llama_model_alias_trick(token):
-            raise ValueError("llama.cpp argv contains an ambiguous model option")
-    if len(values) != 1 or not values[0]:
-        raise ValueError("llama.cpp argv must contain exactly one model option")
-    return values[0]
+def _validate_llama_task9_argv(
+    argv: list[str], *, runtime: object, checkpoint_path: str
+) -> None:
+    if runtime == "lemonade-llamacpp-rocm-custom":
+        executable = LLAMACPP_TASK9_ENTRYPOINT[0]
+        allowed = {
+            "-m",
+            "--host",
+            "--port",
+            "--ctx-size",
+            "--parallel",
+            "--n-gpu-layers",
+        }
+        exact = {
+            "-m": checkpoint_path,
+            "--host": "0.0.0.0",
+            "--port": "8000",
+            "--ctx-size": "4096",
+            "--parallel": "1",
+            "--n-gpu-layers": "999",
+        }
+    elif runtime == "lemonade-llamacpp-rocm":
+        executable = str(LEMONADE_LLAMA_ARGV_CONTRACT_V1["executable"])
+        allowed = {"--model", "--ctx-size", "--parallel"}
+        exact = {
+            "--model": checkpoint_path,
+            "--ctx-size": "4096",
+            "--parallel": "1",
+        }
+    else:
+        raise ValueError("llama.cpp runtime has no frozen argv contract")
+    if not argv or argv[0] != executable:
+        raise ValueError("llama.cpp argv executable does not match its frozen contract")
+    values = _strict_llama_value_options(argv[1:], allowed)
+    if values != exact:
+        raise ValueError("llama.cpp argv does not match its frozen contract")
 
 
-def _is_llama_model_alias_trick(token: str) -> bool:
-    name = token.split("=", 1)[0]
-    long_alias = name.startswith("--") and (
-        "--model".startswith(name) or name.startswith("--model")
-    )
-    attached_short = token.startswith("-m") and token != "-m"
-    return long_alias or attached_short
+def _strict_llama_value_options(tokens: list[str], allowed: set[str]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if "=" in token and token.startswith("--"):
+            name, value = token.split("=", 1)
+            index += 1
+        else:
+            name = token
+            if name not in allowed:
+                raise ValueError(f"unknown llama.cpp argv option or positional: {name}")
+            if index + 1 >= len(tokens):
+                raise ValueError(f"llama.cpp argv option {name} has no value")
+            value = tokens[index + 1]
+            index += 2
+        if name not in allowed:
+            raise ValueError(f"unknown llama.cpp argv option or positional: {name}")
+        if name in values:
+            raise ValueError(f"duplicate llama.cpp argv option: {name}")
+        if not value:
+            raise ValueError(f"llama.cpp argv option {name} has an empty value")
+        values[name] = value
+    return values
 
 
 def _single_integer_flag(argv: list[str], name: str) -> int:

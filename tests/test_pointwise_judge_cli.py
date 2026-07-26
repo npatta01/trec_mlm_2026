@@ -1311,6 +1311,81 @@ def test_vllm_argv_accepts_exact_task9_grammar(
     )
 
 
+def _task9_vllm_argv(
+    model_id: str, revision: str, *, multimodal_limit: bool
+) -> list[str]:
+    argv = [
+        "vllm",
+        "serve",
+        model_id,
+        f"--revision={revision}",
+        "--host=0.0.0.0",
+        "--port=8000",
+        "--max-model-len=4096",
+        "--max-num-seqs=1",
+        "--gpu-memory-utilization=0.85",
+    ]
+    if multimodal_limit:
+        argv.append('--limit-mm-per-prompt={"image":0,"video":0}')
+    argv.append("--enforce-eager")
+    return argv
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda argv: ["not-vllm", *argv[1:]],
+        lambda argv: [argv[0], "junk", *argv[1:]],
+        lambda argv: [argv[0], argv[2], argv[1], *argv[2:]],
+        lambda argv: [*argv[:3], "extra-positional", *argv[3:]],
+        lambda argv: [*argv, "serve"],
+    ],
+)
+def test_vllm_argv_rejects_wrong_entrypoint_or_extra_positionals(
+    mutation: object,
+) -> None:
+    model_id = "Qwen/Qwen3.6-27B-FP8"
+    revision = "e89b16ebf1988b3d6befa7de50abc2d76f26eb09"
+    assert callable(mutation)
+    argv = mutation(_task9_vllm_argv(model_id, revision, multimodal_limit=True))
+    with pytest.raises(ValueError, match="entrypoint|argv|model|option"):
+        preflight_cli._validate_model_argv(
+            argv,
+            runtime="vllm-rocm",
+            model_id=model_id,
+            checkpoint_path=f"/cache/snapshots/{revision}",
+            checkpoint_revision=revision,
+        )
+
+
+@pytest.mark.parametrize(
+    ("model_id", "revision", "multimodal_limit"),
+    [
+        (
+            "Qwen/Qwen3.6-27B-FP8",
+            "e89b16ebf1988b3d6befa7de50abc2d76f26eb09",
+            False,
+        ),
+        (
+            "openai/gpt-oss-20b",
+            "6cee5e81ee83917806bbde320786a8fb61efebee",
+            True,
+        ),
+    ],
+)
+def test_vllm_argv_enforces_model_specific_multimodal_limit(
+    model_id: str, revision: str, multimodal_limit: bool
+) -> None:
+    with pytest.raises(ValueError, match="multimodal|model"):
+        preflight_cli._validate_model_argv(
+            _task9_vllm_argv(model_id, revision, multimodal_limit=multimodal_limit),
+            runtime="vllm-rocm",
+            model_id=model_id,
+            checkpoint_path=f"/cache/snapshots/{revision}",
+            checkpoint_revision=revision,
+        )
+
+
 @pytest.mark.parametrize(
     "argv",
     [
@@ -1403,7 +1478,7 @@ def test_llama_argv_rejects_abbreviated_or_attached_model_alias(alias: str) -> N
 def test_llama_argv_accepts_exact_task9_short_model_flag() -> None:
     preflight_cli._validate_model_argv(
         [
-            "llama-server",
+            "/app/llama-server",
             "-m",
             "/models/frozen.gguf",
             "--host",
@@ -1422,6 +1497,113 @@ def test_llama_argv_accepts_exact_task9_short_model_flag() -> None:
         checkpoint_path="/models/frozen.gguf",
         checkpoint_revision=None,
     )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda argv: ["not-llama", *argv[1:]],
+        lambda argv: [*argv[:6], "9000", *argv[7:]],
+        lambda argv: [*argv, "--unknown=value"],
+        lambda argv: [*argv, "extra-positional"],
+    ],
+)
+def test_custom_llama_argv_rejects_wrong_executable_port_or_extra_token(
+    mutation: object,
+) -> None:
+    argv = [
+        "/app/llama-server",
+        "-m",
+        "/models/frozen.gguf",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--ctx-size",
+        "4096",
+        "--parallel",
+        "1",
+        "--n-gpu-layers",
+        "999",
+    ]
+    assert callable(mutation)
+    with pytest.raises(ValueError, match="executable|port|option|positional|argv"):
+        preflight_cli._validate_model_argv(
+            mutation(argv),
+            runtime="lemonade-llamacpp-rocm-custom",
+            model_id="model-a",
+            checkpoint_path="/models/frozen.gguf",
+            checkpoint_revision=None,
+        )
+
+
+def test_builtin_lemonade_llama_argv_accepts_only_frozen_provisional_contract() -> None:
+    preflight_cli._validate_model_argv(
+        [
+            "llama-server",
+            "--model=/models/frozen.gguf",
+            "--ctx-size=4096",
+            "--parallel=1",
+        ],
+        runtime="lemonade-llamacpp-rocm",
+        model_id="model-a",
+        checkpoint_path="/models/frozen.gguf",
+        checkpoint_revision=None,
+    )
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["not-llama", "--model=/models/frozen.gguf", "--ctx-size=4096", "--parallel=1"],
+        [
+            "llama-server",
+            "--model=/models/frozen.gguf",
+            "--ctx-size=4096",
+            "--parallel=1",
+            "--unknown",
+        ],
+        [
+            "llama-server",
+            "--model=/models/frozen.gguf",
+            "--ctx-size=4096",
+            "--parallel=1",
+            "extra",
+        ],
+        [
+            "llama-server",
+            "--model=/models/frozen.gguf",
+            "--ctx-size=2048",
+            "--parallel=1",
+        ],
+    ],
+)
+def test_builtin_lemonade_llama_argv_rejects_contract_drift(argv: list[str]) -> None:
+    with pytest.raises(ValueError, match="contract|executable|option|positional|argv"):
+        preflight_cli._validate_model_argv(
+            argv,
+            runtime="lemonade-llamacpp-rocm",
+            model_id="model-a",
+            checkpoint_path="/models/frozen.gguf",
+            checkpoint_revision=None,
+        )
+
+
+def test_launch_argv_contract_records_verified_image_and_lemonade_sources() -> None:
+    assert preflight_cli.VLLM_TASK9_IMAGE_SHA256 == (
+        "3832d79d9e514ce2e072580689da078726454596d833c8ab803f29f3cea5ea28"
+    )
+    assert preflight_cli.VLLM_TASK9_ENTRYPOINT == ("vllm", "serve")
+    assert preflight_cli.VLLM_TASK9_CMD is None
+    assert preflight_cli.LLAMACPP_TASK9_ENTRYPOINT == ("/app/llama-server",)
+    assert preflight_cli.LLAMACPP_TASK9_CMD is None
+    assert preflight_cli.LEMONADE_LLAMA_ARGV_CONTRACT_V1 == {
+        "version": 1,
+        "lemonade_version": "11.5.0",
+        "server_models_sha256": "da2a602ad6fa21ea0cd16017076937dea4aaf0391b32eef08229a457aff21747",
+        "backend_versions_sha256": "bb40c70709fdf9065123d24c8ed2a8f05e0d16a5e8e08cc69ba6a7d381df75b6",
+        "executable": "llama-server",
+    }
 
 
 def test_preflight_host_thresholds_accept_exact_plan_boundaries() -> None:

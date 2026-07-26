@@ -11,7 +11,7 @@ import urllib.request
 import pytest
 
 import trec_mlm.pointwise_runner as runner
-from trec_mlm.pointwise_judge import CandidateCase, PromptContract
+from trec_mlm.pointwise_judge import CandidateCase, load_prompt_contract
 from trec_mlm.pointwise_runner import (
     call_openai_judge,
     run_cases,
@@ -37,18 +37,16 @@ SECOND_CASE = replace(
     reference_answer="Water is H2O.",
     candidate_answer="Water is H2O.",
 )
-CONTRACT = PromptContract(
-    prompt_path=Path("pointwise-v1.txt"),
-    schema_path=Path("decision-v1.schema.json"),
+CONTRACT = replace(
+    load_prompt_contract(Path("protocols/pointwise_judge_bakeoff")),
     prompt="Judge the candidate under the frozen contract.",
-    schema={
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["label"],
-        "properties": {"label": {"enum": ["good", "partial"]}},
-    },
 )
-RECEIPT = {"runtime": "local-test", "gpu": "fake", "passed": True}
+RECEIPT = {
+    "runtime": "local-test",
+    "gpu": "fake",
+    "passed": True,
+    "schema_sha256": runner.FROZEN_DECISION_SCHEMA_SHA256,
+}
 VALID_DECISION = {
     "label": "good",
     "correctness": 4,
@@ -126,6 +124,32 @@ class FakeHTTPResponse:
     def read(self, size: int = -1) -> bytes:
         self.read_sizes.append(size)
         return self.body if size < 0 else self.body[:size]
+
+
+@pytest.mark.parametrize("boundary", ["contract", "receipt"])
+def test_run_cases_rejects_nonfrozen_schema_before_cache_or_call(
+    tmp_path: Path, boundary: str
+) -> None:
+    output = tmp_path / "private" / "run.json"
+    contract = replace(CONTRACT, schema={}) if boundary == "contract" else CONTRACT
+    receipt = (
+        RECEIPT if boundary == "contract" else {**RECEIPT, "schema_sha256": "0" * 64}
+    )
+    call = ScriptedCall([])
+
+    with pytest.raises(ValueError, match="schema"):
+        run_cases(
+            [CASE],
+            model_alias="judge-a",
+            model_id="model-a",
+            contract=contract,
+            output_path=output,
+            runtime_receipt=receipt,
+            call=call,
+        )
+
+    assert call.requests == []
+    assert not output.exists()
 
 
 def test_loopback_transport_disables_ambient_http_proxies(
@@ -582,7 +606,7 @@ def test_resume_revalidates_cached_duplicate_key_output_and_issues_only_repair(
 
 @pytest.mark.parametrize(
     "changed",
-    ["input", "prompt", "schema", "model_alias", "model_id", "runtime_receipt"],
+    ["input", "prompt", "model_alias", "model_id", "runtime_receipt"],
 )
 def test_resume_rejects_record_when_any_content_address_changes(
     tmp_path: Path, changed: str
@@ -606,8 +630,6 @@ def test_resume_rejects_record_when_any_content_address_changes(
         cases = [replace(CASE, candidate_answer="A changed answer.")]
     elif changed == "prompt":
         contract = replace(CONTRACT, prompt="A changed frozen prompt.")
-    elif changed == "schema":
-        contract = replace(CONTRACT, schema={"type": "object"})
     elif changed == "model_alias":
         model_alias = "judge-b"
     elif changed == "model_id":

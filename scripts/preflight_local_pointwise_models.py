@@ -478,6 +478,7 @@ def run_preflight(
             runtime=selected["runtime"],
             model_id=model_id,
             checkpoint_path=str(observed_checkpoint["path"]),
+            checkpoint_revision=revision,
         )
         download_occurred = _derive_download_observation(
             launch, observed_checkpoint, model_alias=model_alias
@@ -554,38 +555,41 @@ def run_preflight(
         return {"passed": False}
 
 
-def write_runtime_receipt(path: Path, receipt: Mapping[str, object]) -> None:
-    """Write one successful receipt atomically under exact private modes."""
-    if receipt.get("passed") is not True:
-        raise ValueError("only a successful runtime receipt may be written")
+def write_runtime_receipt(
+    path: Path,
+    receipt: Mapping[str, object],
+    *,
+    model_alias: str,
+    model_id: str,
+    endpoint: str,
+    registry_sha256: str,
+    registry_entry: Mapping[str, object],
+    schema: Mapping[str, object],
+) -> None:
+    """Validate and exclusively publish one authentic private runtime receipt."""
+    schema_sha256 = _sha256_json(schema)
+    if schema_sha256 != FROZEN_DECISION_SCHEMA_SHA256:
+        raise ValueError("runtime receipt schema is not the frozen Task 1 schema")
+    validated = validate_runtime_receipt(
+        receipt,
+        model_alias=model_alias,
+        model_id=model_id,
+        endpoint=endpoint,
+        registry_sha256=registry_sha256,
+        registry_entry=registry_entry,
+    )
+    if validated["schema_sha256"] != schema_sha256:
+        raise ValueError("runtime receipt schema does not match supplied schema")
     path = Path(path)
-    if not path.parent.exists():
-        path.parent.mkdir(parents=True, mode=0o700)
-        path.parent.chmod(0o700)
-    parent_lstat = path.parent.lstat()
-    if (
-        not stat.S_ISDIR(parent_lstat.st_mode)
-        or stat.S_ISLNK(parent_lstat.st_mode)
-        or stat.S_IMODE(parent_lstat.st_mode) != 0o700
-    ):
-        raise ValueError("runtime receipt parent must be a real directory mode 0700")
     encoded = (
         json.dumps(
-            receipt, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False
+            validated, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False
         ).encode("utf-8")
         + b"\n"
     )
-    directory_flags = (
-        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    )
-    directory = os.open(path.parent, directory_flags)
+    chain = _open_directory_chain(path.parent)
+    directory = chain.descriptors[-1]
     try:
-        directory_stat = os.fstat(directory)
-        if (
-            _stat_identity(directory_stat) != _stat_identity(parent_lstat)
-            or stat.S_IMODE(directory_stat.st_mode) != 0o700
-        ):
-            raise ValueError("runtime receipt parent changed before write")
         temporary_name = _create_private_temporary(directory, path.name)
         try:
             descriptor = os.open(
@@ -598,6 +602,7 @@ def write_runtime_receipt(path: Path, receipt: Mapping[str, object]) -> None:
                 os.fsync(descriptor)
             finally:
                 os.close(descriptor)
+            _validate_directory_chain(chain)
             try:
                 os.link(
                     temporary_name,
@@ -611,12 +616,90 @@ def write_runtime_receipt(path: Path, receipt: Mapping[str, object]) -> None:
             else:
                 os.unlink(temporary_name, dir_fd=directory)
                 temporary_name = ""
+                _validate_identical_existing_receipt(directory, path.name, encoded)
+            _validate_directory_chain(chain)
             os.fsync(directory)
         finally:
             if temporary_name:
                 os.unlink(temporary_name, dir_fd=directory)
     finally:
-        os.close(directory)
+        for descriptor in reversed(chain.descriptors):
+            os.close(descriptor)
+
+
+@dataclass(frozen=True, slots=True)
+class _DirectoryChain:
+    descriptors: list[int]
+    components: tuple[str, ...]
+
+
+def _open_directory_chain(path: Path) -> _DirectoryChain:
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    absolute = path.is_absolute()
+    components = tuple(path.parts[1:] if absolute else path.parts)
+    if any(component in {"", ".", ".."} for component in components):
+        raise ValueError("runtime receipt directory path is ambiguous")
+    descriptors = [os.open("/" if absolute else ".", flags)]
+    try:
+        for component in components:
+            parent = descriptors[-1]
+            try:
+                child = os.open(component, flags, dir_fd=parent)
+            except FileNotFoundError:
+                try:
+                    os.mkdir(component, 0o700, dir_fd=parent)
+                except FileExistsError:
+                    pass
+                try:
+                    child = os.open(component, flags, dir_fd=parent)
+                except OSError as error:
+                    raise ValueError(
+                        "runtime receipt directory component is not a real directory"
+                    ) from error
+            except OSError as error:
+                raise ValueError(
+                    "runtime receipt directory component is a symlink or not a real directory"
+                ) from error
+            descriptors.append(child)
+        leaf = os.fstat(descriptors[-1])
+        if not stat.S_ISDIR(leaf.st_mode) or stat.S_IMODE(leaf.st_mode) != 0o700:
+            raise ValueError(
+                "runtime receipt parent must be a real directory mode 0700"
+            )
+        chain = _DirectoryChain(descriptors, components)
+        _validate_directory_chain(chain)
+        return chain
+    except BaseException:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise
+
+
+def _validate_directory_chain(chain: _DirectoryChain) -> None:
+    for parent, child, component in zip(
+        chain.descriptors[:-1],
+        chain.descriptors[1:],
+        chain.components,
+        strict=True,
+    ):
+        child_stat = os.fstat(child)
+        try:
+            path_stat = os.stat(component, dir_fd=parent, follow_symlinks=False)
+        except OSError as error:
+            raise ValueError("runtime receipt directory path changed") from error
+        if not stat.S_ISDIR(path_stat.st_mode) or _directory_identity(
+            child_stat
+        ) != _directory_identity(path_stat):
+            raise ValueError("runtime receipt directory path changed")
+
+
+def _directory_identity(value: os.stat_result) -> tuple[int, int, int]:
+    return value.st_dev, value.st_ino, value.st_mode
 
 
 def _create_private_temporary(directory: int, final_name: str) -> str:
@@ -854,7 +937,12 @@ def _configuration_from_argv(argv: object, runtime: object) -> dict[str, object]
 
 
 def _validate_model_argv(
-    argv: object, *, runtime: object, model_id: str, checkpoint_path: str
+    argv: object,
+    *,
+    runtime: object,
+    model_id: str,
+    checkpoint_path: str,
+    checkpoint_revision: object,
 ) -> None:
     if type(argv) is not list or any(type(item) is not str for item in argv):
         raise ValueError("runtime argv is invalid")
@@ -866,6 +954,12 @@ def _validate_model_argv(
             or argv[serve_indexes[0] + 1] != model_id
         ):
             raise ValueError("vLLM argv does not bind the selected model")
+        if type(checkpoint_revision) is not str or not checkpoint_revision:
+            raise ValueError("vLLM registry checkpoint revision is invalid")
+        if _single_string_flag(argv, "--revision") != checkpoint_revision:
+            raise ValueError("vLLM argv does not bind the selected revision")
+        if any(_has_flag(argv, name) for name in ("--model", "--model-path", "-m")):
+            raise ValueError("vLLM argv contains a competing model or path flag")
         return
     if _single_string_flag(argv, "--model") != checkpoint_path:
         raise ValueError("llama.cpp argv does not bind the observed checkpoint")
@@ -873,16 +967,29 @@ def _validate_model_argv(
 
 def _single_integer_flag(argv: list[str], name: str) -> int:
     raw = _single_string_flag(argv, name)
-    if not raw.isdecimal():
+    if not raw.isascii() or not raw.isdecimal():
         raise ValueError(f"runtime argv {name} value is invalid")
     return int(raw)
 
 
 def _single_string_flag(argv: list[str], name: str) -> str:
-    indexes = [index for index, item in enumerate(argv) if item == name]
-    if len(indexes) != 1 or indexes[0] + 1 >= len(argv):
+    if "--" in argv:
+        raise ValueError("runtime argv option terminator is forbidden")
+    values: list[str] = []
+    for index, item in enumerate(argv):
+        if item == name:
+            if index + 1 >= len(argv):
+                raise ValueError(f"runtime argv {name} value is missing")
+            values.append(argv[index + 1])
+        elif item.startswith(f"{name}="):
+            values.append(item[len(name) + 1 :])
+    if len(values) != 1 or not values[0]:
         raise ValueError(f"runtime argv must contain exactly one {name}")
-    return argv[indexes[0] + 1]
+    return values[0]
+
+
+def _has_flag(argv: list[str], name: str) -> bool:
+    return any(item == name or item.startswith(f"{name}=") for item in argv)
 
 
 def _json_values_equal(left: object, right: object) -> bool:
@@ -1108,7 +1215,21 @@ def main(
     )
     if receipt.get("passed") is not True:
         return 1
-    write_runtime_receipt(args.output, receipt)
+    selected = validate_local_model_registry(
+        registry,
+        model_alias=args.model_alias,
+        model_id=str(receipt["model_id"]),
+    )
+    write_runtime_receipt(
+        args.output,
+        receipt,
+        model_alias=args.model_alias,
+        model_id=str(receipt["model_id"]),
+        endpoint=validate_loopback_endpoint(args.base_url),
+        registry_sha256=args.registry_sha256,
+        registry_entry=selected,
+        schema=contract.schema,
+    )
     return 0
 
 

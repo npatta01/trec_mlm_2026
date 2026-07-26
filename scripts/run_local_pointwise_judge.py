@@ -18,6 +18,7 @@ from trec_mlm.pointwise_runner import (
     run_cases,
     validate_local_model_registry,
     validate_loopback_endpoint,
+    validate_frozen_judge_contract,
     validate_runtime_receipt,
 )
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
@@ -260,6 +261,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         registry_entry=registry_entry,
     )
     contract = load_prompt_contract(args.protocol_dir)
+    validate_frozen_judge_contract(contract)
     call = partial(
         call_openai_judge,
         endpoint,

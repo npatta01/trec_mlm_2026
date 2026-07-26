@@ -473,6 +473,11 @@ def run_cases(
     call: JudgeCall,
 ) -> dict[str, object]:
     """Judge cases with atomic checkpoints and exact content-addressed resume."""
+    schema_sha256 = validate_frozen_judge_contract(contract)
+    if runtime_receipt.get("schema_sha256") != schema_sha256:
+        raise ValueError(
+            "runtime receipt schema hash does not match the frozen contract"
+        )
     output_path = Path(output_path)
     _prepare_private_parent(output_path.parent)
     existing = _load_existing_run(output_path)
@@ -481,7 +486,6 @@ def run_cases(
     existing_records = existing.get("records", {}) if existing is not None else {}
 
     prompt_sha256 = hashlib.sha256(contract.prompt.encode("utf-8")).hexdigest()
-    schema_sha256 = _sha256_json(contract.schema)
     runtime_receipt_sha256 = _sha256_json(dict(runtime_receipt))
     identities = {
         case.response_id: _record_identity(
@@ -593,6 +597,14 @@ def run_cases(
         records[case.response_id] = record
         _write_json_atomically(output_path, result)
     return result
+
+
+def validate_frozen_judge_contract(contract: PromptContract) -> str:
+    """Require the canonical Task 1 decision schema at inference boundaries."""
+    schema_sha256 = _sha256_json(contract.schema)
+    if schema_sha256 != FROZEN_DECISION_SCHEMA_SHA256:
+        raise ValueError("judge contract schema is not the frozen Task 1 schema")
+    return schema_sha256
 
 
 def _validated_usage(value: object) -> dict[str, int | float]:

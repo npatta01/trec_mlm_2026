@@ -1,3 +1,4 @@
+from dataclasses import replace
 import hashlib
 import json
 import os
@@ -924,6 +925,29 @@ def test_runner_cli_rejects_duplicate_input_keys_before_server_call(
         runner_cli.main(args)
 
 
+def test_runner_cli_rejects_nonfrozen_loaded_schema_before_server_call_or_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, receipt, registry = _write_runner_inputs(tmp_path)
+    output = tmp_path / "run.json"
+    args = _runner_args(manifest, receipt, registry, output)
+    canonical = load_prompt_contract(Path("protocols/pointwise_judge_bakeoff"))
+    monkeypatch.setattr(
+        runner_cli,
+        "load_prompt_contract",
+        lambda protocol_dir: replace(canonical, schema={}),
+    )
+    monkeypatch.setattr(
+        runner_cli,
+        "call_openai_judge",
+        lambda *args, **kwargs: pytest.fail("server call must not occur"),
+    )
+
+    with pytest.raises(ValueError, match="schema"):
+        runner_cli.main(args)
+    assert not output.exists()
+
+
 class _FabricatedPreflightDependencies:
     def __init__(self, *, entry: dict[str, object], model_id: str) -> None:
         checkpoint = entry["checkpoint"]
@@ -1033,6 +1057,8 @@ def _run_valid_preflight(
             "vllm",
             "serve",
             str(entry["model_id"]),
+            "--revision",
+            str(entry["checkpoint"]["revision"]),
             "--max-model-len",
             "4096",
             "--max-num-seqs",
@@ -1147,6 +1173,117 @@ def test_preflight_derives_authorized_download_from_launch_journal() -> None:
     receipt = _run_valid_preflight(download_occurred=True)
     assert receipt["passed"] is True
     assert receipt["download_occurred"] is True
+
+
+@pytest.mark.parametrize(
+    ("runtime", "argv"),
+    [
+        (
+            "lemonade-llamacpp-rocm",
+            ["llama-server", "--ctx-size=4096", "--parallel=1"],
+        ),
+        (
+            "vllm-rocm",
+            ["vllm", "serve", "model-a", "--max-model-len=4096", "--max-num-seqs=1"],
+        ),
+    ],
+)
+def test_runtime_argv_configuration_accepts_equals_form(
+    runtime: str, argv: list[str]
+) -> None:
+    assert preflight_cli._configuration_from_argv(argv, runtime) == {
+        "context_tokens": 4096,
+        "temperature": 0,
+        "max_output_tokens": 384,
+        "max_concurrency": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    ("runtime", "argv"),
+    [
+        (
+            "lemonade-llamacpp-rocm",
+            [
+                "llama-server",
+                "--ctx-size",
+                "4096",
+                "--ctx-size=4096",
+                "--parallel",
+                "1",
+            ],
+        ),
+        (
+            "lemonade-llamacpp-rocm",
+            ["llama-server", "--ctx-size=4096", "--ctx-size=2048", "--parallel=1"],
+        ),
+        (
+            "vllm-rocm",
+            ["vllm", "serve", "model-a", "--max-model-len=true", "--max-num-seqs=1"],
+        ),
+        (
+            "vllm-rocm",
+            ["vllm", "serve", "model-a", "--max-model-len=٤٠٩٦", "--max-num-seqs=1"],
+        ),
+        (
+            "vllm-rocm",
+            [
+                "vllm",
+                "serve",
+                "model-a",
+                "--max-model-len",
+                "--",
+                "4096",
+                "--max-num-seqs=1",
+            ],
+        ),
+    ],
+)
+def test_runtime_argv_configuration_rejects_duplicate_or_ambiguous_flags(
+    runtime: str, argv: list[str]
+) -> None:
+    with pytest.raises(ValueError, match="argv|flag|value|exactly"):
+        preflight_cli._configuration_from_argv(argv, runtime)
+
+
+def test_vllm_argv_binds_exact_model_and_revision_in_equals_form() -> None:
+    preflight_cli._validate_model_argv(
+        ["vllm", "serve", "model-a", "--revision=revision-a"],
+        runtime="vllm-rocm",
+        model_id="model-a",
+        checkpoint_path="/cache/snapshots/revision-a",
+        checkpoint_revision="revision-a",
+    )
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["vllm", "serve", "model-a"],
+        ["vllm", "serve", "model-a", "--revision", "wrong"],
+        [
+            "vllm",
+            "serve",
+            "model-a",
+            "--revision",
+            "revision-a",
+            "--revision=revision-a",
+        ],
+        ["vllm", "serve", "model-a", "--revision=revision-a", "--model", "model-a"],
+        ["vllm", "serve", "model-a", "--revision=revision-a", "-m", "model-a"],
+    ],
+)
+def test_vllm_argv_rejects_missing_wrong_duplicate_revision_or_competing_model(
+    argv: list[str],
+) -> None:
+    with pytest.raises(ValueError, match="revision|model"):
+        preflight_cli._validate_model_argv(
+            argv,
+            runtime="vllm-rocm",
+            model_id="model-a",
+            checkpoint_path="/cache/snapshots/revision-a",
+            checkpoint_revision="revision-a",
+        )
 
 
 def test_preflight_host_thresholds_accept_exact_plan_boundaries() -> None:
@@ -1265,10 +1402,28 @@ def test_preflight_rejects_download_for_unauthorized_model() -> None:
     )
 
 
+def _write_runtime_receipt(path: Path, receipt: object | None = None) -> None:
+    registry = _valid_registry()
+    alias = "qwen36-35b-a3b-gguf"
+    entry = registry["models"][alias]
+    assert isinstance(entry, dict)
+    contract = load_prompt_contract(Path("protocols/pointwise_judge_bakeoff"))
+    preflight_cli.write_runtime_receipt(
+        path,
+        _run_valid_preflight() if receipt is None else receipt,
+        model_alias=alias,
+        model_id=str(entry["model_id"]),
+        endpoint="http://127.0.0.1:13305/v1",
+        registry_sha256="a" * 64,
+        registry_entry=entry,
+        schema=contract.schema,
+    )
+
+
 def test_preflight_writes_private_receipt_atomically(tmp_path: Path) -> None:
     receipt = _run_valid_preflight()
     output = tmp_path / "private" / "runtime.json"
-    preflight_cli.write_runtime_receipt(output, receipt)
+    _write_runtime_receipt(output, receipt)
     assert stat.S_IMODE(output.parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
     assert json.loads(output.read_text()) == receipt
@@ -1383,15 +1538,15 @@ def test_runtime_receipt_writer_rejects_symlinked_parent_or_final(
     linked_parent = tmp_path / "linked"
     linked_parent.symlink_to(real_parent, target_is_directory=True)
     with pytest.raises(ValueError, match="real directory"):
-        preflight_cli.write_runtime_receipt(linked_parent / "runtime.json", receipt)
+        _write_runtime_receipt(linked_parent / "runtime.json", receipt)
 
     safe_parent = tmp_path / "safe"
     safe_output = safe_parent / "source.json"
-    preflight_cli.write_runtime_receipt(safe_output, receipt)
+    _write_runtime_receipt(safe_output, receipt)
     final_link = safe_parent / "linked.json"
     final_link.symlink_to(safe_output.name)
     with pytest.raises(ValueError, match="regular file|symlink"):
-        preflight_cli.write_runtime_receipt(final_link, receipt)
+        _write_runtime_receipt(final_link, receipt)
 
 
 def test_runtime_receipt_writer_never_overwrites_concurrent_different_file(
@@ -1425,9 +1580,56 @@ def test_runtime_receipt_writer_never_overwrites_concurrent_different_file(
 
     monkeypatch.setattr(preflight_cli.os, "link", racing_link)
     with pytest.raises(ValueError, match="different runtime receipt"):
-        preflight_cli.write_runtime_receipt(output, receipt)
+        _write_runtime_receipt(output, receipt)
     assert raced is True
     assert output.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_runtime_receipt_writer_rejects_arbitrary_success_before_creating_parent(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "private" / "runtime.json"
+    with pytest.raises(ValueError, match="receipt"):
+        _write_runtime_receipt(output, {"passed": True})
+    assert not output.parent.exists()
+
+
+def test_runtime_receipt_writer_rejects_intermediate_directory_symlink(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "real"
+    real.mkdir(mode=0o700)
+    linked = tmp_path / "linked"
+    linked.symlink_to(real, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="directory|symlink"):
+        _write_runtime_receipt(linked / "leaf" / "runtime.json")
+    assert not (real / "leaf" / "runtime.json").exists()
+
+
+def test_runtime_receipt_writer_rejects_parent_path_swap_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent = tmp_path / "private"
+    parent.mkdir(mode=0o700)
+    displaced = tmp_path / "displaced"
+    output = parent / "runtime.json"
+    real_write = os.write
+    swapped = False
+
+    def racing_write(descriptor: int, value: bytes) -> int:
+        nonlocal swapped
+        if not swapped:
+            swapped = True
+            parent.rename(displaced)
+            parent.mkdir(mode=0o700)
+        return real_write(descriptor, value)
+
+    monkeypatch.setattr(preflight_cli.os, "write", racing_write)
+    with pytest.raises(ValueError, match="directory path changed"):
+        _write_runtime_receipt(output)
+    assert swapped is True
+    assert not output.exists()
 
 
 def test_preflight_json_loader_rejects_duplicate_and_nonfinite_values(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 import bisect
 from dataclasses import dataclass
 import hashlib
@@ -259,10 +259,55 @@ def select_diagnostic_cases(
     seed: int = 2026,
 ) -> tuple[list[CandidateCase], dict[str, str]]:
     """Select one identity-blind case for each stable diagnostic proxy."""
+    return select_diagnostic_case_set(
+        references,
+        responses,
+        cases_per_reason=1,
+        required_cases=(),
+        seed=seed,
+    )
+
+
+def select_diagnostic_case_set(
+    references: Mapping[str, GroundedReference],
+    responses: Iterable[CandidateResponse],
+    *,
+    cases_per_reason: int,
+    required_cases: Sequence[CandidateCase],
+    seed: int = 2026,
+) -> tuple[list[CandidateCase], dict[str, str]]:
+    """Select balanced, identity-blind diagnostic cases with required reservations."""
+    if type(cases_per_reason) is not int or cases_per_reason <= 0:
+        raise ValueError("cases_per_reason must be a positive integer")
+
+    required_by_response_id: dict[str, CandidateCase] = {}
+    required_by_reason: dict[str, list[CandidateCase]] = {
+        reason: [] for reason in DIAGNOSTIC_REASONS
+    }
+    required_question_ids: set[str] = set()
+    for case in required_cases:
+        if type(case) is not CandidateCase:
+            raise ValueError("required cases must contain CandidateCase values")
+        if case.selection_reason not in required_by_reason:
+            raise ValueError("required case has an unknown selection reason")
+        if case.response_id in required_by_response_id:
+            raise ValueError("required cases contain duplicate response IDs")
+        if case.question_id in required_question_ids:
+            raise ValueError("required cases contain duplicate question IDs")
+        required_by_response_id[case.response_id] = case
+        required_by_reason[case.selection_reason].append(case)
+        required_question_ids.add(case.question_id)
+    if any(len(cases) > cases_per_reason for cases in required_by_reason.values()):
+        raise ValueError(
+            "required cases exceed cases_per_reason for a diagnostic reason"
+        )
+
     pools: dict[str, list[_RankedCandidate]] = {
         reason: [] for reason in DIAGNOSTIC_REASONS
     }
+    pool_limit = _eligible_pool_limit(cases_per_reason)
     seen: set[tuple[str, str]] = set()
+    matched_required: dict[str, CandidateResponse] = {}
     for response in responses:
         if response.question_id not in references:
             raise ValueError(f"missing grounded reference for {response.question_id}")
@@ -270,7 +315,21 @@ def select_diagnostic_cases(
         if key in seen:
             continue
         seen.add(key)
-        features = _candidate_features(references[response.question_id], response)
+        reference = references[response.question_id]
+        features = _candidate_features(reference, response)
+        response_id = _response_id(response)
+        required_case = required_by_response_id.get(response_id)
+        if required_case is not None:
+            if (
+                _case_from_response(reference, response, required_case.selection_reason)
+                != required_case
+            ):
+                raise ValueError("required case does not match its response identity")
+            if not _eligible(required_case.selection_reason, features):
+                raise ValueError(
+                    "required case is not eligible for its selection reason"
+                )
+            matched_required[response_id] = response
         for reason, pool in pools.items():
             if not _eligible(reason, features):
                 continue
@@ -281,66 +340,124 @@ def select_diagnostic_cases(
                 response.candidate_id,
                 response,
             )
-            _insert_bounded(pool, ranked)
-    if len(seen) < len(DIAGNOSTIC_REASONS):
-        raise ValueError("at least 10 unique question/candidate pairs are required")
+            if pool_limit == _ELIGIBLE_POOL_LIMIT:
+                _insert_bounded(pool, ranked)
+            else:
+                _insert_bounded(pool, ranked, limit=pool_limit)
+    total_cases = len(DIAGNOSTIC_REASONS) * cases_per_reason
+    if len(seen) < total_cases:
+        raise ValueError(
+            f"at least {total_cases} unique question/candidate pairs are required"
+        )
+
+    missing_required = set(required_by_response_id) - set(matched_required)
+    if missing_required:
+        raise ValueError("required case response identity is not present in responses")
 
     for reason, pool in pools.items():
+        if len(required_by_reason[reason]) == cases_per_reason:
+            continue
         if not pool:
             raise ValueError(f"no eligible candidate for {reason}")
-    assignments = _distinct_assignments(pools)
+    reserved_response_ids = set(matched_required)
+    available_pools = {
+        reason: [
+            item
+            for item in pool
+            if item[-1].question_id not in required_question_ids
+            and _response_id(item[-1]) not in reserved_response_ids
+        ]
+        for reason, pool in pools.items()
+    }
+    assignments = _distinct_assignments(
+        available_pools,
+        slots_by_reason={
+            reason: cases_per_reason - len(required_by_reason[reason])
+            for reason in DIAGNOSTIC_REASONS
+        },
+    )
     if assignments is None:
-        raise ValueError("eligible pools do not contain 10 distinct candidates")
+        raise ValueError(
+            f"eligible pools do not contain {total_cases} distinct question/candidate pairs"
+        )
 
     cases: list[CandidateCase] = []
     sealed: dict[str, str] = {}
     for reason in DIAGNOSTIC_REASONS:
-        response = assignments[reason]
-        reference = references[response.question_id]
-        response_id = _response_id(response)
-        sealed[response_id] = response.candidate_id
-        cases.append(
-            CandidateCase(
-                question_id=response.question_id,
-                response_id=response_id,
-                question=reference.question,
-                reference_answer=reference.answer,
-                candidate_answer=response.answer,
-                strata=tuple(sorted({*question_strata(reference.question), reason})),
-                selection_reason=reason,
-            )
-        )
+        for required_case in required_by_reason[reason]:
+            response = matched_required[required_case.response_id]
+            sealed[required_case.response_id] = response.candidate_id
+            cases.append(required_case)
+        for response in assignments[reason]:
+            reference = references[response.question_id]
+            response_id = _response_id(response)
+            sealed[response_id] = response.candidate_id
+            cases.append(_case_from_response(reference, response, reason))
     return cases, sealed
 
 
-def _insert_bounded(pool: list[_RankedCandidate], item: _RankedCandidate) -> None:
+def _eligible_pool_limit(cases_per_reason: int) -> int:
+    return _ELIGIBLE_POOL_LIMIT * cases_per_reason
+
+
+def _insert_bounded(
+    pool: list[_RankedCandidate],
+    item: _RankedCandidate,
+    *,
+    limit: int = _ELIGIBLE_POOL_LIMIT,
+) -> None:
     bisect.insort(pool, item)
-    del pool[_ELIGIBLE_POOL_LIMIT:]
+    del pool[limit:]
 
 
 def _distinct_assignments(
     pools: Mapping[str, list[_RankedCandidate]],
-) -> dict[str, CandidateResponse] | None:
-    candidate_to_reason: dict[tuple[str, str], str] = {}
-    assigned: dict[str, CandidateResponse] = {}
+    *,
+    slots_by_reason: Mapping[str, int],
+) -> dict[str, list[CandidateResponse]] | None:
+    slots = [
+        (reason, index)
+        for reason in DIAGNOSTIC_REASONS
+        for index in range(slots_by_reason[reason])
+    ]
+    question_to_slot: dict[str, tuple[str, int]] = {}
+    assigned: dict[tuple[str, int], CandidateResponse] = {}
 
-    def assign(reason: str, visited: set[tuple[str, str]]) -> bool:
+    def assign(slot: tuple[str, int], visited: set[str]) -> bool:
+        reason, _ = slot
         for *_, response in pools[reason]:
-            key = (response.question_id, response.candidate_id)
-            if key in visited:
+            question_id = response.question_id
+            if question_id in visited:
                 continue
-            visited.add(key)
-            previous_reason = candidate_to_reason.get(key)
-            if previous_reason is None or assign(previous_reason, visited):
-                candidate_to_reason[key] = reason
-                assigned[reason] = response
+            visited.add(question_id)
+            previous_slot = question_to_slot.get(question_id)
+            if previous_slot is None or assign(previous_slot, visited):
+                question_to_slot[question_id] = slot
+                assigned[slot] = response
                 return True
         return False
 
-    for reason in DIAGNOSTIC_REASONS:
-        if not assign(reason, set()):
+    for slot in slots:
+        if not assign(slot, set()):
             return None
-    return assigned
+    return {
+        reason: [assigned[(reason, index)] for index in range(slots_by_reason[reason])]
+        for reason in DIAGNOSTIC_REASONS
+    }
+
+
+def _case_from_response(
+    reference: GroundedReference, response: CandidateResponse, reason: str
+) -> CandidateCase:
+    return CandidateCase(
+        question_id=response.question_id,
+        response_id=_response_id(response),
+        question=reference.question,
+        reference_answer=reference.answer,
+        candidate_answer=response.answer,
+        strata=tuple(sorted({*question_strata(reference.question), reason})),
+        selection_reason=reason,
+    )
 
 
 def _nonempty_string(record: Mapping[str, object], field: str, record_id: str) -> str:

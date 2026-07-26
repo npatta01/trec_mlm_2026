@@ -1,4 +1,5 @@
-from dataclasses import asdict
+from collections import Counter
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from trec_mlm.pointwise_sampling import (
     load_discovery_questions,
     load_grounded_references,
     select_diagnostic_cases,
+    select_diagnostic_case_set,
 )
 
 
@@ -88,6 +90,30 @@ def _diagnostic_fixture() -> tuple[
     return references, responses
 
 
+def _expanded_diagnostic_fixture() -> tuple[
+    dict[str, GroundedReference], list[CandidateResponse]
+]:
+    """Provide eleven separately identified examples of every diagnostic proxy."""
+    base_references, base_responses = _diagnostic_fixture()
+    references: dict[str, GroundedReference] = {}
+    responses: list[CandidateResponse] = []
+    for reason_index, response in enumerate(base_responses[: len(DIAGNOSTIC_REASONS)]):
+        reference = base_references[response.question_id]
+        for copy_index in range(11):
+            question_id = f"{response.question_id}-copy-{copy_index}"
+            references[question_id] = GroundedReference(
+                question_id, reference.question, reference.answer
+            )
+            responses.append(
+                CandidateResponse(
+                    question_id,
+                    f"secret-{reason_index}-{copy_index}",
+                    response.answer,
+                )
+            )
+    return references, responses
+
+
 def _write_grounded_cache(tmp_path: Path, *, finish_reason: str = "stop") -> Path:
     path = tmp_path / "grounded.json"
     path.write_text(
@@ -126,6 +152,68 @@ def test_select_diagnostic_cases_is_exact_and_identity_blind(tmp_path: Path) -> 
     assert {
         case.selection_reason: case.candidate_answer for case in cases
     } == expected_answers
+
+
+def test_select_diagnostic_case_set_reserves_smoke_cases_in_a_100_case_set() -> None:
+    smoke_references, smoke_responses = _diagnostic_fixture()
+    smoke_cases, _ = select_diagnostic_cases(
+        smoke_references, smoke_responses, seed=2026
+    )
+    references, responses = _expanded_diagnostic_fixture()
+    references.update(smoke_references)
+    responses = smoke_responses[: len(DIAGNOSTIC_REASONS)] + responses
+
+    cases, sealed = select_diagnostic_case_set(
+        references,
+        responses,
+        cases_per_reason=10,
+        required_cases=smoke_cases,
+        seed=2026,
+    )
+
+    assert len(cases) == 100
+    assert len({case.question_id for case in cases}) == 100
+    assert len({case.response_id for case in cases}) == 100
+    assert Counter(case.selection_reason for case in cases) == {
+        reason: 10 for reason in DIAGNOSTIC_REASONS
+    }
+    selected_by_response_id = {case.response_id: case for case in cases}
+    assert all(
+        selected_by_response_id[case.response_id] == case for case in smoke_cases
+    )
+    assert set(sealed) == {case.response_id for case in cases}
+    blind_json = json.dumps([asdict(case) for case in cases])
+    assert all(candidate not in blind_json for candidate in sealed.values())
+    assert (cases, sealed) == select_diagnostic_case_set(
+        references,
+        responses,
+        cases_per_reason=10,
+        required_cases=smoke_cases,
+        seed=2026,
+    )
+
+
+def test_select_diagnostic_case_set_rejects_invalid_counts_and_unknown_required_cases() -> (
+    None
+):
+    references, responses = _diagnostic_fixture()
+    smoke_cases, _ = select_diagnostic_cases(references, responses, seed=2026)
+
+    for count in (0, -1, True, 1.5):
+        with pytest.raises(ValueError, match="cases_per_reason"):
+            select_diagnostic_case_set(
+                references,
+                responses,
+                cases_per_reason=count,
+                required_cases=(),
+            )
+    with pytest.raises(ValueError, match="required case"):
+        select_diagnostic_case_set(
+            references,
+            responses,
+            cases_per_reason=1,
+            required_cases=[replace(smoke_cases[0], response_id="unknown")],
+        )
 
 
 def test_negation_proxy_excludes_refusal_and_prefers_substantive_overlap() -> None:

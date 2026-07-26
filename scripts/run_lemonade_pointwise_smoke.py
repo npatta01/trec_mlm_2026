@@ -25,6 +25,44 @@ def _validate_backend_response_model(body: object, expected_model: str) -> None:
         raise ValueError("backend response model does not match checkpoint")
 
 
+def _parse_backend_response_body(
+    raw_body: bytes, expected_model: str
+) -> tuple[str, dict[str, object]]:
+    try:
+        body = json.loads(
+            raw_body.decode("utf-8"),
+            object_pairs_hook=_object_without_duplicate_keys,
+            parse_constant=_reject_nonfinite_json,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("backend response body is not valid UTF-8 JSON") from error
+    if type(body) is not dict:
+        raise ValueError("backend response body must be a JSON object")
+    _validate_backend_response_model(body, expected_model)
+    choices = body.get("choices")
+    if type(choices) is not list or not choices or type(choices[0]) is not dict:
+        raise ValueError("backend response must contain nonempty choices")
+    message = choices[0].get("message")
+    if type(message) is not dict or type(message.get("content")) is not str:
+        raise ValueError("backend response choice must contain string content")
+    return message["content"], body
+
+
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    body: dict[str, object] = {}
+    for key, value in pairs:
+        if key in body:
+            raise ValueError("duplicate JSON key in backend response body")
+        body[key] = value
+    return body
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON value is forbidden: {value}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, required=True)
@@ -82,17 +120,10 @@ def main() -> int:
             method="POST",
         )
         with _open_no_redirect(request, args.timeout_seconds) as response:
-            body = json.loads(response.read(MAX_RESPONSE_BYTES + 1))
-        _validate_backend_response_model(
-            body, args.backend_response_model or args.backend_model
+            raw_body = response.read(MAX_RESPONSE_BYTES + 1)
+        content, body = _parse_backend_response_body(
+            raw_body, args.backend_response_model or args.backend_model
         )
-        body["model"] = _model
-        content = body["choices"][0]["message"]["content"]
-        body["usage"] = {
-            key: value
-            for key, value in body.get("usage", {}).items()
-            if type(value) in {int, float}
-        }
         return content, body
 
     runtime_observation = {

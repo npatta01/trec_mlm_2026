@@ -554,6 +554,8 @@ def run_cases(
             attempt: dict[str, object] = {
                 "raw": raw,
                 "response_body": body,
+                "logical_model_id": model_id,
+                "backend_model_id": body.get("model"),
                 "parsed": None,
             }
             _merge_usage(usage, _validated_usage(body.get("usage")))
@@ -612,14 +614,33 @@ def _validated_usage(value: object) -> dict[str, int | float]:
         raise ValueError("judge response usage must be a JSON object")
     result: dict[str, int | float] = {}
     for key, amount in value.items():
-        if type(key) is not str or type(amount) not in {int, float}:
+        if type(key) is not str:
+            raise ValueError("judge response usage keys must be strings")
+        if type(amount) in {int, float}:
+            if not math.isfinite(amount) or amount < 0:
+                raise ValueError(
+                    "judge response usage values must be finite and nonnegative"
+                )
+            result[key] = amount
+        elif key in {"prompt_tokens", "completion_tokens", "total_tokens"}:
             raise ValueError("judge response usage values must be numeric")
-        if not math.isfinite(amount) or amount < 0:
-            raise ValueError(
-                "judge response usage values must be finite and nonnegative"
-            )
-        result[key] = amount
+        elif not _is_json_metadata(amount):
+            raise ValueError("judge response usage metadata is not valid JSON")
     return result
+
+
+def _is_json_metadata(value: object) -> bool:
+    if value is None or type(value) in {str, bool, int}:
+        return True
+    if type(value) is float:
+        return math.isfinite(value)
+    if type(value) is list:
+        return all(_is_json_metadata(item) for item in value)
+    if type(value) is dict:
+        return all(
+            type(key) is str and _is_json_metadata(item) for key, item in value.items()
+        )
+    return False
 
 
 def _merge_usage(
@@ -794,17 +815,34 @@ def _validated_cached_attempt(
     if type(value) is not dict or type(value.get("raw")) is not str:
         raise ValueError("invalid attempt structure")
     raw = value["raw"]
+    logical_model_id = value.get("logical_model_id")
+    backend_model_id = value.get("backend_model_id")
+    if logical_model_id != model_id:
+        raise ValueError("attempt logical model does not match record")
     body = value.get("response_body")
-    usage = _validated_cached_response_body(body, model_id, raw)
+    usage = _validated_cached_response_body(body, backend_model_id, raw)
     try:
         parsed = decision_to_dict(parse_judge_decision(raw))
     except ValueError as error:
-        if set(value) != {"raw", "response_body", "parsed", "error"}:
+        if set(value) != {
+            "raw",
+            "response_body",
+            "logical_model_id",
+            "backend_model_id",
+            "parsed",
+            "error",
+        }:
             raise ValueError("invalid failed-attempt keys") from error
         if value["parsed"] is not None or value["error"] != str(error):
             raise ValueError("failed attempt does not match raw output") from error
         return dict(value), "invalid", None, str(error), usage
-    if set(value) != {"raw", "response_body", "parsed"}:
+    if set(value) != {
+        "raw",
+        "response_body",
+        "logical_model_id",
+        "backend_model_id",
+        "parsed",
+    }:
         raise ValueError("invalid successful-attempt keys")
     if not _json_values_equal(value["parsed"], parsed):
         raise ValueError("parsed attempt does not match raw output")
@@ -812,9 +850,13 @@ def _validated_cached_attempt(
 
 
 def _validated_cached_response_body(
-    value: object, model_id: str, raw: str
+    value: object, backend_model_id: object, raw: str
 ) -> dict[str, int | float]:
-    if type(value) is not dict or value.get("model") != model_id:
+    if (
+        type(value) is not dict
+        or type(backend_model_id) is not str
+        or value.get("model") != backend_model_id
+    ):
         raise ValueError("attempt response has wrong model")
     choices = value.get("choices")
     if type(choices) is not list or not choices or type(choices[0]) is not dict:

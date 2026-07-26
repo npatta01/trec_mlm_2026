@@ -430,6 +430,49 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert not list(output.parent.glob("*.tmp"))
 
 
+def test_run_cases_preserves_backend_body_and_logical_model_separately(
+    tmp_path: Path,
+) -> None:
+    backend_body = {
+        "id": "completion-1",
+        "model": "/verified/checkpoint.gguf",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": VALID_DECISION_JSON},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 12,
+            "completion_tokens": 8,
+            "total_tokens": 20,
+            "prompt_tokens_details": {"cached_tokens": 3},
+        },
+    }
+
+    def canonical_backend_call(model: str, messages: object, schema: object):
+        return VALID_DECISION_JSON, backend_body
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-a",
+        model_id="model-a",
+        contract=CONTRACT,
+        output_path=tmp_path / "run.json",
+        runtime_receipt=RECEIPT,
+        call=canonical_backend_call,
+    )
+
+    attempt = result["records"][CASE.response_id]["attempts"][0]
+    assert attempt["logical_model_id"] == "model-a"
+    assert attempt["response_body"] == backend_body
+    assert result["records"][CASE.response_id]["usage"] == {
+        "prompt_tokens": 12,
+        "completion_tokens": 8,
+        "total_tokens": 20,
+    }
+
+
 def test_run_cases_repairs_a_live_decision_with_duplicate_object_keys(
     tmp_path: Path,
 ) -> None:

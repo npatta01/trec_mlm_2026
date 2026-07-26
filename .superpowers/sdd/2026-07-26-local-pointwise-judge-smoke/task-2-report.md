@@ -205,3 +205,43 @@ Outcome: `All checks passed!` and `1 file already formatted`.
 ### Round 3 concerns
 
 - None. No real private input was opened, and unrelated `research/notes/` remain untouched.
+
+## Real-sample semantic audit fix
+
+Status: DONE_WITH_CONCERNS
+
+### Finding and change
+
+- Read-only inspection of private `smoke-v1` showed `negation_mismatch_proxy` selected `I don't know`, duplicating the refusal diagnostic because `don't` matched the negation regex.
+- Negation eligibility now requires a polarity mismatch, a non-refusal answer, at least three candidate words, and lexical overlap of at least `0.20` with the reference.
+- Negation ranking now prefers highest lexical overlap before the unchanged deterministic SHA-256 tie-break.
+- The regression adds a second refusal and a lower-overlap negated proposition, proves refusal is ineligible, proves the substantive high-overlap polarity mismatch wins, and asserts the other nine fixture reasons remain unchanged.
+
+### RED evidence
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task2 uv run pytest tests/test_pointwise_sampling.py::test_negation_proxy_excludes_refusal_and_prefers_substantive_overlap -v
+```
+
+Outcome before production change: `1 failed in 0.07s`; the old ascending-overlap rank selected `canberra is not the seat.` instead of the substantive high-overlap mismatch.
+
+### GREEN and regression evidence
+
+The focused regression passed after the two-line eligibility/ranking change: `1 passed in 0.05s`.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task2 uv run pytest tests/test_pointwise_sampling.py tests/test_pointwise_judge_cli.py tests/test_pointwise_judge.py tests/test_pointwise_report.py tests/test_pointwise_review.py tests/test_pointwise_runner.py -v
+```
+
+Outcome: `269 passed in 0.27s`.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache-task2 uv run ruff check trec_mlm/pointwise_sampling.py tests/test_pointwise_sampling.py
+UV_CACHE_DIR=/tmp/uv-cache-task2 uv run ruff format --check trec_mlm/pointwise_sampling.py tests/test_pointwise_sampling.py
+```
+
+Outcome: `All checks passed!` and `2 files already formatted`.
+
+### Concerns
+
+- Private `smoke-v1` remains intentionally untouched and still contains the rejected negation case. Regenerate into a new immutable output version and re-audit all ten cases before inference.

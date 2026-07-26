@@ -441,7 +441,10 @@ def _eligible(reason: str, features: _CandidateFeatures) -> bool:
         "number_or_date_mismatch_proxy": features.has_reference_numbers
         and features.has_candidate_numbers
         and features.number_difference > 0,
-        "negation_mismatch_proxy": features.negation_mismatch,
+        "negation_mismatch_proxy": features.negation_mismatch
+        and not features.refusal
+        and features.word_count >= 3
+        and features.overlap >= 0.2,
         "verbose_error_proxy": features.word_count
         >= max(30, features.reference_word_count * 3),
         "refusal_proxy": features.refusal,
@@ -461,7 +464,7 @@ def _proxy_rank(reason: str, features: _CandidateFeatures) -> tuple[float, ...]:
             -float(features.number_difference),
             features.overlap,
         ),
-        "negation_mismatch_proxy": (features.overlap,),
+        "negation_mismatch_proxy": (-features.overlap,),
         "verbose_error_proxy": (-float(features.word_count), features.overlap),
         "refusal_proxy": (features.word_count,),
         "underspecified_proxy": (features.word_count,),

@@ -128,6 +128,42 @@ def test_select_diagnostic_cases_is_exact_and_identity_blind(tmp_path: Path) -> 
     } == expected_answers
 
 
+def test_negation_proxy_excludes_refusal_and_prefers_substantive_overlap() -> None:
+    references, responses = _diagnostic_fixture()
+    refusal_features = sampling._candidate_features(
+        references["q5"], CandidateResponse("q5", "refusal-check", "I don't know.")
+    )
+    assert sampling._eligible("negation_mismatch_proxy", refusal_features) is False
+
+    responses.extend(
+        [
+            CandidateResponse("q5", "extra-refusal", "I don't know."),
+            CandidateResponse(
+                "q5",
+                "lower-overlap-negation",
+                "canberra is not the seat.",
+            ),
+        ]
+    )
+
+    cases, _ = select_diagnostic_cases(references, responses, seed=2026)
+    answers = {case.selection_reason: case.candidate_answer for case in cases}
+
+    assert answers["negation_mismatch_proxy"] == (
+        "Canberra is not Australia's capital."
+    )
+    assert answers["refusal_proxy"] == "I don't know."
+    assert {
+        reason: answer
+        for reason, answer in answers.items()
+        if reason != "negation_mismatch_proxy"
+    } == {
+        reason: responses[index].answer
+        for index, reason in enumerate(DIAGNOSTIC_REASONS)
+        if reason != "negation_mismatch_proxy"
+    }
+
+
 def test_grounded_loader_requires_successful_unique_records(tmp_path: Path) -> None:
     path = _write_grounded_cache(tmp_path, finish_reason="stop")
     loaded = load_grounded_references(path)

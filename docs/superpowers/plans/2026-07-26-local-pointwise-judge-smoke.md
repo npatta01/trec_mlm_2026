@@ -209,7 +209,7 @@ only the sealed file maps that ID back to `candidate_id`.
 uv run python scripts/build_pointwise_judge_smoke.py \
   --discovery data/dev/llm_discovery_data.json \
   --grounded artifacts/reference_answer_validation/grounding/gemini36_grounded_all_7759.json \
-  --output-dir artifacts/pointwise_judge_bakeoff/smoke-v1 \
+  --output-dir artifacts/pointwise_judge_bakeoff/smoke-v2 \
   --seed 2026
 ```
 
@@ -294,7 +294,7 @@ only a corrected object under the unchanged schema.
 
 ```bash
 uv run python scripts/run_local_pointwise_judge.py \
-  --manifest artifacts/pointwise_judge_bakeoff/smoke-v1/smoke_manifest.json \
+  --manifest artifacts/pointwise_judge_bakeoff/smoke-v2/smoke_manifest.json \
   --manifest-sha256 <independently-reviewed-manifest-sha256> \
   --protocol-dir protocols/pointwise_judge_bakeoff \
   --registry protocols/pointwise_judge_bakeoff/local-models-v1.json \
@@ -302,9 +302,9 @@ uv run python scripts/run_local_pointwise_judge.py \
   --model-alias qwen36-35b-a3b-gguf \
   --model-id Qwen3.6-35B-A3B-GGUF \
   --base-url http://127.0.0.1:13305/v1 \
-  --runtime-receipt artifacts/pointwise_judge_bakeoff/smoke-v1/runtime/qwen36-35b-a3b-gguf.json \
+  --runtime-receipt artifacts/pointwise_judge_bakeoff/smoke-v2/runtime/qwen36-35b-a3b-gguf.json \
   --runtime-receipt-sha256 <independently-reviewed-receipt-sha256> \
-  --output artifacts/pointwise_judge_bakeoff/smoke-v1/runs/qwen36-35b-a3b-gguf.json
+  --output artifacts/pointwise_judge_bakeoff/smoke-v2/runs/qwen36-35b-a3b-gguf.json
 ```
 
 - [ ] **Step 6: Run runner and CLI tests**
@@ -331,7 +331,7 @@ git commit -m "add resumable local pointwise runner"
 
 **Interfaces:**
 - Consumes: local Hugging Face cache, Lemonade 11.5 registry, `rocminfo`, memory/disk facts, and loopback model-list endpoints.
-- Produces: one JSON runtime receipt per model under `artifacts/pointwise_judge_bakeoff/smoke-v1/runtime/`.
+- Produces: one JSON runtime receipt per model under `artifacts/pointwise_judge_bakeoff/smoke-v2/runtime/`.
 - Produces: exit 0 only when source hashes, model artifacts, GPU visibility, endpoint binding, and a deterministic schema canary all pass.
 
 - [ ] **Step 1: Write failing registry/preflight tests**
@@ -453,9 +453,9 @@ unique IDs, and no unknown judge aliases.
 
 ```bash
 uv run python scripts/build_pointwise_judge_review.py packets \
-  --manifest artifacts/pointwise_judge_bakeoff/smoke-v1/smoke_manifest.json \
-  --runs-dir artifacts/pointwise_judge_bakeoff/smoke-v1/runs \
-  --output-dir artifacts/pointwise_judge_bakeoff/smoke-v1/review \
+  --manifest artifacts/pointwise_judge_bakeoff/smoke-v2/smoke_manifest.json \
+  --runs-dir artifacts/pointwise_judge_bakeoff/smoke-v2/runs \
+  --output-dir artifacts/pointwise_judge_bakeoff/smoke-v2/review \
   --seed 2026
 ```
 
@@ -577,8 +577,8 @@ If Task 7 required a code correction, stage only the corrected code/test files a
 
 **Files:**
 - Create privately: `artifacts/reference_answer_validation/grounding/gemini36_grounded_all_7759.json`
-- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v1/smoke_manifest.json`
-- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v1/sealed_candidates.json`
+- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v2/smoke_manifest.json`
+- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v2/sealed_candidates.json`
 
 **Interfaces:**
 - Consumes: private `reference-corpus-v1` bucket artifact and shared discovery corpus.
@@ -629,7 +629,7 @@ create a new prompt/sample version, and preserve the rejected manifest.
 ### Task 9: Preflight and run four local judges
 
 **Files:**
-- Create privately: runtime receipts and run caches under `artifacts/pointwise_judge_bakeoff/smoke-v1/`.
+- Create privately: runtime receipts and run caches under `artifacts/pointwise_judge_bakeoff/smoke-v2/`.
 
 **Interfaces:**
 - Consumes: frozen manifest and four-model registry.
@@ -735,7 +735,7 @@ unload Lemonade models, and terminate the temporary loopback `lemond` PTY.
 ### Task 10: Advisor and Claude blind reviews
 
 **Files:**
-- Create privately: review packets and reviewer outputs under `artifacts/pointwise_judge_bakeoff/smoke-v1/review/`.
+- Create privately: review packets and reviewer outputs under `artifacts/pointwise_judge_bakeoff/smoke-v2/review/`.
 
 **Interfaces:**
 - Consumes: frozen inputs and anonymous judge results.
@@ -790,8 +790,8 @@ Do not ground every case and do not replace either frozen reviewer ledger.
 ### Task 11: Produce the user checkpoint and stop
 
 **Files:**
-- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v1/smoke-review.md`
-- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v1/smoke-summary.json`
+- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v2/smoke-review.md`
+- Create privately: `artifacts/pointwise_judge_bakeoff/smoke-v2/smoke-summary.json`
 - Create sanitized: `reports/pointwise_judge_bakeoff/local-smoke-summary.json`
 
 **Interfaces:**
@@ -800,7 +800,7 @@ Do not ground every case and do not replace either frozen reviewer ledger.
 
 - [ ] **Step 1: Build reports**
 
-Run: `uv run python scripts/build_pointwise_judge_smoke_report.py --artifact-dir artifacts/pointwise_judge_bakeoff/smoke-v1 --sanitized-output reports/pointwise_judge_bakeoff/local-smoke-summary.json`
+Run: `uv run python scripts/build_pointwise_judge_smoke_report.py --artifact-dir artifacts/pointwise_judge_bakeoff/smoke-v2 --sanitized-output reports/pointwise_judge_bakeoff/local-smoke-summary.json`
 
 - [ ] **Step 2: Verify privacy and integrity**
 

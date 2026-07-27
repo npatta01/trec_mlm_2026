@@ -4,9 +4,9 @@ Date: 2026-07-27
 
 ## Objective
 
-Improve the stability of secondary pointwise-judge fields without reducing the existing final-label quality, then run a paid canary comparing DeepSeek V4 Flash and GPT-5.4 nano.
+Improve the stability of secondary pointwise-judge fields without reducing the existing final-label quality, then run a paid canary comparing DeepSeek V4 Flash, GPT-5.4 nano, and hosted Qwen3.6-35B-A3B in direct and thinking modes.
 
-The first canary uses the same 10 frozen cases for both models: 20 physical model calls before repair attempts. The experiment stops after this canary for user review. Across all later work, no more than 100 physical paid calls may be made without new authorization.
+The first canary uses the same 10 frozen cases for all four configurations: 40 physical model calls before repair attempts. The experiment stops after this canary for user review. Across all later work, no more than 100 physical paid calls may be made without new authorization.
 
 ## Scope
 
@@ -18,7 +18,7 @@ This change includes:
 - cross-field invariant validation;
 - transport-schema compatibility with the local Pydantic model remaining authoritative;
 - an identity-separated v2 output directory and spend ledger;
-- one 10-case run each for DeepSeek V4 Flash and GPT-5.4 nano;
+- one 10-case run each for DeepSeek V4 Flash, GPT-5.4 nano, hosted Qwen3.6-35B-A3B direct, and hosted Qwen3.6-35B-A3B thinking;
 - a comparison against the already locked advisor and Claude pass-2 labels.
 
 This change does not include the 500-case bake-off, more than 100 paid calls, a new evidence field, chain-of-thought collection, new label or error-flag values, changed score ranges, or few-shot examples copied from the smoke cases.
@@ -84,6 +84,10 @@ Run the same frozen 10 cases through:
 
 - DeepSeek V4 Flash, direct/non-thinking, pinned to DeepInfra;
 - GPT-5.4 nano, default non-thinking, pinned to OpenAI.
+- Qwen3.6-35B-A3B, direct/non-thinking, pinned to AkashML;
+- Qwen3.6-35B-A3B, thinking enabled, pinned to the same AkashML endpoint.
+
+The Qwen pair must differ only in the reasoning configuration. Their output identities, receipts, diagnostics, and resumable run paths are separate even though the provider and model ID are identical.
 
 Use a fresh v2 output identity. Carry forward the existing conservative spend only if the same global cap ledger is reused; otherwise set a new explicit canary cap no higher than $0.10. Every physical attempt reserves worst-case cost before network access. Repairs and retries count toward the 100-call ceiling.
 
@@ -115,4 +119,4 @@ Comparison targets, reported rather than silently enforced:
 
 ## Evidence and Handoff
 
-Produce a private machine-readable comparison and a sanitized Markdown report containing schema validity, invariant validity, label/score/flag agreement, rationale audit, cost, latency, and exact differences from v1. Present the 20-call result to the user before changing the prompt again or expanding toward the 100-call ceiling.
+Produce a private machine-readable comparison and a sanitized Markdown report containing schema validity, invariant validity, label/score/flag agreement, rationale audit, cost, latency, and exact differences from v1. Present the 40-call result to the user before changing the prompt again or expanding toward the 100-call ceiling.

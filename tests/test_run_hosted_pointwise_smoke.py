@@ -378,13 +378,9 @@ def test_call_preserves_provider_versioned_raw_body_while_binding_logical_model(
     assert runner_body["openrouter_raw_response_body"] == raw_body
 
 
-@pytest.mark.parametrize("top_level_model", [None, "", 1])
-def test_response_rejects_missing_or_nonstring_top_level_model(
-    top_level_model: object,
-) -> None:
+def test_response_accepts_missing_or_opaque_top_level_model_provenance() -> None:
     spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
     body = {
-        "model": top_level_model,
         "openrouter_metadata": _router_metadata(spec),
         "choices": [
             {
@@ -399,8 +395,11 @@ def test_response_rejects_missing_or_nonstring_top_level_model(
             "cost": 0.0001,
         },
     }
-    with pytest.raises(ValueError, match="model"):
-        hosted._parse_response(body, spec)
+    assert hosted._parse_response(body, spec)[0] == json.dumps(VALID_DECISION)
+    for provenance in (None, "", 1, {"provider_model": "opaque"}):
+        assert hosted._parse_response({**body, "model": provenance}, spec)[
+            0
+        ] == json.dumps(VALID_DECISION)
 
 
 def test_response_rejects_conflicting_selected_route_metadata() -> None:

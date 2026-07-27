@@ -221,9 +221,6 @@ def _parse_response(
 ) -> tuple[str, dict[str, object], float]:
     if type(body) is not dict:
         raise ValueError("OpenRouter response must be a JSON object")
-    model = body.get("model")
-    if type(model) is not str or not model.strip():
-        raise ValueError("OpenRouter response model must be a nonempty string")
     _validate_router_metadata(body.get("openrouter_metadata"), spec)
     choices = body.get("choices")
     if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:

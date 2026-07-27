@@ -860,6 +860,107 @@ def test_call_checkpoints_spend_immediately_after_provider_success(
     assert request_headers[0]["x-openrouter-metadata"] == "enabled"
 
 
+@pytest.mark.parametrize(
+    ("config_id", "completion_tokens"),
+    [
+        ("qwen3.6-35b-a3b-direct", 1_024),
+        ("qwen3.6-35b-a3b-thinking", 4_096),
+    ],
+)
+def test_qwen_call_accepts_completion_count_at_configured_ceiling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_id: str,
+    completion_tokens: int,
+) -> None:
+    spec = hosted.V2_CONFIG_SPECS[config_id]
+    body = {
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": completion_tokens,
+            "total_tokens": 100 + completion_tokens,
+            "cost": 0.0001,
+        },
+    }
+    monkeypatch.setattr(hosted, "_post_json", lambda *_args, **_kwargs: body)
+    attempt_budget = hosted.AttemptBudget(
+        1,
+        ledger_path=tmp_path / "attempt-ledger.json",
+        canary_identity_sha256="a" * 64,
+        marker_dir=tmp_path / "attempt-markers",
+    )
+    budget = hosted.SpendBudget(0.10)
+    call = hosted.OpenRouterJudgeCall(
+        spec=spec,
+        api_key="test-only-secret",
+        budget=budget,
+        attempt_budget=attempt_budget,
+        timeout_seconds=1,
+    )
+
+    call(spec.model_id, [{"role": "user", "content": "judge"}], V2_SCHEMA)
+
+    assert budget.spent_usd == pytest.approx(0.0001)
+
+
+@pytest.mark.parametrize(
+    ("config_id", "completion_tokens"),
+    [
+        ("qwen3.6-35b-a3b-direct", 1_025),
+        ("qwen3.6-35b-a3b-thinking", 4_097),
+    ],
+)
+def test_qwen_call_rejects_completion_count_above_configured_ceiling_before_reconcile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_id: str,
+    completion_tokens: int,
+) -> None:
+    spec = hosted.V2_CONFIG_SPECS[config_id]
+    body = {
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": completion_tokens,
+            "total_tokens": 100 + completion_tokens,
+            "cost": 0.0001,
+        },
+    }
+    monkeypatch.setattr(hosted, "_post_json", lambda *_args, **_kwargs: body)
+    attempt_budget = hosted.AttemptBudget(
+        1,
+        ledger_path=tmp_path / "attempt-ledger.json",
+        canary_identity_sha256="a" * 64,
+        marker_dir=tmp_path / "attempt-markers",
+    )
+    budget = hosted.SpendBudget(0.10)
+    call = hosted.OpenRouterJudgeCall(
+        spec=spec,
+        api_key="test-only-secret",
+        budget=budget,
+        attempt_budget=attempt_budget,
+        timeout_seconds=1,
+    )
+
+    with pytest.raises(ValueError, match="reserved token ceilings"):
+        call(spec.model_id, [{"role": "user", "content": "judge"}], V2_SCHEMA)
+
+    assert budget.spent_usd > 0.0001
+
+
 def test_invalid_response_is_privately_checkpointed_before_parse_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

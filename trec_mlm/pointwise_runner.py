@@ -584,7 +584,9 @@ def run_cases(
                 case,
                 contract,
                 repair_raw=malformed_raw if attempt_number else None,
-                repair_error=malformed_error if attempt_number else None,
+                repair_error=(
+                    malformed_error if attempt_number and version == "v2" else None
+                ),
             )
             raw, response_body = call(model_id, messages, contract.schema)
             if type(raw) is not str or not isinstance(response_body, Mapping):

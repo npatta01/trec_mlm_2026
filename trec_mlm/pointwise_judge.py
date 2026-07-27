@@ -80,6 +80,12 @@ class PromptContract:
     schema: dict[str, object]
 
 
+class _DuplicateJsonKeyError(ValueError):
+    def __init__(self, key: str) -> None:
+        self.key = key
+        super().__init__("duplicate JSON key in decision")
+
+
 class DecisionV2(BaseModel):
     """Strict, self-consistent v2 judge output before runner conversion."""
 
@@ -275,6 +281,10 @@ def parse_judge_decision(
             object_pairs_hook=_object_without_duplicate_keys,
             parse_constant=_reject_nonfinite_json,
         )
+    except _DuplicateJsonKeyError as error:
+        if version == "v2":
+            raise ValueError("decision contains a duplicate JSON key") from error
+        raise ValueError(f"duplicate JSON key in decision: {error.key}") from error
     except json.JSONDecodeError as error:
         raise ValueError("decision is not valid JSON") from error
     if version == "v2":
@@ -320,7 +330,7 @@ def _parse_v2_judge_decision(value: object) -> JudgeDecision:
         message = str(detail.get("msg", "invalid value"))
         if message.startswith("Value error, "):
             message = message.removeprefix("Value error, ")
-        location = ".".join(str(item) for item in detail.get("loc", ()))
+        location = _sanitized_v2_error_location(detail.get("loc"))
         if location:
             summary = f"v2 decision invalid at {location}: {message}"
         else:
@@ -336,6 +346,17 @@ def _parse_v2_judge_decision(value: object) -> JudgeDecision:
         confidence=decision.confidence,
         rationale=decision.rationale,
     )
+
+
+def _sanitized_v2_error_location(value: object) -> str | None:
+    if type(value) not in {list, tuple} or not value:
+        return None
+    first, *rest = value
+    if type(first) is not str or first not in DECISION_KEYS:
+        return "unknown field"
+    if any(type(item) is not int or item < 0 for item in rest):
+        return "unknown field"
+    return ".".join([first, *(str(item) for item in rest)])
 
 
 def decision_to_dict(decision: JudgeDecision) -> dict[str, object]:
@@ -395,6 +416,6 @@ def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, An
     value: dict[str, Any] = {}
     for key, item in pairs:
         if key in value:
-            raise ValueError(f"duplicate JSON key in decision: {key}")
+            raise _DuplicateJsonKeyError(key)
         value[key] = item
     return value

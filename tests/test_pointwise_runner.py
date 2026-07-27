@@ -85,6 +85,20 @@ INVALID_V2_INVARIANT_JSON = json.dumps(
         "reference_status": "sound",
     }
 )
+INVALID_V2_AMBIGUITY_JSON = json.dumps(
+    {
+        **VALID_V2_DECISION,
+        "label": "partial",
+        "correctness": 2,
+        "completeness": 1,
+        "error_flags": ["ambiguity"],
+    }
+)
+V1_REPAIR_PREFIX = (
+    "Your preceding output did not satisfy the unchanged schema. "
+    "Return only a corrected JSON object under the unchanged schema.\n\n"
+    "MALFORMED OUTPUT:\n"
+)
 
 
 def _response_body(
@@ -445,8 +459,7 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert len(call.requests) == 2
     repair_messages = call.requests[1]["messages"]
     assert repair_messages[-1]["role"] == "user"
-    assert "not-json" in repair_messages[-1]["content"]
-    assert "unchanged schema" in repair_messages[-1]["content"]
+    assert repair_messages[-1]["content"] == V1_REPAIR_PREFIX + "not-json"
     assert call.requests[0]["schema"] == CONTRACT.schema
     assert call.requests[1]["schema"] == CONTRACT.schema
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
@@ -454,8 +467,23 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert not list(output.parent.glob("*.tmp"))
 
 
-def test_run_cases_includes_v2_invariant_error_in_live_repair(tmp_path: Path) -> None:
-    call = ScriptedCall([INVALID_V2_INVARIANT_JSON, VALID_V2_DECISION_JSON])
+@pytest.mark.parametrize(
+    ("invalid_raw", "expected_error"),
+    [
+        (
+            INVALID_V2_INVARIANT_JSON,
+            "reference_conflict requires incomplete or suspect reference",
+        ),
+        (
+            INVALID_V2_AMBIGUITY_JSON,
+            "ambiguity is reserved for an unjudgeable item",
+        ),
+    ],
+)
+def test_run_cases_includes_v2_invariant_error_in_live_repair(
+    tmp_path: Path, invalid_raw: str, expected_error: str
+) -> None:
+    call = ScriptedCall([invalid_raw, VALID_V2_DECISION_JSON])
 
     result = run_cases(
         [CASE],
@@ -470,8 +498,60 @@ def test_run_cases_includes_v2_invariant_error_in_live_repair(tmp_path: Path) ->
 
     repair = call.requests[1]["messages"][-1]["content"]
     assert "VALIDATION ERROR:" in repair
-    assert "reference_conflict requires incomplete or suspect reference" in repair
+    assert expected_error in repair
     assert result["records"][CASE.response_id]["decision"] == VALID_V2_DECISION
+
+
+@pytest.mark.parametrize(
+    ("private_name", "invalid_raw", "expected_error"),
+    [
+        (
+            "PRIVATE-EXTRA-FIELD-DO-NOT-ECHO",
+            json.dumps(
+                {
+                    **VALID_V2_DECISION,
+                    "PRIVATE-EXTRA-FIELD-DO-NOT-ECHO": "private-value",
+                }
+            ),
+            "v2 decision invalid at unknown field: Extra inputs are not permitted",
+        ),
+        (
+            "PRIVATE-DUPLICATE-FIELD-DO-NOT-ECHO",
+            (
+                '{"PRIVATE-DUPLICATE-FIELD-DO-NOT-ECHO": 1, '
+                '"PRIVATE-DUPLICATE-FIELD-DO-NOT-ECHO": 2}'
+            ),
+            "decision contains a duplicate JSON key",
+        ),
+    ],
+)
+def test_v2_artifact_error_and_repair_validation_hide_private_field_names(
+    tmp_path: Path,
+    private_name: str,
+    invalid_raw: str,
+    expected_error: str,
+) -> None:
+    call = ScriptedCall([invalid_raw, VALID_V2_DECISION_JSON])
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-v2",
+        model_id="model-v2",
+        contract=V2_CONTRACT,
+        output_path=tmp_path / "run.json",
+        runtime_receipt=V2_RECEIPT,
+        call=call,
+        version="v2",
+    )
+
+    attempt = result["records"][CASE.response_id]["attempts"][0]
+    assert attempt["error"] == expected_error
+    assert private_name not in attempt["error"]
+    validation_section = call.requests[1]["messages"][-1]["content"].split(
+        "MALFORMED OUTPUT:", maxsplit=1
+    )[0]
+    assert expected_error in validation_section
+    assert private_name not in validation_section
 
 
 def test_run_cases_preserves_backend_body_and_logical_model_separately(
@@ -690,11 +770,28 @@ def test_resume_revalidates_cached_duplicate_key_output_and_issues_only_repair(
     )
 
     assert len(resumed.requests) == 1
-    assert DUPLICATE_KEY_DECISION_JSON in resumed.requests[0]["messages"][-1]["content"]
+    assert resumed.requests[0]["messages"][-1]["content"] == (
+        V1_REPAIR_PREFIX + DUPLICATE_KEY_DECISION_JSON
+    )
     assert result["records"][CASE.response_id]["decision"] == VALID_DECISION
 
 
-def test_resume_includes_cached_v2_invariant_error_in_repair(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("invalid_raw", "expected_error"),
+    [
+        (
+            INVALID_V2_INVARIANT_JSON,
+            "reference_conflict requires incomplete or suspect reference",
+        ),
+        (
+            INVALID_V2_AMBIGUITY_JSON,
+            "ambiguity is reserved for an unjudgeable item",
+        ),
+    ],
+)
+def test_resume_includes_cached_v2_invariant_error_in_repair(
+    tmp_path: Path, invalid_raw: str, expected_error: str
+) -> None:
     output = tmp_path / "run.json"
     with pytest.raises(KeyboardInterrupt):
         run_cases(
@@ -704,7 +801,7 @@ def test_resume_includes_cached_v2_invariant_error_in_repair(tmp_path: Path) -> 
             contract=V2_CONTRACT,
             output_path=output,
             runtime_receipt=V2_RECEIPT,
-            call=ScriptedCall([INVALID_V2_INVARIANT_JSON, KeyboardInterrupt()]),
+            call=ScriptedCall([invalid_raw, KeyboardInterrupt()]),
             version="v2",
         )
     resumed = ScriptedCall([VALID_V2_DECISION_JSON])
@@ -722,7 +819,7 @@ def test_resume_includes_cached_v2_invariant_error_in_repair(tmp_path: Path) -> 
 
     repair = resumed.requests[0]["messages"][-1]["content"]
     assert "VALIDATION ERROR:" in repair
-    assert "reference_conflict requires incomplete or suspect reference" in repair
+    assert expected_error in repair
     assert result["records"][CASE.response_id]["decision"] == VALID_V2_DECISION
 
 

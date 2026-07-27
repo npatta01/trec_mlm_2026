@@ -34,3 +34,36 @@ Applied the smallest local-only fixes for the preserved first v2 canary failure.
 
 - The local tests prove configuration binding and repair-message behavior, not that 1,024/4,096 tokens are sufficient in live service. A fresh paid canary is still required.
 - Use a new output directory for that canary. Reusing the failed directory would preserve the GPT terminal failure and conflicts with the Qwen runtime receipt that correctly recorded the old 512-token ceiling.
+
+## Round 1 review remediation
+
+### RED evidence
+
+- Exact live and cached v1 repair-message assertions failed because the validation detail block changed the historical request bytes.
+- An arbitrary extra key appeared in the v2 error as its Pydantic location, and an arbitrary duplicate key appeared in the duplicate-key error.
+- The four Qwen provider-boundary tests were characterization coverage for an already-correct round-one consumer, so they were green on first execution: direct accepted 1,024 and rejected 1,025; thinking accepted 4,096 and rejected 4,097.
+
+### Fixes
+
+- `run_cases` forwards the derived validation detail only when `version == "v2"`; complete live and cached v1 repair messages are byte-for-byte locked by tests.
+- V2 Pydantic locations allow only top-level schema field names followed by non-negative integer list indices. Every other location is rendered as `unknown field`.
+- Duplicate JSON keys use a fixed v2 error without the key name. V1 retains its prior duplicate-key message.
+- Live and cached v2 repair tests now cover both paid failures: `reference_conflict` with a sound reference and `ambiguity` on a judgeable non-uncertain item.
+- Integration tests confirm private extra/duplicate field names do not enter the persisted `error` field or the repair prompt's `VALIDATION ERROR` section. The raw malformed output remains preserved separately by design.
+
+### GREEN evidence
+
+- Pointwise/hosted suites: `291 passed in 4.62s`.
+- Ruff and Ruff format checks passed on all five changed Python files.
+- `git diff --check` passed.
+- No network calls were made. The preserved first canary remains at 25 calls and $0.008190882.
+
+### Next paid command limits
+
+The next fresh-directory invocation must explicitly include both remaining cumulative limits:
+
+```text
+--cap-usd 0.091809118 --call-cap 75
+```
+
+The spend reservation can stop the canary before all configurations finish; that is the intended fail-safe behavior, not authorization to raise either limit.

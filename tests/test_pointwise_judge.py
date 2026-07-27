@@ -118,6 +118,57 @@ def test_v2_invariant_error_is_concise_and_does_not_echo_input() -> None:
     assert "input_value" not in message
 
 
+def test_v2_extra_field_error_does_not_echo_arbitrary_key() -> None:
+    private_key = "PRIVATE-FIELD-NAME-DO-NOT-ECHO"
+    value = {**VALID_V2_DECISION, private_key: "private-value"}
+
+    with pytest.raises(ValueError) as caught:
+        parse_judge_decision(json.dumps(value), version="v2")
+
+    assert str(caught.value) == (
+        "v2 decision invalid at unknown field: Extra inputs are not permitted"
+    )
+    assert private_key not in str(caught.value)
+
+
+def test_v2_duplicate_key_error_does_not_echo_arbitrary_key() -> None:
+    private_key = "PRIVATE-DUPLICATE-KEY-DO-NOT-ECHO"
+    raw = f'{{"{private_key}": 1, "{private_key}": 2}}'
+
+    with pytest.raises(ValueError) as caught:
+        parse_judge_decision(raw, version="v2")
+
+    assert str(caught.value) == "decision contains a duplicate JSON key"
+    assert private_key not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    ("patch", "message"),
+    [
+        (
+            {"correctness": "4"},
+            "v2 decision invalid at correctness: Input should be a valid integer",
+        ),
+        (
+            {"error_flags": [1]},
+            (
+                "v2 decision invalid at error_flags.0: Input should be "
+                "'entity_error', 'number_error', 'date_error', 'negation_error', "
+                "'unsupported_specificity', 'refusal', 'ambiguity' or "
+                "'reference_conflict'"
+            ),
+        ),
+    ],
+)
+def test_v2_error_location_allows_only_schema_fields_and_list_indices(
+    patch: dict[str, object], message: str
+) -> None:
+    with pytest.raises(ValueError, match=".*") as caught:
+        parse_judge_decision(json.dumps(VALID_V2_DECISION | patch), version="v2")
+
+    assert str(caught.value) == message
+
+
 @pytest.mark.parametrize(
     ("patch", "invariant"),
     [

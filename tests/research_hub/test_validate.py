@@ -31,6 +31,32 @@ def test_validation_returns_record_and_linked_system_counts(
     assert summary.linked_system_count == len(ledger_build.systems)
 
 
+def test_strongest_completed_followup_role_requires_a_concluded_study(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    study = minimal_sources.studies[0]
+    running = replace(
+        study,
+        metadata={
+            **study.metadata,
+            "current_state_role": "strongest_completed_follow_up",
+            "status": "running",
+            "outcome": "pending",
+            "decision": "pending",
+            "concluded_on": None,
+        },
+    )
+
+    with pytest.raises(ValueError, match="current_state_role requires status concluded"):
+        validate_hub_sources(
+            replace(minimal_sources, studies=(running,)),
+            ledger_build,
+            tmp_path,
+        )
+
+
 @pytest.mark.parametrize(
     "field",
     [
@@ -39,6 +65,8 @@ def test_validation_returns_record_and_linked_system_counts(
         "decision",
         "confidence",
         "confidence_boundary",
+        "strongest_evidence_summary",
+        "open_question",
         "next_test_ids",
         "updated_on",
         "evidence_refs",
@@ -260,6 +288,59 @@ def test_validation_requires_nonempty_test_mechanism_steps(
     with pytest.raises(ValueError, match="mechanism_steps must not be empty"):
         validate_hub_sources(
             replace(minimal_sources, tests=(test,)), ledger_build, tmp_path
+        )
+
+
+@pytest.mark.parametrize(
+    "github_issue",
+    [
+        "https://github.com/other/trec_mlm_2026/issues/19",
+        "https://github.com/npatta01/other/issues/19",
+        "http://github.com/npatta01/trec_mlm_2026/issues/19",
+        "https://github.com/npatta01/trec_mlm_2026/issues/0",
+        "https://github.com/npatta01/trec_mlm_2026/issues/19/",
+        "https://github.com/npatta01/trec_mlm_2026/issues/19?state=open",
+        "https://github.com/npatta01/trec_mlm_2026/issues/19#discussion",
+        19,
+    ],
+)
+def test_validation_rejects_github_issue_outside_canonical_repository_url(
+    github_issue: object,
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    test = minimal_sources.tests[0]
+    test = replace(
+        test,
+        metadata={**test.metadata, "github_issue": github_issue},
+    )
+
+    with pytest.raises(ValueError, match="github_issue"):
+        validate_hub_sources(
+            replace(minimal_sources, tests=(test,)), ledger_build, tmp_path
+        )
+
+
+def test_validation_rejects_github_issue_on_non_test_record(
+    minimal_sources: HubSources,
+    ledger_build: LedgerBuild,
+    tmp_path: Path,
+) -> None:
+    question = minimal_sources.questions[0]
+    question = replace(
+        question,
+        metadata={
+            **question.metadata,
+            "github_issue": (
+                "https://github.com/npatta01/trec_mlm_2026/issues/19"
+            ),
+        },
+    )
+
+    with pytest.raises(ValueError, match="github_issue is allowed only on test"):
+        validate_hub_sources(
+            replace(minimal_sources, questions=(question,)), ledger_build, tmp_path
         )
 
 

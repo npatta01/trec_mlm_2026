@@ -1,0 +1,32 @@
+---
+test_id: hierarchical-candidate-profiles
+title: "Test hierarchical candidate semantic profiles against the frozen centroid baseline"
+primary_theme_id: candidate-evidence
+theme_ids: [candidate-evidence, query-only-routing, evidence-reliability]
+stage: ready
+summary: "Compare one deterministic nested candidate hierarchy with frozen flat and multiresolution profile controls."
+plain_english: "Test whether a coherent broad-to-narrow map of each candidate's past responses ranks candidates better without collapsing onto generic candidates."
+why_it_matters: "Independent profile resolutions showed promising development signal but failed a query-sensitivity gate; a nested hierarchy may preserve useful granularity while making the structure auditable."
+mechanism_steps:
+  - "Build one deterministic candidate-local hierarchy from the frozen response embeddings without access to qrels."
+  - "Freeze hierarchy, matched-flat, and stored-control rankings only after integrity, geometry, sensitivity, and cost gates pass."
+  - "Evaluate the frozen rankings on the previously seen development set as diagnostic evidence only."
+hypothesis: "A nested candidate-local hierarchy will preserve or improve the X1 profile signal while passing the frozen qrel-free sensitivity and integrity gates."
+rationale: "The completed multiresolution study found directional gains from broad and narrow candidate profiles, but its independent partitions were not nested and X1 failed its query-sensitivity gate."
+expected_signal: "The primary hierarchy ranking passes every qrel-free gate, differs materially from X1, and improves on the leaf-count-matched flat control under the frozen comparison rule."
+decision_rule: "Reject invalid artifacts or leakage; stop on failed geometry, sensitivity, cost, or incremental-value gates; otherwise retain at most one hierarchy ranking as development-diagnostic evidence pending a newly locked query set."
+dependencies: "Frozen issue-18 embeddings, inventories, controls, hashes, and the advisor-reviewed hierarchy protocol."
+priority: high
+evaluation_boundary: "Construction and selection are qrel-free; the 322-query evaluation is previously seen development evidence and cannot support promotion."
+artifact_plan: "Preserve versioned protocol, source manifest, hierarchy memberships and centroids, rankings, qrel-free gate receipt, cost receipt, deterministic repeat evidence, and post-freeze evaluation."
+next_action: "Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings."
+linked_question_ids: [candidate-evidence, query-only-routing, failure-conditions]
+missing_readiness_fields: []
+github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/19"
+tags: [candidate-profiles, hierarchy, query-sensitivity, preregistered]
+---
+
+This is a preregistered follow-up test, not completed evidence. The existing
+multiresolution profile study and its registered rows remain the canonical
+record of what has already run. Any result on the reused 322-query development
+set must remain diagnostic; promotion requires a newly locked query set.

@@ -73,6 +73,10 @@ def minimal_sources(tmp_path: Path, ledger_build: LedgerBuild) -> HubSources:
                 decision="adopt",
                 confidence="moderate",
                 confidence_boundary="Development-only evidence.",
+                strongest_evidence_summary=(
+                    "A bounded study supports the current development direction."
+                ),
+                open_question="Does this direction transfer to held-out requests?",
                 next_test_ids=["test-candidate-evidence"],
                 updated_on="2026-07-24",
                 evidence_refs=[evidence_ref],

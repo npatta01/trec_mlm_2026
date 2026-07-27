@@ -15,13 +15,13 @@ Start with the question and its current bounded answer; open a row for supportin
 <span>Partially answered · Moderate confidence</span>
 <strong>Can candidate-side semantic evidence improve query-only retrieval?</strong>
 <span>When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?</span>
-<span class="hub-next-action">Semantic failure clusters: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
+<span class="hub-next-action">Test hierarchical candidate semantic profiles against the frozen centroid baseline: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.</span>
 </a>
 <a class="hub-question-row" href="query-only-routing.qmd">
 <span>Partially answered · Moderate confidence</span>
 <strong>How far can query-only routing go?</strong>
 <span>Can a new request be routed well by comparing it with historical requests, before using candidate responses?</span>
-<span class="hub-next-action">Semantic failure clusters: State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
+<span class="hub-next-action">Test hierarchical candidate semantic profiles against the frozen centroid baseline: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.</span>
 </a>
 <a class="hub-question-row" href="reference-reliability.qmd">
 <span>Partially answered · Moderate confidence</span>

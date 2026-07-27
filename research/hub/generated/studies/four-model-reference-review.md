@@ -60,6 +60,7 @@ ranking system. Creating a leaderboard row would manufacture comparability.
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.
+- [Pilot local LLM response-quality judging with selective pairwise ranking](../generated/ideas/local-response-quality-judging.qmd): Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
 - [Reference review trigger](../generated/ideas/reference-review-trigger.qmd): Define the local trigger features and acceptance rule.
 
 

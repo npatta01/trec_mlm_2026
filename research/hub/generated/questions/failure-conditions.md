@@ -42,6 +42,8 @@ comparisons.
 ## Linked tests
 
 - <a href="../generated/ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.
+- <a href="../generated/ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
+- <a href="../generated/ideas/local-response-quality-judging.qmd">Pilot local LLM response-quality judging with selective pairwise ranking</a>: Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
 - <a href="../generated/ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
 - <a href="../generated/ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
 

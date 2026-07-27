@@ -20,9 +20,22 @@ toc: false
 Query-only routing is the control path for deciding how far historical query
 similarity can carry model selection without candidate-side response evidence.
 
-## Current conclusion
+## Current working answer
 
 Dense query neighbors remain the stable control, while tested cluster aggregations have not displaced them.
+
+## Strongest canonical evidence
+
+The dense-query-nearest-neighbor study establishes dense_nested as the frozen query-only control, while tested cluster aggregations did not displace it.
+
+Canonical evidence paths:
+
+- <code class="hub-path">reports/trec_2026_experiment_ledger.md</code>
+- <code class="hub-path">reports/trec_2026_dense_query_knn_results.json</code>
+
+## Open question
+
+Which unseen-query patterns require candidate-side or response-derived evidence beyond the dense query control?
 </details>
 
 <details class="hub-details">
@@ -30,13 +43,18 @@ Dense query neighbors remain the stable control, while tested cluster aggregatio
 **Confidence and evidence boundary**
 
 Moderate confidence. Development-only evidence with repeated tuning on the same queries; hidden-test transfer is unknown.
+
+**First linked next test**
+
+<a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+ (1 remaining linked tests).
 </details>
 
 <details class="hub-details">
 <summary>Relationships and evidence</summary>
 ## Other linked tests
 
-- No additional linked test is currently recorded.
+- <a href="../ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
 
 ## Questions in this theme
 

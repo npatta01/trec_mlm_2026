@@ -1,0 +1,118 @@
+name: Research experiment
+description: Propose a bounded experiment with an auditable evaluation plan.
+title: "[Research]: "
+labels:
+  - kind/research
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Public issue boundary
+        Do not include secrets, credentials, raw private responses, restricted data,
+        local filesystem paths, or private artifact URLs. Describe sensitive material
+        at a high level and arrange access privately with maintainers when needed.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Exact evidence
+      description: Cite the exact file, command output, reproducible observation, or public reference motivating the experiment.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Intended outcome
+      description: State the decision or knowledge this experiment should enable.
+    validations:
+      required: true
+  - type: textarea
+    id: exclusions
+    attributes:
+      label: Explicit exclusions / out of scope
+      description: List questions, datasets, methods, or follow-up work deliberately excluded.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Give observable conditions for a complete, reviewable experiment.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy-artifact-boundaries
+    attributes:
+      label: Privacy and artifact boundaries
+      description: Identify data classification, permitted summaries, and material that must remain local or private. Do not paste private URLs or raw private material.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies-blockers
+    attributes:
+      label: Dependencies and blockers
+      description: List needed data, approvals, access, baselines, or upstream work, or state "None known."
+    validations:
+      required: true
+  - type: textarea
+    id: verification-reproduction
+    attributes:
+      label: Verification and reproduction
+      description: Specify reproducible commands, expected artifacts or checks, and how another reviewer can verify the result.
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis-null
+    attributes:
+      label: Hypothesis and null
+      description: State the predicted effect or relationship and the null result that would remain plausible.
+    validations:
+      required: true
+  - type: textarea
+    id: leakage-evaluation-boundary
+    attributes:
+      label: Leakage and evaluation boundary
+      description: Define what information is excluded from construction or tuning, and how evaluation data remains isolated.
+    validations:
+      required: true
+  - type: textarea
+    id: frozen-variables
+    attributes:
+      label: Frozen variables
+      description: List inputs, versions, splits, seeds, preprocessing, and settings that must be fixed before evaluation.
+    validations:
+      required: true
+  - type: textarea
+    id: controls-baselines
+    attributes:
+      label: Controls and baselines
+      description: Name the comparison methods and explain why each comparison is fair.
+    validations:
+      required: true
+  - type: textarea
+    id: primary-metric
+    attributes:
+      label: Primary metric
+      description: Define the primary metric, direction of improvement, evaluation population, and aggregation.
+    validations:
+      required: true
+  - type: textarea
+    id: decision-stop-rule
+    attributes:
+      label: Decision and stop rule
+      description: State the threshold or qualitative rule for proceeding, revising, or stopping; include the planned stopping condition.
+    validations:
+      required: true
+  - type: textarea
+    id: uncertainty-plan
+    attributes:
+      label: Uncertainty plan
+      description: Explain how variance, confidence intervals, sensitivity checks, or other uncertainty will be estimated and reported.
+    validations:
+      required: true
+  - type: textarea
+    id: interpretation-limits
+    attributes:
+      label: Interpretation limits
+      description: State what the result would not establish, including generalization limits and plausible alternative explanations.
+    validations:
+      required: true

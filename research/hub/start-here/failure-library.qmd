@@ -1,0 +1,20 @@
+---
+title: "Failure-mechanism library"
+description: "Privacy-safe evidence records for known ranking and generated-evidence failure mechanisms."
+toc: true
+---
+
+This library turns known failure evidence into bounded next tests. The selected
+cases explain mechanisms, not benchmark prevalence: no query text, candidate
+response, private identifier, raw artifact, or model rationale is shown here.
+
+{{< include ../generated/failure-library.qmd >}}
+
+## Continue from a mechanism to a decision
+
+Use the [worked example](worked-example.qmd) to see where each mechanism can
+appear in a synthetic ranking flow. Use the
+[pre-test readiness queue](../background/pretest-readiness-plan.qmd) to see
+which execution and custody work must be complete before a frozen test can run.
+The [contributor lifecycle](../contributing.qmd) explains where a new evidence
+bundle, correction, or falsifier belongs.

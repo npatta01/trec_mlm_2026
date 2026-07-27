@@ -6,6 +6,8 @@ current_conclusion: "Dense query neighbors remain the stable control, while test
 decision: retain_control
 confidence: moderate
 confidence_boundary: "Development-only evidence with repeated tuning on the same queries; hidden-test transfer is unknown."
+strongest_evidence_summary: "The dense-query-nearest-neighbor study establishes dense_nested as the frozen query-only control, while tested cluster aggregations did not displace it."
+open_question: "Which unseen-query patterns require candidate-side or response-derived evidence beyond the dense query control?"
 next_test_ids: [semantic-failure-clusters]
 updated_on: 2026-07-24
 evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_dense_query_knn_results.json]

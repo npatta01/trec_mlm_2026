@@ -9,9 +9,11 @@ import subprocess
 import time
 from urllib.request import urlopen
 from urllib.parse import urlparse
+from xml.etree import ElementTree
 
 import json
 
+from bs4 import BeautifulSoup, Tag
 import pytest
 import yaml
 import websocket
@@ -53,10 +55,23 @@ def _visible_html(html: str) -> str:
     return re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
 
 
+def _current_state_main() -> Tag:
+    site = _render_site()
+    soup = BeautifulSoup(
+        (site / "start-here/current-state.html").read_text(), "html.parser"
+    )
+    main = soup.select_one("main#quarto-document-content")
+    assert isinstance(main, Tag)
+    return main
+
+
 def test_final_html_keeps_canonical_supporting_copy_inside_details() -> None:
     site = _render_site()
     question = _visible_html((site / "questions/candidate-evidence.html").read_text())
     study = _visible_html((site / "studies/response-retrieval.html").read_text())
+    current_state = _visible_html(
+        (site / "start-here/current-state.html").read_text()
+    )
     question_copy = (
         "Two requests can look similar while requiring different model strengths."
     )
@@ -66,6 +81,336 @@ def test_final_html_keeps_canonical_supporting_copy_inside_details() -> None:
     assert question_copy not in question[question.rfind("</details>") :]
     assert study.count(study_copy) == 1
     assert study_copy not in study[study.rfind("</details>") :]
+    assert '<div class="hub-current-state-page">' in current_state
+
+
+def test_current_state_rendered_dom_keeps_source_levels_as_grid_children() -> None:
+    site = _render_site()
+    current_state = _visible_html(
+        (site / "start-here/current-state.html").read_text()
+    )
+    hierarchy_match = re.search(
+        r'(?P<hierarchy><div class="hub-source-hierarchy"[^>]*>.*?</div>)'
+        r'\s*<details class="hub-visual-equivalent" '
+        r'data-equivalent-for="canonical-source-hierarchy">',
+        current_state,
+        flags=re.DOTALL,
+    )
+
+    assert hierarchy_match is not None
+    hierarchy = ElementTree.fromstring(hierarchy_match.group("hierarchy"))
+    source_levels = hierarchy.findall("./div")
+    assert len(source_levels) == 4
+    assert [child.tag for child in source_levels[0]] == ["span", "strong", "small"]
+    assert all(level.find("./p") is None for level in source_levels)
+
+
+def test_current_state_consumer_html_has_ordered_unique_document_structure() -> None:
+    main = _current_state_main()
+    headings = main.select("h1, h2, h3, h4, h5, h6")
+    levels = [int(heading.name[1]) for heading in headings]
+    ids = [str(element["id"]) for element in main.select("[id]")]
+
+    assert levels.count(1) == 1
+    assert all(next_level <= level + 1 for level, next_level in zip(levels, levels[1:]))
+    assert len(ids) == len(set(ids))
+
+
+def test_current_state_tutorial_uses_native_steps_and_a_definition_decoder() -> None:
+    main = _current_state_main()
+    tutorial = main.select_one(".hub-current-state-tutorial")
+    assert isinstance(tutorial, Tag)
+
+    steps = tutorial.select("ol.hub-example-steps > li")
+    decoder = tutorial.select_one("dl.hub-term-decoder")
+    assert len(steps) == 6
+    assert isinstance(decoder, Tag)
+    assert len(decoder.find_all("dt", recursive=False)) == len(
+        decoder.find_all("dd", recursive=False)
+    )
+    terms = {
+        term.get_text(" ", strip=True).casefold()
+        for term in decoder.find_all("dt", recursive=False)
+    }
+    assert {
+        "query or request",
+        "candidate",
+        "qrel",
+        "candidate label or name",
+        "query cluster",
+        "response-profile cluster",
+        "centroid",
+        "discovery response",
+        "target response",
+        "generated reference answer",
+        "control",
+        "promoted",
+        "diagnostic",
+        "rejected",
+    } <= terms
+
+    links = {str(link.get("href")) for link in tutorial.select("a[href]")}
+    assert any(href.endswith("/worked-example.html") for href in links)
+    assert any(href.endswith("/glossary.html") for href in links)
+
+
+def test_current_state_routes_carry_the_example_through_evidence_and_lessons() -> None:
+    main = _current_state_main()
+    routes = main.select(
+        ".hub-current-state-tutorial ol.hub-example-steps > "
+        "li.hub-evidence-route[data-evidence-route]"
+    )
+    expected = {
+        "dense-query-knn": {
+            "studies": ("dense-query-knn",),
+            "lesson_terms": ("nearest-neighbor", "query-side", "qrel"),
+        },
+        "candidate-label-matching": {
+            "studies": ("candidate-label-matching",),
+            "lesson_terms": ("contextual label", "clue", "ground truth"),
+        },
+        "query-cluster-aggregation": {
+            "studies": ("query-cluster-aggregation",),
+            "lesson_terms": ("query-cluster", "improve", "nearest-neighbor"),
+        },
+        "source-query-first": {
+            "studies": ("source-query-first",),
+            "lesson_terms": ("source-query-first", "alignment", "correctness"),
+        },
+        "candidate-response-archive": {
+            "studies": (
+                "response-retrieval",
+                "semantic-profiles",
+                "e5-raw-response-refinement",
+            ),
+            "lesson_terms": ("lexical archive", "semantic profiles", "candidate-history"),
+        },
+        "generated-reference": {
+            "studies": ("four-model-reference-review",),
+            "lesson_terms": ("generated references", "comparison", "not gold", "evaluate"),
+        },
+    }
+
+    assert [route["data-evidence-route"] for route in routes] == list(expected)
+    lessons: list[str] = []
+    for route in routes:
+        route_id = str(route["data-evidence-route"])
+        route_expectation = expected[route_id]
+        explanation = route.select_one("dl.hub-route-explanation")
+        assert isinstance(explanation, Tag)
+        assert [
+            term.get_text(" ", strip=True)
+            for term in explanation.find_all("dt", recursive=False)
+        ] == ["Evidence read", "Illustrative ordering", "Development lesson"]
+        assert "basil" in route.select_one(".hub-example-request-ref").get_text(
+            " ", strip=True
+        ).casefold()
+
+        ordering = route.select_one(
+            '.hub-route-ordering[data-illustrative="true"]'
+        )
+        assert isinstance(ordering, Tag)
+        candidates = ordering.select("[data-candidate][data-rank]")
+        assert {candidate["data-candidate"] for candidate in candidates} == {
+            "GardenGuide",
+            "QuickFacts",
+            "CodeTutor",
+        }
+        assert [candidate["data-rank"] for candidate in candidates] == ["1", "2", "3"]
+
+        lesson = route.select_one(".hub-route-lesson").get_text(" ", strip=True).casefold()
+        lessons.append(lesson)
+        assert all(term in lesson for term in route_expectation["lesson_terms"])
+        study_hrefs = {
+            str(link.get("href")) for link in route.select("a.hub-route-study[href]")
+        }
+        for study_id in route_expectation["studies"]:
+            assert any(
+                href.endswith(f"/studies/{study_id}.html") for href in study_hrefs
+            )
+
+    assert len(lessons) == 6
+    duplicated_status_phrases = (
+        "stable control",
+        "rejected",
+        "stopped",
+        "no registered ranking result",
+    )
+    for lesson in lessons:
+        assert re.search(r"\bretained\b.*\bcontrol\b", lesson) is None
+        assert all(phrase not in lesson for phrase in duplicated_status_phrases)
+
+
+def test_current_state_example_separates_ranking_construction_from_evaluation() -> None:
+    main = _current_state_main()
+    evaluation = main.select_one(
+        ".hub-example-evaluation[data-own-request-qrel='excluded']"
+        "[data-historical-development-qrels='frozen-evidence']"
+        "[data-evaluation-qrels='when-available']"
+    )
+    assert isinstance(evaluation, Tag)
+    assert [candidate["data-candidate"] for candidate in evaluation.select(
+        ".hub-illustrative-ranking [data-candidate]"
+    )] == ["GardenGuide", "QuickFacts", "CodeTutor"]
+    explanation = evaluation.get_text(" ", strip=True).casefold()
+    assert "own qrel" in explanation
+    assert "not used" in explanation
+    assert "historical development evidence" in explanation
+    assert "earlier qrels" in explanation
+    assert "qrels are not used to construct" not in explanation
+    assert "evaluation" in explanation
+    assert "judge" in explanation
+
+
+def test_current_state_evidence_figures_have_labels_and_semantic_equivalents() -> None:
+    main = _current_state_main()
+    figures = main.select("figure.hub-evidence-visual[data-visual]")
+
+    assert len(figures) == 8
+    assert len({str(figure["data-visual"]) for figure in figures}) == 8
+    for figure in figures:
+        visual_id = str(figure["data-visual"])
+        assert figure.get("aria-labelledby") == f"{visual_id}-title"
+        assert figure.select_one(f"#{visual_id}-title") is not None
+        assert figure.find("figcaption") is not None
+        assert (
+            figure.select_one(
+                f'details.hub-visual-equivalent[data-equivalent-for="{visual_id}"]'
+            )
+            is not None
+        )
+        assert (
+            figure.select_one(
+                ".hub-visual-print-equivalent"
+                f'[data-print-equivalent-for="{visual_id}"]'
+            )
+            is not None
+        )
+
+    for table in main.find_all("table"):
+        assert (
+            table.find("caption") is not None
+            or table.find_parent(attrs={"aria-labelledby": True}) is not None
+            or table.find_parent("details") is not None
+        )
+
+
+def test_current_state_audit_follows_tutorial_results_and_failures_in_dom_order() -> None:
+    main = _current_state_main()
+    tutorial = main.select_one(".hub-current-state-tutorial")
+    results = main.select_one('[data-visual="representative-development-results"]')
+    failures = main.select_one('[data-visual="remaining-failures"]')
+    audit = main.select_one("details.hub-audit-reference")
+    elements = main.find_all(True)
+
+    assert all(isinstance(marker, Tag) for marker in (tutorial, results, failures, audit))
+    assert [elements.index(marker) for marker in (tutorial, results, failures, audit)] == sorted(
+        elements.index(marker) for marker in (tutorial, results, failures, audit)
+    )
+
+
+def test_current_state_audit_figures_have_an_explicit_outline_parent() -> None:
+    main = _current_state_main()
+    audit = main.select_one("details.hub-audit-reference")
+    assert isinstance(audit, Tag)
+
+    audit_heading = audit.find_previous_sibling("h2")
+    assert isinstance(audit_heading, Tag)
+    assert audit_heading.get_text(" ", strip=True) == "Audit reference"
+    assert "workflow, source hierarchy, decisions, and custody" in audit.select_one(
+        ":scope > summary"
+    ).get_text(" ", strip=True).casefold()
+
+    audit_titles = [
+        heading.get_text(" ", strip=True)
+        for heading in audit.find_all("h3", recursive=True)
+    ]
+    assert audit_titles == [
+        "Ranking task flow",
+        "Canonical-source hierarchy",
+        "Experiment-family decision map",
+        "Artifact-custody composition",
+    ]
+
+
+def test_current_state_content_needs_no_image_canvas_or_script() -> None:
+    main = _current_state_main()
+
+    assert main.select("img, canvas, script") == []
+
+
+def test_current_state_result_roles_remain_visible_without_color() -> None:
+    main = _current_state_main()
+    expected_statuses = {
+        "promoted_development",
+        "stable_control",
+        "diagnostic_only",
+        "valid_negative",
+    }
+    rows = main.select(".hub-result-row[data-result-status]")
+
+    assert {str(row["data-result-status"]) for row in rows} == expected_statuses
+    for row in rows:
+        assert row.select_one(".hub-result-code").get_text(strip=True)
+        assert row.select_one(".hub-result-label strong").get_text(strip=True)
+
+
+def test_current_state_tagged_print_contains_semantic_equivalent_fields(
+    tmp_path: Path,
+) -> None:
+    site = _render_site()
+    page = site / "start-here/current-state.html"
+    browser = shutil.which("google-chrome")
+    pdfinfo = shutil.which("pdfinfo")
+    pdftotext = shutil.which("pdftotext")
+    assert browser is not None
+    assert pdfinfo is not None
+    assert pdftotext is not None
+    pdf = tmp_path / "current-state.pdf"
+
+    completed = subprocess.run(
+        [
+            browser,
+            "--headless=new",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--no-pdf-header-footer",
+            "--generate-tagged-pdf",
+            f"--print-to-pdf={pdf}",
+            page.resolve().as_uri(),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    pdf_bytes = pdf.read_bytes()
+    assert b"/StructTreeRoot" in pdf_bytes
+    extracted = subprocess.run(
+        [pdftotext, "-layout", str(pdf), "-"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert extracted.returncode == 0, extracted.stdout + extracted.stderr
+    for field in ("Responsibility", "Ledger status", "Definition"):
+        assert field in extracted.stdout
+    structure = subprocess.run(
+        [pdfinfo, "-struct-text", str(pdf)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert structure.returncode == 0, structure.stdout + structure.stderr
+    for field in ("Responsibility", "Ledger status", "Definition"):
+        assert field in structure.stdout
+    for value in (
+        "Metrics, scopes, promotion decisions",
+        "promoted_development",
+        "official positive in its top ten",
+    ):
+        assert value in extracted.stdout
 
 
 def test_final_html_index_rows_own_their_actions_and_destinations() -> None:
@@ -75,7 +420,10 @@ def test_final_html_index_rows_own_their_actions_and_destinations() -> None:
     studies = (site / "studies/index.html").read_text()
 
     assert '<span class="hub-next-action">Semantic failure clusters:' in themes
-    assert '<span class="hub-next-action">Semantic failure clusters:' in questions
+    assert (
+        '<span class="hub-next-action">Test hierarchical candidate semantic '
+        "profiles against the frozen centroid baseline:"
+    ) in questions
     assert 'href="../ideas/semantic-failure-clusters.qmd"' not in themes
     assert (
         "<strong>Lexical response retrieval</strong> "
@@ -246,6 +594,240 @@ JSON.stringify({
             assert row_state["actionOwned"] is True
             destination = Path(urlparse(row_state["href"]).path)
             assert destination.is_file()
+            current_state = site / "start-here/current-state.html"
+            call("Page.navigate", {"url": current_state.resolve().as_uri()})
+            for _ in range(20):
+                ready = call(
+                    "Runtime.evaluate",
+                    {
+                        "expression": "JSON.stringify({ready: document.readyState, path: location.pathname})",
+                        "returnByValue": True,
+                    },
+                )
+                page_state = json.loads(ready["result"]["result"]["value"])
+                if page_state["ready"] == "complete" and page_state[
+                    "path"
+                ].endswith("/start-here/current-state.html"):
+                    break
+                time.sleep(0.1)
+            else:
+                pytest.fail("Current-state page did not finish navigating in Chrome")
+            screen_state = call(
+                "Runtime.evaluate",
+                {
+                    "expression": """
+const printEquivalents = [...document.querySelectorAll('.hub-visual-print-equivalent')];
+JSON.stringify({
+  printEquivalentCount: printEquivalents.length,
+  printEquivalentsHidden: printEquivalents.every(
+    equivalent => getComputedStyle(equivalent).display === 'none'
+  ),
+  closedDetailCount: [...document.querySelectorAll('details.hub-visual-equivalent')]
+    .filter(details => !details.open).length,
+});
+""",
+                    "returnByValue": True,
+                },
+            )
+            screen = json.loads(screen_state["result"]["result"]["value"])
+            assert screen == {
+                "printEquivalentCount": 8,
+                "printEquivalentsHidden": True,
+                "closedDetailCount": 8,
+            }
+
+            for viewport_width in (390, 320):
+                call(
+                    "Emulation.setDeviceMetricsOverride",
+                    {
+                        "width": viewport_width,
+                        "height": 844,
+                        "deviceScaleFactor": 1,
+                        "mobile": False,
+                    },
+                )
+                reflow = call(
+                    "Runtime.evaluate",
+                    {
+                        "expression": """(() => {
+const cards = document.querySelector('.hub-example-candidates');
+const routes = document.querySelector('.hub-example-steps');
+const ranking = document.querySelector('.hub-illustrative-ranking');
+const rankingBounds = ranking.getBoundingClientRect();
+return JSON.stringify({
+  viewport: document.documentElement.clientWidth,
+  scrollWidth: document.documentElement.scrollWidth,
+  candidateColumns: getComputedStyle(cards).gridTemplateColumns
+    .trim().split(/\\s+/).filter(Boolean).length,
+  routeColumns: getComputedStyle(routes).gridTemplateColumns
+    .trim().split(/\\s+/).filter(Boolean).length,
+  rankingColumns: getComputedStyle(ranking).gridTemplateColumns
+    .trim().split(/\\s+/).filter(Boolean).length,
+  rankingWithinViewport:
+    rankingBounds.left >= 0 &&
+    rankingBounds.right <= document.documentElement.clientWidth,
+});
+})()""",
+                        "returnByValue": True,
+                    },
+                )
+                assert "value" in reflow["result"]["result"], reflow
+                reflow_state = json.loads(reflow["result"]["result"]["value"])
+                assert viewport_width - 20 <= reflow_state["viewport"] <= viewport_width
+                assert reflow_state["scrollWidth"] <= reflow_state["viewport"]
+                assert reflow_state["candidateColumns"] == 1
+                assert reflow_state["routeColumns"] == 1
+                assert reflow_state["rankingColumns"] == 1
+                assert reflow_state["rankingWithinViewport"] is True
+
+            call(
+                "Emulation.setDeviceMetricsOverride",
+                {
+                    "width": 1280,
+                    "height": 900,
+                    "deviceScaleFactor": 1,
+                    "mobile": False,
+                },
+            )
+            status_styles = call(
+                "Runtime.evaluate",
+                {
+                    "expression": """
+JSON.stringify(Object.fromEntries(
+  [...document.querySelectorAll('.hub-result-row[data-result-status]')].map(row => [
+    row.dataset.resultStatus,
+    getComputedStyle(row.querySelector('.hub-result-bar')).borderInlineEndStyle,
+  ])
+));
+""",
+                    "returnByValue": True,
+                },
+            )
+            assert json.loads(status_styles["result"]["result"]["value"]) == {
+                "promoted_development": "solid",
+                "stable_control": "double",
+                "diagnostic_only": "dashed",
+                "valid_negative": "dotted",
+            }
+
+            call(
+                "Emulation.setEmulatedMedia",
+                {
+                    "media": "screen",
+                    "features": [{"name": "forced-colors", "value": "active"}],
+                },
+            )
+            forced_colors = call(
+                "Runtime.evaluate",
+                {
+                        "expression": """(() => {
+const tutorial = document.querySelector('.hub-current-state-tutorial');
+const link = tutorial.querySelector('a');
+const summary = document.querySelector('.hub-audit-reference > summary');
+summary.focus();
+const tutorialStyle = getComputedStyle(tutorial);
+const linkStyle = getComputedStyle(link);
+const summaryStyle = getComputedStyle(summary);
+return JSON.stringify({
+  active: matchMedia('(forced-colors: active)').matches,
+  tutorialForcedColorAdjust: tutorialStyle.forcedColorAdjust,
+  tutorialBackground: tutorialStyle.backgroundColor,
+  tutorialColor: tutorialStyle.color,
+  linkColor: linkStyle.color,
+  summaryForcedColorAdjust: summaryStyle.forcedColorAdjust,
+  outlineStyle: summaryStyle.outlineStyle,
+  outlineWidth: summaryStyle.outlineWidth,
+  outlineColor: summaryStyle.outlineColor,
+});
+})()""",
+                    "returnByValue": True,
+                },
+            )
+            forced_state = json.loads(
+                forced_colors["result"]["result"]["value"]
+            )
+            assert forced_state["active"] is True
+            assert forced_state["tutorialForcedColorAdjust"] == "auto"
+            assert forced_state["summaryForcedColorAdjust"] == "auto"
+            assert forced_state["tutorialBackground"] != "rgba(0, 0, 0, 0)"
+            assert forced_state["linkColor"] != forced_state["tutorialColor"]
+            assert forced_state["outlineStyle"] != "none"
+            assert float(forced_state["outlineWidth"][:-2]) > 0
+            assert forced_state["outlineColor"] != "rgba(0, 0, 0, 0)"
+
+            call(
+                "Emulation.setEmulatedMedia",
+                {"media": "print", "features": []},
+            )
+            print_behavior = call(
+                "Runtime.evaluate",
+                {
+                        "expression": """(() => {
+const audit = document.querySelector('.hub-audit-reference');
+return JSON.stringify({
+  auditOpen: audit.open,
+  auditContentVisibility: getComputedStyle(audit, '::details-content').contentVisibility,
+  auditFigureDisplay: getComputedStyle(audit.querySelector('figure')).display,
+  printEquivalentsVisible: [...document.querySelectorAll('.hub-visual-print-equivalent')]
+    .every(node => getComputedStyle(node).display !== 'none'),
+  screenEquivalentsHidden: [...document.querySelectorAll('.hub-visual-equivalent')]
+    .every(node => getComputedStyle(node).display === 'none'),
+});
+})()""",
+                    "returnByValue": True,
+                },
+            )
+            assert json.loads(print_behavior["result"]["result"]["value"]) == {
+                "auditOpen": False,
+                "auditContentVisibility": "visible",
+                "auditFigureDisplay": "block",
+                "printEquivalentsVisible": True,
+                "screenEquivalentsHidden": True,
+            }
+
+            call(
+                "Emulation.setEmulatedMedia",
+                {"media": "screen", "features": []},
+            )
+            summary_behavior = call(
+                "Runtime.evaluate",
+                {
+                        "expression": """(() => {
+const summary = document.querySelector('.hub-audit-reference > summary');
+summary.focus();
+const style = getComputedStyle(summary);
+return JSON.stringify({
+  minHeight: style.minHeight,
+  renderedHeight: summary.getBoundingClientRect().height,
+  outlineStyle: style.outlineStyle,
+  outlineWidth: style.outlineWidth,
+});
+})()""",
+                    "returnByValue": True,
+                },
+            )
+            summary_state = json.loads(
+                summary_behavior["result"]["result"]["value"]
+            )
+            assert float(summary_state["minHeight"][:-2]) >= 44
+            assert summary_state["renderedHeight"] >= 44
+            assert summary_state["outlineStyle"] != "none"
+            assert float(summary_state["outlineWidth"][:-2]) > 0
+
+            call(
+                "Runtime.evaluate",
+                {
+                    "expression": "document.querySelector('details.hub-audit-reference').open = true; document.querySelectorAll('details.hub-visual-equivalent').forEach(details => { details.open = true; })",
+                },
+            )
+            accessibility = call("Accessibility.getFullAXTree")
+            accessible_headers = [
+                node.get("name", {}).get("value")
+                for node in accessibility["result"]["nodes"]
+                if node.get("role", {}).get("value") == "columnheader"
+            ]
+            for field in ("Responsibility", "Ledger status", "Definition"):
+                assert accessible_headers.count(field) == 1
         finally:
             client.close()
     finally:
@@ -262,6 +844,8 @@ def test_quarto_renders_generated_idea_library() -> None:
         path for path in outputs if path.parent == Path("research/hub/generated/ideas")
     } == {
         Path("research/hub/generated/ideas/failure-aware-fusion.qmd"),
+        Path("research/hub/generated/ideas/hierarchical-candidate-profiles.qmd"),
+        Path("research/hub/generated/ideas/local-response-quality-judging.qmd"),
         Path("research/hub/generated/ideas/reference-review-trigger.qmd"),
         Path("research/hub/generated/ideas/semantic-failure-clusters.qmd"),
     }
@@ -355,10 +939,10 @@ def test_complete_research_hub_content_and_static_shell() -> None:
         "theme": 4,
         "question": 5,
         "study": 16,
-        "test": 3,
+        "test": 5,
         "approach": 5,
         "dataset": 6,
-        "background": 8,
+            "background": 9,
     }
     assert build.validation.linked_system_count == len(build.ledger.systems) == 98
 
@@ -737,8 +1321,9 @@ def test_quarto_pre_render_reflects_an_added_question_from_another_cwd(
         "configs",
         "data",
         "docs",
-        "experiments",
-        "protocols",
+            "experiments",
+            "plans",
+            "protocols",
         "reports",
         "research",
         "scripts",

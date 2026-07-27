@@ -6,6 +6,8 @@ current_conclusion: "Candidate semantic profiles improved development ranking in
 decision: adopt
 confidence: moderate
 confidence_boundary: "Development-only evidence; diagnostic variants and incomplete construction artifacts do not establish hidden-test gains."
+strongest_evidence_summary: "The canonical semantic-profiles study supports equal dense/profile fusion as the promoted development direction while keeping higher-scoring weighting variants diagnostic."
+open_question: "Will the frozen dense/profile direction generalize to unseen queries once the pre-test protocol and artifact custody are complete?"
 next_test_ids: [semantic-failure-clusters]
 updated_on: 2026-07-24
 evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_candidate_semantic_profiles_results.json]

@@ -5,7 +5,7 @@
 <p class="hub-takeaway">Test profile summaries at multiple semantic resolutions.</p>
 <p>Several variants are strong development diagnostics, but none displaced the promoted decision.</p>
 
-<p class="hub-next-action"><a href="../generated/ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+<p class="hub-next-action"><a href="../generated/ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.</p>
 </section>
 
 <details class="hub-details">
@@ -55,6 +55,7 @@ override the existing promoted decision or its evidence-maturity boundary.
 
 ## Next tests
 
+- [Test hierarchical candidate semantic profiles against the frozen centroid baseline](../generated/ideas/hierarchical-candidate-profiles.qmd): Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.
 
 

@@ -14,7 +14,8 @@ rationale_provenance: contemporaneous
 protocol_summary: "Run the bounded refinement evaluation and preserve its separate evidence receipt."
 conclusion: "The refinement provides completed diagnostic evidence but does not create a comparable registered ranking system."
 decision: informational
-decision_summary: "Use the refinement findings to shape future response tests; do not add a manufactured leaderboard row."
+decision_summary: "The receipt's advance gate means the bounded development follow-up passed its prespecified checks; the Hub decision remains informational because this is not a registered or promoted run."
+current_state_role: strongest_completed_follow_up
 system_ids: []
 representative_system_ids: []
 evidence_refs: [reports/trec_2026_e5_raw_response_refinement_results.md, reports/trec_2026_e5_raw_response_refinement_results.json]

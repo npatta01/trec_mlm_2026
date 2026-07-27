@@ -1,5 +1,23 @@
 # TREC 2026 Research Hub Implementation Plan
 
+**Lifecycle status:** Completed on 2026-07-25 by
+[PR #35](https://github.com/npatta01/trec_mlm_2026/pull/35) at merge commit
+[`45872ef`](https://github.com/npatta01/trec_mlm_2026/commit/45872efe6b2b9553876af80991437b1f1c045df2).
+This implementation plan is superseded for ongoing repository navigation by
+the [newcomer research-map plan](trec-2026-newcomer-research-map.md). Its
+historical checklist is preserved below without retroactive rewriting.
+
+The living Hub is verified from the repository root with:
+
+```bash
+uv run python scripts/build_research_hub.py --check
+uv run --extra dev pytest tests/research_hub -q
+quarto render research/hub
+uv run python scripts/audit_research_hub_site.py \
+  --root . \
+  --output-dir research/hub/_site
+```
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a source-backed Quarto Research Hub that teaches the TREC task, catalogs data and prior work, explains research questions and studies, tracks ideas and next tests, and preserves drill-down access to the existing 98-system evidence registry.
@@ -2122,12 +2140,15 @@ and commit fixes separately.
 
 ---
 
-## Status and Verification Evidence
+## Historical status snapshot (obsolete after PR #35)
 
-**Current status:** Plan written; implementation not started.
+The fields below preserve the pre-implementation handoff as historical context;
+they do not describe the repository's current state.
+
+**Status at the time:** Plan written; implementation not started.
 
 **Branch:** `codex/trec-2026-research-hub`
 
 **Design specification:** `docs/superpowers/specs/2026-07-24-trec-2026-research-hub-design.md`
 
-**Next action:** Execute Task 1 with subagent-driven development.
+**Next action at the time:** Execute Task 1 with subagent-driven development.

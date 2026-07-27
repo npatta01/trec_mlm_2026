@@ -104,7 +104,7 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <span>Mixed · Informational</span>
 <strong>E5 raw-response refinement</strong>
 <span>The refinement provides completed diagnostic evidence but does not create a comparable registered ranking system.</span>
-<span class="hub-next-action"><strong>Practical decision</strong> Use the refinement findings to shape future response tests; do not add a manufactured leaderboard row.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> The receipt&#x27;s advance gate means the bounded development follow-up passed its prespecified checks; the Hub decision remains informational because this is not a registered or promoted run.</span>
 </a>
 
 ### Ranking experiment

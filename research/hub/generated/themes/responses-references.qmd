@@ -20,9 +20,22 @@ toc: false
 This theme keeps response-derived ranking evidence and generated reference
 evidence together while preserving their distinct evaluation boundaries.
 
-## Current conclusion
+## Current working answer
 
 Direct lexical response retrieval underperformed, while reference-based and bounded refinement paths provide separate diagnostic evidence.
+
+## Strongest canonical evidence
+
+The four-model reference review supports a default reference generator, while the completed E5 refinement remains separate informational evidence outside the registered ledger.
+
+Canonical evidence paths:
+
+- <code class="hub-path">reports/trec_2026_experiment_ledger.md</code>
+- <code class="hub-path">reports/trec_2026_e5_raw_response_refinement_results.md</code>
+
+## Open question
+
+What privacy-safe response or reference signal can earn a frozen comparison with the dense/profile control?
 </details>
 
 <details class="hub-details">
@@ -30,6 +43,11 @@ Direct lexical response retrieval underperformed, while reference-based and boun
 **Confidence and evidence boundary**
 
 Low confidence. Most ranking evidence is development-only, some response data is private or local, and reference quality varies by case.
+
+**First linked next test**
+
+<a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.
+ (2 remaining linked tests).
 </details>
 
 <details class="hub-details">
@@ -37,6 +55,7 @@ Low confidence. Most ranking evidence is development-only, some response data is
 ## Other linked tests
 
 - <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
+- <a href="../ideas/local-response-quality-judging.qmd">Pilot local LLM response-quality judging with selective pairwise ranking</a>: Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
 
 ## Questions in this theme
 

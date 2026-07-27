@@ -8,5 +8,7 @@ listing:
   fields: [title, description]
 ---
 
-Start with the problem and worked example. Then use the evaluation guide and
-glossary when a project term is unfamiliar.
+Start with the [current-state map](current-state.qmd) for the development
+conclusion, evidence boundary, and pre-test work. Continue to the problem and
+worked example for the mechanics, then use the evaluation guide and glossary
+when a project term is unfamiliar.

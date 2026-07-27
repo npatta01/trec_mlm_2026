@@ -7,8 +7,9 @@ import pytest
 
 from trec_mlm.experiment_ledger import LedgerBuild
 from trec_mlm.research_hub import build as module
+from trec_mlm.research_hub import render as render_module
 from trec_mlm.research_hub.build import HubBuild, build_research_hub
-from trec_mlm.research_hub.model import HubSources
+from trec_mlm.research_hub.model import CompletedFollowUpEvidence, HubSources
 from trec_mlm.research_hub.render import (
     assert_hub_outputs_current,
     render_hub_outputs,
@@ -21,7 +22,13 @@ from trec_mlm.research_hub.validate import ValidationSummary
 def sample_build(
     minimal_sources: HubSources,
     ledger_build: LedgerBuild,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> HubBuild:
+    monkeypatch.setattr(
+        render_module,
+        "render_current_state_qmd",
+        lambda _build: "<!-- synthetic fixture: current state not exercised -->\n",
+    )
     return HubBuild(
         sources=minimal_sources,
         ledger=ledger_build,
@@ -67,6 +74,29 @@ def test_build_loads_ledger_then_validates_sources(
             calls.append(("validate", sources, ledger, root)) or validation
         ),
     )
+    receipt = CompletedFollowUpEvidence(
+        study_id="e5-raw-response-refinement",
+        source_path="reports/trec_2026_e5_raw_response_refinement_results.json",
+        baseline_id="dense_profile_equal",
+        candidate_id="raw_hierarchical_dense_equal",
+        decision="advance",
+        ndcg_at_10=0.4356252730181542,
+        mrr=0.46545775232526737,
+        zero_ndcg_queries=92,
+        ndcg_delta=0.015411280824014868,
+        ndcg_ci_lower=0.006964609514709062,
+        ndcg_ci_upper=0.024355856293844506,
+        mrr_delta=0.012440358541930006,
+        mrr_ci_lower=0.0014759731217427877,
+        mrr_ci_upper=0.023749239191402996,
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_completed_follow_up",
+        lambda root, sources, ledger: (
+            calls.append(("follow_up", root, sources, ledger)) or receipt
+        ),
+    )
 
     result = build_research_hub(tmp_path)
 
@@ -74,11 +104,13 @@ def test_build_loads_ledger_then_validates_sources(
         sources=minimal_sources,
         ledger=ledger_build,
         validation=validation,
+        completed_follow_up=receipt,
     )
     assert calls == [
         ("load", tmp_path),
         ("ledger", tmp_path),
         ("validate", minimal_sources, ledger_build, tmp_path),
+        ("follow_up", tmp_path, minimal_sources, ledger_build),
     ]
 
 
@@ -92,6 +124,8 @@ def test_render_hub_outputs_has_exact_deterministic_path_contract(
         Path("research/hub/catalog.json"),
         Path("reports/trec_2026_research_hub_summary.md"),
         Path("research/hub/generated/summary.qmd"),
+        Path("research/hub/generated/current-state.qmd"),
+        Path("research/hub/generated/failure-library.qmd"),
         Path("research/hub/generated/background-index.qmd"),
         Path("research/hub/generated/data-index.qmd"),
         Path("research/hub/generated/ideas-index.qmd"),

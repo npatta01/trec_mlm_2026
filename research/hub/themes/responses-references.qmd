@@ -6,6 +6,8 @@ current_conclusion: "Direct lexical response retrieval underperformed, while ref
 decision: iterate
 confidence: low
 confidence_boundary: "Most ranking evidence is development-only, some response data is private or local, and reference quality varies by case."
+strongest_evidence_summary: "The four-model reference review supports a default reference generator, while the completed E5 refinement remains separate informational evidence outside the registered ledger."
+open_question: "What privacy-safe response or reference signal can earn a frozen comparison with the dense/profile control?"
 next_test_ids: [failure-aware-fusion, reference-review-trigger]
 updated_on: 2026-07-24
 evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_e5_raw_response_refinement_results.md]

@@ -8,6 +8,85 @@ Start from the matching file in `research/hub/templates/`. Replace every example
 value, keep repository paths relative to the repository root, and use a stable
 lowercase ID with hyphens.
 
+## The research lifecycle
+
+```text
+idea → planned test → evidence bundle → condition-bound claim
+     → project decision → reconsider, supersede, or invalidate
+```
+
+An experiment result is not automatically a project decision. The evidence
+bundle establishes what happened; the study states the narrow claim the
+evidence supports; the theme or question records explain what the project does
+with that claim. Later evidence may reconsider the decision without rewriting
+the historical record.
+
+## Who owns what
+
+- **Test owner:** freezes the hypothesis, variables, controls, metric, and stop
+  rule before execution.
+- **Run owner:** executes the frozen protocol and preserves complete receipts
+  and private artifacts.
+- **Evidence reviewer:** checks leakage, scope, metrics, custody, and whether the
+  claimed conclusion follows.
+- **Hub maintainer:** links accepted evidence into studies, questions, and
+  themes without duplicating run facts.
+- **Decision owner:** promotes, retains, rejects, or reopens a method under an
+  explicit boundary.
+
+## Where does this update belong?
+
+| You learned or changed… | Update… | Do not put it in… |
+|---|---|---|
+| A run metric, scope, or artifact status | `experiments/ledger.json` | Authored summary prose |
+| A completed protocol and bounded result | `research/hub/studies/` | An idea record |
+| A proposed falsifying experiment | `research/hub/ideas/` | The run ledger |
+| The answer to one bounded question | `research/hub/questions/` | Multiple copied study summaries |
+| The durable project-level conclusion | `research/hub/themes/` | Generated QMD |
+| Dataset provenance or leakage rules | `research/hub/data/` | A private artifact directory |
+| Live task status or discussion | GitHub issue | Generated Hub files |
+
+## Before a run
+
+- [ ] State the hypothesis and null.
+- [ ] Freeze the construction/evaluation boundary and forbidden evidence.
+- [ ] Freeze variables, controls, metric, uncertainty treatment, and stop rule.
+- [ ] Name the canonical output, receipt, and private-artifact destinations.
+- [ ] Define what a positive result would—and would not—justify.
+
+## After a run
+
+- [ ] Preserve the complete evidence bundle and verify checksums/custody.
+- [ ] Register exact run facts without inferring missing values.
+- [ ] Write a condition-bound claim, limitations, and competing explanations.
+- [ ] Record the project decision separately from evidence validity.
+- [ ] Link the next falsifying test and reciprocal GitHub issue when applicable.
+- [ ] Regenerate and check the Hub before review.
+
+## When to reconsider a decision
+
+Reopen a conclusion when new evidence changes the named scope, removes a known
+confound, restores missing decision-critical artifacts, contradicts the result
+under the same frozen protocol, or tests a materially different mechanism.
+Do not reopen a rejected form merely by renaming it or changing several
+unfrozen variables at once. Supersede records through explicit links; never
+erase the evidence that supported the earlier decision.
+
+## Copyable handoff
+
+```text
+Question / hypothesis:
+Frozen protocol and controls:
+Construction and leakage boundary:
+Canonical evidence bundle:
+Observed result and uncertainty:
+Condition-bound claim:
+Project decision (separate from validity):
+What this does not establish:
+Next falsifying test / stop condition:
+Owner and GitHub issue:
+```
+
 ## Where facts belong
 
 - Themes synthesize a durable research area, its current bounded conclusion,

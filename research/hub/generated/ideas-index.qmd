@@ -4,6 +4,20 @@
 
 Ideas are prospective work, not results. Open a row for the full explanation, evidence boundary, and remaining readiness work.
 
+## Candidate evidence
+
+### Ready
+
+<div class="hub-idea-list">
+<a class="hub-idea-row" data-test-id="hierarchical-candidate-profiles" data-themes="candidate-evidence query-only-routing evidence-reliability" href="../generated/ideas/hierarchical-candidate-profiles.qmd">
+<span>Ready · High priority · 9/9 readiness fields complete</span>
+<strong>Test hierarchical candidate semantic profiles against the frozen centroid baseline</strong>
+<span>Test whether a coherent broad-to-narrow map of each candidate&#x27;s past responses ranks candidates better without collapsing onto generic candidates.</span>
+<span class="hub-next-action"><strong>Next action:</strong> Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.</span>
+</a>
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/19">Track in GitHub #19</a></p>
+</div>
+
 ## Evidence reliability
 
 ### Idea
@@ -15,16 +29,33 @@ Ideas are prospective work, not results. Open a row for the full explanation, ev
 <span>Use a reliability check to choose which evidence sources should influence each request.</span>
 <span class="hub-next-action"><strong>Next action:</strong> Define and freeze the reliability signal, fallback, and artifact plan.</span>
 </a>
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/47">Track in GitHub #47</a></p>
 <a class="hub-idea-row" data-test-id="reference-review-trigger" data-themes="evidence-reliability responses-references" href="../generated/ideas/reference-review-trigger.qmd">
 <span>Idea · High priority · 2/9 readiness fields complete</span>
 <strong>Reference review trigger</strong>
 <span>Flag generated reference answers that need more evidence or a human check before guiding a ranking.</span>
 <span class="hub-next-action"><strong>Next action:</strong> Define the local trigger features and acceptance rule.</span>
 </a>
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/48">Track in GitHub #48</a></p>
 <a class="hub-idea-row" data-test-id="semantic-failure-clusters" data-themes="evidence-reliability query-only-routing candidate-evidence" href="../generated/ideas/semantic-failure-clusters.qmd">
 <span>Idea · Medium priority · 2/9 readiness fields complete</span>
 <strong>Semantic failure clusters</strong>
 <span>Group similar ranking failures to find request types where a method repeatedly struggles.</span>
 <span class="hub-next-action"><strong>Next action:</strong> State a falsifiable hypothesis and evaluation boundary for the clustering test.</span>
 </a>
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/50">Track in GitHub #50</a></p>
+</div>
+
+## Responses and references
+
+### Idea
+
+<div class="hub-idea-list">
+<a class="hub-idea-row" data-test-id="local-response-quality-judging" data-themes="responses-references evidence-reliability" href="../generated/ideas/local-response-quality-judging.qmd">
+<span>Idea · High priority · 2/9 readiness fields complete</span>
+<strong>Pilot local LLM response-quality judging with selective pairwise ranking</strong>
+<span>Use a local judge to estimate which candidate responses are correct and useful, then compare only close or uncertain candidates.</span>
+<span class="hub-next-action"><strong>Next action:</strong> Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.</span>
+</a>
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/31">Track in GitHub #31</a></p>
 </div>

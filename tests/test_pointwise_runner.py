@@ -467,6 +467,100 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert not list(output.parent.glob("*.tmp"))
 
 
+def test_v2_run_cases_repairs_schema_valid_output_finished_by_length(
+    tmp_path: Path,
+) -> None:
+    first_body = {
+        **_response_body(
+            VALID_V2_DECISION_JSON,
+            model="model-v2",
+            usage={
+                "prompt_tokens": 100,
+                "completion_tokens": 4_096,
+                "total_tokens": 4_196,
+                "cost": 0.004,
+            },
+        ),
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "length",
+                "message": {
+                    "role": "assistant",
+                    "content": VALID_V2_DECISION_JSON,
+                },
+            }
+        ],
+    }
+    bodies = iter(
+        [
+            first_body,
+            {
+                **_response_body(
+                    VALID_V2_DECISION_JSON,
+                    model="model-v2",
+                    usage={
+                        "prompt_tokens": 100,
+                        "completion_tokens": 20,
+                        "total_tokens": 120,
+                        "cost": 0.0001,
+                    },
+                ),
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": VALID_V2_DECISION_JSON,
+                        },
+                    }
+                ],
+            },
+        ]
+    )
+    requests: list[object] = []
+    schemas: list[object] = []
+
+    def call(_model: str, messages: object, schema: object):
+        requests.append(messages)
+        schemas.append(schema)
+        body = next(bodies)
+        return body["choices"][0]["message"]["content"], body
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-v2",
+        model_id="model-v2",
+        contract=V2_CONTRACT,
+        output_path=tmp_path / "run.json",
+        runtime_receipt=V2_RECEIPT,
+        call=call,
+        version="v2",
+    )
+
+    record = result["records"][CASE.response_id]
+    assert len(record["attempts"]) == 2
+    assert record["attempts"][0]["raw"] == VALID_V2_DECISION_JSON
+    assert record["attempts"][0]["response_body"] == first_body
+    assert record["attempts"][0]["parsed"] is None
+    assert record["attempts"][0]["error"] == (
+        "judge response reached the output token limit"
+    )
+    assert record["attempts"][1]["parsed"] == VALID_V2_DECISION
+    assert record["decision"] == VALID_V2_DECISION
+    assert record["usage"] == {
+        "prompt_tokens": 200,
+        "completion_tokens": 4_116,
+        "total_tokens": 4_316,
+        "cost": pytest.approx(0.0041),
+    }
+    repair = requests[1][-1]["content"]
+    assert "VALIDATION ERROR:\njudge response reached the output token limit" in repair
+    assert f"MALFORMED OUTPUT:\n{VALID_V2_DECISION_JSON}" in repair
+    assert schemas == [V2_CONTRACT.schema, V2_CONTRACT.schema]
+
+
 @pytest.mark.parametrize(
     ("invalid_raw", "expected_error"),
     [
@@ -741,6 +835,65 @@ def test_interruption_during_repair_preserves_raw_attempt_and_resumes_with_repai
     assert "not-json" in resumed.requests[0]["messages"][-1]["content"]
     assert len(result["records"][CASE.response_id]["attempts"]) == 2
     assert result["records"][CASE.response_id]["decision"] == VALID_DECISION
+
+
+def test_v2_resume_revalidates_cached_schema_valid_length_as_invalid(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "run.json"
+    calls = 0
+
+    def interrupted_call(model: str, _messages: object, _schema: object):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise KeyboardInterrupt
+        body = {
+            **_response_body(VALID_V2_DECISION_JSON, model=model),
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "length",
+                    "message": {
+                        "role": "assistant",
+                        "content": VALID_V2_DECISION_JSON,
+                    },
+                }
+            ],
+        }
+        return VALID_V2_DECISION_JSON, body
+
+    with pytest.raises(KeyboardInterrupt):
+        run_cases(
+            [CASE],
+            model_alias="judge-v2",
+            model_id="model-v2",
+            contract=V2_CONTRACT,
+            output_path=output,
+            runtime_receipt=V2_RECEIPT,
+            call=interrupted_call,
+            version="v2",
+        )
+
+    resumed = ScriptedCall([VALID_V2_DECISION_JSON])
+    result = run_cases(
+        [CASE],
+        model_alias="judge-v2",
+        model_id="model-v2",
+        contract=V2_CONTRACT,
+        output_path=output,
+        runtime_receipt=V2_RECEIPT,
+        call=resumed,
+        version="v2",
+    )
+
+    record = result["records"][CASE.response_id]
+    assert len(resumed.requests) == 1
+    assert len(record["attempts"]) == 2
+    assert record["attempts"][0]["error"] == (
+        "judge response reached the output token limit"
+    )
+    assert record["decision"] == VALID_V2_DECISION
 
 
 def test_resume_revalidates_cached_duplicate_key_output_and_issues_only_repair(

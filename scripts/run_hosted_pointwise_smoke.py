@@ -368,7 +368,9 @@ def _parse_response(
     choice = choices[0]
     finish_reason = choice.get("finish_reason")
     if finish_reason != "stop" and not (
-        spec.config_id is not None and finish_reason == "length"
+        finish_reason == "length"
+        and spec.config_id is not None
+        and V2_CONFIG_SPECS.get(spec.config_id) == spec
     ):
         raise ValueError("OpenRouter response finish_reason must be stop")
     message = choice.get("message")

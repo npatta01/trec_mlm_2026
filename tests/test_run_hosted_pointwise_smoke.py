@@ -532,17 +532,29 @@ def test_qwen_thinking_length_output_is_repaired_once_and_fully_accounted(
     spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
     incomplete = '{\n  "label": "good",\n  "confidence":'
     physical_sends = 0
+    requests: list[dict[str, object]] = []
+    diagnostic_before_repair: dict[str, object] | None = None
+    first_response = _qwen_thinking_response(
+        spec,
+        content=incomplete,
+        finish_reason="length",
+        completion_tokens=4_096,
+        cost=0.004,
+    )
 
-    def respond(_request: object, **_kwargs: object) -> object:
-        nonlocal physical_sends
+    def respond(request: object, **_kwargs: object) -> object:
+        nonlocal diagnostic_before_repair, physical_sends
         physical_sends += 1
+        requests.append(json.loads(request.data.decode("utf-8")))
         if physical_sends == 1:
-            return _qwen_thinking_response(
-                spec,
-                content=incomplete,
-                finish_reason="length",
-                completion_tokens=4_096,
-                cost=0.004,
+            return first_response
+        if physical_sends == 2:
+            diagnostic_before_repair = json.loads(
+                (
+                    output_dir
+                    / "diagnostics"
+                    / "qwen3.6-35b-a3b-thinking-last-response.json"
+                ).read_text(encoding="utf-8")
             )
         return _qwen_thinking_response(
             spec,
@@ -582,13 +594,86 @@ def test_qwen_thinking_length_output_is_repaired_once_and_fully_accounted(
         == "length"
     )
     assert record["attempts"][0]["parsed"] is None
-    assert "valid JSON" in record["attempts"][0]["error"]
+    assert record["attempts"][0]["error"] == (
+        "judge response reached the output token limit"
+    )
     assert record["attempts"][1]["parsed"] == VALID_DECISION
     assert record["decision"] == VALID_DECISION
     assert record["failure"] is None
     assert record["usage"]["prompt_tokens"] == 200
     assert record["usage"]["completion_tokens"] == 4_116
     assert record["usage"]["total_tokens"] == 4_316
+    assert record["usage"]["cost"] == pytest.approx(0.0041)
+    assert diagnostic_before_repair is not None
+    assert diagnostic_before_repair["used_calls"] == 1
+    assert diagnostic_before_repair["response_body"] == first_response
+    repair_instruction = requests[1]["messages"][-1]["content"]
+    assert (
+        "VALIDATION ERROR:\njudge response reached the output token limit"
+        in repair_instruction
+    )
+    assert f"MALFORMED OUTPUT:\n{incomplete}" in repair_instruction
+    assert physical_sends == 11
+    assert (
+        json.loads((output_dir / "attempt-ledger.json").read_text(encoding="utf-8"))[
+            "used_calls"
+        ]
+        == 11
+    )
+    assert json.loads((output_dir / "spend-receipt.json").read_text(encoding="utf-8"))[
+        "spent_usd"
+    ] == pytest.approx(0.005)
+
+
+def test_qwen_thinking_schema_valid_length_still_requires_one_accounted_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "hosted-v2"
+    spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    valid_raw = json.dumps(VALID_DECISION)
+    physical_sends = 0
+
+    def respond(_request: object, **_kwargs: object) -> object:
+        nonlocal physical_sends
+        physical_sends += 1
+        return _qwen_thinking_response(
+            spec,
+            content=valid_raw,
+            finish_reason="length" if physical_sends == 1 else "stop",
+            completion_tokens=4_096 if physical_sends == 1 else 20,
+            cost=0.004 if physical_sends == 1 else 0.0001,
+        )
+
+    monkeypatch.setattr(hosted, "_post_json", respond)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+
+    assert (
+        hosted.main(
+            [
+                *_v2_main_args(output_dir, spec.config_id),
+                "--call-cap",
+                "11",
+            ]
+        )
+        == 0
+    )
+
+    run = json.loads(
+        (output_dir / "runs" / f"{spec.config_id}.json").read_text(encoding="utf-8")
+    )
+    repaired = [
+        record for record in run["records"].values() if len(record["attempts"]) == 2
+    ]
+    assert len(repaired) == 1
+    record = repaired[0]
+    assert record["attempts"][0]["raw"] == valid_raw
+    assert record["attempts"][0]["parsed"] is None
+    assert record["attempts"][0]["error"] == (
+        "judge response reached the output token limit"
+    )
+    assert record["attempts"][1]["parsed"] == VALID_DECISION
+    assert record["decision"] == VALID_DECISION
+    assert record["usage"]["completion_tokens"] == 4_116
     assert record["usage"]["cost"] == pytest.approx(0.0041)
     assert physical_sends == 11
     assert (
@@ -1675,6 +1760,36 @@ def test_v2_response_rejects_nonterminal_finish_reasons_other_than_length(
 
     with pytest.raises(ValueError, match="finish_reason"):
         hosted._parse_response(body, spec)
+
+
+@pytest.mark.parametrize(
+    "unregistered",
+    [
+        replace(
+            hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"],
+            config_id="unregistered-qwen-thinking",
+        ),
+        replace(
+            hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"],
+            provider="UnregisteredProvider",
+        ),
+    ],
+)
+def test_response_rejects_length_for_unregistered_constructed_spec(
+    unregistered: hosted.ModelSpec,
+) -> None:
+    registered = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    assert unregistered != registered
+    body = _qwen_thinking_response(
+        unregistered,
+        content=json.dumps(VALID_DECISION),
+        finish_reason="length",
+        completion_tokens=4_096,
+        cost=0.004,
+    )
+
+    with pytest.raises(ValueError, match="finish_reason"):
+        hosted._parse_response(body, unregistered)
 
 
 def test_transport_retries_once_only_for_retryable_http_statuses() -> None:

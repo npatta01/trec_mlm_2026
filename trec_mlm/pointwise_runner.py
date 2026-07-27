@@ -603,6 +603,11 @@ def run_cases(
             }
             _merge_usage(usage, _validated_response_usage(body.get("usage")))
             try:
+                semantic_response_error = _semantic_response_error(
+                    body, version=version
+                )
+                if semantic_response_error is not None:
+                    raise ValueError(semantic_response_error)
                 parsed = decision_to_dict(parse_judge_decision(raw, version=version))
             except ValueError as error:
                 attempt["error"] = str(error)
@@ -963,6 +968,9 @@ def _validated_cached_attempt(
         backend_response_model=backend_response_model,
     )
     try:
+        semantic_response_error = _semantic_response_error(body, version=version)
+        if semantic_response_error is not None:
+            raise ValueError(semantic_response_error)
         parsed = decision_to_dict(parse_judge_decision(raw, version=version))
     except ValueError as error:
         if set(value) != {
@@ -988,6 +996,17 @@ def _validated_cached_attempt(
     if not _json_values_equal(value["parsed"], parsed):
         raise ValueError("parsed attempt does not match raw output")
     return dict(value), "valid", parsed, None, usage
+
+
+def _semantic_response_error(body: object, *, version: str) -> str | None:
+    if version != "v2" or type(body) is not dict:
+        return None
+    choices = body.get("choices")
+    if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:
+        return None
+    if choices[0].get("finish_reason") == "length":
+        return "judge response reached the output token limit"
+    return None
 
 
 def _validated_cached_response_body(

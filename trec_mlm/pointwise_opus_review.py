@@ -10,6 +10,7 @@ import math
 import os
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import time
 from typing import Callable, Literal
@@ -32,7 +33,40 @@ DEFAULT_CAP_USD = 10.0
 INPUT_USD_PER_MILLION = 15.0
 OUTPUT_USD_PER_MILLION = 75.0
 _RETRYABLE_STATUS = {408, 429} | set(range(500, 600))
-_FORBIDDEN_REVIEW_TEXT = ("deepseek", "openrouter", "api key", "api_key")
+_FROZEN_V2_PROMPT_SHA256 = (
+    "408a66ab4461d08973b645a4aa466a08b7f533beb324b902a5c3dbbe6e99a5c0"
+)
+_FROZEN_V2_SCHEMA_SHA256 = (
+    "20bd1e2c9bc7ad51e03a5afbf3f8f6a5600fe86ad27c2b77bf8404d900decb32"
+)
+_PACKET_FORBIDDEN_TEXT = ("deepseek", "openrouter", "api key", "api_key")
+_REVIEW_FORBIDDEN_TEXT = (
+    "anthropic",
+    "claude",
+    "opus",
+    "provider",
+    "model",
+    "run",
+    "credential",
+    "openrouter",
+    "api key",
+    "api_key",
+    "deepseek",
+)
+_USAGE_NUMERIC_FIELDS = frozenset(
+    {
+        "input_tokens",
+        "output_tokens",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "cache_creation_input_tokens_5m",
+        "cache_creation_input_tokens_1h",
+        "reasoning_tokens",
+    }
+)
 
 
 class OpusRecommendation(BaseModel):
@@ -163,7 +197,14 @@ def validate_opus_review_packet(
             raise ValueError(
                 "Opus review packet does not bind the exact frozen v2 contract"
             )
-    _reject_forbidden_text(packet, label="packet")
+    elif (
+        contract["prompt_sha256"] != _FROZEN_V2_PROMPT_SHA256
+        or contract["schema_sha256"] != _FROZEN_V2_SCHEMA_SHA256
+    ):
+        raise ValueError(
+            "Opus review packet does not bind the pinned frozen v2 contract"
+        )
+    _reject_forbidden_text(packet, label="packet", tokens=_PACKET_FORBIDDEN_TEXT)
     return dict(packet)
 
 
@@ -188,7 +229,9 @@ def parse_opus_review(
         raise ValueError("Opus review has invalid exact keys or fields") from error
     if review.packet_sha256 != validated_packet["packet_sha256"]:
         raise ValueError("Opus review packet identity does not match")
-    _reject_forbidden_text(review.model_dump(mode="json"), label="review")
+    _reject_forbidden_text(
+        review.model_dump(mode="json"), label="review", tokens=_REVIEW_FORBIDDEN_TEXT
+    )
     _validate_recommendations_against_packet(review, validated_packet)
     return review
 
@@ -340,6 +383,86 @@ class OpusReviewCall:
         raise RuntimeError("unreachable Opus retry state")
 
 
+class ClaudeCliReviewCall:
+    """Non-interactive Claude Code transport for the authorized Opus review."""
+
+    def __init__(
+        self,
+        *,
+        budget: SpendBudget,
+        timeout_seconds: float,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    ) -> None:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("Claude review timeout must be positive")
+        self._budget = budget
+        self._timeout_seconds = timeout_seconds
+        self._runner = runner
+
+    def __call__(
+        self, packet: Mapping[str, object], *, protocol_dir: Path | None = None
+    ) -> tuple[OpusPromptReview, dict[str, object]]:
+        validated_packet = validate_opus_review_packet(
+            packet, protocol_dir=protocol_dir
+        )
+        schema_text = json.dumps(
+            OpusPromptReview.model_json_schema(),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        prompt_text = json.dumps(validated_packet, ensure_ascii=False)
+        argv = [
+            "claude",
+            "-p",
+            "--model",
+            "opus",
+            "--output-format",
+            "json",
+            "--json-schema",
+            schema_text,
+            "--max-budget-usd",
+            f"{self._budget.cap_usd - self._budget.spent_usd:.6f}",
+            "--no-session-persistence",
+            "--tools",
+            "",
+        ]
+        encoded_size = len(prompt_text.encode("utf-8")) + len(
+            schema_text.encode("utf-8")
+        )
+        reservation = _worst_case_cost(encoded_size)
+        self._budget.reserve(reservation)
+        try:
+            completed = self._runner(
+                argv,
+                input=prompt_text,
+                text=True,
+                capture_output=True,
+                timeout=self._timeout_seconds,
+                check=False,
+            )
+        except BaseException:
+            raise
+        if completed.returncode != 0:
+            raise ValueError("Claude CLI review failed")
+        if (
+            type(completed.stdout) is not str
+            or len(completed.stdout.encode("utf-8")) > MAX_RESPONSE_BYTES
+        ):
+            raise ValueError("Claude CLI review response exceeds its size limit")
+        raw, usage, cost = _parse_claude_cli_envelope(completed.stdout)
+        self._budget.reconcile(reservation, cost)
+        review = parse_opus_review(
+            raw, packet=validated_packet, protocol_dir=protocol_dir
+        )
+        return review, {
+            "usage": usage,
+            "cost_usd": cost,
+            "model_alias": OPUS_MODEL_ALIAS,
+            "unreconciled_reservation_usd": 0.0,
+        }
+
+
 def build_review_receipt(
     *,
     packet: Mapping[str, object],
@@ -361,15 +484,19 @@ def build_review_receipt(
         provider["model_alias"] != OPUS_MODEL_ALIAS
         or type(provider["cost_usd"]) not in {int, float}
         or type(provider["unreconciled_reservation_usd"]) not in {int, float}
-        or provider["unreconciled_reservation_usd"] < 0
+        or not math.isfinite(float(provider["cost_usd"]))
+        or float(provider["cost_usd"]) < 0
+        or not math.isfinite(float(provider["unreconciled_reservation_usd"]))
+        or float(provider["unreconciled_reservation_usd"]) < 0
     ):
         raise ValueError("provider review receipt has invalid identity or cost")
+    usage = _sanitize_usage(provider["usage"])
     body = {
         "version": 1,
         "packet_sha256": validated_packet["packet_sha256"],
         "model_alias": OPUS_MODEL_ALIAS,
         "provider": {
-            "usage": provider["usage"],
+            "usage": usage,
             "cost_usd": float(provider["cost_usd"]),
             "unreconciled_reservation_usd": float(
                 provider["unreconciled_reservation_usd"]
@@ -457,8 +584,16 @@ def read_private_json(path: Path) -> dict[str, object]:
 def write_private_json(path: Path, value: object) -> None:
     """Atomically write one JSON artifact with private file and parent modes."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path.parent.chmod(0o700)
+    if path.parent.exists():
+        if (
+            not path.parent.is_dir()
+            or stat.S_IMODE(path.parent.stat().st_mode) != 0o700
+        ):
+            raise ValueError(
+                "private artifact parent must be an existing mode-0700 directory"
+            )
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         os.fchmod(descriptor, 0o600)
@@ -541,7 +676,50 @@ def _parse_provider_response(body: object) -> tuple[str, dict[str, object], floa
     cost = float(usage["cost"])
     if not math.isfinite(cost) or cost < 0:
         raise ValueError("Opus provider cost is invalid")
-    return message["content"], dict(usage), cost
+    return message["content"], _sanitize_usage(usage), cost
+
+
+def _parse_claude_cli_envelope(raw: str) -> tuple[str, dict[str, int | float], float]:
+    try:
+        envelope = json.loads(
+            raw,
+            object_pairs_hook=_object_without_duplicate_keys,
+            parse_constant=_reject_nonfinite_json,
+        )
+    except (_DuplicateJsonKeyError, json.JSONDecodeError) as error:
+        raise ValueError("Claude CLI envelope is not valid JSON") from error
+    allowed = {
+        "type",
+        "subtype",
+        "is_error",
+        "result",
+        "model",
+        "usage",
+        "total_cost_usd",
+        "duration_ms",
+        "duration_api_ms",
+        "num_turns",
+        "session_id",
+    }
+    if (
+        type(envelope) is not dict
+        or not {"type", "result", "model"} <= set(envelope)
+        or not set(envelope) <= allowed
+        or envelope["type"] != "result"
+        or type(envelope["result"]) is not str
+        or type(envelope["model"]) is not str
+        or "opus" not in envelope["model"].casefold()
+        or envelope.get("is_error") is True
+    ):
+        raise ValueError("Claude CLI envelope has invalid exact result/model fields")
+    usage = _sanitize_usage(envelope.get("usage", {}))
+    cost_value = envelope.get("total_cost_usd", 0.0)
+    if type(cost_value) not in {int, float} or isinstance(cost_value, bool):
+        raise ValueError("Claude CLI envelope cost is invalid")
+    cost = float(cost_value)
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("Claude CLI envelope cost is invalid")
+    return envelope["result"], usage, cost
 
 
 def _post_json(request: urllib.request.Request, timeout_seconds: float) -> object:
@@ -621,9 +799,32 @@ def _validate_recommendations_against_packet(
             _apply_schema_replacement(schema, recommendation)
 
 
-def _reject_forbidden_text(value: object, *, label: str) -> None:
+def _sanitize_usage(value: object) -> dict[str, int | float]:
+    if type(value) is not dict:
+        raise ValueError("provider usage must be an object")
+    sanitized: dict[str, int | float] = {}
+    for key, item in value.items():
+        if key == "cost":
+            continue
+        if key not in _USAGE_NUMERIC_FIELDS:
+            raise ValueError("provider usage contains an unexpected field")
+        if type(item) not in {int, float} or isinstance(item, bool):
+            raise ValueError("provider usage fields must be numeric")
+        numeric = float(item)
+        if not math.isfinite(numeric) or numeric < 0:
+            raise ValueError("provider usage fields must be finite and nonnegative")
+        sanitized[key] = item
+    return sanitized
+
+
+def _reject_forbidden_text(
+    value: object,
+    *,
+    label: str,
+    tokens: tuple[str, ...] | frozenset[str] = _PACKET_FORBIDDEN_TEXT,
+) -> None:
     serialized = json.dumps(value, ensure_ascii=False, allow_nan=False).casefold()
-    if any(token in serialized for token in _FORBIDDEN_REVIEW_TEXT):
+    if any(token in serialized for token in tokens):
         raise ValueError(f"{label} contains forbidden identity or credential text")
 
 

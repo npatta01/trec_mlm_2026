@@ -2,21 +2,26 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import stat
 from pathlib import Path
+import subprocess
 import urllib.error
 
 import pytest
 
 from scripts.run_opus_pointwise_prompt_review import main
 from trec_mlm.pointwise_opus_review import (
+    ClaudeCliReviewCall,
     OpusPromptReview,
     OpusReviewCall,
     OPUS_MODEL_ALIAS,
     SpendBudget,
     adjudicate_opus_review,
+    build_review_receipt,
     parse_opus_review,
     validate_opus_review_packet,
+    write_private_json,
 )
 from trec_mlm.pointwise_production import build_opus_prompt_review_packet
 
@@ -93,6 +98,21 @@ def test_packet_validation_rebinds_to_the_exact_current_v2_contract(
     validate_opus_review_packet(packet, protocol_dir=_protocol_dir())
     with pytest.raises(ValueError, match="exact frozen v2 contract"):
         validate_opus_review_packet(altered, protocol_dir=_protocol_dir())
+
+    altered["contract"]["prompt"] = "Forged prompt."
+    altered["contract"]["prompt_sha256"] = hashlib.sha256(
+        altered["contract"]["prompt"].encode()
+    ).hexdigest()
+    altered["packet_sha256"] = hashlib.sha256(
+        json.dumps(
+            {key: altered[key] for key in altered if key != "packet_sha256"},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+    with pytest.raises(ValueError, match="frozen|pinned"):
+        validate_opus_review_packet(altered)
 
 
 def test_adjudication_records_rejections_without_mutating_the_contract(
@@ -227,3 +247,146 @@ def test_opus_call_retries_once_and_keeps_a_conservative_failed_reservation(
     assert provider["cost_usd"] == 0.01
     assert provider["unreconciled_reservation_usd"] > 0
     assert budget.spent_usd > provider["cost_usd"]
+
+
+def test_cli_adjudication_mode_writes_the_sealed_contract_and_ledger(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    packet_path = tmp_path / "packet.json"
+    write_private_json(packet_path, packet)
+    review = parse_opus_review(json.dumps(_review(packet)), packet=packet)
+    review_receipt = build_review_receipt(
+        packet=packet,
+        review=review,
+        provider={
+            "usage": {"input_tokens": 1, "output_tokens": 2},
+            "cost_usd": 0.01,
+            "model_alias": OPUS_MODEL_ALIAS,
+            "unreconciled_reservation_usd": 0.0,
+        },
+    )
+    review_path = tmp_path / "review.json"
+    decisions_path = tmp_path / "decisions.json"
+    adjudication_path = tmp_path / "adjudication.json"
+    write_private_json(review_path, review_receipt)
+    write_private_json(
+        decisions_path,
+        {
+            "prompt-opening": {
+                "decision": "rejected",
+                "reason": "Retain the frozen wording.",
+            }
+        },
+    )
+
+    assert (
+        main(
+            [
+                "--packet",
+                str(packet_path),
+                "--protocol-dir",
+                str(_protocol_dir()),
+                "--review-input",
+                str(review_path),
+                "--decisions",
+                str(decisions_path),
+                "--adjudication-output",
+                str(adjudication_path),
+                "--output",
+                str(tmp_path / "unused.json"),
+                "--adjudicate-only",
+            ]
+        )
+        == 0
+    )
+    adjudication = json.loads(adjudication_path.read_text(encoding="utf-8"))
+    assert adjudication["contract"]["version"] == "v2"
+    assert adjudication["recommendation_ledger"][0]["decision"] == "rejected"
+    assert stat.S_IMODE(adjudication_path.stat().st_mode) == 0o600
+
+
+def test_review_content_rejects_all_identity_terms(tmp_path: Path) -> None:
+    packet = _packet(tmp_path)
+    for term in (
+        "Anthropic",
+        "Claude",
+        "Opus",
+        "provider",
+        "model",
+        "run",
+        "credential",
+        "OpenRouter",
+        "API key",
+        "DeepSeek",
+    ):
+        body = _review(packet)
+        body["summary"] = f"The review mentions {term}."
+        with pytest.raises(ValueError, match="identity"):
+            parse_opus_review(json.dumps(body), packet=packet)
+
+
+def test_provider_receipt_allowlists_numeric_usage_and_costs(tmp_path: Path) -> None:
+    packet = _packet(tmp_path)
+    review = parse_opus_review(json.dumps(_review(packet)), packet=packet)
+    provider = {
+        "usage": {"input_tokens": 1, "output_tokens": 2},
+        "cost_usd": 0.01,
+        "model_alias": OPUS_MODEL_ALIAS,
+        "unreconciled_reservation_usd": 0.0,
+    }
+    assert build_review_receipt(packet=packet, review=review, provider=provider)
+    for bad_usage in ({"secret": "do-not-copy"}, {"input_tokens": -1}):
+        bad = dict(provider)
+        bad["usage"] = bad_usage
+        with pytest.raises(ValueError, match="usage"):
+            build_review_receipt(packet=packet, review=review, provider=bad)
+    for bad_cost in (-0.01, math.nan, math.inf):
+        bad = dict(provider)
+        bad["cost_usd"] = bad_cost
+        with pytest.raises(ValueError, match="cost"):
+            build_review_receipt(packet=packet, review=review, provider=bad)
+
+
+def test_private_json_does_not_change_an_existing_parent_mode(tmp_path: Path) -> None:
+    parent = tmp_path / "caller-owned"
+    parent.mkdir(mode=0o755)
+    parent.chmod(0o755)
+    path = parent / "receipt.json"
+    with pytest.raises(ValueError, match="mode-0700"):
+        write_private_json(path, {"safe": True})
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o755
+
+
+def test_claude_cli_transport_uses_bounded_json_mode_without_credentials(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    calls: list[tuple[list[str], str]] = []
+
+    def runner(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append((argv, kwargs["input"]))
+        envelope = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": json.dumps(_review(packet)),
+            "model": "opus",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+            "total_cost_usd": 0.01,
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    review, provider = ClaudeCliReviewCall(
+        budget=SpendBudget(2.0), timeout_seconds=3.0, runner=runner
+    )(packet, protocol_dir=_protocol_dir())
+    assert review.packet_sha256 == packet["packet_sha256"]
+    assert provider["usage"] == {"input_tokens": 10, "output_tokens": 20}
+    assert provider["cost_usd"] == 0.01
+    argv, input_text = calls[0]
+    assert argv[:5] == ["claude", "-p", "--model", "opus", "--output-format"]
+    assert "--json-schema" in argv
+    assert "--max-budget-usd" in argv
+    assert "--no-session-persistence" in argv
+    assert argv[-2:] == ["--tools", ""]
+    assert "not-serialized" not in input_text

@@ -360,8 +360,22 @@ def _request_with_retry(
         except urllib.error.HTTPError as error:
             if error.code not in _RETRYABLE_STATUS or attempt == 1:
                 raise
-            sleep(1.0)
+            sleep(_retry_delay_seconds(error))
     raise RuntimeError("unreachable retry state")
+
+
+def _retry_delay_seconds(error: urllib.error.HTTPError) -> float:
+    headers = error.headers
+    raw = headers.get("Retry-After") if hasattr(headers, "get") else None
+    if type(raw) is not str:
+        return 1.0
+    try:
+        delay = float(raw)
+    except ValueError:
+        return 1.0
+    if not math.isfinite(delay) or delay < 0:
+        return 1.0
+    return min(60.0, max(1.0, delay))
 
 
 class OpenRouterJudgeCall:

@@ -815,6 +815,42 @@ def test_transport_retries_once_only_for_retryable_http_statuses() -> None:
         hosted._request_with_retry(forbidden, object(), sleep=lambda _: None)
 
 
+@pytest.mark.parametrize(
+    ("retry_after", "expected_delay"),
+    [
+        ("7", 7.0),
+        (None, 1.0),
+        ("malformed", 1.0),
+        ("-2", 1.0),
+        ("nan", 1.0),
+        ("inf", 1.0),
+        ("0", 1.0),
+        ("999999", 60.0),
+    ],
+)
+def test_retry_after_delta_seconds_is_validated_and_bounded(
+    retry_after: str | None, expected_delay: float
+) -> None:
+    calls = 0
+    sleeps: list[float] = []
+    headers = {} if retry_after is None else {"Retry-After": retry_after}
+
+    def retry_then_succeed(*_args: object, **_kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise urllib.error.HTTPError("url", 429, "busy", headers, None)
+        return {"ok": True}
+
+    assert hosted._request_with_retry(
+        retry_then_succeed,
+        object(),
+        sleep=sleeps.append,
+    ) == {"ok": True}
+    assert sleeps == [expected_delay]
+    assert calls == 2
+
+
 def test_private_json_is_atomic_mode_0600_and_does_not_contain_auth(
     tmp_path: Path,
 ) -> None:

@@ -27,10 +27,15 @@ from scripts.run_local_pointwise_judge import (
     _load_cases,
     _load_json_from_opened_file,
 )
-from trec_mlm.pointwise_judge import PromptContract, load_prompt_contract
+from trec_mlm.pointwise_judge import CandidateCase, PromptContract, load_prompt_contract
 from trec_mlm.pointwise_runner import (
     FROZEN_DECISION_SCHEMA_SHA256,
     MAX_RESPONSE_BYTES,
+    _load_existing_run,
+    _record_identity,
+    _trusted_backend_response_model,
+    _validate_reusable_record,
+    _validate_run_container,
     run_cases,
     validate_frozen_judge_contract,
 )
@@ -514,10 +519,17 @@ def _file_identity(value: os.stat_result) -> tuple[int, int, int, int, int]:
 
 
 def _run_canary_then_remaining(
-    cases: Sequence[object], run: Callable[[list[object]], dict[str, object]]
+    cases: Sequence[object],
+    run: Callable[[list[object]], dict[str, object]],
+    *,
+    existing_terminal_records: int = 0,
 ) -> dict[str, object]:
     if len(cases) != 10:
         raise ValueError("hosted smoke requires exactly ten cases")
+    if type(existing_terminal_records) is not int or existing_terminal_records < 0:
+        raise ValueError("existing terminal record count is invalid")
+    if existing_terminal_records:
+        return run(list(cases))
     canary = run([cases[0]])
     records = canary.get("records")
     if type(records) is not dict or len(records) != 1:
@@ -530,6 +542,60 @@ def _run_canary_then_remaining(
     ):
         raise RuntimeError("hosted smoke canary failed")
     return run(list(cases))
+
+
+def _validated_existing_terminal_count(
+    output_path: Path,
+    *,
+    cases: Sequence[CandidateCase],
+    model_alias: str,
+    model_id: str,
+    contract: PromptContract,
+    runtime_receipt: Mapping[str, object],
+) -> int:
+    existing = _load_existing_run(output_path)
+    if existing is None:
+        return 0
+    _validate_run_container(existing)
+    prompt_sha256 = hashlib.sha256(contract.prompt.encode("utf-8")).hexdigest()
+    schema_sha256 = validate_frozen_judge_contract(contract)
+    runtime_receipt_sha256 = _sha256_json(dict(runtime_receipt))
+    expected_container = {
+        "model_alias": model_alias,
+        "model_id": model_id,
+        "prompt_sha256": prompt_sha256,
+        "schema_sha256": schema_sha256,
+        "runtime_receipt_sha256": runtime_receipt_sha256,
+    }
+    if any(existing[key] != value for key, value in expected_container.items()):
+        raise ValueError("existing run container identity mismatch")
+    identities = {
+        case.response_id: _record_identity(
+            case,
+            model_alias=model_alias,
+            model_id=model_id,
+            prompt_sha256=prompt_sha256,
+            schema_sha256=schema_sha256,
+            runtime_receipt_sha256=runtime_receipt_sha256,
+        )
+        for case in cases
+    }
+    records = existing["records"]
+    if not set(records) <= set(identities):
+        raise ValueError("existing run contains an unexpected record identity")
+    backend_model = _trusted_backend_response_model(runtime_receipt, model_id)
+    terminal_count = 0
+    for response_id, record in records.items():
+        reusable = _validate_reusable_record(
+            record,
+            identities[response_id],
+            response_id,
+            backend_response_model=backend_model,
+        )
+        if reusable is None:
+            raise ValueError("existing run record identity mismatch")
+        terminal_count += int(reusable.terminal)
+    return terminal_count
 
 
 def _runtime_receipt(spec: ModelSpec, contract: PromptContract) -> dict[str, object]:
@@ -602,6 +668,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         receipt_path = args.output_dir / "runtime" / f"{name}.json"
         output_path = args.output_dir / "runs" / f"{name}.json"
         _write_private_json(receipt_path, receipt)
+        existing_terminal_records = _validated_existing_terminal_count(
+            output_path,
+            cases=cases,
+            model_alias=name,
+            model_id=spec.model_id,
+            contract=contract,
+            runtime_receipt=receipt,
+        )
         call = OpenRouterJudgeCall(
             spec=spec,
             api_key=api_key,
@@ -622,7 +696,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             call=call,
         )
         result = _run_canary_then_remaining(
-            cases, lambda selected: invoke(cases=selected)
+            cases,
+            lambda selected: invoke(cases=selected),
+            existing_terminal_records=existing_terminal_records,
         )
         summaries.append(
             {

@@ -14,8 +14,8 @@ import urllib.error
 import pytest
 
 import scripts.run_hosted_pointwise_smoke as hosted
-from trec_mlm.pointwise_judge import load_prompt_contract
-from trec_mlm.pointwise_runner import validate_frozen_judge_contract
+from trec_mlm.pointwise_judge import CandidateCase, load_prompt_contract
+from trec_mlm.pointwise_runner import run_cases, validate_frozen_judge_contract
 
 
 FROZEN_CONTRACT = load_prompt_contract(Path("protocols/pointwise_judge_bakeoff"))
@@ -757,6 +757,110 @@ def test_canary_success_resumes_with_all_ten_cases() -> None:
 
     hosted._run_canary_then_remaining(cases, successful)
     assert seen == [1, 10]
+
+
+def _resume_cases() -> list[CandidateCase]:
+    return [
+        CandidateCase(
+            question_id=f"q{index}",
+            response_id=f"r{index}",
+            question=f"Question {index}?",
+            reference_answer=f"Reference {index}.",
+            candidate_answer=f"Candidate {index}.",
+            strata=("resume_test",),
+            selection_reason="resume_test",
+        )
+        for index in range(10)
+    ]
+
+
+def _build_partial_trusted_run(
+    path: Path,
+) -> tuple[list[CandidateCase], dict[str, object]]:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    cases = _resume_cases()
+    receipt = hosted._runtime_receipt(spec, FROZEN_CONTRACT)
+
+    def valid_call(model: str, _messages: object, _schema: object):
+        raw = json.dumps(VALID_DECISION)
+        return raw, {
+            "model": model,
+            "choices": [{"message": {"content": raw}}],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "total_tokens": 120,
+            },
+        }
+
+    run_cases(
+        cases,
+        model_alias=hosted._safe_name(spec.model_id),
+        model_id=spec.model_id,
+        contract=FROZEN_CONTRACT,
+        output_path=path,
+        runtime_receipt=receipt,
+        call=valid_call,
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["records"].pop(cases[-1].response_id)
+    hosted._write_private_json(path, payload)
+    return cases, receipt
+
+
+def test_trusted_partial_resume_skips_shrinking_canary_and_runs_all_cases(
+    tmp_path: Path,
+) -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    output = tmp_path / "runs" / "partial.json"
+    cases, receipt = _build_partial_trusted_run(output)
+    terminal_count = hosted._validated_existing_terminal_count(
+        output,
+        cases=cases,
+        model_alias=hosted._safe_name(spec.model_id),
+        model_id=spec.model_id,
+        contract=FROZEN_CONTRACT,
+        runtime_receipt=receipt,
+    )
+    seen: list[int] = []
+
+    def resume(selected: list[object]) -> dict[str, object]:
+        seen.append(len(selected))
+        return {"records": {case.response_id: {} for case in cases}}
+
+    hosted._run_canary_then_remaining(
+        cases,
+        resume,
+        existing_terminal_records=terminal_count,
+    )
+    assert terminal_count == 9
+    assert seen == [10]
+
+
+@pytest.mark.parametrize("corruption", ["container", "record"])
+def test_corrupted_or_mismatched_partial_resume_fails_closed(
+    tmp_path: Path, corruption: str
+) -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    output = tmp_path / "runs" / "partial.json"
+    cases, receipt = _build_partial_trusted_run(output)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    if corruption == "container":
+        payload["model_id"] = "wrong/model"
+    else:
+        first = payload["records"][cases[0].response_id]
+        first["input_sha256"] = "0" * 64
+    hosted._write_private_json(output, payload)
+
+    with pytest.raises(ValueError, match="existing|identity|container|mismatch"):
+        hosted._validated_existing_terminal_count(
+            output,
+            cases=cases,
+            model_alias=hosted._safe_name(spec.model_id),
+            model_id=spec.model_id,
+            contract=FROZEN_CONTRACT,
+            runtime_receipt=receipt,
+        )
 
 
 def test_default_key_path_is_private_user_config() -> None:

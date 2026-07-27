@@ -428,6 +428,25 @@ def test_response_rejects_conflicting_selected_route_metadata() -> None:
             },
             spec,
         )
+
+
+def test_response_accepts_absent_optional_router_metadata() -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    body = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+    assert hosted._parse_response(body, spec)[0] == json.dumps(VALID_DECISION)
     with pytest.raises(ValueError, match="model"):
         hosted._parse_response(
             {

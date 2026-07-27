@@ -221,7 +221,8 @@ def _parse_response(
 ) -> tuple[str, dict[str, object], float]:
     if type(body) is not dict:
         raise ValueError("OpenRouter response must be a JSON object")
-    _validate_router_metadata(body.get("openrouter_metadata"), spec)
+    if "openrouter_metadata" in body:
+        _validate_router_metadata(body["openrouter_metadata"], spec)
     choices = body.get("choices")
     if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:
         raise ValueError("OpenRouter response must contain exactly one choice")

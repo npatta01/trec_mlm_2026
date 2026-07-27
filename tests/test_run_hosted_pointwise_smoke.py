@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -12,6 +14,12 @@ import urllib.error
 import pytest
 
 import scripts.run_hosted_pointwise_smoke as hosted
+from trec_mlm.pointwise_judge import load_prompt_contract
+from trec_mlm.pointwise_runner import validate_frozen_judge_contract
+
+
+FROZEN_CONTRACT = load_prompt_contract(Path("protocols/pointwise_judge_bakeoff"))
+FROZEN_SCHEMA = FROZEN_CONTRACT.schema
 
 
 VALID_DECISION = {
@@ -79,7 +87,7 @@ def test_payload_disables_reasoning_for_reasoning_models(model: str) -> None:
     payload = hosted._build_payload(
         hosted.MODEL_SPECS[model],
         [{"role": "user", "content": "judge"}],
-        {"type": "object"},
+        FROZEN_SCHEMA,
     )
     assert payload["reasoning"] == {"enabled": False}
 
@@ -87,7 +95,7 @@ def test_payload_disables_reasoning_for_reasoning_models(model: str) -> None:
 def test_gpt_payload_selects_no_reasoning() -> None:
     spec = hosted.MODEL_SPECS["openai/gpt-5.4-nano"]
     payload = hosted._build_payload(
-        spec, [{"role": "user", "content": "judge"}], {"type": "object"}
+        spec, [{"role": "user", "content": "judge"}], FROZEN_SCHEMA
     )
     assert payload["reasoning"] == {"effort": "none"}
 
@@ -95,7 +103,7 @@ def test_gpt_payload_selects_no_reasoning() -> None:
 def test_qwen_payload_omits_reasoning_and_every_route_is_strict_and_pinned() -> None:
     spec = hosted.MODEL_SPECS["qwen/qwen3-235b-a22b-2507"]
     payload = hosted._build_payload(
-        spec, [{"role": "user", "content": "judge"}], {"type": "object"}
+        spec, [{"role": "user", "content": "judge"}], FROZEN_SCHEMA
     )
     assert "reasoning" not in payload
     assert payload["max_tokens"] == 512
@@ -109,6 +117,46 @@ def test_qwen_payload_omits_reasoning_and_every_route_is_strict_and_pinned() -> 
         "max_price": {"prompt": 0.09, "completion": 0.55},
     }
     assert payload["response_format"]["json_schema"]["strict"] is True
+
+
+def test_hosted_transport_schema_omits_only_unique_items_without_mutating_frozen() -> (
+    None
+):
+    original = copy.deepcopy(FROZEN_SCHEMA)
+    expected = copy.deepcopy(FROZEN_SCHEMA)
+    assert expected["properties"]["error_flags"].pop("uniqueItems") is True
+
+    transport = hosted._openrouter_transport_schema(FROZEN_SCHEMA)
+
+    assert transport == expected
+    assert FROZEN_SCHEMA == original
+    assert transport["properties"]["rationale"]["maxLength"] == 4000
+
+
+def test_payload_uses_adjusted_transport_schema_but_parser_contract_stays_frozen() -> (
+    None
+):
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    payload = hosted._build_payload(
+        spec, [{"role": "user", "content": "judge"}], FROZEN_SCHEMA
+    )
+    transmitted = payload["response_format"]["json_schema"]["schema"]
+    assert "uniqueItems" not in transmitted["properties"]["error_flags"]
+    assert transmitted["properties"]["rationale"]["maxLength"] == 4000
+    validate_frozen_judge_contract(FROZEN_CONTRACT)
+    with pytest.raises(ValueError, match="frozen"):
+        validate_frozen_judge_contract(replace(FROZEN_CONTRACT, schema=transmitted))
+
+
+def test_runtime_receipt_binds_exact_hosted_schema_adjustment_and_hash() -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    transport = hosted._openrouter_transport_schema(FROZEN_SCHEMA)
+    receipt = hosted._runtime_receipt(spec, FROZEN_CONTRACT)
+    assert receipt["schema_transport_adjustment"] == (
+        "error_flags.uniqueItems omitted; frozen parser retained"
+    )
+    assert receipt["transport_schema_sha256"] == hosted._sha256_json(transport)
+    assert receipt["schema_sha256"] != receipt["transport_schema_sha256"]
 
 
 def test_api_key_prefers_environment_without_reading_file(
@@ -190,7 +238,7 @@ def test_call_checkpoints_spend_immediately_after_provider_success(
         timeout_seconds=1,
         checkpoint_spend=lambda: checkpoints.append(budget.spent_usd),
     )
-    call(spec.model_id, [{"role": "user", "content": "judge"}], {"type": "object"})
+    call(spec.model_id, [{"role": "user", "content": "judge"}], FROZEN_SCHEMA)
     assert len(checkpoints) == 2
     assert checkpoints[0] > 0.0001
     assert checkpoints[1] == pytest.approx(0.0001)
@@ -217,7 +265,7 @@ def test_invalid_response_is_privately_checkpointed_before_parse_error(
         call(
             spec.model_id,
             [{"role": "user", "content": "judge"}],
-            {"type": "object"},
+            FROZEN_SCHEMA,
         )
     stored = json.loads(diagnostic_path.read_text(encoding="utf-8"))
     assert stored == {"version": 1, "response_body": invalid_body}
@@ -262,7 +310,7 @@ def test_invalid_response_keeps_durable_worst_case_reservation(
         call(
             spec.model_id,
             [{"role": "user", "content": "judge"}],
-            {"type": "object"},
+            FROZEN_SCHEMA,
         )
     assert checkpoints == [pytest.approx(budget.spent_usd)]
     assert budget.spent_usd > 0.0001
@@ -310,7 +358,7 @@ def test_retry_durably_reserves_each_attempt_before_reconciling_valid_one(
     call(
         spec.model_id,
         [{"role": "user", "content": "judge"}],
-        {"type": "object"},
+        FROZEN_SCHEMA,
     )
     assert len(checkpoints) == 3
     one_reservation = checkpoints[0]
@@ -341,7 +389,7 @@ def test_oversized_serialized_input_is_rejected_before_network_or_reservation(
         call(
             spec.model_id,
             [{"role": "user", "content": "x" * 100_000}],
-            {"type": "object"},
+            FROZEN_SCHEMA,
         )
     assert network_calls == []
     assert checkpoints == []
@@ -403,7 +451,7 @@ def test_call_preserves_provider_versioned_raw_body_while_binding_logical_model(
     _, runner_body = call(
         spec.model_id,
         [{"role": "user", "content": "judge"}],
-        {"type": "object"},
+        FROZEN_SCHEMA,
     )
     assert runner_body["model"] == spec.model_id
     assert runner_body["openrouter_raw_response_body"] == raw_body

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 from dataclasses import dataclass
 from functools import partial
 import hashlib
@@ -28,6 +29,7 @@ from scripts.run_local_pointwise_judge import (
 )
 from trec_mlm.pointwise_judge import PromptContract, load_prompt_contract
 from trec_mlm.pointwise_runner import (
+    FROZEN_DECISION_SCHEMA_SHA256,
     MAX_RESPONSE_BYTES,
     run_cases,
     validate_frozen_judge_contract,
@@ -185,6 +187,7 @@ def _build_payload(
     messages: Sequence[Mapping[str, str]],
     schema: Mapping[str, object],
 ) -> dict[str, object]:
+    transport_schema = _openrouter_transport_schema(schema)
     payload: dict[str, object] = {
         "model": spec.model_id,
         "messages": [dict(message) for message in messages],
@@ -196,7 +199,7 @@ def _build_payload(
             "json_schema": {
                 "name": "pointwise_judge_decision",
                 "strict": True,
-                "schema": dict(schema),
+                "schema": transport_schema,
             },
         },
         "provider": {
@@ -214,6 +217,27 @@ def _build_payload(
     if spec.reasoning is not None:
         payload["reasoning"] = dict(spec.reasoning)
     return payload
+
+
+def _sha256_json(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _openrouter_transport_schema(schema: Mapping[str, object]) -> dict[str, object]:
+    if _sha256_json(schema) != FROZEN_DECISION_SCHEMA_SHA256:
+        raise ValueError("hosted transport requires the exact frozen decision schema")
+    transport_schema = copy.deepcopy(dict(schema))
+    error_flags = transport_schema["properties"]["error_flags"]
+    if error_flags.pop("uniqueItems", None) is not True:
+        raise ValueError("frozen error_flags.uniqueItems constraint changed")
+    return transport_schema
 
 
 def _parse_response(
@@ -497,8 +521,13 @@ def _run_canary_then_remaining(
 
 
 def _runtime_receipt(spec: ModelSpec, contract: PromptContract) -> dict[str, object]:
+    transport_schema = _openrouter_transport_schema(contract.schema)
     return {
         "schema_sha256": validate_frozen_judge_contract(contract),
+        "transport_schema_sha256": _sha256_json(transport_schema),
+        "schema_transport_adjustment": (
+            "error_flags.uniqueItems omitted; frozen parser retained"
+        ),
         "backend_response_model": spec.model_id,
         "transport": "openrouter-chat-completions",
         "endpoint": OPENROUTER_ENDPOINT,

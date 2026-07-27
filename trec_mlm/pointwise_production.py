@@ -11,7 +11,10 @@ import stat
 import tempfile
 from typing import Any, Mapping
 
-from trec_mlm.pointwise_judge import CandidateCase, load_prompt_contract
+from trec_mlm.artifact_io import length_framed_sha256, manifest_aggregate_sha256
+from trec_mlm.pointwise_judge import load_prompt_contract
+from trec_mlm.profile_inference import format_profile_document
+from trec_mlm.profile_retrieval import canonical_profile_record_id
 from trec_mlm.pointwise_sampling import (
     iter_discovery_responses,
     load_discovery_questions,
@@ -20,6 +23,18 @@ from trec_mlm.pointwise_sampling import (
 
 
 EXPECTED_PRODUCTION_RECORD_COUNT = 182_764
+FROZEN_DISCOVERY_SHA256 = (
+    "b33c28aa2571cdf5b2867dcc00f0dc55e22198b90022dd23f748a03395301b25"
+)
+FROZEN_GROUNDED_SHA256 = (
+    "3f0cb0885d82c9e83827c0f5ddad32dcba90f5a3307a095543bd1eb29d3133d6"
+)
+FROZEN_REFINEMENT_RECORDS_SHA256 = (
+    "e25237be81ffd86726fb4b3ccd1a2a8bdea7213197f84341b6bf50c23274ae92"
+)
+FROZEN_REFINEMENT_MANIFEST_SHA256 = (
+    "64d6972021fcda8ab98b56b0555bccdabd22e52df238b438400866827319825e"
+)
 _INVENTORY_NAME = "production-records.jsonl"
 _MANIFEST_NAME = "production-manifest.json"
 _PRIVATE_DIRECTORY_MODE = 0o700
@@ -81,18 +96,6 @@ class _RefinementMember:
     question: str
     response: str
 
-    def as_candidate_case(self) -> CandidateCase:
-        """Adapt this record to the existing pointwise request representation."""
-        return CandidateCase(
-            question_id=self.question_id,
-            response_id=self.record_id,
-            question=self.question,
-            reference_answer=self.provisional_reference,
-            candidate_answer=self.candidate_response,
-            strata=(),
-            selection_reason="production_inventory",
-        )
-
 
 def build_production_inventory(
     *,
@@ -100,11 +103,8 @@ def build_production_inventory(
     grounded: Path,
     refinement_records: Path,
     output_dir: Path,
-    expected_count: int = EXPECTED_PRODUCTION_RECORD_COUNT,
 ) -> dict[str, Any]:
     """Stream and seal the exact source/reference join into a private JSONL file."""
-    if type(expected_count) is not int or expected_count <= 0:
-        raise ValueError("expected production count must be a positive integer")
     output_dir = Path(output_dir)
     if output_dir.exists():
         raise ValueError("production output directory already exists")
@@ -125,6 +125,24 @@ def build_production_inventory(
         refinement_snapshot, refinement_sha256 = _snapshot_source(
             Path(refinement_records), sources_dir, "refinement-records"
         )
+        refinement_manifest_snapshot, refinement_manifest_sha256 = _snapshot_source(
+            Path(refinement_records).parent / "manifest.json",
+            sources_dir,
+            "refinement-manifest",
+        )
+        source_hashes = {
+            "discovery": discovery_sha256,
+            "grounded": grounded_sha256,
+            "refinement_records": refinement_sha256,
+            "refinement_manifest": refinement_manifest_sha256,
+        }
+        _validate_approved_source_hashes(source_hashes)
+        _validate_refinement_manifest(
+            refinement_manifest_snapshot,
+            records_name=Path(refinement_records).name,
+            records_sha256=refinement_sha256,
+            records_size=refinement_snapshot.stat().st_size,
+        )
 
         questions = load_discovery_questions(discovery_snapshot)
         references = load_grounded_references(grounded_snapshot, questions=questions)
@@ -136,9 +154,10 @@ def build_production_inventory(
             discovery=discovery_snapshot,
             members=members,
         )
-        if count != expected_count:
+        if count != EXPECTED_PRODUCTION_RECORD_COUNT:
             raise ValueError(
-                f"expected {expected_count} production records, found {count}"
+                "expected "
+                f"{EXPECTED_PRODUCTION_RECORD_COUNT} production records, found {count}"
             )
         manifest_body: dict[str, Any] = {
             "version": 1,
@@ -149,6 +168,7 @@ def build_production_inventory(
                 "discovery": {"sha256": discovery_sha256},
                 "grounded": {"sha256": grounded_sha256},
                 "refinement_records": {"sha256": refinement_sha256},
+                "refinement_manifest": {"sha256": refinement_manifest_sha256},
             },
         }
         manifest = {
@@ -284,6 +304,7 @@ def _load_refinement_membership(
             )
         except KeyError as error:
             raise ValueError("refinement record has missing required field") from error
+        _validate_refinement_member(member, raw)
         expected_question = questions.get(member.question_id)
         if expected_question is None:
             raise ValueError("refinement record has an unknown discovery question")
@@ -299,6 +320,92 @@ def _load_refinement_membership(
     if not members:
         raise ValueError("refinement records must not be empty")
     return members
+
+
+def _validate_approved_source_hashes(source_hashes: Mapping[str, str]) -> None:
+    expected = {
+        "discovery": FROZEN_DISCOVERY_SHA256,
+        "grounded": FROZEN_GROUNDED_SHA256,
+        "refinement_records": FROZEN_REFINEMENT_RECORDS_SHA256,
+        "refinement_manifest": FROZEN_REFINEMENT_MANIFEST_SHA256,
+    }
+    for name, expected_sha256 in expected.items():
+        if source_hashes[name] != expected_sha256:
+            raise ValueError(f"approved {name.replace('_', ' ')} hash mismatch")
+
+
+def _validate_refinement_manifest(
+    path: Path,
+    *,
+    records_name: str,
+    records_sha256: str,
+    records_size: int,
+) -> None:
+    if records_name != "records.json":
+        raise ValueError("approved refinement records must be named records.json")
+    try:
+        manifest = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object
+        )
+    except json.JSONDecodeError as error:
+        raise ValueError("approved refinement manifest is not valid JSON") from error
+    files = manifest.get("files") if type(manifest) is dict else None
+    if (
+        type(files) is not dict
+        or manifest.get("artifact_type") != "profile_inference_manifest"
+        or manifest.get("version") != 2
+        or manifest.get("qrel_free") is not True
+        or manifest.get("aggregate_sha256") != manifest_aggregate_sha256(files)
+    ):
+        raise ValueError("approved refinement manifest contract changed")
+    records_entry = files.get("records.json")
+    if (
+        type(records_entry) is not dict
+        or records_entry.get("sha256") != records_sha256
+        or records_entry.get("byte_size") != records_size
+    ):
+        raise ValueError("approved refinement manifest records entry changed")
+
+
+def _validate_refinement_member(
+    member: _RefinementMember, raw: Mapping[str, object]
+) -> None:
+    if set(raw) != {
+        "record_id",
+        "source_query_id",
+        "candidate_id",
+        "question",
+        "response",
+        "raw_membership_sha256",
+        "formatted_sha256",
+    }:
+        raise ValueError("refinement record schema changed")
+    expected_id = canonical_profile_record_id(
+        member.candidate_id,
+        member.question_id,
+        member.question,
+        member.response,
+    )
+    if member.record_id != expected_id:
+        raise ValueError("refinement record ID is not canonical profile-record-v2")
+    raw_hash = length_framed_sha256((member.question, member.response))
+    formatted_hash = hashlib.sha256(
+        format_profile_document(member.question, member.response).encode("utf-8")
+    ).hexdigest()
+    if (
+        raw.get("raw_membership_sha256") != raw_hash
+        or raw.get("formatted_sha256") != formatted_hash
+    ):
+        raise ValueError("refinement record correspondence changed")
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key in approved refinement manifest")
+        result[key] = value
+    return result
 
 
 def _iter_json_array(path: Path):

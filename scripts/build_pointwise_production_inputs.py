@@ -7,10 +7,7 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
-from trec_mlm.pointwise_production import (
-    EXPECTED_PRODUCTION_RECORD_COUNT,
-    build_production_inventory,
-)
+from trec_mlm.pointwise_production import build_production_inventory
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -19,9 +16,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--grounded", type=Path, required=True)
     parser.add_argument("--refinement-records", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument(
-        "--expected-count", type=int, default=EXPECTED_PRODUCTION_RECORD_COUNT
-    )
     return parser
 
 
@@ -32,7 +26,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         grounded=args.grounded,
         refinement_records=args.refinement_records,
         output_dir=args.output_dir,
-        expected_count=args.expected_count,
     )
     return 0
 

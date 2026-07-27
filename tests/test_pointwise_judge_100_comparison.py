@@ -345,6 +345,41 @@ def test_valid_judge_rationale_echoing_source_identity_fails_closed(
     assert echoed_identity not in str(error.value)
 
 
+@pytest.mark.parametrize(
+    "escaped_identity",
+    ['private"candidate', "private\\candidate", "private\ncandidate"],
+)
+def test_valid_rationale_cannot_hide_source_identity_behind_json_escaping(
+    escaped_identity: str,
+) -> None:
+    direct, thinking = _inputs()
+    sealed_ids = [escaped_identity, *SEALED_CANDIDATE_IDS[1:]]
+    _replace_rationale(
+        thinking,
+        CASES[0].response_id,
+        f"The valid rationale echoes {escaped_identity} exactly.",
+    )
+
+    with pytest.raises(ValueError, match="source identity") as error:
+        build_comparison(
+            CASES,
+            direct,
+            thinking,
+            reused_response_ids=[CASES[0].response_id],
+            input_hashes={
+                "manifest": "a" * 64,
+                "sealed_candidates": "d" * 64,
+                "direct_run": "b" * 64,
+                "thinking_run": "c" * 64,
+            },
+            sealed_candidate_ids=sealed_ids,
+            alias_secret=ALIAS_SECRET,
+            seed=2026,
+        )
+
+    assert escaped_identity not in str(error.value)
+
+
 def test_source_identity_matching_preserves_case_sensitive_identifier_semantics() -> (
     None
 ):

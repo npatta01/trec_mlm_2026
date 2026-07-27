@@ -421,12 +421,8 @@ def _review_packets(
         input_hashes=input_hashes,
         sealed_candidate_ids=sealed_candidate_ids,
     )
-    packet_text = json.dumps(
-        {"independent": independent, "critique": critique},
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    if any(token and token in packet_text for token in identity_tokens):
+    packet = {"independent": independent, "critique": critique}
+    if _contains_source_identity(packet, identity_tokens):
         raise ValueError("review packet contains source identity")
     sealed = {
         "version": 2,
@@ -490,6 +486,18 @@ def _packet_forbidden_identities(
                         if type(value) is str and value:
                             identities.add(value)
     return {identity for identity in identities if identity}
+
+
+def _contains_source_identity(value: object, identities: Collection[str]) -> bool:
+    if type(value) is str:
+        return any(identity in value for identity in identities)
+    if type(value) is list:
+        return any(_contains_source_identity(item, identities) for item in value)
+    if type(value) is dict:
+        return any(
+            _contains_source_identity(item, identities) for item in value.values()
+        )
+    return False
 
 
 def _review_outcome(value: Mapping[str, object]) -> dict[str, object]:

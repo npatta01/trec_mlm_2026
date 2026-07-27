@@ -51,6 +51,14 @@ CHAT_TEMPLATE_OVERHEAD_TOKENS = 2_048
 _RETRYABLE_STATUS = {408, 429} | set(range(500, 600))
 
 
+def _is_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     model_id: str
@@ -198,6 +206,9 @@ class SpendBudget:
 class AttemptBudget:
     cap_calls: int = 100
     used_calls: int = 0
+    ledger_path: Path | None = None
+    canary_identity_sha256: str | None = None
+    marker_dir: Path | None = None
 
     def __post_init__(self) -> None:
         if type(self.cap_calls) is not int or not 1 <= self.cap_calls <= 100:
@@ -211,11 +222,28 @@ class AttemptBudget:
 
     def reserve(self) -> None:
         self.require_available()
+        next_count = self.used_calls + 1
+        if self.is_durable:
+            _write_attempt_marker(
+                self.marker_dir,
+                count=next_count,
+                canary_identity_sha256=self.canary_identity_sha256,
+            )
         self.used_calls += 1
+        if self.is_durable:
+            _write_attempt_ledger(self.ledger_path, self)
 
     def require_available(self) -> None:
         if self.used_calls >= self.cap_calls:
             raise RuntimeError("physical request would exceed the call ceiling")
+
+    @property
+    def is_durable(self) -> bool:
+        return (
+            self.ledger_path is not None
+            and self.marker_dir is not None
+            and _is_sha256(self.canary_identity_sha256)
+        )
 
 
 def _load_api_key(path: Path, *, environ: Mapping[str, str] | None = None) -> str:
@@ -327,6 +355,8 @@ def _parse_response(
 ) -> tuple[str, dict[str, object], float]:
     if type(body) is not dict:
         raise ValueError("OpenRouter response must be a JSON object")
+    if spec.config_id is not None and "openrouter_metadata" not in body:
+        raise ValueError("OpenRouter response router metadata is missing")
     if "openrouter_metadata" in body:
         _validate_router_metadata(body["openrouter_metadata"], spec)
     choices = body.get("choices")
@@ -465,7 +495,9 @@ class OpenRouterJudgeCall:
         checkpoint_attempt: Callable[[], None] | None = None,
         checkpoint_response: Callable[[object], None] | None = None,
     ) -> None:
-        if spec.config_id is not None and attempt_budget is None:
+        if spec.config_id is not None and (
+            attempt_budget is None or not attempt_budget.is_durable
+        ):
             raise ValueError("v2 hosted calls require a durable attempt budget")
         self.spec = spec
         self._api_key = api_key
@@ -511,7 +543,8 @@ class OpenRouterJudgeCall:
             self._checkpoint_spend()
             if self.attempt_budget is not None:
                 self.attempt_budget.reserve()
-                self._checkpoint_attempt()
+                if self.spec.config_id is None:
+                    self._checkpoint_attempt()
             return _post_json(value, timeout_seconds=self.timeout_seconds)
 
         body = _request_with_retry(send, request)
@@ -590,18 +623,69 @@ def _write_spend_ledger(path: Path, budget: SpendBudget) -> None:
 
 
 def _write_attempt_ledger(path: Path, budget: AttemptBudget) -> None:
+    if budget.is_durable:
+        value = {
+            "version": 2,
+            "cap_calls": budget.cap_calls,
+            "used_calls": budget.used_calls,
+            "canary_identity_sha256": budget.canary_identity_sha256,
+        }
+    else:
+        value = {
+            "version": 1,
+            "cap_calls": budget.cap_calls,
+            "used_calls": budget.used_calls,
+        }
+    _write_private_json(path, value)
+
+
+def _write_attempt_marker(
+    marker_dir: Path | None,
+    *,
+    count: int,
+    canary_identity_sha256: str | None,
+) -> None:
+    if marker_dir is None or not _is_sha256(canary_identity_sha256):
+        raise ValueError("durable attempt marker identity is invalid")
+    path = marker_dir / f"{count:03d}.json"
+    if path.exists():
+        raise ValueError("attempt marker already exists; ledger rollback detected")
     _write_private_json(
         path,
         {
             "version": 1,
-            "cap_calls": budget.cap_calls,
-            "used_calls": budget.used_calls,
+            "attempt": count,
+            "canary_identity_sha256": canary_identity_sha256,
         },
     )
 
 
-def _write_response_checkpoint(path: Path, body: object) -> None:
-    _write_private_json(path, {"version": 1, "response_body": body})
+def _write_response_checkpoint(
+    path: Path,
+    body: object,
+    *,
+    spec: ModelSpec | None = None,
+    canary_identity_sha256: str | None = None,
+    used_calls: int | None = None,
+) -> None:
+    if spec is not None:
+        if (
+            spec.config_id is None
+            or not _is_sha256(canary_identity_sha256)
+            or type(used_calls) is not int
+            or used_calls < 1
+        ):
+            raise ValueError("v2 diagnostic identity is invalid")
+        value = {
+            "version": 2,
+            "config_id": spec.config_id,
+            "canary_identity_sha256": canary_identity_sha256,
+            "used_calls": used_calls,
+            "response_body": body,
+        }
+    else:
+        value = {"version": 1, "response_body": body}
+    _write_private_json(path, value)
 
 
 def _load_spend_ledger(path: Path, *, cap_usd: float) -> SpendBudget:
@@ -638,9 +722,23 @@ def _load_spend_ledger(path: Path, *, cap_usd: float) -> SpendBudget:
     return SpendBudget(cap_usd, spent_usd=value["spent_usd"])
 
 
-def _load_attempt_ledger(path: Path, *, cap_calls: int) -> AttemptBudget:
+def _load_attempt_ledger(
+    path: Path,
+    *,
+    cap_calls: int,
+    canary_identity_sha256: str | None = None,
+    marker_dir: Path | None = None,
+    require_existing: bool = False,
+) -> AttemptBudget:
     if not path.exists():
-        return AttemptBudget(cap_calls)
+        if require_existing:
+            raise ValueError("attempt ledger is missing for an existing v2 canary")
+        return AttemptBudget(
+            cap_calls,
+            ledger_path=path if canary_identity_sha256 is not None else None,
+            canary_identity_sha256=canary_identity_sha256,
+            marker_dir=marker_dir,
+        )
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(path, flags)
@@ -665,15 +763,54 @@ def _load_attempt_ledger(path: Path, *, cap_calls: int) -> AttemptBudget:
         value = json.loads(raw.decode("utf-8"), parse_constant=_reject_nonfinite)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("attempt ledger is invalid JSON") from error
-    if type(value) is not dict or set(value) != {
-        "version",
-        "cap_calls",
-        "used_calls",
-    }:
+    expected_keys = {"version", "cap_calls", "used_calls"}
+    expected_version = 1
+    if canary_identity_sha256 is not None:
+        expected_keys.add("canary_identity_sha256")
+        expected_version = 2
+    if type(value) is not dict or set(value) != expected_keys:
         raise ValueError("attempt ledger has an invalid shape")
-    if value["version"] != 1 or value["cap_calls"] != cap_calls:
+    if value["version"] != expected_version or value["cap_calls"] != cap_calls:
         raise ValueError("attempt ledger does not match this run's cap")
-    return AttemptBudget(cap_calls, used_calls=value["used_calls"])
+    if (
+        canary_identity_sha256 is not None
+        and value["canary_identity_sha256"] != canary_identity_sha256
+    ):
+        raise ValueError("attempt ledger canary identity mismatch")
+    budget = AttemptBudget(
+        cap_calls,
+        used_calls=value["used_calls"],
+        ledger_path=path if canary_identity_sha256 is not None else None,
+        canary_identity_sha256=canary_identity_sha256,
+        marker_dir=marker_dir,
+    )
+    if budget.is_durable:
+        _validate_attempt_markers(budget)
+    return budget
+
+
+def _validate_attempt_markers(budget: AttemptBudget) -> None:
+    if not budget.is_durable:
+        raise ValueError("attempt marker validation requires a durable budget")
+    marker_dir = budget.marker_dir
+    if not marker_dir.exists():
+        if budget.used_calls:
+            raise ValueError("attempt marker journal is missing")
+        return
+    if not marker_dir.is_dir():
+        raise ValueError("attempt marker journal is not a directory")
+    paths = sorted(marker_dir.iterdir())
+    expected_names = [f"{count:03d}.json" for count in range(1, budget.used_calls + 1)]
+    if [path.name for path in paths] != expected_names:
+        raise ValueError("attempt ledger rollback conflicts with physical markers")
+    for count, marker_path in enumerate(paths, start=1):
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        if marker != {
+            "version": 1,
+            "attempt": count,
+            "canary_identity_sha256": budget.canary_identity_sha256,
+        }:
+            raise ValueError("attempt marker identity mismatch")
 
 
 def _file_identity(value: os.stat_result) -> tuple[int, int, int, int, int]:
@@ -793,7 +930,11 @@ def _validated_existing_counts(
 
 
 def _runtime_receipt(
-    spec: ModelSpec, contract: PromptContract, *, version: str = "v1"
+    spec: ModelSpec,
+    contract: PromptContract,
+    *,
+    version: str = "v1",
+    canary_identity_sha256: str | None = None,
 ) -> dict[str, object]:
     transport_schema = _openrouter_transport_schema(contract.schema)
     receipt: dict[str, object] = {
@@ -822,6 +963,10 @@ def _runtime_receipt(
     if version == "v2":
         if spec.config_id is None:
             raise ValueError("v2 hosted receipt requires a configuration ID")
+        if canary_identity_sha256 is not None and not _is_sha256(
+            canary_identity_sha256
+        ):
+            raise ValueError("v2 canary identity is invalid")
         receipt.update(
             {
                 "config_id": spec.config_id,
@@ -833,6 +978,8 @@ def _runtime_receipt(
                 ],
             }
         )
+        if canary_identity_sha256 is not None:
+            receipt["canary_identity_sha256"] = canary_identity_sha256
     return receipt
 
 
@@ -906,6 +1053,122 @@ def _select_config_specs(requested: Sequence[str] | None) -> list[ModelSpec]:
     ]
 
 
+def _v2_canary_identity(*, manifest_sha256: str, contract: PromptContract) -> str:
+    if not _is_sha256(manifest_sha256):
+        raise ValueError("v2 manifest identity is invalid")
+    transport_schema = _openrouter_transport_schema(contract.schema)
+    return _sha256_json(
+        {
+            "version": 1,
+            "manifest_sha256": manifest_sha256,
+            "prompt_sha256": hashlib.sha256(
+                contract.prompt.encode("utf-8")
+            ).hexdigest(),
+            "schema_sha256": validate_judge_contract(contract, version="v2"),
+            "transport_schema_sha256": _sha256_json(transport_schema),
+            "configs": {
+                config_id: {
+                    "model_id": spec.model_id,
+                    "provider": spec.provider,
+                    "reasoning": dict(spec.reasoning) if spec.reasoning else None,
+                    "input_usd_per_million": spec.input_usd_per_million,
+                    "output_usd_per_million": spec.output_usd_per_million,
+                }
+                for config_id, spec in V2_CONFIG_SPECS.items()
+            },
+        }
+    )
+
+
+def _v2_canary_artifacts_exist(output_dir: Path) -> bool:
+    paths = [
+        output_dir / "spend-ledger.json",
+        output_dir / "spend-receipt.json",
+        output_dir / "attempt-markers",
+    ]
+    for spec in V2_CONFIG_SPECS.values():
+        name = _identity_name(spec)
+        paths.extend(
+            [
+                output_dir / "runtime" / f"{name}.json",
+                output_dir / "runs" / f"{name}.json",
+                _diagnostic_response_path(output_dir, spec),
+            ]
+        )
+    return any(path.exists() for path in paths)
+
+
+def _validate_all_v2_artifacts(
+    output_dir: Path,
+    *,
+    cases: Sequence[CandidateCase],
+    contract: PromptContract,
+    canary_identity_sha256: str,
+    attempt_budget: AttemptBudget,
+) -> dict[str, tuple[int, int]]:
+    counts: dict[str, tuple[int, int]] = {}
+    for config_id, spec in V2_CONFIG_SPECS.items():
+        receipt = _runtime_receipt(
+            spec,
+            contract,
+            version="v2",
+            canary_identity_sha256=canary_identity_sha256,
+        )
+        receipt_path = output_dir / "runtime" / f"{config_id}.json"
+        output_path = output_dir / "runs" / f"{config_id}.json"
+        diagnostic_path = _diagnostic_response_path(output_dir, spec)
+        if output_path.exists() and not receipt_path.exists():
+            raise ValueError("existing v2 run is missing its runtime receipt")
+        if receipt_path.exists():
+            try:
+                stored_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError("existing v2 runtime receipt is invalid") from error
+            if stored_receipt != receipt:
+                raise ValueError("existing v2 runtime receipt identity mismatch")
+        if output_path.exists():
+            counts[config_id] = _validated_existing_counts(
+                output_path,
+                cases=cases,
+                model_alias=config_id,
+                model_id=spec.model_id,
+                contract=contract,
+                runtime_receipt=receipt,
+                version="v2",
+            )
+        else:
+            counts[config_id] = (0, 0)
+        if diagnostic_path.exists():
+            if not receipt_path.exists():
+                raise ValueError(
+                    "existing v2 diagnostic is missing its runtime receipt"
+                )
+            try:
+                diagnostic = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError("existing v2 diagnostic is invalid") from error
+            if (
+                type(diagnostic) is not dict
+                or diagnostic.get("version") != 2
+                or diagnostic.get("config_id") != config_id
+                or diagnostic.get("canary_identity_sha256") != canary_identity_sha256
+                or type(diagnostic.get("used_calls")) is not int
+                or not 1 <= diagnostic["used_calls"] <= attempt_budget.used_calls
+                or set(diagnostic)
+                != {
+                    "version",
+                    "config_id",
+                    "canary_identity_sha256",
+                    "used_calls",
+                    "response_body",
+                }
+            ):
+                raise ValueError(
+                    "existing v2 diagnostic identity or attempt-ledger rollback mismatch"
+                )
+    return counts
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     AttemptBudget(args.call_cap)
@@ -930,30 +1193,63 @@ def main(argv: Sequence[str] | None = None) -> int:
     spend_ledger_path = args.output_dir / "spend-ledger.json"
     budget = _load_spend_ledger(spend_ledger_path, cap_usd=args.cap_usd)
     attempt_ledger_path = args.output_dir / "attempt-ledger.json"
-    attempt_budget = _load_attempt_ledger(attempt_ledger_path, cap_calls=args.call_cap)
+    canary_identity_sha256: str | None = None
+    existing_counts: dict[str, tuple[int, int]] = {}
+    if version == "v2":
+        canary_identity_sha256 = _v2_canary_identity(
+            manifest_sha256=args.manifest_sha256,
+            contract=contract,
+        )
+        artifacts_exist = _v2_canary_artifacts_exist(args.output_dir)
+        attempt_budget = _load_attempt_ledger(
+            attempt_ledger_path,
+            cap_calls=args.call_cap,
+            canary_identity_sha256=canary_identity_sha256,
+            marker_dir=args.output_dir / "attempt-markers",
+            require_existing=artifacts_exist,
+        )
+        existing_counts = _validate_all_v2_artifacts(
+            args.output_dir,
+            cases=cases,
+            contract=contract,
+            canary_identity_sha256=canary_identity_sha256,
+            attempt_budget=attempt_budget,
+        )
+        recorded_semantic_attempts = sum(
+            semantic_attempts for _, semantic_attempts in existing_counts.values()
+        )
+        if attempt_budget.used_calls < recorded_semantic_attempts:
+            raise ValueError(
+                "attempt ledger is below validated existing semantic attempts"
+            )
+        if not attempt_ledger_path.exists():
+            _write_attempt_ledger(attempt_ledger_path, attempt_budget)
+    else:
+        attempt_budget = _load_attempt_ledger(
+            attempt_ledger_path, cap_calls=args.call_cap
+        )
     summaries: list[dict[str, object]] = []
-    selected_existing_attempts = 0
     for spec in selected_specs:
-        receipt = _runtime_receipt(spec, contract, version=version)
+        receipt = _runtime_receipt(
+            spec,
+            contract,
+            version=version,
+            canary_identity_sha256=canary_identity_sha256,
+        )
         name = _identity_name(spec)
         receipt_path = args.output_dir / "runtime" / f"{name}.json"
         output_path = args.output_dir / "runs" / f"{name}.json"
         _write_private_json(receipt_path, receipt)
-        existing_terminal_records, existing_semantic_attempts = (
-            _validated_existing_counts(
+        if version == "v2":
+            existing_terminal_records = existing_counts[name][0]
+        else:
+            existing_terminal_records = _validated_existing_terminal_count(
                 output_path,
                 cases=cases,
                 model_alias=name,
                 model_id=spec.model_id,
                 contract=contract,
                 runtime_receipt=receipt,
-                version=version,
-            )
-        )
-        selected_existing_attempts += existing_semantic_attempts
-        if version == "v2" and attempt_budget.used_calls < selected_existing_attempts:
-            raise ValueError(
-                "attempt ledger is below the validated existing attempt count"
             )
         call = OpenRouterJudgeCall(
             spec=spec,
@@ -962,11 +1258,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             attempt_budget=attempt_budget,
             timeout_seconds=args.timeout_seconds,
             checkpoint_spend=lambda: _write_spend_ledger(spend_ledger_path, budget),
-            checkpoint_attempt=lambda: _write_attempt_ledger(
-                attempt_ledger_path, attempt_budget
+            checkpoint_attempt=(
+                (lambda: _write_attempt_ledger(attempt_ledger_path, attempt_budget))
+                if version == "v1"
+                else None
             ),
             checkpoint_response=lambda body, selected=spec: _write_response_checkpoint(
-                _diagnostic_response_path(args.output_dir, selected), body
+                _diagnostic_response_path(args.output_dir, selected),
+                body,
+                spec=selected if version == "v2" else None,
+                canary_identity_sha256=canary_identity_sha256,
+                used_calls=(attempt_budget.used_calls if version == "v2" else None),
             ),
         )
         invoke = partial(

@@ -122,7 +122,12 @@ def test_retry_persists_each_attempt_before_the_physical_send(
 ) -> None:
     spec = hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
     ledger_path = tmp_path / "attempt-ledger.json"
-    budget = hosted.AttemptBudget(2)
+    budget = hosted.AttemptBudget(
+        2,
+        ledger_path=ledger_path,
+        canary_identity_sha256="a" * 64,
+        marker_dir=tmp_path / "attempt-markers",
+    )
     counts_seen_by_network: list[int] = []
     body = {
         "openrouter_metadata": _router_metadata(spec),
@@ -155,7 +160,6 @@ def test_retry_persists_each_attempt_before_the_physical_send(
         budget=hosted.SpendBudget(0.10),
         attempt_budget=budget,
         timeout_seconds=1,
-        checkpoint_attempt=lambda: hosted._write_attempt_ledger(ledger_path, budget),
     )
     call(spec.model_id, [{"role": "user", "content": "judge"}], V2_SCHEMA)
 
@@ -168,7 +172,12 @@ def test_call_ceiling_prevents_the_next_physical_send(
 ) -> None:
     spec = hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
     ledger_path = tmp_path / "attempt-ledger.json"
-    budget = hosted.AttemptBudget(1)
+    budget = hosted.AttemptBudget(
+        1,
+        ledger_path=ledger_path,
+        canary_identity_sha256="a" * 64,
+        marker_dir=tmp_path / "attempt-markers",
+    )
     physical_sends = 0
     spend_checkpoints: list[float] = []
     spend_budget = hosted.SpendBudget(0.10)
@@ -186,7 +195,6 @@ def test_call_ceiling_prevents_the_next_physical_send(
         attempt_budget=budget,
         timeout_seconds=1,
         checkpoint_spend=lambda: spend_checkpoints.append(spend_budget.spent_usd),
-        checkpoint_attempt=lambda: hosted._write_attempt_ledger(ledger_path, budget),
     )
     with pytest.raises(RuntimeError, match="call ceiling"):
         call(spec.model_id, [{"role": "user", "content": "judge"}], V2_SCHEMA)
@@ -204,6 +212,38 @@ def test_v2_call_requires_the_durable_attempt_budget() -> None:
             budget=hosted.SpendBudget(0.10),
             timeout_seconds=1,
         )
+
+
+def test_v2_call_rejects_an_in_memory_budget_with_a_callback() -> None:
+    with pytest.raises(ValueError, match="durable attempt"):
+        hosted.OpenRouterJudgeCall(
+            spec=hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"],
+            api_key="test-only-secret",
+            budget=hosted.SpendBudget(0.10),
+            attempt_budget=hosted.AttemptBudget(100),
+            timeout_seconds=1,
+            checkpoint_attempt=lambda: None,
+        )
+
+
+def test_v2_response_requires_complete_router_metadata() -> None:
+    spec = hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
+    body = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+    with pytest.raises(ValueError, match="router metadata"):
+        hosted._parse_response(body, spec)
 
 
 def test_v2_receipt_binds_config_prompt_schema_and_transport_identity() -> None:
@@ -341,11 +381,147 @@ def test_v2_main_keys_artifacts_by_config_and_counts_schema_repair(
         2,
     ]
     assert receipt["config_id"] == "qwen3.6-35b-a3b-thinking"
-    assert attempt_ledger == {"version": 1, "cap_calls": 11, "used_calls": 11}
+    assert attempt_ledger == {
+        "version": 2,
+        "cap_calls": 11,
+        "used_calls": 11,
+        "canary_identity_sha256": receipt["canary_identity_sha256"],
+    }
     assert physical_sends == 11
     assert (
         output_dir / "diagnostics" / "qwen3.6-35b-a3b-thinking-last-response.json"
     ).exists()
+    diagnostic = json.loads(
+        (
+            output_dir / "diagnostics" / "qwen3.6-35b-a3b-thinking-last-response.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert diagnostic["used_calls"] == 11
+
+
+def _v2_main_args(output_dir: Path, config_id: str) -> list[str]:
+    manifest = Path("artifacts/pointwise_judge_bakeoff/smoke-v2/smoke_manifest.json")
+    return [
+        "--manifest",
+        str(manifest),
+        "--manifest-sha256",
+        hosted.hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "--protocol-dir",
+        "protocols/pointwise_judge_bakeoff",
+        "--output-dir",
+        str(output_dir),
+        "--config",
+        config_id,
+    ]
+
+
+def _valid_hosted_response(request: object) -> dict[str, object]:
+    payload = json.loads(request.data.decode("utf-8"))
+    return {
+        "openrouter_metadata": {
+            "requested": payload["model"],
+            "strategy": "direct",
+            "attempt": 1,
+            "endpoints": {
+                "total": 1,
+                "available": [
+                    {
+                        "provider": payload["provider"]["only"][0],
+                        "model": payload["model"],
+                        "selected": True,
+                    }
+                ],
+            },
+        },
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+
+
+def test_v2_resume_rejects_missing_ledger_before_a_fresh_config_can_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "hosted-v2"
+    sends = 0
+
+    def respond(request: object, **_kwargs: object) -> object:
+        nonlocal sends
+        sends += 1
+        return _valid_hosted_response(request)
+
+    monkeypatch.setattr(hosted, "_post_json", respond)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    assert hosted.main(_v2_main_args(output_dir, "deepseek-v4-flash-direct")) == 0
+    assert sends == 10
+    (output_dir / "attempt-ledger.json").unlink()
+
+    with pytest.raises(ValueError, match="attempt ledger.*missing|missing.*ledger"):
+        hosted.main(_v2_main_args(output_dir, "qwen3.6-35b-a3b-thinking"))
+    assert sends == 10
+
+
+def test_v2_resume_rejects_a_ledger_rolled_back_below_physical_markers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "hosted-v2"
+    sends = 0
+
+    def retry_once(request: object, **_kwargs: object) -> object:
+        nonlocal sends
+        sends += 1
+        if sends == 1:
+            raise urllib.error.HTTPError("url", 429, "busy", {}, None)
+        return _valid_hosted_response(request)
+
+    monkeypatch.setattr(hosted, "_post_json", retry_once)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    args = _v2_main_args(output_dir, "deepseek-v4-flash-direct")
+    assert hosted.main(args) == 0
+    assert sends == 11
+    ledger_path = output_dir / "attempt-ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["used_calls"] = 10
+    hosted._write_private_json(ledger_path, ledger)
+    (output_dir / "attempt-markers" / "011.json").unlink()
+
+    with pytest.raises(ValueError, match="rollback|marker|attempt ledger"):
+        hosted.main(args)
+    assert sends == 11
+
+
+def test_v2_validates_an_unselected_config_run_before_any_new_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "hosted-v2"
+    sends = 0
+
+    def respond(request: object, **_kwargs: object) -> object:
+        nonlocal sends
+        sends += 1
+        return _valid_hosted_response(request)
+
+    monkeypatch.setattr(hosted, "_post_json", respond)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    assert hosted.main(_v2_main_args(output_dir, "deepseek-v4-flash-direct")) == 0
+    assert sends == 10
+    run_path = output_dir / "runs" / "deepseek-v4-flash-direct.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    run["model_id"] = "tampered/model"
+    hosted._write_private_json(run_path, run)
+
+    with pytest.raises(ValueError, match="identity|container|mismatch"):
+        hosted.main(_v2_main_args(output_dir, "qwen3.6-35b-a3b-thinking"))
+    assert sends == 10
 
 
 def test_legacy_v1_resume_does_not_require_a_preexisting_attempt_ledger(

@@ -20,6 +20,10 @@ from trec_mlm.pointwise_runner import run_cases, validate_frozen_judge_contract
 
 FROZEN_CONTRACT = load_prompt_contract(Path("protocols/pointwise_judge_bakeoff"))
 FROZEN_SCHEMA = FROZEN_CONTRACT.schema
+V2_CONTRACT = load_prompt_contract(
+    Path("protocols/pointwise_judge_bakeoff"), version="v2"
+)
+V2_SCHEMA = V2_CONTRACT.schema
 
 
 VALID_DECISION = {
@@ -30,8 +34,300 @@ VALID_DECISION = {
     "error_flags": [],
     "reference_status": "sound",
     "confidence": "high",
-    "rationale": "The candidate directly and correctly answers the question.",
+    "rationale": "The candidate directly and correctly answers the question in full.",
 }
+
+
+def test_v2_registry_has_four_distinct_configurations() -> None:
+    specs = hosted.V2_CONFIG_SPECS
+    assert set(specs) == {
+        "deepseek-v4-flash-direct",
+        "gpt-5.4-nano-direct",
+        "qwen3.6-35b-a3b-direct",
+        "qwen3.6-35b-a3b-thinking",
+    }
+    assert (
+        specs["qwen3.6-35b-a3b-direct"].model_id
+        == specs["qwen3.6-35b-a3b-thinking"].model_id
+        == "qwen/qwen3.6-35b-a3b"
+    )
+    assert (
+        specs["qwen3.6-35b-a3b-direct"].provider
+        == specs["qwen3.6-35b-a3b-thinking"].provider
+        == "AkashML"
+    )
+
+
+def test_qwen_pair_differs_only_by_reasoning() -> None:
+    messages = [{"role": "user", "content": "judge"}]
+    direct = hosted._build_payload(
+        hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-direct"], messages, V2_SCHEMA
+    )
+    thinking = hosted._build_payload(
+        hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"], messages, V2_SCHEMA
+    )
+    assert direct["reasoning"] == {"enabled": False}
+    assert thinking["reasoning"] == {"enabled": True}
+    assert {key: value for key, value in direct.items() if key != "reasoning"} == {
+        key: value for key, value in thinking.items() if key != "reasoning"
+    }
+
+
+def test_v2_configuration_rejects_a_v1_source_schema() -> None:
+    with pytest.raises(ValueError, match="v2.*schema|schema.*v2"):
+        hosted._build_payload(
+            hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"],
+            [{"role": "user", "content": "judge"}],
+            FROZEN_SCHEMA,
+        )
+
+
+def test_attempt_budget_stops_before_a_physical_request_over_the_ceiling() -> None:
+    budget = hosted.AttemptBudget(cap_calls=2)
+    budget.reserve()
+    budget.reserve()
+    with pytest.raises(RuntimeError, match="call ceiling"):
+        budget.reserve()
+    assert budget.used_calls == 2
+
+
+def test_attempt_ledger_restores_interrupted_count_privately(tmp_path: Path) -> None:
+    path = tmp_path / "attempt-ledger.json"
+    hosted._write_attempt_ledger(path, hosted.AttemptBudget(100, 17))
+    restored = hosted._load_attempt_ledger(path, cap_calls=100)
+    assert restored.used_calls == 17
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_retry_persists_each_attempt_before_the_physical_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
+    ledger_path = tmp_path / "attempt-ledger.json"
+    budget = hosted.AttemptBudget(2)
+    counts_seen_by_network: list[int] = []
+    body = {
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+
+    def retry_once(*_args: object, **_kwargs: object) -> object:
+        counts_seen_by_network.append(
+            json.loads(ledger_path.read_text(encoding="utf-8"))["used_calls"]
+        )
+        if len(counts_seen_by_network) == 1:
+            raise urllib.error.HTTPError("url", 429, "busy", {}, None)
+        return body
+
+    monkeypatch.setattr(hosted, "_post_json", retry_once)
+    call = hosted.OpenRouterJudgeCall(
+        spec=spec,
+        api_key="test-only-secret",
+        budget=hosted.SpendBudget(0.10),
+        attempt_budget=budget,
+        timeout_seconds=1,
+        checkpoint_attempt=lambda: hosted._write_attempt_ledger(ledger_path, budget),
+    )
+    call(spec.model_id, [{"role": "user", "content": "judge"}], V2_SCHEMA)
+
+    assert counts_seen_by_network == [1, 2]
+    assert budget.used_calls == 2
+
+
+def test_call_ceiling_prevents_the_next_physical_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
+    ledger_path = tmp_path / "attempt-ledger.json"
+    budget = hosted.AttemptBudget(1)
+    physical_sends = 0
+    spend_checkpoints: list[float] = []
+    spend_budget = hosted.SpendBudget(0.10)
+
+    def always_retry(*_args: object, **_kwargs: object) -> object:
+        nonlocal physical_sends
+        physical_sends += 1
+        raise urllib.error.HTTPError("url", 429, "busy", {}, None)
+
+    monkeypatch.setattr(hosted, "_post_json", always_retry)
+    call = hosted.OpenRouterJudgeCall(
+        spec=spec,
+        api_key="test-only-secret",
+        budget=spend_budget,
+        attempt_budget=budget,
+        timeout_seconds=1,
+        checkpoint_spend=lambda: spend_checkpoints.append(spend_budget.spent_usd),
+        checkpoint_attempt=lambda: hosted._write_attempt_ledger(ledger_path, budget),
+    )
+    with pytest.raises(RuntimeError, match="call ceiling"):
+        call(spec.model_id, [{"role": "user", "content": "judge"}], V2_SCHEMA)
+
+    assert physical_sends == 1
+    assert budget.used_calls == 1
+    assert len(spend_checkpoints) == 1
+
+
+def test_v2_call_requires_the_durable_attempt_budget() -> None:
+    with pytest.raises(ValueError, match="attempt budget"):
+        hosted.OpenRouterJudgeCall(
+            spec=hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"],
+            api_key="test-only-secret",
+            budget=hosted.SpendBudget(0.10),
+            timeout_seconds=1,
+        )
+
+
+def test_v2_receipt_binds_config_prompt_schema_and_transport_identity() -> None:
+    spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    receipt = hosted._runtime_receipt(spec, V2_CONTRACT, version="v2")
+    assert receipt["config_id"] == "qwen3.6-35b-a3b-thinking"
+    assert receipt["model_id"] == "qwen/qwen3.6-35b-a3b"
+    assert receipt["provider"] == "AkashML"
+    assert receipt["reasoning"] == {"enabled": True}
+    assert (
+        receipt["prompt_sha256"]
+        == hosted.hashlib.sha256(V2_CONTRACT.prompt.encode("utf-8")).hexdigest()
+    )
+    assert receipt["schema_sha256"] == hosted._sha256_json(V2_SCHEMA)
+    assert receipt["transport_schema_omitted_json_paths"] == [
+        "$.properties.error_flags.uniqueItems"
+    ]
+    assert receipt["transport_schema_sha256"] == hosted._sha256_json(
+        hosted._openrouter_transport_schema(V2_SCHEMA)
+    )
+
+
+def test_v2_config_filter_uses_distinct_ids_in_registry_order(tmp_path: Path) -> None:
+    requested = ["qwen3.6-35b-a3b-thinking", "qwen3.6-35b-a3b-direct"]
+    args = hosted._parser().parse_args(
+        [
+            *_required_cli_args(tmp_path),
+            "--config",
+            requested[0],
+            "--config",
+            requested[1],
+        ]
+    )
+    assert args.config == requested
+    assert [spec.config_id for spec in hosted._select_config_specs(args.config)] == [
+        "qwen3.6-35b-a3b-direct",
+        "qwen3.6-35b-a3b-thinking",
+    ]
+
+
+def test_v2_diagnostic_paths_are_keyed_by_config_id(tmp_path: Path) -> None:
+    direct = hosted._diagnostic_response_path(
+        tmp_path, hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-direct"]
+    )
+    thinking = hosted._diagnostic_response_path(
+        tmp_path, hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    )
+    assert direct.name == "qwen3.6-35b-a3b-direct-last-response.json"
+    assert thinking.name == "qwen3.6-35b-a3b-thinking-last-response.json"
+    assert direct != thinking
+
+
+def test_v2_main_keys_artifacts_by_config_and_counts_schema_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = Path("artifacts/pointwise_judge_bakeoff/smoke-v2/smoke_manifest.json")
+    output_dir = tmp_path / "hosted-v2"
+    physical_sends = 0
+
+    def hosted_response(request: object, **_kwargs: object) -> object:
+        nonlocal physical_sends
+        physical_sends += 1
+        payload = json.loads(request.data.decode("utf-8"))
+        content = "{}" if physical_sends == 1 else json.dumps(VALID_DECISION)
+        return {
+            "openrouter_metadata": {
+                "requested": payload["model"],
+                "strategy": "direct",
+                "attempt": 1,
+                "endpoints": {
+                    "total": 1,
+                    "available": [
+                        {
+                            "provider": payload["provider"]["only"][0],
+                            "model": payload["model"],
+                            "selected": True,
+                        }
+                    ],
+                },
+            },
+            "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "total_tokens": 120,
+                "cost": 0.0001,
+            },
+        }
+
+    monkeypatch.setattr(hosted, "_post_json", hosted_response)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    assert (
+        hosted.main(
+            [
+                "--manifest",
+                str(manifest),
+                "--manifest-sha256",
+                hosted.hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                "--protocol-dir",
+                "protocols/pointwise_judge_bakeoff",
+                "--output-dir",
+                str(output_dir),
+                "--config",
+                "qwen3.6-35b-a3b-thinking",
+                "--call-cap",
+                "11",
+            ]
+        )
+        == 0
+    )
+
+    run_path = output_dir / "runs" / "qwen3.6-35b-a3b-thinking.json"
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    receipt = json.loads(
+        (output_dir / "runtime" / "qwen3.6-35b-a3b-thinking.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    attempt_ledger = json.loads(
+        (output_dir / "attempt-ledger.json").read_text(encoding="utf-8")
+    )
+    assert run["model_alias"] == "qwen3.6-35b-a3b-thinking"
+    assert run["model_id"] == "qwen/qwen3.6-35b-a3b"
+    assert len(run["records"]) == 10
+    assert sorted(len(record["attempts"]) for record in run["records"].values()) == [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+    ]
+    assert receipt["config_id"] == "qwen3.6-35b-a3b-thinking"
+    assert attempt_ledger == {"version": 1, "cap_calls": 11, "used_calls": 11}
+    assert physical_sends == 11
+    assert (
+        output_dir / "diagnostics" / "qwen3.6-35b-a3b-thinking-last-response.json"
+    ).exists()
 
 
 def _router_metadata(

@@ -30,6 +30,7 @@ from scripts.run_local_pointwise_judge import (
 from trec_mlm.pointwise_judge import CandidateCase, PromptContract, load_prompt_contract
 from trec_mlm.pointwise_runner import (
     FROZEN_DECISION_SCHEMA_SHA256,
+    FROZEN_V2_DECISION_SCHEMA_SHA256,
     MAX_RESPONSE_BYTES,
     _load_existing_run,
     _record_identity,
@@ -37,7 +38,7 @@ from trec_mlm.pointwise_runner import (
     _validate_reusable_record,
     _validate_run_container,
     run_cases,
-    validate_frozen_judge_contract,
+    validate_judge_contract,
 )
 
 
@@ -59,6 +60,7 @@ class ModelSpec:
     reasoning: Mapping[str, object] | None
     temperature_supported: bool = True
     allowed_selected_models: tuple[str, ...] = ()
+    config_id: str | None = None
 
     def worst_case_usd(self, input_token_ceiling: int) -> float:
         return (
@@ -99,6 +101,46 @@ MODEL_SPECS = {
             1.25,
             None,
             temperature_supported=False,
+        ),
+    )
+}
+
+
+V2_CONFIG_SPECS = {
+    spec.config_id: spec
+    for spec in (
+        ModelSpec(
+            model_id="deepseek/deepseek-v4-flash",
+            provider="DeepInfra",
+            input_usd_per_million=0.09,
+            output_usd_per_million=0.18,
+            reasoning={"enabled": False},
+            config_id="deepseek-v4-flash-direct",
+        ),
+        ModelSpec(
+            model_id="openai/gpt-5.4-nano",
+            provider="OpenAI",
+            input_usd_per_million=0.20,
+            output_usd_per_million=1.25,
+            reasoning=None,
+            temperature_supported=False,
+            config_id="gpt-5.4-nano-direct",
+        ),
+        ModelSpec(
+            model_id="qwen/qwen3.6-35b-a3b",
+            provider="AkashML",
+            input_usd_per_million=0.14,
+            output_usd_per_million=1.00,
+            reasoning={"enabled": False},
+            config_id="qwen3.6-35b-a3b-direct",
+        ),
+        ModelSpec(
+            model_id="qwen/qwen3.6-35b-a3b",
+            provider="AkashML",
+            input_usd_per_million=0.14,
+            output_usd_per_million=1.00,
+            reasoning={"enabled": True},
+            config_id="qwen3.6-35b-a3b-thinking",
         ),
     )
 }
@@ -152,6 +194,30 @@ class SpendBudget:
         self.spent_usd -= reserved_usd - actual_usd
 
 
+@dataclass(slots=True)
+class AttemptBudget:
+    cap_calls: int = 100
+    used_calls: int = 0
+
+    def __post_init__(self) -> None:
+        if type(self.cap_calls) is not int or not 1 <= self.cap_calls <= 100:
+            raise ValueError("call cap must be an integer from 1 through 100")
+        if (
+            type(self.used_calls) is not int
+            or self.used_calls < 0
+            or self.used_calls > self.cap_calls
+        ):
+            raise ValueError("used call count must be within the call cap")
+
+    def reserve(self) -> None:
+        self.require_available()
+        self.used_calls += 1
+
+    def require_available(self) -> None:
+        if self.used_calls >= self.cap_calls:
+            raise RuntimeError("physical request would exceed the call ceiling")
+
+
 def _load_api_key(path: Path, *, environ: Mapping[str, str] | None = None) -> str:
     environment = os.environ if environ is None else environ
     value = environment.get("OPENROUTER_API_KEY")
@@ -195,6 +261,11 @@ def _build_payload(
     messages: Sequence[Mapping[str, str]],
     schema: Mapping[str, object],
 ) -> dict[str, object]:
+    if (
+        spec.config_id is not None
+        and _sha256_json(schema) != FROZEN_V2_DECISION_SCHEMA_SHA256
+    ):
+        raise ValueError("v2 hosted configuration requires the exact v2 schema")
     transport_schema = _openrouter_transport_schema(schema)
     payload: dict[str, object] = {
         "model": spec.model_id,
@@ -239,7 +310,10 @@ def _sha256_json(value: object) -> str:
 
 
 def _openrouter_transport_schema(schema: Mapping[str, object]) -> dict[str, object]:
-    if _sha256_json(schema) != FROZEN_DECISION_SCHEMA_SHA256:
+    if _sha256_json(schema) not in {
+        FROZEN_DECISION_SCHEMA_SHA256,
+        FROZEN_V2_DECISION_SCHEMA_SHA256,
+    }:
         raise ValueError("hosted transport requires the exact frozen decision schema")
     transport_schema = copy.deepcopy(dict(schema))
     error_flags = transport_schema["properties"]["error_flags"]
@@ -385,15 +459,21 @@ class OpenRouterJudgeCall:
         spec: ModelSpec,
         api_key: str,
         budget: SpendBudget,
+        attempt_budget: AttemptBudget | None = None,
         timeout_seconds: float,
         checkpoint_spend: Callable[[], None] | None = None,
+        checkpoint_attempt: Callable[[], None] | None = None,
         checkpoint_response: Callable[[object], None] | None = None,
     ) -> None:
+        if spec.config_id is not None and attempt_budget is None:
+            raise ValueError("v2 hosted calls require a durable attempt budget")
         self.spec = spec
         self._api_key = api_key
         self.budget = budget
+        self.attempt_budget = attempt_budget
         self.timeout_seconds = timeout_seconds
         self._checkpoint_spend = checkpoint_spend or (lambda: None)
+        self._checkpoint_attempt = checkpoint_attempt or (lambda: None)
         self._checkpoint_response = checkpoint_response or (lambda _body: None)
 
     def __call__(
@@ -425,8 +505,13 @@ class OpenRouterJudgeCall:
         )
 
         def send(value: urllib.request.Request) -> object:
+            if self.attempt_budget is not None:
+                self.attempt_budget.require_available()
             self.budget.debit_reservation(reservation_usd)
             self._checkpoint_spend()
+            if self.attempt_budget is not None:
+                self.attempt_budget.reserve()
+                self._checkpoint_attempt()
             return _post_json(value, timeout_seconds=self.timeout_seconds)
 
         body = _request_with_retry(send, request)
@@ -496,6 +581,17 @@ def _write_spend_ledger(path: Path, budget: SpendBudget) -> None:
     )
 
 
+def _write_attempt_ledger(path: Path, budget: AttemptBudget) -> None:
+    _write_private_json(
+        path,
+        {
+            "version": 1,
+            "cap_calls": budget.cap_calls,
+            "used_calls": budget.used_calls,
+        },
+    )
+
+
 def _write_response_checkpoint(path: Path, body: object) -> None:
     _write_private_json(path, {"version": 1, "response_body": body})
 
@@ -532,6 +628,44 @@ def _load_spend_ledger(path: Path, *, cap_usd: float) -> SpendBudget:
     if value["version"] != 1 or value["cap_usd"] != cap_usd:
         raise ValueError("spend ledger does not match this run's cap")
     return SpendBudget(cap_usd, spent_usd=value["spent_usd"])
+
+
+def _load_attempt_ledger(path: Path, *, cap_calls: int) -> AttemptBudget:
+    if not path.exists():
+        return AttemptBudget(cap_calls)
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ValueError("attempt ledger could not be opened safely") from error
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or stat.S_IMODE(opened.st_mode) != 0o600:
+            raise ValueError("attempt ledger must be a regular mode-0600 file")
+        raw = os.read(descriptor, 4097)
+        if len(raw) > 4096:
+            raise ValueError("attempt ledger is too large")
+        after = os.fstat(descriptor)
+        current = os.stat(path, follow_symlinks=False)
+        if _file_identity(opened) != _file_identity(after) or _file_identity(
+            after
+        ) != _file_identity(current):
+            raise ValueError("attempt ledger changed during read")
+    finally:
+        os.close(descriptor)
+    try:
+        value = json.loads(raw.decode("utf-8"), parse_constant=_reject_nonfinite)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("attempt ledger is invalid JSON") from error
+    if type(value) is not dict or set(value) != {
+        "version",
+        "cap_calls",
+        "used_calls",
+    }:
+        raise ValueError("attempt ledger has an invalid shape")
+    if value["version"] != 1 or value["cap_calls"] != cap_calls:
+        raise ValueError("attempt ledger does not match this run's cap")
+    return AttemptBudget(cap_calls, used_calls=value["used_calls"])
 
 
 def _file_identity(value: os.stat_result) -> tuple[int, int, int, int, int]:
@@ -578,13 +712,36 @@ def _validated_existing_terminal_count(
     model_id: str,
     contract: PromptContract,
     runtime_receipt: Mapping[str, object],
+    version: str = "v1",
 ) -> int:
+    terminal_count, _ = _validated_existing_counts(
+        output_path,
+        cases=cases,
+        model_alias=model_alias,
+        model_id=model_id,
+        contract=contract,
+        runtime_receipt=runtime_receipt,
+        version=version,
+    )
+    return terminal_count
+
+
+def _validated_existing_counts(
+    output_path: Path,
+    *,
+    cases: Sequence[CandidateCase],
+    model_alias: str,
+    model_id: str,
+    contract: PromptContract,
+    runtime_receipt: Mapping[str, object],
+    version: str,
+) -> tuple[int, int]:
     existing = _load_existing_run(output_path)
     if existing is None:
-        return 0
+        return 0, 0
     _validate_run_container(existing)
     prompt_sha256 = hashlib.sha256(contract.prompt.encode("utf-8")).hexdigest()
-    schema_sha256 = validate_frozen_judge_contract(contract)
+    schema_sha256 = validate_judge_contract(contract, version=version)
     runtime_receipt_sha256 = _sha256_json(dict(runtime_receipt))
     expected_container = {
         "model_alias": model_alias,
@@ -611,23 +768,28 @@ def _validated_existing_terminal_count(
         raise ValueError("existing run contains an unexpected record identity")
     backend_model = _trusted_backend_response_model(runtime_receipt, model_id)
     terminal_count = 0
+    semantic_attempt_count = 0
     for response_id, record in records.items():
         reusable = _validate_reusable_record(
             record,
             identities[response_id],
             response_id,
             backend_response_model=backend_model,
+            version=version,
         )
         if reusable is None:
             raise ValueError("existing run record identity mismatch")
         terminal_count += int(reusable.terminal)
-    return terminal_count
+        semantic_attempt_count += len(reusable.attempts)
+    return terminal_count, semantic_attempt_count
 
 
-def _runtime_receipt(spec: ModelSpec, contract: PromptContract) -> dict[str, object]:
+def _runtime_receipt(
+    spec: ModelSpec, contract: PromptContract, *, version: str = "v1"
+) -> dict[str, object]:
     transport_schema = _openrouter_transport_schema(contract.schema)
     receipt: dict[str, object] = {
-        "schema_sha256": validate_frozen_judge_contract(contract),
+        "schema_sha256": validate_judge_contract(contract, version=version),
         "transport_schema_sha256": _sha256_json(transport_schema),
         "schema_transport_adjustment": (
             "error_flags.uniqueItems omitted; frozen parser retained"
@@ -649,6 +811,20 @@ def _runtime_receipt(spec: ModelSpec, contract: PromptContract) -> dict[str, obj
     }
     if spec.allowed_selected_models:
         receipt["allowed_selected_models"] = list(spec.allowed_selected_models)
+    if version == "v2":
+        if spec.config_id is None:
+            raise ValueError("v2 hosted receipt requires a configuration ID")
+        receipt.update(
+            {
+                "config_id": spec.config_id,
+                "prompt_sha256": hashlib.sha256(
+                    contract.prompt.encode("utf-8")
+                ).hexdigest(),
+                "transport_schema_omitted_json_paths": [
+                    "$.properties.error_flags.uniqueItems"
+                ],
+            }
+        )
     return receipt
 
 
@@ -656,10 +832,12 @@ def _safe_name(model_id: str) -> str:
     return model_id.replace("/", "--")
 
 
+def _identity_name(spec: ModelSpec) -> str:
+    return spec.config_id or _safe_name(spec.model_id)
+
+
 def _diagnostic_response_path(output_dir: Path, spec: ModelSpec) -> Path:
-    return (
-        output_dir / "diagnostics" / f"{_safe_name(spec.model_id)}-last-response.json"
-    )
+    return output_dir / "diagnostics" / f"{_identity_name(spec)}-last-response.json"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -670,11 +848,18 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--api-key-file", type=Path, default=DEFAULT_API_KEY_FILE)
     parser.add_argument("--cap-usd", type=float, default=DEFAULT_CAP_USD)
+    parser.add_argument("--call-cap", type=int, default=100)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
-    parser.add_argument(
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
         "--model",
         action="append",
         help="exact authorized model ID; repeat to select multiple models",
+    )
+    selection.add_argument(
+        "--config",
+        action="append",
+        help="exact authorized v2 configuration ID; repeat to select multiple configs",
     )
     return parser
 
@@ -695,9 +880,33 @@ def _select_model_specs(requested: Sequence[str] | None) -> list[ModelSpec]:
     return [spec for model_id, spec in MODEL_SPECS.items() if model_id in selected]
 
 
+def _select_config_specs(requested: Sequence[str] | None) -> list[ModelSpec]:
+    if requested is None:
+        return list(V2_CONFIG_SPECS.values())
+    if not requested:
+        raise ValueError("configuration selection must not be empty")
+    if any(type(config_id) is not str or not config_id for config_id in requested):
+        raise ValueError("configuration selection must not contain an empty ID")
+    if len(set(requested)) != len(requested):
+        raise ValueError("configuration selection contains a duplicate ID")
+    unknown = set(requested) - set(V2_CONFIG_SPECS)
+    if unknown:
+        raise ValueError("configuration selection contains an unknown ID")
+    selected = set(requested)
+    return [
+        spec for config_id, spec in V2_CONFIG_SPECS.items() if config_id in selected
+    ]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    selected_specs = _select_model_specs(args.model)
+    AttemptBudget(args.call_cap)
+    if args.config is not None:
+        selected_specs = _select_config_specs(args.config)
+        version = "v2"
+    else:
+        selected_specs = _select_model_specs(args.model)
+        version = "v1"
     api_key = _load_api_key(args.api_key_file)
     manifest = _load_json_from_opened_file(
         args.manifest,
@@ -708,31 +917,46 @@ def main(argv: Sequence[str] | None = None) -> int:
     cases = _load_cases(manifest)
     if len(cases) != 10:
         raise ValueError("hosted smoke accepts only a ten-case manifest")
-    contract = load_prompt_contract(args.protocol_dir)
-    validate_frozen_judge_contract(contract)
+    contract = load_prompt_contract(args.protocol_dir, version=version)
+    validate_judge_contract(contract, version=version)
     spend_ledger_path = args.output_dir / "spend-ledger.json"
     budget = _load_spend_ledger(spend_ledger_path, cap_usd=args.cap_usd)
+    attempt_ledger_path = args.output_dir / "attempt-ledger.json"
+    attempt_budget = _load_attempt_ledger(attempt_ledger_path, cap_calls=args.call_cap)
     summaries: list[dict[str, object]] = []
+    selected_existing_attempts = 0
     for spec in selected_specs:
-        receipt = _runtime_receipt(spec, contract)
-        name = _safe_name(spec.model_id)
+        receipt = _runtime_receipt(spec, contract, version=version)
+        name = _identity_name(spec)
         receipt_path = args.output_dir / "runtime" / f"{name}.json"
         output_path = args.output_dir / "runs" / f"{name}.json"
         _write_private_json(receipt_path, receipt)
-        existing_terminal_records = _validated_existing_terminal_count(
-            output_path,
-            cases=cases,
-            model_alias=name,
-            model_id=spec.model_id,
-            contract=contract,
-            runtime_receipt=receipt,
+        existing_terminal_records, existing_semantic_attempts = (
+            _validated_existing_counts(
+                output_path,
+                cases=cases,
+                model_alias=name,
+                model_id=spec.model_id,
+                contract=contract,
+                runtime_receipt=receipt,
+                version=version,
+            )
         )
+        selected_existing_attempts += existing_semantic_attempts
+        if attempt_budget.used_calls < selected_existing_attempts:
+            raise ValueError(
+                "attempt ledger is below the validated existing attempt count"
+            )
         call = OpenRouterJudgeCall(
             spec=spec,
             api_key=api_key,
             budget=budget,
+            attempt_budget=attempt_budget,
             timeout_seconds=args.timeout_seconds,
             checkpoint_spend=lambda: _write_spend_ledger(spend_ledger_path, budget),
+            checkpoint_attempt=lambda: _write_attempt_ledger(
+                attempt_ledger_path, attempt_budget
+            ),
             checkpoint_response=lambda body, selected=spec: _write_response_checkpoint(
                 _diagnostic_response_path(args.output_dir, selected), body
             ),
@@ -745,6 +969,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=output_path,
             runtime_receipt=receipt,
             call=call,
+            version=version,
         )
         result = _run_canary_then_remaining(
             cases,
@@ -753,6 +978,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         summaries.append(
             {
+                "config_id": spec.config_id,
                 "model_id": spec.model_id,
                 "provider": spec.provider,
                 "record_count": len(result["records"]),
@@ -765,6 +991,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "version": 1,
             "cap_usd": budget.cap_usd,
             "spent_usd": budget.spent_usd,
+            "call_cap": attempt_budget.cap_calls,
+            "used_calls": attempt_budget.used_calls,
             "models": summaries,
             "api_key_serialized": False,
         },

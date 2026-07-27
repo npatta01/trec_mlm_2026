@@ -13,6 +13,7 @@ from pathlib import Path
 import stat
 import tempfile
 import time
+from types import MappingProxyType
 from typing import Any, Protocol
 import urllib.error
 import urllib.parse
@@ -93,6 +94,32 @@ _FROZEN_CONFIGURATION = {
 }
 FROZEN_DECISION_SCHEMA_SHA256 = (
     "84557061030827f09f94063a85ccbaa5324797b958963af503342ae1fce6c69b"
+)
+FROZEN_V2_PROMPT_SHA256 = (
+    "408a66ab4461d08973b645a4aa466a08b7f533beb324b902a5c3dbbe6e99a5c0"
+)
+FROZEN_V2_DECISION_SCHEMA_SHA256 = (
+    "bf647c4f3ae85148774c9196f5dea6dc92c95e1a77c5a1288761c3697f4e0615"
+)
+_FROZEN_JUDGE_CONTRACTS = MappingProxyType(
+    {
+        "v1": MappingProxyType(
+            {
+                "prompt_filename": "pointwise-v1.txt",
+                "schema_filename": "decision-v1.schema.json",
+                "prompt_sha256": "d8b2b5fd818c749c7cf589eeb9491ea7df558825d5de2abdaffa2fbc1f1193dc",
+                "schema_sha256": FROZEN_DECISION_SCHEMA_SHA256,
+            }
+        ),
+        "v2": MappingProxyType(
+            {
+                "prompt_filename": "pointwise-v2.txt",
+                "schema_filename": "decision-v2.schema.json",
+                "prompt_sha256": FROZEN_V2_PROMPT_SHA256,
+                "schema_sha256": FROZEN_V2_DECISION_SCHEMA_SHA256,
+            }
+        ),
+    }
 )
 
 
@@ -471,9 +498,10 @@ def run_cases(
     output_path: Path,
     runtime_receipt: Mapping[str, object],
     call: JudgeCall,
+    version: str = "v1",
 ) -> dict[str, object]:
     """Judge cases with atomic checkpoints and exact content-addressed resume."""
-    schema_sha256 = validate_frozen_judge_contract(contract)
+    schema_sha256 = validate_judge_contract(contract, version=version)
     if runtime_receipt.get("schema_sha256") != schema_sha256:
         raise ValueError(
             "runtime receipt schema hash does not match the frozen contract"
@@ -511,6 +539,7 @@ def run_cases(
             identity,
             response_id,
             backend_response_model=backend_response_model,
+            version=version,
         )
         if reusable is not None:
             if existing is None:
@@ -568,7 +597,7 @@ def run_cases(
             }
             _merge_usage(usage, _validated_response_usage(body.get("usage")))
             try:
-                parsed = decision_to_dict(parse_judge_decision(raw))
+                parsed = decision_to_dict(parse_judge_decision(raw, version=version))
             except ValueError as error:
                 attempt["error"] = str(error)
                 attempts.append(attempt)
@@ -609,12 +638,33 @@ def run_cases(
     return result
 
 
-def validate_frozen_judge_contract(contract: PromptContract) -> str:
-    """Require the canonical Task 1 decision schema at inference boundaries."""
+def validate_judge_contract(contract: PromptContract, *, version: str) -> str:
+    """Require the requested frozen judge schema and, for v2, prompt snapshot."""
+    try:
+        expected = _FROZEN_JUDGE_CONTRACTS[version]
+    except KeyError as error:
+        raise ValueError(f"unsupported frozen judge contract version: {version}") from error
+    if version == "v2":
+        if contract.prompt_path.name != expected["prompt_filename"]:
+            raise ValueError(
+                f"judge contract prompt filename is not frozen for {version}"
+            )
+        if contract.schema_path.name != expected["schema_filename"]:
+            raise ValueError(
+                f"judge contract schema filename is not frozen for {version}"
+            )
+        prompt_sha256 = hashlib.sha256(contract.prompt.encode("utf-8")).hexdigest()
+        if prompt_sha256 != expected["prompt_sha256"]:
+            raise ValueError(f"judge contract prompt bytes are not frozen for {version}")
     schema_sha256 = _sha256_json(contract.schema)
-    if schema_sha256 != FROZEN_DECISION_SCHEMA_SHA256:
-        raise ValueError("judge contract schema is not the frozen Task 1 schema")
+    if schema_sha256 != expected["schema_sha256"]:
+        raise ValueError(f"judge contract schema is not frozen for {version}")
     return schema_sha256
+
+
+def validate_frozen_judge_contract(contract: PromptContract) -> str:
+    """Require the canonical version-1 decision contract at inference boundaries."""
+    return validate_judge_contract(contract, version="v1")
 
 
 def _validated_usage(value: object) -> dict[str, int | float]:
@@ -759,6 +809,7 @@ def _validate_reusable_record(
     response_id: str,
     *,
     backend_response_model: str,
+    version: str = "v1",
 ) -> _ReusableRecord | None:
     if value is None:
         return None
@@ -771,6 +822,7 @@ def _validate_reusable_record(
             value,
             identity,
             backend_response_model=backend_response_model,
+            version=version,
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"corrupt reusable record {response_id}: {error}") from error
@@ -781,6 +833,7 @@ def _validated_same_identity_record(
     identity: Mapping[str, str],
     *,
     backend_response_model: str,
+    version: str = "v1",
 ) -> _ReusableRecord:
     if set(value) != _RECORD_KEYS:
         raise ValueError("expected exact record keys")
@@ -818,6 +871,7 @@ def _validated_same_identity_record(
             attempt,
             value["model_id"],
             backend_response_model=backend_response_model,
+            version=version,
         )
         validated_attempts.append(validated)
         stages.append(stage)
@@ -870,6 +924,7 @@ def _validated_cached_attempt(
     model_id: str,
     *,
     backend_response_model: str,
+    version: str = "v1",
 ) -> tuple[
     dict[str, object],
     str,
@@ -892,7 +947,7 @@ def _validated_cached_attempt(
         backend_response_model=backend_response_model,
     )
     try:
-        parsed = decision_to_dict(parse_judge_decision(raw))
+        parsed = decision_to_dict(parse_judge_decision(raw, version=version))
     except ValueError as error:
         if set(value) != {
             "raw",

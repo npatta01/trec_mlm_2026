@@ -11,8 +11,114 @@ import scripts.build_pointwise_judge_smoke as smoke_cli
 from scripts.build_pointwise_judge_smoke import main
 import scripts.preflight_local_pointwise_models as preflight_cli
 import scripts.run_local_pointwise_judge as runner_cli
-from trec_mlm.pointwise_judge import load_prompt_contract
+from trec_mlm.pointwise_judge import CandidateCase, load_prompt_contract
+from trec_mlm.pointwise_runner import (
+    run_cases,
+    validate_frozen_judge_contract,
+    validate_judge_contract,
+)
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
+
+
+PROTOCOL_DIR = Path(__file__).parents[1] / "protocols" / "pointwise_judge_bakeoff"
+
+
+def test_validate_judge_contract_accepts_both_committed_versions() -> None:
+    assert validate_frozen_judge_contract(load_prompt_contract(PROTOCOL_DIR))
+    assert validate_judge_contract(
+        load_prompt_contract(PROTOCOL_DIR, version="v2"), version="v2"
+    )
+
+
+def test_validate_judge_contract_rejects_cross_version_contract() -> None:
+    with pytest.raises(ValueError, match="v2"):
+        validate_judge_contract(load_prompt_contract(PROTOCOL_DIR), version="v2")
+
+
+def test_run_cases_uses_v2_validation_when_resuming_an_invalid_attempt(
+    tmp_path: Path,
+) -> None:
+    contract = load_prompt_contract(PROTOCOL_DIR, version="v2")
+    case = CandidateCase(
+        question_id="q1",
+        response_id="r1",
+        question="Who wrote Hamlet?",
+        reference_answer="William Shakespeare wrote Hamlet.",
+        candidate_answer="Shakespeare wrote Hamlet.",
+        strata=("control",),
+        selection_reason="control",
+    )
+    v1_valid_but_v2_invalid = json.dumps(
+        {
+            "label": "partial",
+            "correctness": 4,
+            "completeness": 2,
+            "relevance": 2,
+            "error_flags": [],
+            "reference_status": "sound",
+            "confidence": "high",
+            "rationale": "The response gives the correct author with enough detail to satisfy the requested answer fully.",
+        }
+    )
+    v2_valid = json.dumps(
+        {
+            "label": "good",
+            "correctness": 4,
+            "completeness": 2,
+            "relevance": 2,
+            "error_flags": [],
+            "reference_status": "sound",
+            "confidence": "high",
+            "rationale": "The response gives the correct author directly and includes enough information to fully answer the question accurately.",
+        }
+    )
+    output = tmp_path / "run.json"
+
+    def response(raw: str) -> tuple[str, dict[str, object]]:
+        return raw, {
+            "model": "model",
+            "choices": [{"message": {"content": raw}}],
+            "usage": {},
+        }
+
+    calls = iter([v1_valid_but_v2_invalid, KeyboardInterrupt()])
+
+    def interrupted_call(
+        _model: str, _messages: object, _schema: object
+    ) -> tuple[str, dict[str, object]]:
+        next_value = next(calls)
+        if isinstance(next_value, BaseException):
+            raise next_value
+        return response(next_value)
+
+    with pytest.raises(KeyboardInterrupt):
+        run_cases(
+            [case],
+            model_alias="judge",
+            model_id="model",
+            contract=contract,
+            output_path=output,
+            runtime_receipt={
+                "schema_sha256": validate_judge_contract(contract, version="v2")
+            },
+            call=interrupted_call,
+            version="v2",
+        )
+
+    result = run_cases(
+        [case],
+        model_alias="judge",
+        model_id="model",
+        contract=contract,
+        output_path=output,
+        runtime_receipt={
+            "schema_sha256": validate_judge_contract(contract, version="v2")
+        },
+        call=lambda _model, _messages, _schema: response(v2_valid),
+        version="v2",
+    )
+
+    assert result["records"]["r1"]["decision"]["label"] == "good"
 
 
 def _write_inputs(

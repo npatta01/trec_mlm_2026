@@ -133,10 +133,14 @@ def compare_runs(inputs: Mapping[str, object]) -> dict[str, object]:
         raise ValueError("manifest_sha256 must be a SHA-256 digest")
     case_ids = [case.response_id for case in cases]
     candidates = {case.response_id: case.candidate_answer for case in cases}
+    sealed_judge_aliases = _sealed_judge_aliases(
+        _mapping(inputs.get("sealed_judge_aliases"), "sealed judge aliases")
+    )
     reviewer = _reviewer_consensus(
         _mapping(inputs.get("advisor_review"), "advisor review"),
         _mapping(inputs.get("claude_review"), "claude review"),
         case_ids,
+        sealed_judge_aliases,
     )
     runs = _config_mapping(inputs.get("runs"), "runs")
     receipts = _config_mapping(inputs.get("runtime_receipts"), "runtime receipts")
@@ -190,6 +194,7 @@ def compare_runs(inputs: Mapping[str, object]) -> dict[str, object]:
             "attempt_ledger": attempts,
             "attempt_markers": {"count": len(markers)},
             "spend_receipt": {"spent_usd": spend_receipt.get("spent_usd")},
+            "sealed_judge_alias_count": len(sealed_judge_aliases),
             "reviewer_pass2": reviewer["summary"],
         },
         "configs": config_results,
@@ -415,10 +420,13 @@ def _jaccard(left: set[object], right: set[object]) -> float:
 
 
 def _reviewer_consensus(
-    advisor: Mapping[str, object], claude: Mapping[str, object], case_ids: Sequence[str]
+    advisor: Mapping[str, object],
+    claude: Mapping[str, object],
+    case_ids: Sequence[str],
+    judge_aliases: set[str],
 ) -> dict[str, object]:
-    advisor_rows = _review_rows(advisor, "advisor", case_ids)
-    claude_rows = _review_rows(claude, "claude", case_ids)
+    advisor_rows = _review_rows(advisor, "advisor", case_ids, judge_aliases)
+    claude_rows = _review_rows(claude, "claude", case_ids, judge_aliases)
     consensus: dict[str, dict[str, dict[str, object]]] = {
         field: {} for field in _DECISION_FIELDS
     }
@@ -444,7 +452,10 @@ def _reviewer_consensus(
 
 
 def _review_rows(
-    review: Mapping[str, object], name: str, case_ids: Sequence[str]
+    review: Mapping[str, object],
+    name: str,
+    case_ids: Sequence[str],
+    judge_aliases: set[str],
 ) -> dict[str, dict[str, object]]:
     try:
         validate_reviewer_record(
@@ -452,6 +463,7 @@ def _review_rows(
             case_ids,
             expected_reviewer=name,
             allowed_reviewers=("advisor", "claude"),
+            judge_aliases=judge_aliases,
         )
     except ValueError as error:
         raise ValueError(f"{name} reviewer ledger is invalid: {error}") from error
@@ -926,6 +938,28 @@ def _mapping(value: object, name: str) -> Mapping[str, object]:
     return value
 
 
+def _sealed_judge_aliases(value: Mapping[str, object]) -> set[str]:
+    """Validate opaque sealed evidence and return only its safe alias allowlist."""
+    if set(value) != {"version", "seed", "judge_aliases"}:
+        raise ValueError("sealed judge aliases must contain exact keys")
+    if value.get("version") != 1 or type(value.get("seed")) is not int:
+        raise ValueError("sealed judge aliases have an invalid version or seed")
+    aliases = value.get("judge_aliases")
+    if type(aliases) is not dict or not aliases:
+        raise ValueError("sealed judge aliases must contain a nonempty mapping")
+    keys = list(aliases)
+    models = list(aliases.values())
+    if (
+        any(type(alias) is not str or not alias for alias in keys)
+        or any(type(model) is not str or not model for model in models)
+        or len(models) != len(set(models))
+    ):
+        raise ValueError(
+            "sealed judge aliases must map unique aliases to model aliases"
+        )
+    return set(keys)
+
+
 def _sha256(value: object) -> bool:
     return (
         type(value) is str
@@ -1032,6 +1066,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--advisor-review", type=Path, required=True)
     parser.add_argument("--claude-review", type=Path, required=True)
+    parser.add_argument("--sealed-judge-aliases", type=Path, required=True)
     parser.add_argument(
         "--v2-run", action="append", required=True, metavar="CONFIG=PATH"
     )
@@ -1082,6 +1117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             },
             "advisor_review": _read_private_json(args.advisor_review),
             "claude_review": _read_private_json(args.claude_review),
+            "sealed_judge_aliases": _read_private_json(args.sealed_judge_aliases),
             "spend_ledger": _read_private_json(args.spend_ledger),
             "attempt_ledger": _read_private_json(args.attempt_ledger),
             "attempt_markers": [_read_private_json(path) for path in marker_paths],

@@ -206,6 +206,13 @@ def _inputs() -> dict[str, object]:
         )
         for config_id in CONFIGS
     }
+    advisor_review = _review("advisor")
+    advisor_review["pass2"][0]["decisive_disagreements"] = [
+        {
+            "judge_aliases": ["judge_a"],
+            "finding": "The anonymous judge disagreed on the material conclusion.",
+        }
+    ]
     return {
         "manifest_sha256": MANIFEST_SHA256,
         "manifest": {
@@ -214,8 +221,16 @@ def _inputs() -> dict[str, object]:
         },
         "runs": runs,
         "runtime_receipts": receipts,
-        "advisor_review": _review("advisor"),
+        "advisor_review": advisor_review,
         "claude_review": _review("claude"),
+        "sealed_judge_aliases": {
+            "version": 1,
+            "seed": 2026,
+            "judge_aliases": {
+                "judge_a": "sealed-model-alpha",
+                "judge_b": "sealed-model-beta",
+            },
+        },
         "spend_ledger": {"version": 1, "cap_usd": 0.1, "spent_usd": 0.04},
         "attempt_ledger": {
             "version": 2,
@@ -342,6 +357,80 @@ def test_locked_reviewer_ledgers_reject_wrong_identity_or_pass_phase() -> None:
             compare_runs(inputs)
 
 
+def test_allowed_sealed_judge_aliases_validate_actual_style_disagreement() -> None:
+    """This fails if locked critique rows cannot use their sealed judge aliases."""
+    result = compare_runs(_inputs())
+
+    assert result["inputs"]["sealed_judge_alias_count"] == 2
+
+
+def test_unknown_judge_alias_in_locked_reviewer_ledger_fails_closed() -> None:
+    """This fails if reviewer critique can name a judge absent from sealed evidence."""
+    inputs = _inputs()
+    inputs["advisor_review"]["pass2"][0]["decisive_disagreements"][0][
+        "judge_aliases"
+    ] = ["judge_unknown"]
+
+    with pytest.raises(ValueError, match="unknown judge alias"):
+        compare_runs(inputs)
+
+
+@pytest.mark.parametrize(
+    "sealed",
+    [
+        {},
+        {"version": 1, "seed": "2026", "judge_aliases": {"judge_a": "model-a"}},
+        {"version": 1, "seed": 2026, "judge_aliases": {}},
+        {
+            "version": 1,
+            "seed": 2026,
+            "judge_aliases": {"": "model-a", "judge_b": "model-b"},
+        },
+        {
+            "version": 1,
+            "seed": 2026,
+            "judge_aliases": {"judge_a": "model-a", "judge_b": "model-a"},
+        },
+        {
+            "version": 1,
+            "seed": 2026,
+            "judge_aliases": {"judge_a": "model-a"},
+            "unexpected": True,
+        },
+    ],
+    ids=[
+        "missing",
+        "bad_seed",
+        "empty",
+        "empty_alias",
+        "duplicate_model",
+        "extra",
+    ],
+)
+def test_sealed_judge_alias_evidence_rejects_malformed_or_duplicate_mapping(
+    sealed: object,
+) -> None:
+    """This fails if malformed or duplicate sealed alias evidence is trusted."""
+    inputs = _inputs()
+    inputs["sealed_judge_aliases"] = sealed
+
+    with pytest.raises(ValueError, match="sealed judge aliases"):
+        compare_runs(inputs)
+
+
+def test_swapped_sealed_judge_alias_mapping_cannot_validate_reviewer_rows() -> None:
+    """This fails if a reversed alias map can authorize the locked critique rows."""
+    inputs = _inputs()
+    inputs["sealed_judge_aliases"] = {
+        "version": 1,
+        "seed": 2026,
+        "judge_aliases": {"sealed-model-alpha": "judge_a"},
+    }
+
+    with pytest.raises(ValueError, match="unknown judge alias"):
+        compare_runs(inputs)
+
+
 def test_run_receipt_and_manifest_identity_breaks_are_hard_gates() -> None:
     """This fails if fabricated records or receipts can retain valid aggregate metrics."""
     inputs = _inputs()
@@ -433,6 +522,7 @@ def test_cli_writes_private_json_and_sanitized_markdown(tmp_path: Path) -> None:
         "manifest",
         "advisor_review",
         "claude_review",
+        "sealed_judge_aliases",
         "spend_ledger",
         "attempt_ledger",
         "spend_receipt",
@@ -466,37 +556,48 @@ def test_cli_writes_private_json_and_sanitized_markdown(tmp_path: Path) -> None:
         path.write_text(json.dumps(marker), encoding="utf-8")
         path.chmod(0o600)
 
-    assert (
-        main(
-            [
-                "--manifest",
-                str(paths["manifest"]),
-                "--advisor-review",
-                str(paths["advisor_review"]),
-                "--claude-review",
-                str(paths["claude_review"]),
-                *runs,
-                *receipts,
-                "--spend-ledger",
-                str(paths["spend_ledger"]),
-                "--attempt-ledger",
-                str(paths["attempt_ledger"]),
-                "--attempt-marker-dir",
-                str(marker_dir),
-                "--spend-receipt",
-                str(paths["spend_receipt"]),
-                "--v1-run",
-                f"v1_canary={v1_path}",
-                "--output-json",
-                str(private_json),
-                "--output-markdown",
-                str(markdown),
-            ]
-        )
-        == 0
-    )
+    argv = [
+        "--manifest",
+        str(paths["manifest"]),
+        "--advisor-review",
+        str(paths["advisor_review"]),
+        "--claude-review",
+        str(paths["claude_review"]),
+        "--sealed-judge-aliases",
+        str(paths["sealed_judge_aliases"]),
+        *runs,
+        *receipts,
+        "--spend-ledger",
+        str(paths["spend_ledger"]),
+        "--attempt-ledger",
+        str(paths["attempt_ledger"]),
+        "--attempt-marker-dir",
+        str(marker_dir),
+        "--spend-receipt",
+        str(paths["spend_receipt"]),
+        "--v1-run",
+        f"v1_canary={v1_path}",
+        "--output-json",
+        str(private_json),
+        "--output-markdown",
+        str(markdown),
+    ]
+    assert main(argv) == 0
     assert stat.S_IMODE(private_json.stat().st_mode) == 0o600
-    assert "Private candidate answer" not in markdown.read_text(encoding="utf-8")
+    rendered = markdown.read_text(encoding="utf-8")
+    for private_identity in (
+        "Private candidate answer",
+        "judge_a",
+        "sealed-model-alpha",
+        "sealed-model-beta",
+    ):
+        assert private_identity not in rendered
+    sealed_index = argv.index("--sealed-judge-aliases")
+    with pytest.raises(SystemExit):
+        main(argv[:sealed_index] + argv[sealed_index + 2 :])
+    paths["sealed_judge_aliases"].chmod(0o644)
+    with pytest.raises(ValueError, match="private report input"):
+        main(argv)
 
 
 def test_synthetic_v2_attempt_summary_cannot_pass_runner_validation() -> None:

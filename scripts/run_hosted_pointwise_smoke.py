@@ -320,12 +320,14 @@ class OpenRouterJudgeCall:
         budget: SpendBudget,
         timeout_seconds: float,
         checkpoint_spend: Callable[[], None] | None = None,
+        checkpoint_response: Callable[[object], None] | None = None,
     ) -> None:
         self.spec = spec
         self._api_key = api_key
         self.budget = budget
         self.timeout_seconds = timeout_seconds
         self._checkpoint_spend = checkpoint_spend or (lambda: None)
+        self._checkpoint_response = checkpoint_response or (lambda _body: None)
 
     def __call__(
         self,
@@ -361,6 +363,7 @@ class OpenRouterJudgeCall:
             return _post_json(value, timeout_seconds=self.timeout_seconds)
 
         body = _request_with_retry(send, request)
+        self._checkpoint_response(body)
         content, raw_body, cost = _parse_response(body, self.spec)
         usage = raw_body["usage"]
         prompt_tokens = usage.get("prompt_tokens")
@@ -424,6 +427,10 @@ def _write_spend_ledger(path: Path, budget: SpendBudget) -> None:
             "spent_usd": budget.spent_usd,
         },
     )
+
+
+def _write_response_checkpoint(path: Path, body: object) -> None:
+    _write_private_json(path, {"version": 1, "response_body": body})
 
 
 def _load_spend_ledger(path: Path, *, cap_usd: float) -> SpendBudget:
@@ -513,6 +520,12 @@ def _safe_name(model_id: str) -> str:
     return model_id.replace("/", "--")
 
 
+def _diagnostic_response_path(output_dir: Path, spec: ModelSpec) -> Path:
+    return (
+        output_dir / "diagnostics" / f"{_safe_name(spec.model_id)}-last-response.json"
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
@@ -554,6 +567,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             budget=budget,
             timeout_seconds=args.timeout_seconds,
             checkpoint_spend=lambda: _write_spend_ledger(spend_ledger_path, budget),
+            checkpoint_response=lambda body, selected=spec: _write_response_checkpoint(
+                _diagnostic_response_path(args.output_dir, selected), body
+            ),
         )
         invoke = partial(
             run_cases,

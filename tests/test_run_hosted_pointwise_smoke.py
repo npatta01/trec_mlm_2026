@@ -197,6 +197,37 @@ def test_call_checkpoints_spend_immediately_after_provider_success(
     assert request_headers[0]["x-openrouter-metadata"] == "enabled"
 
 
+def test_invalid_response_is_privately_checkpointed_before_parse_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    invalid_body = {"error": {"code": 200, "message": "provider returned no choices"}}
+    monkeypatch.setattr(hosted, "_post_json", lambda *_args, **_kwargs: invalid_body)
+    diagnostic_path = hosted._diagnostic_response_path(tmp_path, spec)
+    call = hosted.OpenRouterJudgeCall(
+        spec=spec,
+        api_key="test-only-secret",
+        budget=hosted.SpendBudget(0.10),
+        timeout_seconds=1,
+        checkpoint_response=lambda body: hosted._write_response_checkpoint(
+            diagnostic_path, body
+        ),
+    )
+    with pytest.raises(ValueError, match="choice"):
+        call(
+            spec.model_id,
+            [{"role": "user", "content": "judge"}],
+            {"type": "object"},
+        )
+    stored = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+    assert stored == {"version": 1, "response_body": invalid_body}
+    assert stat.S_IMODE(diagnostic_path.stat().st_mode) == 0o600
+    assert diagnostic_path == (
+        tmp_path / "diagnostics" / "deepseek--deepseek-v4-flash-last-response.json"
+    )
+    assert "Authorization" not in diagnostic_path.read_text(encoding="utf-8")
+
+
 def test_invalid_response_keeps_durable_worst_case_reservation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

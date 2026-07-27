@@ -92,11 +92,12 @@ def _run(
     *,
     runtime_receipt_sha256: str = "3" * 64,
 ) -> dict[str, object]:
-    model_id = (
-        "qwen/qwen3.6-35b-a3b"
-        if config_id.startswith("qwen")
-        else "deepseek/deepseek-v4-flash"
-    )
+    model_id = {
+        "deepseek-v4-flash-direct": "deepseek/deepseek-v4-flash",
+        "gpt-5.4-nano-direct": "openai/gpt-5.4-nano",
+        "qwen3.6-35b-a3b-direct": "qwen/qwen3.6-35b-a3b",
+        "qwen3.6-35b-a3b-thinking": "qwen/qwen3.6-35b-a3b",
+    }.get(config_id, "deepseek/deepseek-v4-flash")
     return {
         "version": 1,
         "model_alias": config_id,
@@ -109,7 +110,27 @@ def _run(
                 "input_sha256": _hash(asdict(_cases()[index - 1])),
                 "decision": decision,
                 "failure": None,
-                "attempts": [{"parsed": decision}],
+                "attempts": [
+                    {
+                        "raw": json.dumps(decision, ensure_ascii=False),
+                        "response_body": {
+                            "model": model_id,
+                            "choices": [
+                                {
+                                    "message": {
+                                        "content": json.dumps(
+                                            decision, ensure_ascii=False
+                                        )
+                                    }
+                                }
+                            ],
+                            "usage": {"cost": 0.001},
+                        },
+                        "logical_model_id": model_id,
+                        "backend_model_id": model_id,
+                        "parsed": decision,
+                    }
+                ],
                 "elapsed_seconds": float(index),
                 "usage": {"cost": 0.001},
                 "model_alias": config_id,
@@ -134,8 +155,13 @@ def _receipt(config_id: str) -> dict[str, object]:
 
 def _v1_run() -> dict[str, object]:
     run = _run("legacy", [_decision() for _ in range(10)])
+    prompt_sha256 = hashlib.sha256(
+        load_prompt_contract(PROTOCOL_DIR, version="v1").prompt.encode("utf-8")
+    ).hexdigest()
+    run["prompt_sha256"] = prompt_sha256
     run["schema_sha256"] = FROZEN_DECISION_SCHEMA_SHA256
     for record in run["records"].values():
+        record["prompt_sha256"] = prompt_sha256
         record["schema_sha256"] = FROZEN_DECISION_SCHEMA_SHA256
     return run
 
@@ -217,7 +243,7 @@ def _inputs() -> dict[str, object]:
                 for config_id in CONFIGS
             ],
         },
-        "v1_runs": {"legacy": _v1_run()},
+        "v1_runs": {"v1_canary": _v1_run()},
     }
 
 
@@ -327,7 +353,7 @@ def test_run_receipt_and_manifest_identity_breaks_are_hard_gates() -> None:
     result = compare_runs(inputs)
 
     gates = result["configs"]["deepseek-v4-flash-direct"]["hard_gate_failures"]
-    assert "manifest_record_identity" in gates
+    assert "runner_record_validation" in gates
     assert "runtime_receipt_binding" in gates
 
 
@@ -429,7 +455,7 @@ def test_cli_writes_private_json_and_sanitized_markdown(tmp_path: Path) -> None:
         runs.extend(["--v2-run", f"{config_id}={run_path}"])
         receipts.extend(["--runtime-receipt", f"{config_id}={receipt_path}"])
     v1_path = artifact_dir / "legacy.json"
-    v1_path.write_text(json.dumps(inputs["v1_runs"]["legacy"]), encoding="utf-8")
+    v1_path.write_text(json.dumps(inputs["v1_runs"]["v1_canary"]), encoding="utf-8")
     v1_path.chmod(0o600)
     private_json = artifact_dir / "comparison.json"
     markdown = tmp_path / "report.md"
@@ -460,7 +486,7 @@ def test_cli_writes_private_json_and_sanitized_markdown(tmp_path: Path) -> None:
                 "--spend-receipt",
                 str(paths["spend_receipt"]),
                 "--v1-run",
-                f"legacy={v1_path}",
+                f"v1_canary={v1_path}",
                 "--output-json",
                 str(private_json),
                 "--output-markdown",
@@ -471,3 +497,52 @@ def test_cli_writes_private_json_and_sanitized_markdown(tmp_path: Path) -> None:
     )
     assert stat.S_IMODE(private_json.stat().st_mode) == 0o600
     assert "Private candidate answer" not in markdown.read_text(encoding="utf-8")
+
+
+def test_synthetic_v2_attempt_summary_cannot_pass_runner_validation() -> None:
+    """This fails if hand-written decisions and usage can masquerade as runner records."""
+    inputs = _inputs()
+    inputs["runs"]["deepseek-v4-flash-direct"]["records"]["r01"]["attempts"] = []
+    result = compare_runs(inputs)
+
+    assert (
+        "runner_record_validation"
+        in result["configs"]["deepseek-v4-flash-direct"]["hard_gate_failures"]
+    )
+
+
+def test_cross_model_pair_reports_its_exact_unavailable_coverage() -> None:
+    """This fails if incomplete cross-model pairs are averaged over a reduced subset."""
+    inputs = _inputs()
+    inputs["runs"]["gpt-5.4-nano-direct"]["records"]["r01"]["decision"] = None
+
+    result = compare_runs(inputs)
+
+    pair = result["configs"]["deepseek-v4-flash-direct"][
+        "cross_model_label_agreement_detail"
+    ]["gpt-5.4-nano-direct"]
+    assert pair == {
+        "available": False,
+        "numerator": None,
+        "denominator": 9,
+        "excluded_response_ids": ["r01"],
+    }
+
+
+def test_v1_terminal_record_must_use_real_attempts_and_frozen_parser() -> None:
+    """This fails if a v1 decision without a terminal runner attempt becomes evidence."""
+    inputs = _inputs()
+    inputs["v1_runs"]["v1_canary"]["records"]["r01"]["attempts"] = []
+
+    with pytest.raises(ValueError, match="v1 evidence"):
+        compare_runs(inputs)
+
+
+def test_v1_cli_name_is_not_rendered_into_sanitized_markdown() -> None:
+    """This fails if caller-controlled v1 names can inject private text into Markdown."""
+    inputs = _inputs()
+    injected = "private candidate | injected"
+    inputs["v1_runs"] = {injected: inputs["v1_runs"]["v1_canary"]}
+
+    with pytest.raises(ValueError, match="fixed v1_canary"):
+        compare_runs(inputs)

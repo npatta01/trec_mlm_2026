@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
 import hashlib
 import html
 import json
@@ -31,6 +30,10 @@ from trec_mlm.pointwise_runner import (
     FROZEN_DECISION_SCHEMA_SHA256,
     FROZEN_V2_DECISION_SCHEMA_SHA256,
     FROZEN_V2_PROMPT_SHA256,
+    _record_identity,
+    _validate_run_container,
+    _validated_same_identity_record,
+    trusted_run_backend_model,
 )
 
 
@@ -74,6 +77,7 @@ _QUOTED_SPAN = re.compile(r'"([^"\n]{1,240})"|“([^”\n]{1,240})”|`([^`\n]{1
 _PROTOCOL_DIR = (
     Path(__file__).resolve().parents[1] / "protocols" / "pointwise_judge_bakeoff"
 )
+_V1_EVIDENCE_IDS = ("v1_canary",)
 
 
 def permitted_claim(case_count: int) -> str:
@@ -207,6 +211,10 @@ def _compare_config(
     case_ids = [case.response_id for case in cases]
     gates = _identity_gates(config_id, run, receipt, expected_canary_identity)
     records = run.get("records")
+    try:
+        _validate_run_container(dict(run))
+    except (TypeError, ValueError):
+        gates.append("runner_record_validation")
     if type(records) is not dict:
         raise ValueError(f"{config_id} run records must be an object")
     if set(records) != set(case_ids):
@@ -214,7 +222,7 @@ def _compare_config(
     decisions: dict[str, dict[str, object] | None] = {}
     audit_records: dict[str, dict[str, object]] = {}
     elapsed = 0.0
-    cost = 0.0
+    cost: float | None = 0.0
     repair_attempts = 0
     retry_attempts = 0
     for response_id in case_ids:
@@ -223,36 +231,39 @@ def _compare_config(
             gates.append("record_coverage")
             decisions[response_id] = None
             continue
-        if record.get("input_sha256") != _json_hash(
-            asdict(cases[case_ids.index(response_id)])
-        ):
-            gates.append("manifest_record_identity")
-        for identity_key in (
-            "model_alias",
-            "model_id",
-            "prompt_sha256",
-            "schema_sha256",
-            "runtime_receipt_sha256",
-        ):
-            if record.get(identity_key) != run.get(identity_key):
-                gates.append("run_record_identity")
-        decision = record.get("decision")
-        attempts = record.get("attempts")
-        if type(attempts) is not list:
-            gates.append("attempt_evidence")
-            attempts = []
-        retry_attempts += max(0, len(attempts) - 1)
-        repair_attempts += int(len(attempts) > 1)
-        elapsed += _nonnegative_number(record.get("elapsed_seconds"), "elapsed_seconds")
-        usage = record.get("usage")
-        if type(usage) is not dict:
-            gates.append("usage")
-        else:
-            cost += _nonnegative_number(usage.get("cost", 0.0), "usage cost")
-        if record.get("failure") is not None or type(decision) is not dict:
+        identity = _record_identity(
+            cases[case_ids.index(response_id)],
+            model_alias=run.get("model_alias"),
+            model_id=run.get("model_id"),
+            prompt_sha256=run.get("prompt_sha256"),
+            schema_sha256=run.get("schema_sha256"),
+            runtime_receipt_sha256=run.get("runtime_receipt_sha256"),
+        )
+        try:
+            reusable = _validated_same_identity_record(
+                record,
+                identity,
+                backend_response_model=receipt["backend_response_model"],
+                version="v2",
+            )
+        except (KeyError, TypeError, ValueError):
+            gates.append("runner_record_validation")
+            decisions[response_id] = None
+            continue
+        if not reusable.terminal or record.get("decision") is None:
             gates.append("terminal_decision")
             decisions[response_id] = None
             continue
+        retry_attempts += max(0, len(reusable.attempts) - 1)
+        repair_attempts += int(len(reusable.attempts) > 1)
+        elapsed += reusable.elapsed_seconds
+        attempt_cost = reusable.usage.get("cost")
+        if not _finite_nonnegative(attempt_cost):
+            gates.append("usage")
+            cost = None
+        elif cost is not None:
+            cost += float(attempt_cost)
+        decision = record["decision"]
         try:
             parsed = _validated_v2_decision(decision)
         except ValueError:
@@ -479,6 +490,7 @@ def _add_cross_model_agreement(
 ) -> None:
     for config_id in CONFIGS:
         scores: list[float] = []
+        pair_details: dict[str, dict[str, object]] = {}
         for other in CONFIGS:
             if other == config_id:
                 continue
@@ -488,18 +500,35 @@ def _add_cross_model_agreement(
                 if decisions[config_id][response_id] is not None
                 and decisions[other][response_id] is not None
             ]
-            if comparable:
-                scores.append(
-                    sum(
-                        decisions[config_id][response_id]["label"]
-                        == decisions[other][response_id]["label"]
-                        for response_id in comparable
-                    )
-                    / len(comparable)
-                )
+            excluded = [
+                response_id for response_id in case_ids if response_id not in comparable
+            ]
+            if excluded:
+                pair_details[other] = {
+                    "available": False,
+                    "numerator": None,
+                    "denominator": len(comparable),
+                    "excluded_response_ids": excluded,
+                }
+                continue
+            numerator = sum(
+                decisions[config_id][response_id]["label"]
+                == decisions[other][response_id]["label"]
+                for response_id in comparable
+            )
+            score = numerator / len(comparable)
+            scores.append(score)
+            pair_details[other] = {
+                "available": True,
+                "numerator": numerator,
+                "denominator": len(comparable),
+                "excluded_response_ids": [],
+            }
+        available = all(detail["available"] for detail in pair_details.values())
         config_results[config_id]["cross_model_label_agreement"] = (
-            sum(scores) / len(scores) if scores else None
+            sum(scores) / len(scores) if available and scores else None
         )
+        config_results[config_id]["cross_model_label_agreement_detail"] = pair_details
 
 
 def _qwen_changes(
@@ -552,32 +581,53 @@ def _v1_differences(
     cases: Sequence[CandidateCase],
 ) -> dict[str, object]:
     case_ids = [case.response_id for case in cases]
+    if set(v1_runs) != set(_V1_EVIDENCE_IDS):
+        raise ValueError("v1 evidence must use the fixed v1_canary identifier")
     result: dict[str, object] = {}
     for name, raw_run in v1_runs.items():
-        if type(name) is not str or type(raw_run) is not dict:
+        if type(raw_run) is not dict:
             raise ValueError("v1 runs must map names to run objects")
+        try:
+            _validate_run_container(raw_run)
+        except ValueError as error:
+            raise ValueError("v1 evidence run container is invalid") from error
         records = raw_run.get("records")
         if type(records) is not dict:
             raise ValueError("v1 run records must be an object")
         if raw_run.get("schema_sha256") != FROZEN_DECISION_SCHEMA_SHA256:
             raise ValueError("v1 evidence does not use the frozen v1 schema")
+        expected_v1_prompt = hashlib.sha256(
+            load_prompt_contract(_PROTOCOL_DIR, version="v1").prompt.encode("utf-8")
+        ).hexdigest()
+        if raw_run.get("prompt_sha256") != expected_v1_prompt:
+            raise ValueError("v1 evidence does not use the frozen v1 prompt")
         if set(records) != set(case_ids):
             raise ValueError("v1 evidence coverage does not match the manifest")
+        try:
+            backend_response_model = trusted_run_backend_model(raw_run, case_ids)
+        except ValueError as error:
+            raise ValueError("v1 evidence backend identity is invalid") from error
         for case in cases:
             record = records[case.response_id]
-            if type(record) is not dict or record.get("input_sha256") != _json_hash(
-                asdict(case)
-            ):
-                raise ValueError("v1 evidence record identity is invalid")
-            for key in (
-                "model_alias",
-                "model_id",
-                "prompt_sha256",
-                "schema_sha256",
-                "runtime_receipt_sha256",
-            ):
-                if record.get(key) != raw_run.get(key):
-                    raise ValueError("v1 evidence run identity is invalid")
+            identity = _record_identity(
+                case,
+                model_alias=raw_run["model_alias"],
+                model_id=raw_run["model_id"],
+                prompt_sha256=raw_run["prompt_sha256"],
+                schema_sha256=raw_run["schema_sha256"],
+                runtime_receipt_sha256=raw_run["runtime_receipt_sha256"],
+            )
+            try:
+                reusable = _validated_same_identity_record(
+                    record,
+                    identity,
+                    backend_response_model=backend_response_model,
+                    version="v1",
+                )
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError("v1 evidence terminal record is invalid") from error
+            if not reusable.terminal:
+                raise ValueError("v1 evidence terminal record is incomplete")
         for config_id, decisions in v2_decisions.items():
             differences: list[dict[str, object]] = []
             for response_id in case_ids:
@@ -810,7 +860,12 @@ def _accounting_gates(
         if type(run) is dict
         for response_id in run.get("records", {})
     )
-    recorded_cost = sum(float(result["cost_usd"]) for result in config_results.values())
+    costs = [result["cost_usd"] for result in config_results.values()]
+    if any(not _finite_nonnegative(cost) for cost in costs):
+        gates.append("accounting_reconciliation")
+        recorded_cost = None
+    else:
+        recorded_cost = sum(float(cost) for cost in costs)
     if (
         attempts["used_calls"] < semantic_attempts
         or len(markers) != attempts["used_calls"]
@@ -818,7 +873,9 @@ def _accounting_gates(
         gates.append("accounting_reconciliation")
     if not _valid_spend_receipt(spend_receipt, runs, spend, attempts):
         gates.append("accounting_reconciliation")
-    if not math.isclose(recorded_cost, float(spend["spent_usd"]), abs_tol=1e-12):
+    if recorded_cost is None or not math.isclose(
+        recorded_cost, float(spend["spent_usd"]), abs_tol=1e-12
+    ):
         gates.append("accounting_reconciliation")
     return sorted(set(gates))
 
@@ -998,9 +1055,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     v1_paths: dict[str, Path] = {}
     for value in args.v1_run:
         name, separator, raw_path = value.partition("=")
-        if not separator or not name or not raw_path or name in v1_paths:
-            raise ValueError("v1 runs must use unique NAME=PATH values")
+        if (
+            not separator
+            or name not in _V1_EVIDENCE_IDS
+            or not raw_path
+            or name in v1_paths
+        ):
+            raise ValueError("v1 runs must use the fixed v1_canary=PATH value")
         v1_paths[name] = Path(raw_path)
+    if set(v1_paths) != set(_V1_EVIDENCE_IDS):
+        raise ValueError("v1 evidence must supply v1_canary=PATH")
     marker_dir = args.attempt_marker_dir
     if not marker_dir.is_dir() or stat.S_IMODE(marker_dir.stat().st_mode) != 0o700:
         raise ValueError("attempt marker directory must be mode 0700")

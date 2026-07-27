@@ -99,6 +99,24 @@ def test_attempt_ledger_restores_interrupted_count_privately(tmp_path: Path) -> 
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
+def test_private_atomic_write_fsyncs_file_and_parent_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    synced_file_types: list[str] = []
+    real_fsync = hosted.os.fsync
+
+    def record_fsync(descriptor: int) -> None:
+        mode = hosted.os.fstat(descriptor).st_mode
+        synced_file_types.append("directory" if stat.S_ISDIR(mode) else "file")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(hosted.os, "fsync", record_fsync)
+    hosted._write_attempt_ledger(
+        tmp_path / "state" / "attempt-ledger.json", hosted.AttemptBudget(100, 1)
+    )
+    assert synced_file_types == ["file", "directory"]
+
+
 def test_retry_persists_each_attempt_before_the_physical_send(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -328,6 +346,55 @@ def test_v2_main_keys_artifacts_by_config_and_counts_schema_repair(
     assert (
         output_dir / "diagnostics" / "qwen3.6-35b-a3b-thinking-last-response.json"
     ).exists()
+
+
+def test_legacy_v1_resume_does_not_require_a_preexisting_attempt_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = Path("artifacts/pointwise_judge_bakeoff/smoke-v2/smoke_manifest.json")
+    output_dir = tmp_path / "hosted-v1"
+    physical_sends = 0
+
+    def hosted_response(request: object, **_kwargs: object) -> object:
+        nonlocal physical_sends
+        physical_sends += 1
+        payload = json.loads(request.data.decode("utf-8"))
+        return {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": json.dumps(VALID_DECISION)},
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "total_tokens": 120,
+                "cost": 0.0001,
+            },
+            "model": payload["model"],
+        }
+
+    monkeypatch.setattr(hosted, "_post_json", hosted_response)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    args = [
+        "--manifest",
+        str(manifest),
+        "--manifest-sha256",
+        hosted.hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "--protocol-dir",
+        "protocols/pointwise_judge_bakeoff",
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "deepseek/deepseek-v4-flash",
+    ]
+    assert hosted.main(args) == 0
+    assert physical_sends == 10
+    (output_dir / "attempt-ledger.json").unlink()
+
+    assert hosted.main(args) == 0
+    assert physical_sends == 10
 
 
 def _router_metadata(

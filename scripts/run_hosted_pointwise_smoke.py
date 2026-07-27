@@ -558,6 +558,14 @@ def _write_private_json(path: Path, value: object) -> None:
             os.fsync(handle.fileno())
         os.replace(temporary, path)
         os.chmod(path, 0o600)
+        directory_flags = (
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_DIRECTORY", 0)
+        )
+        directory_descriptor = os.open(path.parent, directory_flags)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
     except BaseException:
         try:
             os.close(descriptor)
@@ -943,7 +951,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         selected_existing_attempts += existing_semantic_attempts
-        if attempt_budget.used_calls < selected_existing_attempts:
+        if version == "v2" and attempt_budget.used_calls < selected_existing_attempts:
             raise ValueError(
                 "attempt ledger is below the validated existing attempt count"
             )

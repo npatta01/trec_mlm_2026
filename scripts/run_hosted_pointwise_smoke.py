@@ -366,7 +366,10 @@ def _parse_response(
     if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:
         raise ValueError("OpenRouter response must contain exactly one choice")
     choice = choices[0]
-    if choice.get("finish_reason") != "stop":
+    finish_reason = choice.get("finish_reason")
+    if finish_reason != "stop" and not (
+        spec.config_id is not None and finish_reason == "length"
+    ):
         raise ValueError("OpenRouter response finish_reason must be stop")
     message = choice.get("message")
     if type(message) is not dict or type(message.get("content")) is not str:

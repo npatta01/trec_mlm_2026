@@ -484,6 +484,196 @@ def _valid_hosted_response(request: object) -> dict[str, object]:
     }
 
 
+def _qwen_thinking_response(
+    spec: hosted.ModelSpec,
+    *,
+    content: str,
+    finish_reason: str | None,
+    completion_tokens: int,
+    cost: float,
+) -> dict[str, object]:
+    return {
+        "id": "gen-test-qwen-thinking",
+        "provider": spec.provider,
+        "model": spec.model_id,
+        "object": "chat.completion",
+        "created": 1_785_120_000,
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": finish_reason,
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning": "The private reasoning trace is not semantic output.",
+                },
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": completion_tokens,
+            "total_tokens": 100 + completion_tokens,
+            "cost": cost,
+            "completion_tokens_details": {
+                "reasoning_tokens": min(890, completion_tokens)
+            },
+            "cost_details": {
+                "upstream_inference_cost": cost,
+            },
+        },
+    }
+
+
+def test_qwen_thinking_length_output_is_repaired_once_and_fully_accounted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "hosted-v2"
+    spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    incomplete = '{\n  "label": "good",\n  "confidence":'
+    physical_sends = 0
+
+    def respond(_request: object, **_kwargs: object) -> object:
+        nonlocal physical_sends
+        physical_sends += 1
+        if physical_sends == 1:
+            return _qwen_thinking_response(
+                spec,
+                content=incomplete,
+                finish_reason="length",
+                completion_tokens=4_096,
+                cost=0.004,
+            )
+        return _qwen_thinking_response(
+            spec,
+            content=json.dumps(VALID_DECISION),
+            finish_reason="stop",
+            completion_tokens=20,
+            cost=0.0001,
+        )
+
+    monkeypatch.setattr(hosted, "_post_json", respond)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+
+    assert (
+        hosted.main(
+            [
+                *_v2_main_args(output_dir, spec.config_id),
+                "--call-cap",
+                "11",
+            ]
+        )
+        == 0
+    )
+
+    run = json.loads(
+        (output_dir / "runs" / f"{spec.config_id}.json").read_text(encoding="utf-8")
+    )
+    repaired = [
+        record for record in run["records"].values() if len(record["attempts"]) == 2
+    ]
+    assert len(repaired) == 1
+    record = repaired[0]
+    assert record["attempts"][0]["raw"] == incomplete
+    assert (
+        record["attempts"][0]["response_body"]["openrouter_raw_response_body"][
+            "choices"
+        ][0]["finish_reason"]
+        == "length"
+    )
+    assert record["attempts"][0]["parsed"] is None
+    assert "valid JSON" in record["attempts"][0]["error"]
+    assert record["attempts"][1]["parsed"] == VALID_DECISION
+    assert record["decision"] == VALID_DECISION
+    assert record["failure"] is None
+    assert record["usage"]["prompt_tokens"] == 200
+    assert record["usage"]["completion_tokens"] == 4_116
+    assert record["usage"]["total_tokens"] == 4_316
+    assert record["usage"]["cost"] == pytest.approx(0.0041)
+    assert physical_sends == 11
+    assert (
+        json.loads((output_dir / "attempt-ledger.json").read_text(encoding="utf-8"))[
+            "used_calls"
+        ]
+        == 11
+    )
+    assert json.loads((output_dir / "spend-receipt.json").read_text(encoding="utf-8"))[
+        "spent_usd"
+    ] == pytest.approx(0.005)
+
+
+def test_qwen_thinking_second_length_failure_is_terminal_and_later_cases_continue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "hosted-v2"
+    spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    incomplete = '{\n  "label": "good",\n  "confidence":'
+    physical_sends = 0
+
+    def respond(_request: object, **_kwargs: object) -> object:
+        nonlocal physical_sends
+        physical_sends += 1
+        if physical_sends in {2, 3}:
+            return _qwen_thinking_response(
+                spec,
+                content=incomplete,
+                finish_reason="length",
+                completion_tokens=4_096,
+                cost=0.004,
+            )
+        return _qwen_thinking_response(
+            spec,
+            content=json.dumps(VALID_DECISION),
+            finish_reason="stop",
+            completion_tokens=20,
+            cost=0.0001,
+        )
+
+    monkeypatch.setattr(hosted, "_post_json", respond)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+
+    assert (
+        hosted.main(
+            [
+                *_v2_main_args(output_dir, spec.config_id),
+                "--call-cap",
+                "11",
+            ]
+        )
+        == 0
+    )
+
+    run = json.loads(
+        (output_dir / "runs" / f"{spec.config_id}.json").read_text(encoding="utf-8")
+    )
+    failed = [
+        record for record in run["records"].values() if record["decision"] is None
+    ]
+    assert len(run["records"]) == 10
+    assert len(failed) == 1
+    record = failed[0]
+    assert len(record["attempts"]) == 2
+    assert all(attempt["raw"] == incomplete for attempt in record["attempts"])
+    assert record["failure"]["type"] == "invalid_decision_after_repair"
+    assert record["usage"]["prompt_tokens"] == 200
+    assert record["usage"]["completion_tokens"] == 8_192
+    assert record["usage"]["total_tokens"] == 8_392
+    assert record["usage"]["cost"] == pytest.approx(0.008)
+    assert (
+        sum(item["decision"] == VALID_DECISION for item in run["records"].values()) == 9
+    )
+    assert physical_sends == 11
+    assert (
+        json.loads((output_dir / "attempt-ledger.json").read_text(encoding="utf-8"))[
+            "used_calls"
+        ]
+        == 11
+    )
+    assert json.loads((output_dir / "spend-receipt.json").read_text(encoding="utf-8"))[
+        "spent_usd"
+    ] == pytest.approx(0.0089)
+
+
 def test_v2_resume_rejects_missing_ledger_before_a_fresh_config_can_send(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1449,7 +1639,7 @@ def test_response_rejects_missing_wrong_or_ambiguous_router_metadata(
         hosted._parse_response(body, spec)
 
 
-def test_response_rejects_length_stop_and_missing_numeric_cost() -> None:
+def test_v1_response_rejects_length_and_missing_numeric_cost() -> None:
     spec = hosted.MODEL_SPECS["openai/gpt-5.4-nano"]
     body = {
         "model": spec.model_id,
@@ -1467,6 +1657,23 @@ def test_response_rejects_length_stop_and_missing_numeric_cost() -> None:
     body["choices"][0]["finish_reason"] = "stop"
     body["usage"].pop("cost")
     with pytest.raises(ValueError, match="cost"):
+        hosted._parse_response(body, spec)
+
+
+@pytest.mark.parametrize("finish_reason", ["tool_calls", "content_filter", None])
+def test_v2_response_rejects_nonterminal_finish_reasons_other_than_length(
+    finish_reason: str | None,
+) -> None:
+    spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    body = _qwen_thinking_response(
+        spec,
+        content=json.dumps(VALID_DECISION),
+        finish_reason=finish_reason,
+        completion_tokens=20,
+        cost=0.0001,
+    )
+
+    with pytest.raises(ValueError, match="finish_reason"):
         hosted._parse_response(body, spec)
 
 

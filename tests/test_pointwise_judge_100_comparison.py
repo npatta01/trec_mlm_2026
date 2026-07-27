@@ -9,7 +9,11 @@ import stat
 
 import pytest
 
-from scripts.build_pointwise_judge_100_comparison import build_comparison, main
+from scripts.build_pointwise_judge_100_comparison import (
+    _validate_runtime_trust,
+    build_comparison as _build_comparison,
+    main,
+)
 from trec_mlm.pointwise_judge import CandidateCase, parse_judge_decision
 from trec_mlm.pointwise_runner import FROZEN_DECISION_SCHEMA_SHA256
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
@@ -44,7 +48,7 @@ def _json_hash(value: object) -> str:
 
 
 def _decision(label: str) -> dict[str, object]:
-    score = {"incorrect": 0, "partial": 2, "good": 4}[label]
+    score = {"incorrect": 0, "partial": 2, "good": 4, "uncertain": 2}[label]
     return {
         "label": label,
         "correctness": score,
@@ -95,8 +99,8 @@ def _record(
     label: str | None,
     elapsed: float,
     total_tokens: int,
+    backend_model_id: str,
 ) -> dict[str, object]:
-    backend_model_id = f"/private/{alias}.gguf"
     identity = {
         "input_sha256": _json_hash(asdict(case)),
         "prompt_sha256": "1" * 64,
@@ -151,7 +155,9 @@ def _run(
     *,
     cases: list[CandidateCase] = CASES,
 ) -> dict[str, object]:
-    receipt = hashlib.sha256(alias.encode()).hexdigest()
+    backend_model_id = "/private/shared-model.gguf"
+    observation = _runtime_observation(backend_model_id, "thinking" in alias)
+    receipt = _json_hash(observation)
     return {
         "version": 1,
         "model_alias": alias,
@@ -168,12 +174,71 @@ def _run(
                 label=label,
                 elapsed=seconds,
                 total_tokens=token_count,
+                backend_model_id=backend_model_id,
             )
             for case, label, seconds, token_count in zip(
                 cases, labels, elapsed, tokens, strict=True
             )
         },
     }
+
+
+def _runtime_observation(backend_model_id: str, thinking: bool) -> dict[str, object]:
+    return {
+        "schema_sha256": FROZEN_DECISION_SCHEMA_SHA256,
+        "transport": "lemonade-11.5-llamacpp-rocm",
+        "backend_model": "logical-backend",
+        "backend_response_model": backend_model_id,
+        "thinking": thinking,
+        "thinking_control_omitted": False,
+        "reasoning_effort": None,
+        "max_output_tokens": 4096,
+        "schema_transport_adjustment": (
+            "rationale.maxLength and error_flags.uniqueItems omitted; frozen parser retained"
+        ),
+    }
+
+
+def build_comparison(*args: object, **kwargs: object) -> dict[str, object]:
+    direct = args[1]
+    thinking = args[2]
+    input_hashes = dict(kwargs["input_hashes"])
+    input_hashes.update(
+        {
+            "direct_runtime_observation": "e" * 64,
+            "thinking_runtime_observation": "f" * 64,
+            "runtime_binding": "9" * 64,
+        }
+    )
+    observations = {
+        "direct": _runtime_observation("/private/shared-model.gguf", False),
+        "thinking": _runtime_observation("/private/shared-model.gguf", True),
+    }
+    binding = {
+        "version": 1,
+        "shared_configuration": {
+            "context_tokens": 8192,
+            "max_output_tokens": 4096,
+            "temperature": 0,
+        },
+        "roles": {
+            role: {
+                "run_sha256": input_hashes[f"{role}_run"],
+                "runtime_receipt_sha256": run["runtime_receipt_sha256"],
+                "thinking": role == "thinking",
+            }
+            for role, run in (("direct", direct), ("thinking", thinking))
+        },
+    }
+    return _build_comparison(
+        *args,
+        **{
+            **kwargs,
+            "input_hashes": input_hashes,
+            "runtime_observations": observations,
+            "runtime_binding": binding,
+        },
+    )
 
 
 def _inputs() -> tuple[dict[str, object], dict[str, object]]:
@@ -223,9 +288,10 @@ def test_comparison_reports_direction_strata_reused_slice_costs_and_failures() -
         "nonadjacent_count": 1,
     }
     assert comparison["confusion_matrix"]["counts"] == [
-        [0, 1, 0],
-        [0, 0, 1],
-        [1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 0],
     ]
     assert comparison["transitions"] == [
         {"direct_label": "incorrect", "thinking_label": "partial", "count": 1},
@@ -248,6 +314,142 @@ def test_comparison_reports_direction_strata_reused_slice_costs_and_failures() -
     assert comparison["case_differences"][-1]["direct_status"] == "failure"
     assert comparison["case_differences"][-1]["thinking_status"] == "decision"
     assert "correct" not in comparison["headline"].casefold()
+
+
+def test_uncertain_is_exact_only_and_nonordinal_for_adjacency() -> None:
+    direct = _run(
+        "private-direct-alias",
+        "org/private-direct-model",
+        ["uncertain", "uncertain", "partial", "good"],
+        [1.0] * 4,
+        [10] * 4,
+    )
+    thinking = _run(
+        "private-thinking-alias",
+        "org/private-thinking-model",
+        ["uncertain", "partial", "uncertain", "good"],
+        [1.0] * 4,
+        [10] * 4,
+    )
+
+    comparison = build_comparison(
+        CASES,
+        direct,
+        thinking,
+        reused_response_ids=[],
+        input_hashes={
+            "manifest": "a" * 64,
+            "sealed_candidates": "d" * 64,
+            "direct_run": "b" * 64,
+            "thinking_run": "c" * 64,
+        },
+        sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+        alias_secret=ALIAS_SECRET,
+    )["comparison"]
+
+    assert comparison["agreement"] == {
+        "paired_valid_decisions": 4,
+        "exact_count": 2,
+        "exact_rate": 0.5,
+        "within_one_label_count": 2,
+        "within_one_label_rate": 0.5,
+        "nonadjacent_count": 2,
+    }
+    assert comparison["confusion_matrix"]["counts"][3] == [0, 1, 0, 1]
+
+
+def test_comparison_pins_one_backend_for_every_record() -> None:
+    direct, thinking = _inputs()
+    attempt = direct["records"][CASES[1].response_id]["attempts"][0]
+    attempt["backend_model_id"] = "foreign-model"
+    attempt["response_body"]["model"] = "foreign-model"
+
+    with pytest.raises(ValueError, match="wrong model"):
+        build_comparison(
+            CASES,
+            direct,
+            thinking,
+            reused_response_ids=[],
+            input_hashes={
+                "manifest": "a" * 64,
+                "sealed_candidates": "d" * 64,
+                "direct_run": "b" * 64,
+                "thinking_run": "c" * 64,
+            },
+            sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+            alias_secret=ALIAS_SECRET,
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation, message",
+    [
+        ("swapped", "observation|thinking role"),
+        ("duplicate", "distinct"),
+        ("context", "frozen shared configuration"),
+        ("temperature", "frozen shared configuration"),
+        ("role", "prove direct role"),
+    ],
+)
+def test_runtime_trust_rejects_swaps_duplicates_and_setting_drift(
+    mutation: str, message: str
+) -> None:
+    direct, thinking = _inputs()
+    hashes = {
+        "manifest": "a" * 64,
+        "sealed_candidates": "d" * 64,
+        "direct_run": "b" * 64,
+        "thinking_run": "c" * 64,
+        "direct_runtime_observation": "e" * 64,
+        "thinking_runtime_observation": "f" * 64,
+        "runtime_binding": "9" * 64,
+    }
+    observations = {
+        "direct": _runtime_observation("/private/shared-model.gguf", False),
+        "thinking": _runtime_observation("/private/shared-model.gguf", True),
+    }
+    binding = {
+        "version": 1,
+        "shared_configuration": {
+            "context_tokens": 8192,
+            "max_output_tokens": 4096,
+            "temperature": 0,
+        },
+        "roles": {
+            "direct": {
+                "run_sha256": hashes["direct_run"],
+                "runtime_receipt_sha256": direct["runtime_receipt_sha256"],
+                "thinking": False,
+            },
+            "thinking": {
+                "run_sha256": hashes["thinking_run"],
+                "runtime_receipt_sha256": thinking["runtime_receipt_sha256"],
+                "thinking": True,
+            },
+        },
+    }
+    if mutation == "swapped":
+        observations["direct"], observations["thinking"] = (
+            observations["thinking"],
+            observations["direct"],
+        )
+    elif mutation == "duplicate":
+        hashes["thinking_run"] = hashes["direct_run"]
+    elif mutation == "context":
+        binding["shared_configuration"]["context_tokens"] = 4096
+    elif mutation == "temperature":
+        binding["shared_configuration"]["temperature"] = 1
+    else:
+        binding["roles"]["direct"]["thinking"] = True
+
+    with pytest.raises(ValueError, match=message):
+        _validate_runtime_trust(
+            direct,
+            thinking,
+            runtime_observations=observations,
+            runtime_binding=binding,
+            input_hashes=hashes,
+        )
 
 
 def test_review_packets_hide_mode_and_model_identity() -> None:
@@ -570,12 +772,46 @@ def _cli_inputs(tmp_path: Path) -> tuple[list[str], Path]:
     sealed_path = private / "sealed_candidates.json"
     direct_path = private / "direct.json"
     thinking_path = private / "thinking.json"
+    direct_observation_path = private / "direct-runtime.json"
+    thinking_observation_path = private / "thinking-runtime.json"
+    runtime_binding_path = private / "runtime-binding.json"
     hashes = {
         "manifest": _write_private_json(manifest_path, manifest),
         "sealed": _write_private_json(sealed_path, sealed),
         "direct": _write_private_json(direct_path, direct),
         "thinking": _write_private_json(thinking_path, thinking),
+        "direct_observation": _write_private_json(
+            direct_observation_path,
+            _runtime_observation("/private/shared-model.gguf", False),
+        ),
+        "thinking_observation": _write_private_json(
+            thinking_observation_path,
+            _runtime_observation("/private/shared-model.gguf", True),
+        ),
     }
+    runtime_binding = {
+        "version": 1,
+        "shared_configuration": {
+            "context_tokens": 8192,
+            "max_output_tokens": 4096,
+            "temperature": 0,
+        },
+        "roles": {
+            "direct": {
+                "run_sha256": hashes["direct"],
+                "runtime_receipt_sha256": direct["runtime_receipt_sha256"],
+                "thinking": False,
+            },
+            "thinking": {
+                "run_sha256": hashes["thinking"],
+                "runtime_receipt_sha256": thinking["runtime_receipt_sha256"],
+                "thinking": True,
+            },
+        },
+    }
+    hashes["runtime_binding"] = _write_private_json(
+        runtime_binding_path, runtime_binding
+    )
     output = private / "output"
     return [
         "--manifest",
@@ -594,6 +830,18 @@ def _cli_inputs(tmp_path: Path) -> tuple[list[str], Path]:
         str(thinking_path),
         "--thinking-run-sha256",
         hashes["thinking"],
+        "--direct-runtime-observation",
+        str(direct_observation_path),
+        "--direct-runtime-observation-sha256",
+        hashes["direct_observation"],
+        "--thinking-runtime-observation",
+        str(thinking_observation_path),
+        "--thinking-runtime-observation-sha256",
+        hashes["thinking_observation"],
+        "--runtime-binding",
+        str(runtime_binding_path),
+        "--runtime-binding-sha256",
+        hashes["runtime_binding"],
         "--output-dir",
         str(output),
         "--seed",

@@ -17,6 +17,7 @@ from trec_mlm.pointwise_runner import (
     FROZEN_DECISION_SCHEMA_SHA256,
     _validate_run_container,
     _validated_same_identity_record,
+    trusted_run_backend_model,
 )
 
 
@@ -99,19 +100,12 @@ def build_critique_packet(
             raise ValueError(
                 f"run {model_alias} response coverage does not match cases"
             )
-        first_record = records[validated_cases[0].response_id]
-        if type(first_record) is not dict:
-            raise ValueError(f"run {model_alias} record must be an object")
-        first_attempts = first_record.get("attempts")
-        if (
-            type(first_attempts) is not list
-            or not first_attempts
-            or type(first_attempts[0]) is not dict
-        ):
-            raise ValueError(f"run {model_alias} record attempt structure is invalid")
-        backend_response_model = first_attempts[0].get("backend_model_id")
-        if type(backend_response_model) is not str or not backend_response_model:
-            raise ValueError(f"run {model_alias} backend identity is invalid")
+        try:
+            backend_response_model = trusted_run_backend_model(
+                run, [case.response_id for case in validated_cases]
+            )
+        except ValueError as error:
+            raise ValueError(f"run {model_alias} {error}") from error
         judge_alias = model_to_judge[model_alias]
         decisions[judge_alias] = {}
         for case in validated_cases:

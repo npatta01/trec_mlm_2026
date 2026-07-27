@@ -699,6 +699,25 @@ def _trusted_backend_response_model(
     return value
 
 
+def trusted_run_backend_model(
+    run: Mapping[str, object], record_ids: Sequence[str]
+) -> str:
+    """Pin one nonempty backend identity from a run's first ordered record."""
+    records = run.get("records")
+    if type(records) is not dict or not record_ids:
+        raise ValueError("run backend identity cannot be pinned")
+    first = records.get(record_ids[0])
+    if type(first) is not dict:
+        raise ValueError("run record must be an object")
+    attempts = first.get("attempts")
+    if type(attempts) is not list or not attempts or type(attempts[0]) is not dict:
+        raise ValueError("run record attempt structure is invalid")
+    backend_model = attempts[0].get("backend_model_id")
+    if type(backend_model) is not str or not backend_model:
+        raise ValueError("run backend identity is invalid")
+    return backend_model
+
+
 def _validate_run_container(value: dict[str, Any]) -> None:
     if set(value) != _RUN_KEYS:
         raise ValueError("corrupt existing run: expected exact top-level keys")

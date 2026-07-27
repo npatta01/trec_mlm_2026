@@ -12,6 +12,7 @@ from trec_mlm.pointwise_runner import (
     FROZEN_DECISION_SCHEMA_SHA256,
     _validate_run_container,
     _validated_same_identity_record,
+    trusted_run_backend_model,
 )
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
@@ -280,19 +281,7 @@ def _validated_run(
     case_ids = [case.response_id for case in cases]
     if type(records) is not dict or set(records) != set(case_ids):
         raise ValueError("run response coverage does not match cases")
-    first_record = records[case_ids[0]]
-    if type(first_record) is not dict:
-        raise ValueError("run record must be an object")
-    first_attempts = first_record.get("attempts")
-    if (
-        type(first_attempts) is not list
-        or not first_attempts
-        or type(first_attempts[0]) is not dict
-    ):
-        raise ValueError("run record attempt structure is invalid")
-    backend_response_model = first_attempts[0].get("backend_model_id")
-    if type(backend_response_model) is not str or not backend_response_model:
-        raise ValueError("run backend identity is invalid")
+    backend_response_model = trusted_run_backend_model(run, case_ids)
     result: dict[str, dict[str, object]] = {}
     for case in cases:
         response_id = case.response_id

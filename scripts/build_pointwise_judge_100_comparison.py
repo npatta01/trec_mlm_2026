@@ -26,15 +26,25 @@ from trec_mlm.pointwise_runner import (
     FROZEN_DECISION_SCHEMA_SHA256,
     _validate_run_container,
     _validated_same_identity_record,
+    trusted_run_backend_model,
 )
 
 
-_LABELS = ("incorrect", "partial", "good")
+_LABELS = ("incorrect", "partial", "good", "uncertain")
+_ORDINAL_LABEL_RANK = {"incorrect": 0, "partial": 1, "good": 2}
+_FROZEN_MODE_CONFIGURATION = {
+    "context_tokens": 8192,
+    "max_output_tokens": 4096,
+    "temperature": 0,
+}
 _INPUT_HASH_KEYS = {
     "manifest",
     "sealed_candidates",
     "direct_run",
     "thinking_run",
+    "direct_runtime_observation",
+    "thinking_runtime_observation",
+    "runtime_binding",
 }
 _IDENTITY_KEYS = {
     "input_sha256",
@@ -57,6 +67,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--direct-run-sha256", required=True)
     parser.add_argument("--thinking-run", type=Path, required=True)
     parser.add_argument("--thinking-run-sha256", required=True)
+    parser.add_argument("--direct-runtime-observation", type=Path, required=True)
+    parser.add_argument("--direct-runtime-observation-sha256", required=True)
+    parser.add_argument("--thinking-runtime-observation", type=Path, required=True)
+    parser.add_argument("--thinking-runtime-observation-sha256", required=True)
+    parser.add_argument("--runtime-binding", type=Path, required=True)
+    parser.add_argument("--runtime-binding-sha256", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=2026)
     return parser
@@ -71,6 +87,8 @@ def build_comparison(
     input_hashes: Mapping[str, str],
     sealed_candidate_ids: Collection[str],
     alias_secret: bytes,
+    runtime_observations: Mapping[str, Mapping[str, object]],
+    runtime_binding: Mapping[str, object],
     seed: int = 2026,
 ) -> dict[str, object]:
     """Build private comparison data and blind review packets."""
@@ -84,9 +102,23 @@ def build_comparison(
     if type(alias_secret) is not bytes or len(alias_secret) != 32:
         raise ValueError("mode-alias secret must contain exactly 32 bytes")
     reused = _validate_reused_ids(reused_response_ids, validated_cases)
+    trusted_runtime = _validate_runtime_trust(
+        direct_run,
+        thinking_run,
+        runtime_observations=runtime_observations,
+        runtime_binding=runtime_binding,
+        input_hashes=hashes,
+    )
     validated_runs = {
-        "direct": _validate_run("direct", direct_run, validated_cases),
-        "thinking": _validate_run("thinking", thinking_run, validated_cases),
+        "direct": _validate_run(
+            "direct", direct_run, validated_cases, trusted_runtime["backend_model_id"]
+        ),
+        "thinking": _validate_run(
+            "thinking",
+            thinking_run,
+            validated_cases,
+            trusted_runtime["backend_model_id"],
+        ),
     }
     direct = validated_runs["direct"]
     thinking = validated_runs["thinking"]
@@ -229,7 +261,10 @@ def _validate_reused_ids(
 
 
 def _validate_run(
-    role: str, raw_run: Mapping[str, object], cases: Sequence[CandidateCase]
+    role: str,
+    raw_run: Mapping[str, object],
+    cases: Sequence[CandidateCase],
+    backend_model: str,
 ) -> dict[str, object]:
     if type(raw_run) is not dict:
         raise ValueError(f"{role} run must be an object")
@@ -243,6 +278,11 @@ def _validate_run(
     expected_ids = {case.response_id for case in cases}
     if set(run["records"]) != expected_ids:
         raise ValueError(f"{role} run coverage does not match cases")
+    pinned_backend = trusted_run_backend_model(
+        run, [case.response_id for case in cases]
+    )
+    if pinned_backend != backend_model:
+        raise ValueError(f"{role} run backend identity does not match runtime trust")
 
     outcomes: dict[str, dict[str, object]] = {}
     elapsed_total = 0.0
@@ -263,12 +303,6 @@ def _validate_run(
         for key, expected in expected_identity.items():
             if record.get(key) != expected:
                 raise ValueError(f"{role} run record {key} binding is invalid")
-        attempts = record.get("attempts")
-        if type(attempts) is not list or not attempts or type(attempts[0]) is not dict:
-            raise ValueError(f"{role} run record attempt structure is invalid")
-        backend_model = attempts[0].get("backend_model_id")
-        if type(backend_model) is not str or not backend_model:
-            raise ValueError(f"{role} run backend identity is invalid")
         try:
             validated = _validated_same_identity_record(
                 record,
@@ -345,7 +379,7 @@ def _slice_metrics(
         matrix[direct_index][thinking_index] += 1
         transitions[f"{direct['label']}_to_{thinking['label']}"] += 1
         exact += direct_index == thinking_index
-        within_one += abs(direct_index - thinking_index) <= 1
+        within_one += _labels_within_one(direct["label"], thinking["label"])
     return {
         "case_count": len(cases),
         "paired_valid_decisions": paired,
@@ -359,6 +393,92 @@ def _slice_metrics(
         "transitions": dict(sorted(transitions.items())),
         "confusion_matrix": matrix,
     }
+
+
+def _labels_within_one(left: str, right: str) -> bool:
+    """Treat uncertain as non-ordinal: it is adjacent only to itself."""
+    if left == right:
+        return True
+    if left not in _ORDINAL_LABEL_RANK or right not in _ORDINAL_LABEL_RANK:
+        return False
+    return abs(_ORDINAL_LABEL_RANK[left] - _ORDINAL_LABEL_RANK[right]) <= 1
+
+
+def _validate_runtime_trust(
+    direct_run: Mapping[str, object],
+    thinking_run: Mapping[str, object],
+    *,
+    runtime_observations: Mapping[str, Mapping[str, object]],
+    runtime_binding: Mapping[str, object],
+    input_hashes: Mapping[str, str],
+) -> dict[str, str]:
+    if type(runtime_observations) is not dict or set(runtime_observations) != {
+        "direct",
+        "thinking",
+    }:
+        raise ValueError("runtime observations must exactly cover direct and thinking")
+    runs = {"direct": direct_run, "thinking": thinking_run}
+    observation_keys = {
+        "schema_sha256",
+        "transport",
+        "backend_model",
+        "backend_response_model",
+        "thinking",
+        "thinking_control_omitted",
+        "reasoning_effort",
+        "max_output_tokens",
+        "schema_transport_adjustment",
+    }
+    backends: set[str] = set()
+    for role, expected_thinking in (("direct", False), ("thinking", True)):
+        observation = runtime_observations[role]
+        if type(observation) is not dict or set(observation) != observation_keys:
+            raise ValueError(f"{role} runtime observation has invalid structure")
+        if _json_hash(observation) != runs[role].get("runtime_receipt_sha256"):
+            raise ValueError(f"{role} runtime observation does not bind its run")
+        if (
+            observation["thinking"] is not expected_thinking
+            or observation["thinking_control_omitted"] is not False
+        ):
+            raise ValueError(f"{role} runtime observation has wrong thinking role")
+        if observation["max_output_tokens"] != 4096:
+            raise ValueError(f"{role} runtime observation has wrong output allowance")
+        if observation["schema_sha256"] != FROZEN_DECISION_SCHEMA_SHA256:
+            raise ValueError(f"{role} runtime observation has wrong schema")
+        backend = observation["backend_response_model"]
+        if type(backend) is not str or not backend:
+            raise ValueError(f"{role} runtime observation has invalid backend model")
+        backends.add(backend)
+    if len(backends) != 1:
+        raise ValueError("runtime observations do not share one backend model")
+
+    if type(runtime_binding) is not dict or set(runtime_binding) != {
+        "version",
+        "shared_configuration",
+        "roles",
+    }:
+        raise ValueError("runtime binding must contain exact version-1 keys")
+    if runtime_binding["version"] != 1:
+        raise ValueError("runtime binding version must be 1")
+    configuration = runtime_binding["shared_configuration"]
+    if type(configuration) is not dict or configuration != _FROZEN_MODE_CONFIGURATION:
+        raise ValueError("runtime binding does not prove frozen shared configuration")
+    if any(type(configuration[key]) is not int for key in configuration):
+        raise ValueError("runtime binding configuration types are invalid")
+    roles = runtime_binding["roles"]
+    if type(roles) is not dict or set(roles) != {"direct", "thinking"}:
+        raise ValueError("runtime binding roles are invalid")
+    if input_hashes["direct_run"] == input_hashes["thinking_run"]:
+        raise ValueError("direct and thinking runs must be distinct")
+    for role, expected_thinking in (("direct", False), ("thinking", True)):
+        expected = {
+            "run_sha256": input_hashes[f"{role}_run"],
+            "runtime_receipt_sha256": runs[role].get("runtime_receipt_sha256"),
+            "thinking": expected_thinking,
+        }
+        if roles[role] != expected:
+            raise ValueError(f"runtime binding does not prove {role} role")
+    return {"backend_model_id": backends.pop()}
 
 
 def _case_differences(
@@ -787,6 +907,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_sha256=args.thinking_run_sha256,
         private=True,
     )
+    direct_observation = _load_json_from_opened_file(
+        args.direct_runtime_observation,
+        "direct runtime observation",
+        expected_sha256=args.direct_runtime_observation_sha256,
+        private=True,
+    )
+    thinking_observation = _load_json_from_opened_file(
+        args.thinking_runtime_observation,
+        "thinking runtime observation",
+        expected_sha256=args.thinking_runtime_observation_sha256,
+        private=True,
+    )
+    runtime_binding = _load_json_from_opened_file(
+        args.runtime_binding,
+        "runtime binding",
+        expected_sha256=args.runtime_binding_sha256,
+        private=True,
+    )
 
     output_dir: Path = args.output_dir
     _prepare_private_directory(output_dir)
@@ -815,9 +953,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             "sealed_candidates": args.sealed_candidates_sha256,
             "direct_run": args.direct_run_sha256,
             "thinking_run": args.thinking_run_sha256,
+            "direct_runtime_observation": args.direct_runtime_observation_sha256,
+            "thinking_runtime_observation": args.thinking_runtime_observation_sha256,
+            "runtime_binding": args.runtime_binding_sha256,
         },
         sealed_candidate_ids=candidate_ids,
         alias_secret=alias_secret,
+        runtime_observations={
+            "direct": direct_observation,
+            "thinking": thinking_observation,
+        },
+        runtime_binding=runtime_binding,
         seed=args.seed,
     )
     review_outputs = {

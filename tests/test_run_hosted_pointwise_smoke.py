@@ -69,7 +69,8 @@ def test_model_registry_pins_the_four_authorized_routes() -> None:
     }
     assert hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"].provider == "DeepInfra"
     assert (
-        hosted.MODEL_SPECS["nvidia/nemotron-3-super-120b-a12b"].provider == "DeepInfra"
+        hosted.MODEL_SPECS["nvidia/nemotron-3-super-120b-a12b"].provider
+        == "DigitalOcean"
     )
     assert hosted.MODEL_SPECS["qwen/qwen3-235b-a22b-2507"].provider == "DeepInfra"
     assert hosted.MODEL_SPECS["openai/gpt-5.4-nano"].provider == "OpenAI"
@@ -93,12 +94,50 @@ def test_payload_disables_reasoning_for_reasoning_models(model: str) -> None:
     assert payload["reasoning"] == {"enabled": False}
 
 
-def test_gpt_payload_selects_no_reasoning() -> None:
+def test_gpt_payload_omits_reasoning_for_documented_nonthinking_default() -> None:
     spec = hosted.MODEL_SPECS["openai/gpt-5.4-nano"]
     payload = hosted._build_payload(
         spec, [{"role": "user", "content": "judge"}], FROZEN_SCHEMA
     )
-    assert payload["reasoning"] == {"effort": "none"}
+    assert "reasoning" not in payload
+    assert "temperature" not in payload
+
+
+def test_nemotron_payload_pins_healthy_digitalocean_route_and_prices() -> None:
+    spec = hosted.MODEL_SPECS["nvidia/nemotron-3-super-120b-a12b"]
+    payload = hosted._build_payload(
+        spec, [{"role": "user", "content": "judge"}], FROZEN_SCHEMA
+    )
+    assert spec.provider == "DigitalOcean"
+    assert spec.input_usd_per_million == pytest.approx(0.21)
+    assert spec.output_usd_per_million == pytest.approx(0.455)
+    assert payload["reasoning"] == {"enabled": False}
+    assert payload["provider"] == {
+        "only": ["DigitalOcean"],
+        "allow_fallbacks": False,
+        "require_parameters": True,
+        "max_price": {"prompt": 0.21, "completion": 0.455},
+    }
+    input_ceiling = 5_000
+    assert spec.worst_case_usd(input_ceiling) == pytest.approx(
+        (input_ceiling * 0.21 + 512 * 0.455) / 1_000_000
+    )
+
+
+def test_corrected_routes_are_bound_in_runtime_receipts() -> None:
+    nemotron = hosted._runtime_receipt(
+        hosted.MODEL_SPECS["nvidia/nemotron-3-super-120b-a12b"],
+        FROZEN_CONTRACT,
+    )
+    gpt = hosted._runtime_receipt(
+        hosted.MODEL_SPECS["openai/gpt-5.4-nano"], FROZEN_CONTRACT
+    )
+    assert nemotron["provider"] == "DigitalOcean"
+    assert nemotron["input_usd_per_million"] == pytest.approx(0.21)
+    assert nemotron["output_usd_per_million"] == pytest.approx(0.455)
+    assert nemotron["reasoning"] == {"enabled": False}
+    assert gpt["reasoning"] is None
+    assert gpt["temperature"] is None
 
 
 def test_qwen_payload_omits_reasoning_and_every_route_is_strict_and_pinned() -> None:

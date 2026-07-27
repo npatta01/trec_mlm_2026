@@ -79,9 +79,9 @@ MODEL_SPECS = {
         ),
         ModelSpec(
             "nvidia/nemotron-3-super-120b-a12b",
-            "DeepInfra",
-            0.085,
-            0.40,
+            "DigitalOcean",
+            0.21,
+            0.455,
             {"enabled": False},
         ),
         ModelSpec(
@@ -97,7 +97,8 @@ MODEL_SPECS = {
             "OpenAI",
             0.20,
             1.25,
-            {"effort": "none"},
+            None,
+            temperature_supported=False,
         ),
     )
 }

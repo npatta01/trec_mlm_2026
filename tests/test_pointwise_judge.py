@@ -5,9 +5,11 @@ import pytest
 
 from trec_mlm.pointwise_judge import (
     CandidateCase,
+    DecisionV2,
     JudgeDecision,
     decision_to_dict,
     load_prompt_contract,
+    normalized_decision_v2_schema,
     parse_judge_decision,
     render_judge_messages,
 )
@@ -34,6 +36,166 @@ VALID_DECISION = {
     "confidence": "high",
     "rationale": "The candidate directly gives the correct author without a material error.",
 }
+VALID_V2_DECISION = {
+    "label": "good",
+    "correctness": 4,
+    "completeness": 2,
+    "relevance": 2,
+    "error_flags": [],
+    "reference_status": "sound",
+    "confidence": "high",
+    "rationale": (
+        "The candidate directly gives the correct author, fully answers the "
+        "single-fact question, and introduces no material error."
+    ),
+}
+
+
+def test_v1_remains_default_and_v2_is_explicit() -> None:
+    assert load_prompt_contract(PROTOCOL_DIR).prompt_path.name == "pointwise-v1.txt"
+    assert (
+        load_prompt_contract(PROTOCOL_DIR, version="v2").schema_path.name
+        == "decision-v2.schema.json"
+    )
+
+
+def test_v2_rejects_coercion_and_extra_keys() -> None:
+    coerced = dict(VALID_V2_DECISION, correctness="4")
+    extra_key = dict(VALID_V2_DECISION, extra="forbidden")
+
+    with pytest.raises(ValueError):
+        parse_judge_decision(json.dumps(coerced), version="v2")
+    with pytest.raises(ValueError):
+        parse_judge_decision(json.dumps(extra_key), version="v2")
+
+
+def test_v2_schema_snapshot_matches_model() -> None:
+    committed = load_prompt_contract(PROTOCOL_DIR, version="v2").schema
+
+    assert committed == normalized_decision_v2_schema()
+
+
+def test_v2_schema_requires_unique_error_flags() -> None:
+    schema = load_prompt_contract(PROTOCOL_DIR, version="v2").schema
+
+    assert schema["properties"]["error_flags"]["uniqueItems"] is True
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"label": "good", "completeness": 1},
+        {"label": "incorrect", "error_flags": []},
+        {"label": "uncertain", "correctness": 1},
+        {"error_flags": ["reference_conflict"], "reference_status": "sound"},
+    ],
+)
+def test_v2_cross_field_invariants_reject(patch: dict[str, object]) -> None:
+    value = VALID_V2_DECISION | patch
+
+    with pytest.raises(ValueError):
+        parse_judge_decision(json.dumps(value), version="v2")
+
+
+@pytest.mark.parametrize(
+    ("patch", "invariant"),
+    [
+        ({"label": "partial"}, "good iff its three scores and flags match"),
+        (
+            {"label": "partial", "error_flags": ["entity_error"]},
+            "correctness 4 excludes factual-error flags",
+        ),
+        (
+            {"label": "incorrect", "correctness": 3, "error_flags": ["entity_error"]},
+            "correctness 3 requires partial",
+        ),
+        (
+            {"label": "partial", "correctness": 1, "error_flags": ["entity_error"]},
+            "correctness at most 1 requires incorrect or uncertain",
+        ),
+        (
+            {
+                "label": "incorrect",
+                "correctness": 0,
+                "completeness": 1,
+                "relevance": 0,
+                "error_flags": ["refusal"],
+            },
+            "refusal fixes the non-uncertain scores and label",
+        ),
+        (
+            {
+                "label": "uncertain",
+                "correctness": 0,
+                "completeness": 0,
+                "error_flags": [],
+                "reference_status": "sound",
+            },
+            "uncertain needs ambiguity or an unsettled reference",
+        ),
+        (
+            {
+                "label": "uncertain",
+                "correctness": 0,
+                "completeness": 0,
+                "relevance": 1,
+                "error_flags": ["refusal", "ambiguity"],
+                "reference_status": "uncertain",
+            },
+            "refusal pins every score to zero even when the item is uncertain",
+        ),
+        (
+            {
+                "label": "incorrect",
+                "correctness": 0,
+                "completeness": 0,
+                "relevance": 1,
+                "error_flags": ["ambiguity"],
+            },
+            "ambiguity is reserved for an unjudgeable item",
+        ),
+    ],
+)
+def test_v2_rejects_each_remaining_cross_field_invariant(
+    patch: dict[str, object], invariant: str
+) -> None:
+    value = VALID_V2_DECISION | patch
+
+    with pytest.raises(ValueError):
+        parse_judge_decision(json.dumps(value), version="v2")
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"correctness": True},
+        {"correctness": 4.0},
+        {"error_flags": ["entity_error", "entity_error"]},
+        {
+            "error_flags": [
+                "entity_error",
+                "number_error",
+                "date_error",
+                "negation_error",
+            ]
+        },
+        {"rationale": "short"},
+        {"rationale": "x" * 601},
+    ],
+)
+def test_v2_enforces_strict_field_constraints(patch: dict[str, object]) -> None:
+    value = VALID_V2_DECISION | patch
+
+    with pytest.raises(ValueError):
+        parse_judge_decision(json.dumps(value), version="v2")
+
+
+def test_v2_validates_to_the_existing_runner_decision_type() -> None:
+    decision = parse_judge_decision(json.dumps(VALID_V2_DECISION), version="v2")
+
+    assert isinstance(decision, JudgeDecision)
+    assert decision_to_dict(decision) == VALID_V2_DECISION
+    assert DecisionV2.model_validate_json(json.dumps(VALID_V2_DECISION)).label == "good"
 
 
 def test_parse_judge_decision_rejects_extra_keys() -> None:

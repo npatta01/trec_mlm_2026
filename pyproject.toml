@@ -10,6 +10,7 @@ dependencies = [
     "nbconvert>=7.16.6",
     "numpy>=2.1.0",
     "pandas>=2.2.3",
+    "pydantic>=2,<3",
     "PyYAML>=6.0.3,<7",
 ]
 

@@ -1,0 +1,80 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "completeness": {
+      "maximum": 2,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "type": "string"
+    },
+    "correctness": {
+      "maximum": 4,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "error_flags": {
+      "items": {
+        "enum": [
+          "entity_error",
+          "number_error",
+          "date_error",
+          "negation_error",
+          "unsupported_specificity",
+          "refusal",
+          "ambiguity",
+          "reference_conflict"
+        ],
+        "type": "string"
+      },
+      "maxItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "label": {
+      "enum": [
+        "good",
+        "partial",
+        "incorrect",
+        "uncertain"
+      ],
+      "type": "string"
+    },
+    "rationale": {
+      "maxLength": 600,
+      "minLength": 60,
+      "type": "string"
+    },
+    "reference_status": {
+      "enum": [
+        "sound",
+        "incomplete",
+        "suspect",
+        "uncertain"
+      ],
+      "type": "string"
+    },
+    "relevance": {
+      "maximum": 2,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "label",
+    "correctness",
+    "completeness",
+    "relevance",
+    "error_flags",
+    "reference_status",
+    "confidence",
+    "rationale"
+  ],
+  "type": "object"
+}

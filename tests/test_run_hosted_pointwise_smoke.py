@@ -317,7 +317,9 @@ def test_oversized_serialized_input_is_rejected_before_network_or_reservation(
     assert budget.spent_usd == 0
 
 
-def test_response_rejects_provider_or_model_route_changes() -> None:
+def test_response_accepts_provider_versioned_top_level_model_when_metadata_is_exact() -> (
+    None
+):
     spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
     body = {
         "model": spec.model_id,
@@ -336,6 +338,89 @@ def test_response_rejects_provider_or_model_route_changes() -> None:
         },
     }
     assert hosted._parse_response(body, spec)[0] == json.dumps(VALID_DECISION)
+    versioned = {**body, "model": "deepseek-ai/DeepSeek-V4-Flash-2026-04-23"}
+    assert hosted._parse_response(versioned, spec)[0] == json.dumps(VALID_DECISION)
+
+
+def test_call_preserves_provider_versioned_raw_body_while_binding_logical_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    raw_body = {
+        "model": "deepseek-ai/DeepSeek-V4-Flash-2026-04-23",
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+    monkeypatch.setattr(hosted, "_post_json", lambda *_args, **_kwargs: raw_body)
+    call = hosted.OpenRouterJudgeCall(
+        spec=spec,
+        api_key="test-only-secret",
+        budget=hosted.SpendBudget(0.10),
+        timeout_seconds=1,
+    )
+    _, runner_body = call(
+        spec.model_id,
+        [{"role": "user", "content": "judge"}],
+        {"type": "object"},
+    )
+    assert runner_body["model"] == spec.model_id
+    assert runner_body["openrouter_raw_response_body"] == raw_body
+
+
+@pytest.mark.parametrize("top_level_model", [None, "", 1])
+def test_response_rejects_missing_or_nonstring_top_level_model(
+    top_level_model: object,
+) -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    body = {
+        "model": top_level_model,
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+    with pytest.raises(ValueError, match="model"):
+        hosted._parse_response(body, spec)
+
+
+def test_response_rejects_conflicting_selected_route_metadata() -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    body = {
+        "model": "deepseek-ai/DeepSeek-V4-Flash-2026-04-23",
+        "openrouter_metadata": _router_metadata(spec),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
     with pytest.raises(ValueError, match="provider"):
         hosted._parse_response(
             {
@@ -345,7 +430,22 @@ def test_response_rejects_provider_or_model_route_changes() -> None:
             spec,
         )
     with pytest.raises(ValueError, match="model"):
-        hosted._parse_response({**body, "model": "other/model"}, spec)
+        hosted._parse_response(
+            {
+                **body,
+                "openrouter_metadata": _router_metadata(
+                    spec,
+                    available=[
+                        {
+                            "provider": spec.provider,
+                            "model": "other/model",
+                            "selected": True,
+                        }
+                    ],
+                ),
+            },
+            spec,
+        )
 
 
 @pytest.mark.parametrize(

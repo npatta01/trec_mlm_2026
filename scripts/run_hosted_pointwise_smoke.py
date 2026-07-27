@@ -222,8 +222,8 @@ def _parse_response(
     if type(body) is not dict:
         raise ValueError("OpenRouter response must be a JSON object")
     model = body.get("model")
-    if model != spec.model_id:
-        raise ValueError("OpenRouter response model changed from the pinned route")
+    if type(model) is not str or not model.strip():
+        raise ValueError("OpenRouter response model must be a nonempty string")
     _validate_router_metadata(body.get("openrouter_metadata"), spec)
     choices = body.get("choices")
     if type(choices) is not list or len(choices) != 1 or type(choices[0]) is not dict:
@@ -378,7 +378,10 @@ class OpenRouterJudgeCall:
             raise ValueError("provider usage exceeded the reserved token ceilings")
         self.budget.reconcile(reservation_usd, cost)
         self._checkpoint_spend()
-        return content, raw_body
+        runner_body = dict(raw_body)
+        runner_body["model"] = self.spec.model_id
+        runner_body["openrouter_raw_response_body"] = raw_body
+        return content, runner_body
 
 
 def _write_private_json(path: Path, value: object) -> None:

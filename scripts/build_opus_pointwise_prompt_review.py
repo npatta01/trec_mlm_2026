@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
+from trec_mlm.pointwise_opus_review import validate_opus_review_packet
 from trec_mlm.pointwise_production import build_opus_prompt_review_packet
 
 
@@ -19,10 +20,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    build_opus_prompt_review_packet(
+    packet = build_opus_prompt_review_packet(
         protocol_dir=args.protocol_dir,
         output_path=args.output,
     )
+    validate_opus_review_packet(packet, protocol_dir=args.protocol_dir)
     return 0
 
 

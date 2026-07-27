@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import hashlib
 import json
+import os
+from pathlib import Path
+import stat
 
 import pytest
 
-from scripts.build_pointwise_judge_100_comparison import build_comparison
+from scripts.build_pointwise_judge_100_comparison import build_comparison, main
 from trec_mlm.pointwise_judge import CandidateCase, parse_judge_decision
 from trec_mlm.pointwise_runner import FROZEN_DECISION_SCHEMA_SHA256
+from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
 
 
 CASES = [
@@ -23,6 +27,8 @@ CASES = [
     )
     for index, reason in enumerate(("reason-a", "reason-b", "reason-c", "reason-d"), 1)
 ]
+SEALED_CANDIDATE_IDS = [f"sealed-candidate-{index}" for index in range(1, 5)]
+ALIAS_SECRET = bytes.fromhex("ab" * 32)
 
 
 def _json_hash(value: object) -> str:
@@ -142,6 +148,8 @@ def _run(
     labels: list[str | None],
     elapsed: list[float],
     tokens: list[int],
+    *,
+    cases: list[CandidateCase] = CASES,
 ) -> dict[str, object]:
     receipt = hashlib.sha256(alias.encode()).hexdigest()
     return {
@@ -162,7 +170,7 @@ def _run(
                 total_tokens=token_count,
             )
             for case, label, seconds, token_count in zip(
-                CASES, labels, elapsed, tokens, strict=True
+                cases, labels, elapsed, tokens, strict=True
             )
         },
     }
@@ -196,9 +204,12 @@ def test_comparison_reports_direction_strata_reused_slice_costs_and_failures() -
         reused_response_ids=[CASES[0].response_id],
         input_hashes={
             "manifest": "a" * 64,
+            "sealed_candidates": "d" * 64,
             "direct_run": "b" * 64,
             "thinking_run": "c" * 64,
         },
+        sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+        alias_secret=ALIAS_SECRET,
         seed=2026,
     )
     comparison = artifacts["comparison"]
@@ -249,9 +260,12 @@ def test_review_packets_hide_mode_and_model_identity() -> None:
         reused_response_ids=[CASES[0].response_id],
         input_hashes={
             "manifest": "a" * 64,
+            "sealed_candidates": "d" * 64,
             "direct_run": "b" * 64,
             "thinking_run": "c" * 64,
         },
+        sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+        alias_secret=ALIAS_SECRET,
         seed=2026,
     )
     packet_text = json.dumps(
@@ -278,6 +292,135 @@ def test_review_packets_hide_mode_and_model_identity() -> None:
         "direct",
         "thinking",
     }
+    assert artifacts["sealed_mode_aliases"]["alias_secret_hex"] == ALIAS_SECRET.hex()
+
+
+def _replace_rationale(
+    run: dict[str, object], response_id: str, rationale: str
+) -> None:
+    record = run["records"][response_id]
+    decision = {**record["decision"], "rationale": rationale}
+    raw = json.dumps(decision)
+    record["decision"] = decision
+    record["attempts"][0]["parsed"] = decision
+    record["attempts"][0]["raw"] = raw
+    record["attempts"][0]["response_body"]["choices"][0]["message"]["content"] = raw
+
+
+@pytest.mark.parametrize(
+    "echoed_identity",
+    [
+        CASES[0].question_id,
+        CASES[0].response_id,
+        SEALED_CANDIDATE_IDS[0],
+    ],
+)
+def test_valid_judge_rationale_echoing_source_identity_fails_closed(
+    echoed_identity: str,
+) -> None:
+    direct, thinking = _inputs()
+    _replace_rationale(
+        thinking,
+        CASES[0].response_id,
+        f"The valid judgment repeats source identifier {echoed_identity}.",
+    )
+
+    with pytest.raises(ValueError, match="source identity") as error:
+        build_comparison(
+            CASES,
+            direct,
+            thinking,
+            reused_response_ids=[CASES[0].response_id],
+            input_hashes={
+                "manifest": "a" * 64,
+                "sealed_candidates": "d" * 64,
+                "direct_run": "b" * 64,
+                "thinking_run": "c" * 64,
+            },
+            sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+            alias_secret=ALIAS_SECRET,
+            seed=2026,
+        )
+
+    assert echoed_identity not in str(error.value)
+
+
+def test_source_identity_matching_preserves_case_sensitive_identifier_semantics() -> (
+    None
+):
+    direct, thinking = _inputs()
+    sealed_ids = ["SEALED-CANDIDATE-1", *SEALED_CANDIDATE_IDS[1:]]
+    _replace_rationale(
+        thinking,
+        CASES[0].response_id,
+        "The natural-language rationale contains sealed-candidate-1 in another case.",
+    )
+
+    artifacts = build_comparison(
+        CASES,
+        direct,
+        thinking,
+        reused_response_ids=[CASES[0].response_id],
+        input_hashes={
+            "manifest": "a" * 64,
+            "sealed_candidates": "d" * 64,
+            "direct_run": "b" * 64,
+            "thinking_run": "c" * 64,
+        },
+        sealed_candidate_ids=sealed_ids,
+        alias_secret=ALIAS_SECRET,
+        seed=2026,
+    )
+
+    assert artifacts["critique_review_packet"]
+
+
+def test_private_alias_secret_not_public_seed_controls_mapping_and_reproduction() -> (
+    None
+):
+    direct, thinking = _inputs()
+
+    outputs = [
+        build_comparison(
+            CASES,
+            direct,
+            thinking,
+            reused_response_ids=[CASES[0].response_id],
+            input_hashes={
+                "manifest": "a" * 64,
+                "sealed_candidates": "d" * 64,
+                "direct_run": "b" * 64,
+                "thinking_run": "c" * 64,
+            },
+            sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+            alias_secret=bytes([value]) * 32,
+            seed=2026,
+        )
+        for value in range(8)
+    ]
+    mappings = {
+        json.dumps(output["sealed_mode_aliases"]["judge_aliases"], sort_keys=True)
+        for output in outputs
+    }
+
+    assert len(mappings) == 2
+    repeated = build_comparison(
+        CASES,
+        direct,
+        thinking,
+        reused_response_ids=[CASES[0].response_id],
+        input_hashes={
+            "manifest": "a" * 64,
+            "sealed_candidates": "d" * 64,
+            "direct_run": "b" * 64,
+            "thinking_run": "c" * 64,
+        },
+        sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+        alias_secret=bytes([0]) * 32,
+        seed=2026,
+    )
+    assert repeated["critique_review_packet"] == outputs[0]["critique_review_packet"]
+    assert repeated["sealed_mode_aliases"] == outputs[0]["sealed_mode_aliases"]
 
 
 @pytest.mark.parametrize(
@@ -310,8 +453,213 @@ def test_comparison_fails_closed_on_coverage_or_binding_mismatch(
             reused_response_ids=[CASES[0].response_id],
             input_hashes={
                 "manifest": "a" * 64,
+                "sealed_candidates": "d" * 64,
                 "direct_run": "b" * 64,
                 "thinking_run": "c" * 64,
             },
+            sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+            alias_secret=ALIAS_SECRET,
             seed=2026,
         )
+
+
+def _canonical_cases() -> list[CandidateCase]:
+    return [
+        replace(
+            CASES[index % len(CASES)],
+            question_id=f"canonical-question-{index:03d}",
+            response_id=f"canonical-response-{index:03d}",
+            question=f"Canonical private question {index}?",
+            reference_answer=f"Canonical private reference {index}.",
+            candidate_answer=f"Canonical private answer {index}.",
+            strata=(reason,),
+            selection_reason=reason,
+        )
+        for reason_index, reason in enumerate(DIAGNOSTIC_REASONS)
+        for index in range(reason_index * 10, reason_index * 10 + 10)
+    ]
+
+
+def _write_private_json(path: Path, value: object) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.chmod(0o700)
+    encoded = (
+        json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    ).encode()
+    path.write_bytes(encoded)
+    path.chmod(0o600)
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _cli_inputs(tmp_path: Path) -> tuple[list[str], Path]:
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    cases = _canonical_cases()
+    body = {
+        "version": 2,
+        "seed": 2026,
+        "sources": {
+            "discovery": {"sha256": "d" * 64},
+            "grounded": {"sha256": "e" * 64},
+            "smoke_manifest": {"sha256": "f" * 64},
+        },
+        "selection_reasons": list(DIAGNOSTIC_REASONS),
+        "cases_per_reason": 10,
+        "reused_smoke_response_ids": [
+            cases[index].response_id for index in range(0, 100, 10)
+        ],
+        "cases": [asdict(case) for case in cases],
+    }
+    manifest = {**body, "manifest_hash": _json_hash(body)}
+    sealed = {
+        case.response_id: f"sealed-private-candidate-{index:03d}"
+        for index, case in enumerate(cases)
+    }
+    direct = _run(
+        "private-direct-alias",
+        "org/private-direct-model",
+        ["incorrect"] * 100,
+        [1.0] * 100,
+        [10] * 100,
+        cases=cases,
+    )
+    thinking = _run(
+        "private-thinking-alias",
+        "org/private-thinking-model",
+        ["partial"] * 100,
+        [2.0] * 100,
+        [11] * 100,
+        cases=cases,
+    )
+    manifest_path = private / "manifest.json"
+    sealed_path = private / "sealed_candidates.json"
+    direct_path = private / "direct.json"
+    thinking_path = private / "thinking.json"
+    hashes = {
+        "manifest": _write_private_json(manifest_path, manifest),
+        "sealed": _write_private_json(sealed_path, sealed),
+        "direct": _write_private_json(direct_path, direct),
+        "thinking": _write_private_json(thinking_path, thinking),
+    }
+    output = private / "output"
+    return [
+        "--manifest",
+        str(manifest_path),
+        "--manifest-sha256",
+        hashes["manifest"],
+        "--sealed-candidates",
+        str(sealed_path),
+        "--sealed-candidates-sha256",
+        hashes["sealed"],
+        "--direct-run",
+        str(direct_path),
+        "--direct-run-sha256",
+        hashes["direct"],
+        "--thinking-run",
+        str(thinking_path),
+        "--thinking-run-sha256",
+        hashes["thinking"],
+        "--output-dir",
+        str(output),
+        "--seed",
+        "2026",
+    ], output
+
+
+def _output_bytes(output: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(output)): path.read_bytes()
+        for path in output.rglob("*")
+        if path.is_file()
+    }
+
+
+def test_cli_writes_private_outputs_and_reuses_secret_for_deterministic_regeneration(
+    tmp_path: Path,
+) -> None:
+    argv, output = _cli_inputs(tmp_path)
+
+    assert main(argv) == 0
+
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    assert stat.S_IMODE((output / "review").stat().st_mode) == 0o700
+    expected = {
+        "comparison.json",
+        "comparison.md",
+        "review/independent-review-packet.json",
+        "review/critique-review-packet.json",
+        "review/sealed-mode-aliases.json",
+    }
+    assert set(_output_bytes(output)) == expected
+    for name in expected:
+        path = output / name
+        assert stat.S_ISREG(path.stat().st_mode)
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        assert path.stat().st_nlink == 1
+    first = _output_bytes(output)
+
+    second_argv = ["9999" if value == "2026" else value for value in argv]
+    assert main(second_argv) == 0
+    assert _output_bytes(output) == first
+
+
+@pytest.mark.parametrize("unsafe_kind", ["symlink", "nonregular", "wrong_mode"])
+@pytest.mark.parametrize(
+    "relative_target",
+    [
+        "comparison.json",
+        "review/critique-review-packet.json",
+        "review/sealed-mode-aliases.json",
+    ],
+)
+def test_cli_rejects_unsafe_existing_output_before_writing_any_packet(
+    tmp_path: Path, relative_target: str, unsafe_kind: str
+) -> None:
+    argv, output = _cli_inputs(tmp_path)
+    review = output / "review"
+    review.mkdir(parents=True, mode=0o700)
+    target = output / relative_target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.parent.chmod(0o700)
+    if unsafe_kind == "symlink":
+        link_target = output.parent / "outside.json"
+        link_target.write_text("outside", encoding="utf-8")
+        link_target.chmod(0o600)
+        target.symlink_to(link_target)
+    elif unsafe_kind == "nonregular":
+        os.mkfifo(target, mode=0o600)
+    else:
+        target.write_text("unsafe", encoding="utf-8")
+        target.chmod(0o644)
+
+    with pytest.raises(ValueError, match="private|output|seal"):
+        main(argv)
+
+    assert not (output / "comparison.md").exists()
+    assert not (review / "independent-review-packet.json").exists()
+    if relative_target != "review/critique-review-packet.json":
+        assert not (review / "critique-review-packet.json").exists()
+
+
+@pytest.mark.parametrize("unsafe_kind", ["symlink", "nonregular", "wrong_mode"])
+@pytest.mark.parametrize("relative_directory", [".", "review"])
+def test_cli_requires_exact_private_output_directories(
+    tmp_path: Path, relative_directory: str, unsafe_kind: str
+) -> None:
+    argv, output = _cli_inputs(tmp_path)
+    target = output if relative_directory == "." else output / relative_directory
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.parent.chmod(0o700)
+    if unsafe_kind == "symlink":
+        outside = output.parent / f"outside-{relative_directory.replace('/', '-')}"
+        outside.mkdir(mode=0o700)
+        target.symlink_to(outside, target_is_directory=True)
+    elif unsafe_kind == "nonregular":
+        target.write_text("not a directory", encoding="utf-8")
+        target.chmod(0o600)
+    else:
+        target.mkdir(mode=0o700)
+        target.chmod(0o755)
+
+    with pytest.raises(ValueError, match="directory|0700"):
+        main(argv)

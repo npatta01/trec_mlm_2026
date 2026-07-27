@@ -58,6 +58,7 @@ class ModelSpec:
     output_usd_per_million: float
     reasoning: Mapping[str, object] | None
     temperature_supported: bool = True
+    allowed_selected_models: tuple[str, ...] = ()
 
     def worst_case_usd(self, input_token_ceiling: int) -> float:
         return (
@@ -89,6 +90,7 @@ MODEL_SPECS = {
             0.09,
             0.55,
             None,
+            allowed_selected_models=("qwen/qwen3-235b-a22b-07-25",),
         ),
         ModelSpec(
             "openai/gpt-5.4-nano",
@@ -295,14 +297,23 @@ def _validate_router_metadata(value: object, spec: ModelSpec) -> None:
     endpoint = selected[0]
     if endpoint.get("provider") != spec.provider:
         raise ValueError("OpenRouter metadata selected the wrong provider")
-    if not _matches_selected_model(spec.model_id, endpoint.get("model")):
+    if not _matches_selected_model(
+        spec.model_id,
+        endpoint.get("model"),
+        allowed_selected_models=spec.allowed_selected_models,
+    ):
         raise ValueError("OpenRouter metadata selected the wrong model")
     if value.get("strategy") != "direct":
         raise ValueError("OpenRouter metadata strategy must be direct")
 
 
-def _matches_selected_model(requested: str, selected: object) -> bool:
-    if selected == requested:
+def _matches_selected_model(
+    requested: str,
+    selected: object,
+    *,
+    allowed_selected_models: Sequence[str] = (),
+) -> bool:
+    if selected == requested or selected in allowed_selected_models:
         return True
     prefix = f"{requested}-"
     if type(selected) is not str or not selected.startswith(prefix):
@@ -600,7 +611,7 @@ def _validated_existing_terminal_count(
 
 def _runtime_receipt(spec: ModelSpec, contract: PromptContract) -> dict[str, object]:
     transport_schema = _openrouter_transport_schema(contract.schema)
-    return {
+    receipt: dict[str, object] = {
         "schema_sha256": validate_frozen_judge_contract(contract),
         "transport_schema_sha256": _sha256_json(transport_schema),
         "schema_transport_adjustment": (
@@ -621,6 +632,9 @@ def _runtime_receipt(spec: ModelSpec, contract: PromptContract) -> dict[str, obj
         "require_parameters": True,
         "allow_fallbacks": False,
     }
+    if spec.allowed_selected_models:
+        receipt["allowed_selected_models"] = list(spec.allowed_selected_models)
+    return receipt
 
 
 def _safe_name(model_id: str) -> str:

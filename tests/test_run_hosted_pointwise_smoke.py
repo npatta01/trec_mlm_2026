@@ -576,6 +576,60 @@ def test_metadata_rejects_non_direct_strategy() -> None:
         hosted._validate_router_metadata(metadata, spec)
 
 
+def test_qwen_metadata_accepts_only_explicit_deepinfra_endpoint_alias() -> None:
+    spec = hosted.MODEL_SPECS["qwen/qwen3-235b-a22b-2507"]
+    accepted = _router_metadata(
+        spec,
+        available=[
+            {
+                "provider": spec.provider,
+                "model": "qwen/qwen3-235b-a22b-07-25",
+                "selected": True,
+            }
+        ],
+    )
+    hosted._validate_router_metadata(accepted, spec)
+
+    for nearby_alias in (
+        "qwen/qwen3-235b-a22b-07-24",
+        "qwen/qwen3-235b-a22b-07-250",
+        "qwen/qwen3-235b-a22b-07-25-latest",
+    ):
+        changed = copy.deepcopy(accepted)
+        changed["endpoints"]["available"][0]["model"] = nearby_alias
+        with pytest.raises(ValueError, match="model"):
+            hosted._validate_router_metadata(changed, spec)
+
+
+def test_qwen_receipt_binds_explicit_alias_without_changing_deepseek_shape() -> None:
+    qwen = hosted.MODEL_SPECS["qwen/qwen3-235b-a22b-2507"]
+    deepseek = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    qwen_receipt = hosted._runtime_receipt(qwen, FROZEN_CONTRACT)
+    deepseek_receipt = hosted._runtime_receipt(deepseek, FROZEN_CONTRACT)
+
+    assert qwen_receipt["allowed_selected_models"] == ["qwen/qwen3-235b-a22b-07-25"]
+    assert "allowed_selected_models" not in deepseek_receipt
+    assert set(deepseek_receipt) == {
+        "schema_sha256",
+        "transport_schema_sha256",
+        "schema_transport_adjustment",
+        "backend_response_model",
+        "transport",
+        "endpoint",
+        "provider",
+        "model_id",
+        "reasoning",
+        "temperature",
+        "max_output_tokens",
+        "max_serialized_request_bytes",
+        "chat_template_overhead_tokens",
+        "input_usd_per_million",
+        "output_usd_per_million",
+        "require_parameters",
+        "allow_fallbacks",
+    }
+
+
 def test_response_accepts_absent_optional_router_metadata() -> None:
     spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
     body = {

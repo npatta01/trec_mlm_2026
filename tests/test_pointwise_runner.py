@@ -41,11 +41,20 @@ CONTRACT = replace(
     load_prompt_contract(Path("protocols/pointwise_judge_bakeoff")),
     prompt="Judge the candidate under the frozen contract.",
 )
+V2_CONTRACT = load_prompt_contract(
+    Path("protocols/pointwise_judge_bakeoff"), version="v2"
+)
 RECEIPT = {
     "runtime": "local-test",
     "gpu": "fake",
     "passed": True,
     "schema_sha256": runner.FROZEN_DECISION_SCHEMA_SHA256,
+}
+V2_RECEIPT = {
+    "runtime": "local-test",
+    "gpu": "fake",
+    "passed": True,
+    "schema_sha256": runner.FROZEN_V2_DECISION_SCHEMA_SHA256,
 }
 VALID_DECISION = {
     "label": "good",
@@ -60,6 +69,21 @@ VALID_DECISION = {
 VALID_DECISION_JSON = json.dumps(VALID_DECISION)
 DUPLICATE_KEY_DECISION_JSON = VALID_DECISION_JSON.replace(
     '"label": "good"', '"label": "incorrect", "label": "good"', 1
+)
+VALID_V2_DECISION = {
+    **VALID_DECISION,
+    "rationale": (
+        "The candidate directly gives the correct author, fully answers the "
+        "single-fact question, and introduces no material error."
+    ),
+}
+VALID_V2_DECISION_JSON = json.dumps(VALID_V2_DECISION)
+INVALID_V2_INVARIANT_JSON = json.dumps(
+    {
+        **VALID_V2_DECISION,
+        "error_flags": ["reference_conflict"],
+        "reference_status": "sound",
+    }
 )
 
 
@@ -430,6 +454,26 @@ def test_run_cases_repairs_malformed_json_once_and_preserves_raw_body(
     assert not list(output.parent.glob("*.tmp"))
 
 
+def test_run_cases_includes_v2_invariant_error_in_live_repair(tmp_path: Path) -> None:
+    call = ScriptedCall([INVALID_V2_INVARIANT_JSON, VALID_V2_DECISION_JSON])
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-v2",
+        model_id="model-v2",
+        contract=V2_CONTRACT,
+        output_path=tmp_path / "run.json",
+        runtime_receipt=V2_RECEIPT,
+        call=call,
+        version="v2",
+    )
+
+    repair = call.requests[1]["messages"][-1]["content"]
+    assert "VALIDATION ERROR:" in repair
+    assert "reference_conflict requires incomplete or suspect reference" in repair
+    assert result["records"][CASE.response_id]["decision"] == VALID_V2_DECISION
+
+
 def test_run_cases_preserves_backend_body_and_logical_model_separately(
     tmp_path: Path,
 ) -> None:
@@ -648,6 +692,38 @@ def test_resume_revalidates_cached_duplicate_key_output_and_issues_only_repair(
     assert len(resumed.requests) == 1
     assert DUPLICATE_KEY_DECISION_JSON in resumed.requests[0]["messages"][-1]["content"]
     assert result["records"][CASE.response_id]["decision"] == VALID_DECISION
+
+
+def test_resume_includes_cached_v2_invariant_error_in_repair(tmp_path: Path) -> None:
+    output = tmp_path / "run.json"
+    with pytest.raises(KeyboardInterrupt):
+        run_cases(
+            [CASE],
+            model_alias="judge-v2",
+            model_id="model-v2",
+            contract=V2_CONTRACT,
+            output_path=output,
+            runtime_receipt=V2_RECEIPT,
+            call=ScriptedCall([INVALID_V2_INVARIANT_JSON, KeyboardInterrupt()]),
+            version="v2",
+        )
+    resumed = ScriptedCall([VALID_V2_DECISION_JSON])
+
+    result = run_cases(
+        [CASE],
+        model_alias="judge-v2",
+        model_id="model-v2",
+        contract=V2_CONTRACT,
+        output_path=output,
+        runtime_receipt=V2_RECEIPT,
+        call=resumed,
+        version="v2",
+    )
+
+    repair = resumed.requests[0]["messages"][-1]["content"]
+    assert "VALIDATION ERROR:" in repair
+    assert "reference_conflict requires incomplete or suspect reference" in repair
+    assert result["records"][CASE.response_id]["decision"] == VALID_V2_DECISION
 
 
 def test_resume_accepts_preserved_empty_invalid_attempt_after_successful_repair(

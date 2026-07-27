@@ -58,19 +58,55 @@ def test_v2_registry_has_four_distinct_configurations() -> None:
     )
 
 
-def test_qwen_pair_differs_only_by_reasoning() -> None:
+def test_qwen_pair_binds_reasoning_specific_output_budgets() -> None:
     messages = [{"role": "user", "content": "judge"}]
-    direct = hosted._build_payload(
-        hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-direct"], messages, V2_SCHEMA
-    )
-    thinking = hosted._build_payload(
-        hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"], messages, V2_SCHEMA
-    )
+    direct_spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-direct"]
+    thinking_spec = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    direct = hosted._build_payload(direct_spec, messages, V2_SCHEMA)
+    thinking = hosted._build_payload(thinking_spec, messages, V2_SCHEMA)
+    direct_receipt = hosted._runtime_receipt(direct_spec, V2_CONTRACT, version="v2")
+    thinking_receipt = hosted._runtime_receipt(thinking_spec, V2_CONTRACT, version="v2")
+
     assert direct["reasoning"] == {"enabled": False}
     assert thinking["reasoning"] == {"enabled": True}
-    assert {key: value for key, value in direct.items() if key != "reasoning"} == {
-        key: value for key, value in thinking.items() if key != "reasoning"
+    assert direct["max_tokens"] == direct_receipt["max_output_tokens"] == 1_024
+    assert thinking["max_tokens"] == thinking_receipt["max_output_tokens"] == 4_096
+    assert {
+        key: value
+        for key, value in direct.items()
+        if key not in {"reasoning", "max_tokens"}
+    } == {
+        key: value
+        for key, value in thinking.items()
+        if key not in {"reasoning", "max_tokens"}
     }
+
+
+def test_per_config_output_budget_drives_worst_case_spend() -> None:
+    input_ceiling = 5_000
+    direct = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-direct"]
+    thinking = hosted.V2_CONFIG_SPECS["qwen3.6-35b-a3b-thinking"]
+    deepseek = hosted.V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
+    gpt = hosted.V2_CONFIG_SPECS["gpt-5.4-nano-direct"]
+
+    assert direct.worst_case_usd(input_ceiling) == pytest.approx(
+        (input_ceiling * 0.14 + 1_024 * 1.00) / 1_000_000
+    )
+    assert thinking.worst_case_usd(input_ceiling) == pytest.approx(
+        (input_ceiling * 0.14 + 4_096 * 1.00) / 1_000_000
+    )
+    assert (
+        hosted._build_payload(
+            deepseek, [{"role": "user", "content": "judge"}], V2_SCHEMA
+        )["max_tokens"]
+        == 512
+    )
+    assert (
+        hosted._build_payload(gpt, [{"role": "user", "content": "judge"}], V2_SCHEMA)[
+            "max_tokens"
+        ]
+        == 512
+    )
 
 
 def test_v2_configuration_rejects_a_v1_source_schema() -> None:

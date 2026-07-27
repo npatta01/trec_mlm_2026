@@ -66,6 +66,7 @@ class ModelSpec:
     input_usd_per_million: float
     output_usd_per_million: float
     reasoning: Mapping[str, object] | None
+    max_output_tokens: int = MAX_OUTPUT_TOKENS
     temperature_supported: bool = True
     allowed_selected_models: tuple[str, ...] = ()
     config_id: str | None = None
@@ -73,7 +74,7 @@ class ModelSpec:
     def worst_case_usd(self, input_token_ceiling: int) -> float:
         return (
             input_token_ceiling * self.input_usd_per_million
-            + MAX_OUTPUT_TOKENS * self.output_usd_per_million
+            + self.max_output_tokens * self.output_usd_per_million
         ) / 1_000_000
 
 
@@ -140,6 +141,7 @@ V2_CONFIG_SPECS = {
             input_usd_per_million=0.14,
             output_usd_per_million=1.00,
             reasoning={"enabled": False},
+            max_output_tokens=1_024,
             config_id="qwen3.6-35b-a3b-direct",
         ),
         ModelSpec(
@@ -148,6 +150,7 @@ V2_CONFIG_SPECS = {
             input_usd_per_million=0.14,
             output_usd_per_million=1.00,
             reasoning={"enabled": True},
+            max_output_tokens=4_096,
             config_id="qwen3.6-35b-a3b-thinking",
         ),
     )
@@ -300,7 +303,7 @@ def _build_payload(
         "messages": [dict(message) for message in messages],
         "stream": False,
         "usage": {"include": True},
-        "max_tokens": MAX_OUTPUT_TOKENS,
+        "max_tokens": spec.max_output_tokens,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
@@ -559,7 +562,7 @@ class OpenRouterJudgeCall:
             or prompt_tokens > input_token_ceiling
             or type(completion_tokens) is not int
             or completion_tokens < 0
-            or completion_tokens > MAX_OUTPUT_TOKENS
+            or completion_tokens > self.spec.max_output_tokens
         ):
             raise ValueError("provider usage exceeded the reserved token ceilings")
         self.budget.reconcile(reservation_usd, cost)
@@ -950,7 +953,7 @@ def _runtime_receipt(
         "model_id": spec.model_id,
         "reasoning": None if spec.reasoning is None else dict(spec.reasoning),
         "temperature": 0 if spec.temperature_supported else None,
-        "max_output_tokens": MAX_OUTPUT_TOKENS,
+        "max_output_tokens": spec.max_output_tokens,
         "max_serialized_request_bytes": MAX_SERIALIZED_REQUEST_BYTES,
         "chat_template_overhead_tokens": CHAT_TEMPLATE_OVERHEAD_TOKENS,
         "input_usd_per_million": spec.input_usd_per_million,

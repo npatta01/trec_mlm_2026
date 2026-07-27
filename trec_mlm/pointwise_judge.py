@@ -16,6 +16,7 @@ from pydantic import (
     constr,
     field_validator,
     model_validator,
+    ValidationError,
 )
 
 
@@ -154,16 +155,20 @@ class DecisionV2(BaseModel):
         if self.label == "uncertain":
             if self.correctness != 0 or self.completeness != 0:
                 raise ValueError("uncertain requires correctness and completeness 0")
-            if (
-                "ambiguity" not in flags
-                and self.reference_status not in {"suspect", "uncertain"}
-            ):
-                raise ValueError("uncertain requires ambiguity or an unsettled reference")
+            if "ambiguity" not in flags and self.reference_status not in {
+                "suspect",
+                "uncertain",
+            }:
+                raise ValueError(
+                    "uncertain requires ambiguity or an unsettled reference"
+                )
         if "reference_conflict" in flags and self.reference_status not in {
             "incomplete",
             "suspect",
         }:
-            raise ValueError("reference_conflict requires incomplete or suspect reference")
+            raise ValueError(
+                "reference_conflict requires incomplete or suspect reference"
+            )
         if "ambiguity" in flags and self.label != "uncertain":
             raise ValueError("ambiguity is reserved for an unjudgeable item")
         return self
@@ -187,7 +192,9 @@ def _normalize_schema_presentation(value: Any) -> Any:
     return value
 
 
-def load_prompt_contract(protocol_dir: Path, version: Literal["v1", "v2"] = "v1") -> PromptContract:
+def load_prompt_contract(
+    protocol_dir: Path, version: Literal["v1", "v2"] = "v1"
+) -> PromptContract:
     """Load the versioned prompt and JSON schema without altering either."""
     versioned_paths = {
         "v1": ("pointwise-v1.txt", "decision-v1.schema.json"),
@@ -223,6 +230,7 @@ def render_judge_messages(
     contract: PromptContract,
     *,
     repair_raw: str | None = None,
+    repair_error: str | None = None,
 ) -> list[dict[str, str]]:
     """Render the invariant judge request, optionally followed by one repair request."""
     messages = [
@@ -240,13 +248,17 @@ def render_judge_messages(
         },
     ]
     if repair_raw is not None:
+        validation = (
+            f"VALIDATION ERROR:\n{repair_error}\n\n" if repair_error is not None else ""
+        )
         messages.append(
             {
                 "role": "user",
                 "content": (
                     "Your preceding output did not satisfy the unchanged schema. "
                     "Return only a corrected JSON object under the unchanged schema.\n\n"
-                    f"MALFORMED OUTPUT:\n{repair_raw}"
+                    + validation
+                    + f"MALFORMED OUTPUT:\n{repair_raw}"
                 ),
             }
         )
@@ -298,8 +310,22 @@ def parse_judge_decision(
 def _parse_v2_judge_decision(value: object) -> JudgeDecision:
     try:
         decision = DecisionV2.model_validate(value)
-    except ValueError as error:
-        raise ValueError("v2 decision violates the strict contract") from error
+    except ValidationError as error:
+        details = error.errors(
+            include_url=False,
+            include_context=False,
+            include_input=False,
+        )
+        detail = details[0]
+        message = str(detail.get("msg", "invalid value"))
+        if message.startswith("Value error, "):
+            message = message.removeprefix("Value error, ")
+        location = ".".join(str(item) for item in detail.get("loc", ()))
+        if location:
+            summary = f"v2 decision invalid at {location}: {message}"
+        else:
+            summary = f"v2 decision invariant violated: {message}"
+        raise ValueError(summary) from error
     return JudgeDecision(
         label=decision.label,
         correctness=decision.correctness,

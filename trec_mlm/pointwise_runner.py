@@ -140,6 +140,7 @@ class _ReusableRecord:
     attempts: list[dict[str, object]]
     usage: dict[str, int | float]
     repair_raw: str | None
+    repair_error: str | None
     elapsed_seconds: float
 
 
@@ -568,11 +569,13 @@ def run_cases(
             attempts: list[dict[str, object]] = []
             usage: dict[str, int | float] = {}
             malformed_raw: str | None = None
+            malformed_error: str | None = None
             prior_elapsed = 0.0
         else:
             attempts = reusable.attempts
             usage = reusable.usage
             malformed_raw = reusable.repair_raw
+            malformed_error = reusable.repair_error
             prior_elapsed = reusable.elapsed_seconds
         decision: dict[str, object] | None = None
         failure: dict[str, str] | None = None
@@ -581,6 +584,7 @@ def run_cases(
                 case,
                 contract,
                 repair_raw=malformed_raw if attempt_number else None,
+                repair_error=malformed_error if attempt_number else None,
             )
             raw, response_body = call(model_id, messages, contract.schema)
             if type(raw) is not str or not isinstance(response_body, Mapping):
@@ -602,6 +606,7 @@ def run_cases(
                 attempt["error"] = str(error)
                 attempts.append(attempt)
                 malformed_raw = raw
+                malformed_error = str(error)
                 if attempt_number == 1:
                     failure = {
                         "type": "invalid_decision_after_repair",
@@ -643,7 +648,9 @@ def validate_judge_contract(contract: PromptContract, *, version: str) -> str:
     try:
         expected = _FROZEN_JUDGE_CONTRACTS[version]
     except KeyError as error:
-        raise ValueError(f"unsupported frozen judge contract version: {version}") from error
+        raise ValueError(
+            f"unsupported frozen judge contract version: {version}"
+        ) from error
     if version == "v2":
         if contract.prompt_path.name != expected["prompt_filename"]:
             raise ValueError(
@@ -655,7 +662,9 @@ def validate_judge_contract(contract: PromptContract, *, version: str) -> str:
             )
         prompt_sha256 = hashlib.sha256(contract.prompt.encode("utf-8")).hexdigest()
         if prompt_sha256 != expected["prompt_sha256"]:
-            raise ValueError(f"judge contract prompt bytes are not frozen for {version}")
+            raise ValueError(
+                f"judge contract prompt bytes are not frozen for {version}"
+            )
     schema_sha256 = _sha256_json(contract.schema)
     if schema_sha256 != expected["schema_sha256"]:
         raise ValueError(f"judge contract schema is not frozen for {version}")
@@ -888,15 +897,18 @@ def _validated_same_identity_record(
         _require_success_outcome(decision, failure, parsed_decisions[0])
         terminal = True
         repair_raw = None
+        repair_error = None
     elif stages == ["invalid"]:
         if decision is not None or failure is not None:
             raise ValueError("partial record must not contain an outcome")
         terminal = False
         repair_raw = validated_attempts[0]["raw"]
+        repair_error = errors[0]
     elif stages == ["invalid", "valid"]:
         _require_success_outcome(decision, failure, parsed_decisions[1])
         terminal = True
         repair_raw = None
+        repair_error = None
     elif stages == ["invalid", "invalid"]:
         if decision is not None:
             raise ValueError("failed record must not contain a decision")
@@ -908,6 +920,7 @@ def _validated_same_identity_record(
             raise ValueError("invalid terminal failure")
         terminal = True
         repair_raw = None
+        repair_error = None
     else:
         raise ValueError("invalid attempt stage sequence")
     return _ReusableRecord(
@@ -915,6 +928,7 @@ def _validated_same_identity_record(
         attempts=validated_attempts,
         usage=recorded_usage,
         repair_raw=repair_raw,
+        repair_error=repair_error,
         elapsed_seconds=float(elapsed),
     )
 

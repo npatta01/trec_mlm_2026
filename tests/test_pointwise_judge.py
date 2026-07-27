@@ -97,6 +97,27 @@ def test_v2_cross_field_invariants_reject(patch: dict[str, object]) -> None:
         parse_judge_decision(json.dumps(value), version="v2")
 
 
+def test_v2_invariant_error_is_concise_and_does_not_echo_input() -> None:
+    private_rationale = "PRIVATE-RATIONALE-DO-NOT-ECHO " + "x" * 80
+    value = {
+        **VALID_V2_DECISION,
+        "error_flags": ["reference_conflict"],
+        "reference_status": "sound",
+        "rationale": private_rationale,
+    }
+
+    with pytest.raises(ValueError) as caught:
+        parse_judge_decision(json.dumps(value), version="v2")
+
+    message = str(caught.value)
+    assert message == (
+        "v2 decision invariant violated: reference_conflict requires incomplete or "
+        "suspect reference"
+    )
+    assert private_rationale not in message
+    assert "input_value" not in message
+
+
 @pytest.mark.parametrize(
     ("patch", "invariant"),
     [

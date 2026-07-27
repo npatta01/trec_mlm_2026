@@ -290,8 +290,20 @@ def _validate_router_metadata(value: object, spec: ModelSpec) -> None:
     endpoint = selected[0]
     if endpoint.get("provider") != spec.provider:
         raise ValueError("OpenRouter metadata selected the wrong provider")
-    if endpoint.get("model") != spec.model_id:
+    if not _matches_selected_model(spec.model_id, endpoint.get("model")):
         raise ValueError("OpenRouter metadata selected the wrong model")
+    if value.get("strategy") != "direct":
+        raise ValueError("OpenRouter metadata strategy must be direct")
+
+
+def _matches_selected_model(requested: str, selected: object) -> bool:
+    if selected == requested:
+        return True
+    prefix = f"{requested}-"
+    if type(selected) is not str or not selected.startswith(prefix):
+        return False
+    suffix = selected[len(prefix) :]
+    return len(suffix) == 8 and all("0" <= character <= "9" for character in suffix)
 
 
 class _RejectRedirects(urllib.request.HTTPRedirectHandler):

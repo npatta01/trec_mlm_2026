@@ -43,6 +43,7 @@ def _router_metadata(
 ) -> dict[str, object]:
     return {
         "requested": spec.model_id,
+        "strategy": "direct",
         "attempt": attempt,
         "endpoints": {
             "total": 1 if available is None else len(available),
@@ -507,6 +508,72 @@ def test_response_rejects_conflicting_selected_route_metadata() -> None:
             },
             spec,
         )
+
+
+def test_metadata_accepts_exact_eight_digit_provider_version_alias() -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    alias = f"{spec.model_id}-20260423"
+    body = {
+        "openrouter_metadata": _router_metadata(
+            spec,
+            available=[
+                {
+                    "provider": spec.provider,
+                    "model": alias,
+                    "selected": True,
+                }
+            ],
+        ),
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(VALID_DECISION)},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost": 0.0001,
+        },
+    }
+    assert hosted._parse_response(body, spec)[0] == json.dumps(VALID_DECISION)
+
+
+@pytest.mark.parametrize(
+    "selected_model",
+    [
+        "deepseek/deepseek-v4-flash-latest",
+        "deepseek/deepseek-v4-flash-2026042",
+        "deepseek/deepseek-v4-flash-202604230",
+        "prefix-deepseek/deepseek-v4-flash-20260423",
+        "deepseek/other-model-20260423",
+        "deepseek/deepseek-v4-flash-２０２６０４２３",
+    ],
+)
+def test_metadata_rejects_noncanonical_selected_model_aliases(
+    selected_model: str,
+) -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    metadata = _router_metadata(
+        spec,
+        available=[
+            {
+                "provider": spec.provider,
+                "model": selected_model,
+                "selected": True,
+            }
+        ],
+    )
+    with pytest.raises(ValueError, match="model"):
+        hosted._validate_router_metadata(metadata, spec)
+
+
+def test_metadata_rejects_non_direct_strategy() -> None:
+    spec = hosted.MODEL_SPECS["deepseek/deepseek-v4-flash"]
+    metadata = {**_router_metadata(spec), "strategy": "fallback"}
+    with pytest.raises(ValueError, match="strategy"):
+        hosted._validate_router_metadata(metadata, spec)
 
 
 def test_response_accepts_absent_optional_router_metadata() -> None:

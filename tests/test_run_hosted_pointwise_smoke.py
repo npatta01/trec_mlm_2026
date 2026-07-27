@@ -871,6 +871,86 @@ def test_default_key_path_is_private_user_config() -> None:
     assert hosted.DEFAULT_CAP_USD == pytest.approx(0.10)
 
 
+def _required_cli_args(tmp_path: Path) -> list[str]:
+    return [
+        "--manifest",
+        str(tmp_path / "manifest.json"),
+        "--manifest-sha256",
+        "0" * 64,
+        "--protocol-dir",
+        str(tmp_path / "protocol"),
+        "--output-dir",
+        str(tmp_path / "output"),
+    ]
+
+
+def test_model_filter_defaults_to_all_models_in_fixed_registry_order(
+    tmp_path: Path,
+) -> None:
+    args = hosted._parser().parse_args(_required_cli_args(tmp_path))
+    assert args.model is None
+    assert [spec.model_id for spec in hosted._select_model_specs(args.model)] == list(
+        hosted.MODEL_SPECS
+    )
+
+
+def test_model_filter_selects_multiple_exact_ids_in_fixed_registry_order(
+    tmp_path: Path,
+) -> None:
+    requested = [
+        "openai/gpt-5.4-nano",
+        "deepseek/deepseek-v4-flash",
+    ]
+    args = hosted._parser().parse_args(
+        [
+            *_required_cli_args(tmp_path),
+            "--model",
+            requested[0],
+            "--model",
+            requested[1],
+        ]
+    )
+    assert args.model == requested
+    assert [spec.model_id for spec in hosted._select_model_specs(args.model)] == [
+        "deepseek/deepseek-v4-flash",
+        "openai/gpt-5.4-nano",
+    ]
+
+
+@pytest.mark.parametrize(
+    "requested",
+    [
+        ["unknown/model"],
+        ["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash"],
+        [""],
+        [],
+    ],
+)
+def test_model_filter_rejects_unknown_duplicate_or_empty_ids(
+    requested: list[str],
+) -> None:
+    with pytest.raises(ValueError, match="model|duplicate|empty"):
+        hosted._select_model_specs(requested)
+
+
+def test_invalid_model_filter_fails_before_api_key_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        hosted,
+        "_load_api_key",
+        lambda *_args, **_kwargs: pytest.fail("API key must not be loaded"),
+    )
+    with pytest.raises(ValueError, match="model"):
+        hosted.main(
+            [
+                *_required_cli_args(tmp_path),
+                "--model",
+                "unknown/model",
+            ]
+        )
+
+
 def test_script_entry_point_can_show_help_from_repository_root() -> None:
     result = subprocess.run(
         [sys.executable, "-S", "scripts/run_hosted_pointwise_smoke.py", "--help"],

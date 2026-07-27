@@ -642,11 +642,33 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-key-file", type=Path, default=DEFAULT_API_KEY_FILE)
     parser.add_argument("--cap-usd", type=float, default=DEFAULT_CAP_USD)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
+    parser.add_argument(
+        "--model",
+        action="append",
+        help="exact authorized model ID; repeat to select multiple models",
+    )
     return parser
+
+
+def _select_model_specs(requested: Sequence[str] | None) -> list[ModelSpec]:
+    if requested is None:
+        return list(MODEL_SPECS.values())
+    if not requested:
+        raise ValueError("model selection must not be empty")
+    if any(type(model_id) is not str or not model_id for model_id in requested):
+        raise ValueError("model selection must not contain an empty ID")
+    if len(set(requested)) != len(requested):
+        raise ValueError("model selection contains a duplicate ID")
+    unknown = set(requested) - set(MODEL_SPECS)
+    if unknown:
+        raise ValueError("model selection contains an unknown ID")
+    selected = set(requested)
+    return [spec for model_id, spec in MODEL_SPECS.items() if model_id in selected]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    selected_specs = _select_model_specs(args.model)
     api_key = _load_api_key(args.api_key_file)
     manifest = _load_json_from_opened_file(
         args.manifest,
@@ -662,7 +684,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     spend_ledger_path = args.output_dir / "spend-ledger.json"
     budget = _load_spend_ledger(spend_ledger_path, cap_usd=args.cap_usd)
     summaries: list[dict[str, object]] = []
-    for spec in MODEL_SPECS.values():
+    for spec in selected_specs:
         receipt = _runtime_receipt(spec, contract)
         name = _safe_name(spec.model_id)
         receipt_path = args.output_dir / "runtime" / f"{name}.json"

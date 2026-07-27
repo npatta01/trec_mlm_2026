@@ -14,6 +14,9 @@ from scripts.build_pointwise_judge_100_comparison import (
     build_comparison as _build_comparison,
     main,
 )
+from scripts.run_lemonade_pointwise_smoke import (
+    _runtime_observation as _current_runtime_observation,
+)
 from trec_mlm.pointwise_judge import CandidateCase, parse_judge_decision
 from trec_mlm.pointwise_runner import FROZEN_DECISION_SCHEMA_SHA256
 from trec_mlm.pointwise_sampling import DIAGNOSTIC_REASONS
@@ -33,6 +36,11 @@ CASES = [
 ]
 SEALED_CANDIDATE_IDS = [f"sealed-candidate-{index}" for index in range(1, 5)]
 ALIAS_SECRET = bytes.fromhex("ab" * 32)
+CURRENT_SCHEMA = json.loads(
+    Path("protocols/pointwise_judge_bakeoff/decision-v1.schema.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 
 def _json_hash(value: object) -> str:
@@ -156,7 +164,9 @@ def _run(
     cases: list[CandidateCase] = CASES,
 ) -> dict[str, object]:
     backend_model_id = "/private/shared-model.gguf"
-    observation = _runtime_observation(backend_model_id, "thinking" in alias)
+    observation = _runtime_observation(
+        backend_model_id, "thinking" in alias, backend_model=model_id
+    )
     receipt = _json_hash(observation)
     return {
         "version": 1,
@@ -183,11 +193,16 @@ def _run(
     }
 
 
-def _runtime_observation(backend_model_id: str, thinking: bool) -> dict[str, object]:
+def _runtime_observation(
+    backend_model_id: str,
+    thinking: bool,
+    *,
+    backend_model: str = "org/private-shared-model",
+) -> dict[str, object]:
     return {
         "schema_sha256": FROZEN_DECISION_SCHEMA_SHA256,
         "transport": "lemonade-11.5-llamacpp-rocm",
-        "backend_model": "logical-backend",
+        "backend_model": backend_model,
         "backend_response_model": backend_model_id,
         "thinking": thinking,
         "thinking_control_omitted": False,
@@ -197,6 +212,15 @@ def _runtime_observation(backend_model_id: str, thinking: bool) -> dict[str, obj
             "rationale.maxLength and error_flags.uniqueItems omitted; frozen parser retained"
         ),
     }
+
+
+def _rebind_run_observation(
+    run: dict[str, object], observation: dict[str, object]
+) -> None:
+    receipt = _json_hash(observation)
+    run["runtime_receipt_sha256"] = receipt
+    for record in run["records"].values():
+        record["runtime_receipt_sha256"] = receipt
 
 
 def build_comparison(*args: object, **kwargs: object) -> dict[str, object]:
@@ -244,14 +268,14 @@ def build_comparison(*args: object, **kwargs: object) -> dict[str, object]:
 def _inputs() -> tuple[dict[str, object], dict[str, object]]:
     direct = _run(
         "private-direct-alias",
-        "org/private-direct-model",
+        "org/private-shared-model",
         ["incorrect", "partial", "good", None],
         [1.0, 2.0, 3.0, 4.0],
         [10, 20, 30, 40],
     )
     thinking = _run(
         "private-thinking-alias",
-        "org/private-thinking-model",
+        "org/private-shared-model",
         ["partial", "good", "incorrect", "good"],
         [10.0, 20.0, 30.0, 40.0],
         [11, 21, 31, 41],
@@ -319,14 +343,14 @@ def test_comparison_reports_direction_strata_reused_slice_costs_and_failures() -
 def test_uncertain_is_exact_only_and_nonordinal_for_adjacency() -> None:
     direct = _run(
         "private-direct-alias",
-        "org/private-direct-model",
+        "org/private-shared-model",
         ["uncertain", "uncertain", "partial", "good"],
         [1.0] * 4,
         [10] * 4,
     )
     thinking = _run(
         "private-thinking-alias",
-        "org/private-thinking-model",
+        "org/private-shared-model",
         ["uncertain", "partial", "uncertain", "good"],
         [1.0] * 4,
         [10] * 4,
@@ -443,6 +467,145 @@ def test_runtime_trust_rejects_swaps_duplicates_and_setting_drift(
         binding["roles"]["direct"]["thinking"] = True
 
     with pytest.raises(ValueError, match=message):
+        _validate_runtime_trust(
+            direct,
+            thinking,
+            runtime_observations=observations,
+            runtime_binding=binding,
+            input_hashes=hashes,
+        )
+
+
+def _current_runtime_trust_fixture() -> tuple[
+    dict[str, object],
+    dict[str, object],
+    dict[str, dict[str, object]],
+    dict[str, str],
+    dict[str, object],
+]:
+    model_id = "org/private-shared-model"
+    backend = "/private/shared-model.gguf"
+    direct = _run(
+        "private-direct-alias",
+        model_id,
+        ["incorrect", "partial", "good", "uncertain"],
+        [1.0] * 4,
+        [10] * 4,
+    )
+    thinking = _run(
+        "private-thinking-alias",
+        model_id,
+        ["partial", "good", "incorrect", "uncertain"],
+        [1.0] * 4,
+        [10] * 4,
+    )
+    observations = {
+        role: _current_runtime_observation(
+            CURRENT_SCHEMA,
+            backend_model=model_id,
+            backend_response_model=backend,
+            thinking=role == "thinking",
+            thinking_control_omitted=False,
+            reasoning_effort=None,
+            max_output_tokens=4096,
+        )
+        for role in ("direct", "thinking")
+    }
+    _rebind_run_observation(direct, observations["direct"])
+    _rebind_run_observation(thinking, observations["thinking"])
+    hashes = {
+        "manifest": "a" * 64,
+        "sealed_candidates": "d" * 64,
+        "direct_run": "b" * 64,
+        "thinking_run": "c" * 64,
+        "direct_runtime_observation": "e" * 64,
+        "thinking_runtime_observation": "f" * 64,
+        "runtime_binding": "9" * 64,
+    }
+    binding = {
+        "version": 1,
+        "shared_configuration": {
+            "context_tokens": 8192,
+            "max_output_tokens": 4096,
+            "temperature": 0,
+        },
+        "roles": {
+            role: {
+                "run_sha256": hashes[f"{role}_run"],
+                "runtime_receipt_sha256": run["runtime_receipt_sha256"],
+                "thinking": role == "thinking",
+            }
+            for role, run in (("direct", direct), ("thinking", thinking))
+        },
+    }
+    return direct, thinking, observations, hashes, binding
+
+
+def test_comparison_accepts_current_schema_hashed_runtime_observations() -> None:
+    direct, thinking, observations, hashes, binding = _current_runtime_trust_fixture()
+
+    comparison = _build_comparison(
+        CASES,
+        direct,
+        thinking,
+        reused_response_ids=[],
+        input_hashes=hashes,
+        sealed_candidate_ids=SEALED_CANDIDATE_IDS,
+        alias_secret=ALIAS_SECRET,
+        runtime_observations=observations,
+        runtime_binding=binding,
+    )["comparison"]
+
+    assert comparison["coverage"]["case_count"] == 4
+
+
+@pytest.mark.parametrize(
+    "field,bad_value,message",
+    [
+        ("transport", "foreign-transport", "transport is invalid"),
+        ("backend_model", "foreign-logical-model", "backend model"),
+        ("reasoning_effort", "low", "reasoning effort"),
+        ("max_output_tokens", 4096.0, "output allowance"),
+        (
+            "schema_transport_adjustment",
+            "some other adjustment",
+            "transport schema adjustment",
+        ),
+        ("transport_schema_sha256", "0" * 64, "transport schema hash"),
+    ],
+)
+def test_current_runtime_trust_rejects_shared_field_drift(
+    field: str, bad_value: object, message: str
+) -> None:
+    direct, thinking, observations, hashes, binding = _current_runtime_trust_fixture()
+    observations["thinking"][field] = bad_value
+    _rebind_run_observation(thinking, observations["thinking"])
+    binding["roles"]["thinking"]["runtime_receipt_sha256"] = thinking[
+        "runtime_receipt_sha256"
+    ]
+
+    with pytest.raises(ValueError, match=message):
+        _validate_runtime_trust(
+            direct,
+            thinking,
+            runtime_observations=observations,
+            runtime_binding=binding,
+            input_hashes=hashes,
+        )
+
+
+def test_runtime_trust_rejects_mixed_legacy_and_current_observation_formats() -> None:
+    direct, thinking, observations, hashes, binding = _current_runtime_trust_fixture()
+    observations["direct"].pop("transport_schema_sha256")
+    observations["direct"]["schema_transport_adjustment"] = (
+        "rationale.maxLength and error_flags.uniqueItems omitted; frozen parser retained"
+    )
+    _rebind_run_observation(direct, observations["direct"])
+    binding["roles"]["direct"]["runtime_receipt_sha256"] = direct[
+        "runtime_receipt_sha256"
+    ]
+
+    with pytest.raises(ValueError, match="same runtime observation format"):
         _validate_runtime_trust(
             direct,
             thinking,
@@ -754,7 +917,7 @@ def _cli_inputs(tmp_path: Path) -> tuple[list[str], Path]:
     }
     direct = _run(
         "private-direct-alias",
-        "org/private-direct-model",
+        "org/private-shared-model",
         ["incorrect"] * 100,
         [1.0] * 100,
         [10] * 100,
@@ -762,7 +925,7 @@ def _cli_inputs(tmp_path: Path) -> tuple[list[str], Path]:
     )
     thinking = _run(
         "private-thinking-alias",
-        "org/private-thinking-model",
+        "org/private-shared-model",
         ["partial"] * 100,
         [2.0] * 100,
         [11] * 100,

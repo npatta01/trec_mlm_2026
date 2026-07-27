@@ -37,6 +37,14 @@ _FROZEN_MODE_CONFIGURATION = {
     "max_output_tokens": 4096,
     "temperature": 0,
 }
+_RUNTIME_TRANSPORT = "lemonade-11.5-llamacpp-rocm"
+_CURRENT_TRANSPORT_SCHEMA_SHA256 = (
+    "40a725cf89740c377ba6b91fa3d1fbe4657127d5f0592b884110cae4e944bc67"
+)
+_LEGACY_SCHEMA_ADJUSTMENT = (
+    "rationale.maxLength and error_flags.uniqueItems omitted; frozen parser retained"
+)
+_CURRENT_SCHEMA_ADJUSTMENT = "rationale.maxLength omitted; frozen parser retained"
 _INPUT_HASH_KEYS = {
     "manifest",
     "sealed_candidates",
@@ -418,7 +426,7 @@ def _validate_runtime_trust(
     }:
         raise ValueError("runtime observations must exactly cover direct and thinking")
     runs = {"direct": direct_run, "thinking": thinking_run}
-    observation_keys = {
+    base_observation_keys = {
         "schema_sha256",
         "transport",
         "backend_model",
@@ -430,10 +438,20 @@ def _validate_runtime_trust(
         "schema_transport_adjustment",
     }
     backends: set[str] = set()
+    formats: set[str] = set()
+    logical_models: set[str] = set()
     for role, expected_thinking in (("direct", False), ("thinking", True)):
         observation = runtime_observations[role]
-        if type(observation) is not dict or set(observation) != observation_keys:
+        if type(observation) is not dict:
             raise ValueError(f"{role} runtime observation has invalid structure")
+        keys = set(observation)
+        if keys == base_observation_keys:
+            observation_format = "legacy"
+        elif keys == base_observation_keys | {"transport_schema_sha256"}:
+            observation_format = "current"
+        else:
+            raise ValueError(f"{role} runtime observation has invalid structure")
+        formats.add(observation_format)
         if _json_hash(observation) != runs[role].get("runtime_receipt_sha256"):
             raise ValueError(f"{role} runtime observation does not bind its run")
         if (
@@ -441,14 +459,48 @@ def _validate_runtime_trust(
             or observation["thinking_control_omitted"] is not False
         ):
             raise ValueError(f"{role} runtime observation has wrong thinking role")
-        if observation["max_output_tokens"] != 4096:
+        if (
+            type(observation["max_output_tokens"]) is not int
+            or observation["max_output_tokens"] != 4096
+        ):
             raise ValueError(f"{role} runtime observation has wrong output allowance")
         if observation["schema_sha256"] != FROZEN_DECISION_SCHEMA_SHA256:
             raise ValueError(f"{role} runtime observation has wrong schema")
+        if observation["transport"] != _RUNTIME_TRANSPORT:
+            raise ValueError(f"{role} runtime observation transport is invalid")
+        logical_model = runs[role].get("model_id")
+        if observation["backend_model"] != logical_model:
+            raise ValueError(f"{role} runtime observation backend model is invalid")
+        if type(logical_model) is not str or not logical_model:
+            raise ValueError(f"{role} run logical model is invalid")
+        logical_models.add(logical_model)
+        if observation["reasoning_effort"] is not None:
+            raise ValueError(f"{role} runtime observation reasoning effort is invalid")
+        expected_adjustment = (
+            _LEGACY_SCHEMA_ADJUSTMENT
+            if observation_format == "legacy"
+            else _CURRENT_SCHEMA_ADJUSTMENT
+        )
+        if observation["schema_transport_adjustment"] != expected_adjustment:
+            raise ValueError(
+                f"{role} runtime observation transport schema adjustment is invalid"
+            )
+        if (
+            observation_format == "current"
+            and observation["transport_schema_sha256"]
+            != _CURRENT_TRANSPORT_SCHEMA_SHA256
+        ):
+            raise ValueError(
+                f"{role} runtime observation transport schema hash is invalid"
+            )
         backend = observation["backend_response_model"]
         if type(backend) is not str or not backend:
             raise ValueError(f"{role} runtime observation has invalid backend model")
         backends.add(backend)
+    if len(formats) != 1:
+        raise ValueError("runs must use the same runtime observation format")
+    if len(logical_models) != 1:
+        raise ValueError("runtime observations do not share one backend model")
     if len(backends) != 1:
         raise ValueError("runtime observations do not share one backend model")
 

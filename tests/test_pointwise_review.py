@@ -73,7 +73,7 @@ def _response_body(raw: str, model_id: str) -> dict[str, object]:
     }
 
 
-def _run(alias: str, model_id: str) -> dict[str, object]:
+def _run(alias: str, model_id: str, backend_response_model: str) -> dict[str, object]:
     prompt_hash = "1" * 64
     receipt_hash = hashlib.sha256(alias.encode()).hexdigest()
     raw = json.dumps(DECISION)
@@ -89,7 +89,9 @@ def _run(alias: str, model_id: str) -> dict[str, object]:
             "attempts": [
                 {
                     "raw": raw,
-                    "response_body": _response_body(raw, model_id),
+                    "response_body": _response_body(raw, backend_response_model),
+                    "logical_model_id": model_id,
+                    "backend_model_id": backend_response_model,
                     "parsed": dict(DECISION),
                 }
             ],
@@ -110,25 +112,32 @@ def _run(alias: str, model_id: str) -> dict[str, object]:
 
 
 RUNS = {
-    "local-alpha": _run("local-alpha", "org/private-alpha"),
-    "local-beta": _run("local-beta", "org/private-beta"),
+    "local-alpha": _run(
+        "local-alpha", "org/private-alpha", "/verified/private-alpha.gguf"
+    ),
+    "local-beta": _run("local-beta", "org/private-beta", "/verified/private-beta.gguf"),
 }
 
 
 def _failed_run(alias: str, model_id: str) -> dict[str, object]:
-    run = _run(alias, model_id)
+    backend_response_model = f"/verified/{alias}.gguf"
+    run = _run(alias, model_id, backend_response_model)
     raw = "not-json"
     error = "decision is not valid JSON"
     attempts = [
         {
             "raw": raw,
-            "response_body": _response_body(raw, model_id),
+            "response_body": _response_body(raw, backend_response_model),
+            "logical_model_id": model_id,
+            "backend_model_id": backend_response_model,
             "parsed": None,
             "error": error,
         },
         {
             "raw": raw,
-            "response_body": _response_body(raw, model_id),
+            "response_body": _response_body(raw, backend_response_model),
+            "logical_model_id": model_id,
+            "backend_model_id": backend_response_model,
             "parsed": None,
             "error": error,
         },
@@ -369,6 +378,18 @@ def test_critique_packet_rejects_incomplete_or_corrupt_runs(mutation: str) -> No
 
     with pytest.raises(
         ValueError, match="run|record|coverage|terminal|identity|attempt"
+    ):
+        build_critique_packet(CASES, runs, seed=2026)
+
+
+def test_critique_packet_rejects_record_with_foreign_backend_model() -> None:
+    runs = json.loads(json.dumps(RUNS))
+    attempt = runs["local-alpha"]["records"]["r2"]["attempts"][0]
+    attempt["backend_model_id"] = "foreign-model"
+    attempt["response_body"]["model"] = "foreign-model"
+
+    with pytest.raises(
+        ValueError, match="invalid run local-alpha record:.*wrong model"
     ):
         build_critique_packet(CASES, runs, seed=2026)
 

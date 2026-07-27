@@ -99,6 +99,19 @@ def build_critique_packet(
             raise ValueError(
                 f"run {model_alias} response coverage does not match cases"
             )
+        first_record = records[validated_cases[0].response_id]
+        if type(first_record) is not dict:
+            raise ValueError(f"run {model_alias} record must be an object")
+        first_attempts = first_record.get("attempts")
+        if (
+            type(first_attempts) is not list
+            or not first_attempts
+            or type(first_attempts[0]) is not dict
+        ):
+            raise ValueError(f"run {model_alias} record attempt structure is invalid")
+        backend_response_model = first_attempts[0].get("backend_model_id")
+        if type(backend_response_model) is not str or not backend_response_model:
+            raise ValueError(f"run {model_alias} backend identity is invalid")
         judge_alias = model_to_judge[model_alias]
         decisions[judge_alias] = {}
         for case in validated_cases:
@@ -119,7 +132,11 @@ def build_critique_packet(
                         f"run {model_alias} record {key} identity is invalid"
                     )
             try:
-                reusable = _validated_same_identity_record(record, record)
+                reusable = _validated_same_identity_record(
+                    record,
+                    record,
+                    backend_response_model=backend_response_model,
+                )
             except (KeyError, TypeError, ValueError) as error:
                 raise ValueError(
                     f"invalid run {model_alias} record: {error}"

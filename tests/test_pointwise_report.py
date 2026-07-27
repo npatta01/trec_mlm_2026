@@ -59,6 +59,7 @@ def _record(
     case: CandidateCase,
     alias: str,
     model_id: str,
+    backend_response_model: str,
     decision: dict[str, object] | None,
     *,
     repaired: bool = False,
@@ -69,10 +70,12 @@ def _record(
             {
                 "raw": "private malformed body",
                 "response_body": {
-                    "model": model_id,
+                    "model": backend_response_model,
                     "choices": [{"message": {"content": "private malformed body"}}],
                     "usage": {"total_tokens": 2},
                 },
+                "logical_model_id": model_id,
+                "backend_model_id": backend_response_model,
                 "parsed": None,
                 "error": "decision is not valid JSON",
             }
@@ -83,10 +86,12 @@ def _record(
                 {
                     "raw": raw,
                     "response_body": {
-                        "model": model_id,
+                        "model": backend_response_model,
                         "choices": [{"message": {"content": raw}}],
                         "usage": {"total_tokens": 3},
                     },
+                    "logical_model_id": model_id,
+                    "backend_model_id": backend_response_model,
                     "parsed": None,
                     "error": "decision is not valid JSON",
                 }
@@ -97,10 +102,12 @@ def _record(
             {
                 "raw": raw,
                 "response_body": {
-                    "model": model_id,
+                    "model": backend_response_model,
                     "choices": [{"message": {"content": raw}}],
                     "usage": {"total_tokens": 7},
                 },
+                "logical_model_id": model_id,
+                "backend_model_id": backend_response_model,
                 "parsed": decision,
             }
         )
@@ -133,6 +140,7 @@ def _record(
 def _run(
     alias: str, model_id: str, decisions: list[dict[str, object] | None]
 ) -> dict[str, object]:
+    backend_response_model = f"/verified/{alias}.gguf"
     return {
         "version": 1,
         "model_alias": alias,
@@ -142,7 +150,12 @@ def _run(
         "runtime_receipt_sha256": hashlib.sha256(alias.encode()).hexdigest(),
         "records": {
             case.response_id: _record(
-                case, alias, model_id, decision, repaired=index == 0
+                case,
+                alias,
+                model_id,
+                backend_response_model,
+                decision,
+                repaired=index == 0,
             )
             for index, (case, decision) in enumerate(zip(CASES, decisions, strict=True))
         },
@@ -230,6 +243,16 @@ def test_summary_reports_schema_failures_false_confidence_and_consensus_only() -
     assert summary["reviewers"]["pass2_disagreement_count"] == 0
     assert "gold" not in json.dumps(summary).casefold()
     assert "accuracy" not in json.dumps(summary).casefold()
+
+
+def test_summary_rejects_record_with_foreign_backend_model() -> None:
+    inputs = _inputs()
+    attempt = inputs["runs"]["local-secret-a"]["records"]["r-private-2"]["attempts"][0]
+    attempt["backend_model_id"] = "foreign-model"
+    attempt["response_body"]["model"] = "foreign-model"
+
+    with pytest.raises(ValueError, match="invalid run record.*wrong model"):
+        build_smoke_summary(**inputs)
 
 
 def test_sanitized_summary_is_a_whitelist_without_private_text_or_identities() -> None:

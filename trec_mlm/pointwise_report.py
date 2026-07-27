@@ -280,6 +280,19 @@ def _validated_run(
     case_ids = [case.response_id for case in cases]
     if type(records) is not dict or set(records) != set(case_ids):
         raise ValueError("run response coverage does not match cases")
+    first_record = records[case_ids[0]]
+    if type(first_record) is not dict:
+        raise ValueError("run record must be an object")
+    first_attempts = first_record.get("attempts")
+    if (
+        type(first_attempts) is not list
+        or not first_attempts
+        or type(first_attempts[0]) is not dict
+    ):
+        raise ValueError("run record attempt structure is invalid")
+    backend_response_model = first_attempts[0].get("backend_model_id")
+    if type(backend_response_model) is not str or not backend_response_model:
+        raise ValueError("run backend identity is invalid")
     result: dict[str, dict[str, object]] = {}
     for case in cases:
         response_id = case.response_id
@@ -289,7 +302,11 @@ def _validated_run(
         if record.get("input_sha256") != _canonical_hash(asdict(case)):
             raise ValueError("run record input identity does not match case")
         try:
-            reusable = _validated_same_identity_record(record, record)
+            reusable = _validated_same_identity_record(
+                record,
+                record,
+                backend_response_model=backend_response_model,
+            )
         except (KeyError, TypeError, ValueError) as error:
             raise ValueError(f"invalid run record {response_id}: {error}") from error
         if not reusable.terminal:

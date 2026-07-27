@@ -5,16 +5,30 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
+import hashlib
 import html
 import json
 import math
 import os
 from pathlib import Path
 import re
+import stat
 import tempfile
 
-from trec_mlm.pointwise_judge import parse_judge_decision
+from scripts.run_hosted_pointwise_smoke import (
+    V2_CONFIG_SPECS,
+    _runtime_receipt,
+    _v2_canary_identity,
+)
+from trec_mlm.pointwise_judge import (
+    CandidateCase,
+    load_prompt_contract,
+    parse_judge_decision,
+)
+from trec_mlm.pointwise_review import validate_reviewer_record
 from trec_mlm.pointwise_runner import (
+    FROZEN_DECISION_SCHEMA_SHA256,
     FROZEN_V2_DECISION_SCHEMA_SHA256,
     FROZEN_V2_PROMPT_SHA256,
 )
@@ -57,6 +71,9 @@ _EXPECTED_CONFIGS = {
     },
 }
 _QUOTED_SPAN = re.compile(r'"([^"\n]{1,240})"|“([^”\n]{1,240})”|`([^`\n]{1,240})`')
+_PROTOCOL_DIR = (
+    Path(__file__).resolve().parents[1] / "protocols" / "pointwise_judge_bakeoff"
+)
 
 
 def permitted_claim(case_count: int) -> str:
@@ -107,8 +124,11 @@ def compare_runs(inputs: Mapping[str, object]) -> dict[str, object]:
         raise ValueError("comparison inputs must be an object")
     manifest = _mapping(inputs.get("manifest"), "manifest")
     cases = _cases(manifest)
-    case_ids = [case["response_id"] for case in cases]
-    candidates = {case["response_id"]: case["candidate_answer"] for case in cases}
+    manifest_sha256 = inputs.get("manifest_sha256")
+    if not _sha256(manifest_sha256):
+        raise ValueError("manifest_sha256 must be a SHA-256 digest")
+    case_ids = [case.response_id for case in cases]
+    candidates = {case.response_id: case.candidate_answer for case in cases}
     reviewer = _reviewer_consensus(
         _mapping(inputs.get("advisor_review"), "advisor review"),
         _mapping(inputs.get("claude_review"), "claude review"),
@@ -118,7 +138,15 @@ def compare_runs(inputs: Mapping[str, object]) -> dict[str, object]:
     receipts = _config_mapping(inputs.get("runtime_receipts"), "runtime receipts")
     spend = _spend_ledger(_mapping(inputs.get("spend_ledger"), "spend ledger"))
     attempts = _attempt_ledger(_mapping(inputs.get("attempt_ledger"), "attempt ledger"))
-    v1_runs = _mapping(inputs.get("v1_runs", {}), "v1 runs")
+    markers = _attempt_markers(inputs.get("attempt_markers"), attempts)
+    spend_receipt = _mapping(inputs.get("spend_receipt"), "spend receipt")
+    v1_runs = _mapping(inputs.get("v1_runs"), "v1 runs")
+    if not v1_runs:
+        raise ValueError("required v1 evidence is absent")
+    contract = load_prompt_contract(_PROTOCOL_DIR, version="v2")
+    expected_canary_identity = _v2_canary_identity(
+        manifest_sha256=manifest_sha256, contract=contract
+    )
 
     config_results: dict[str, dict[str, object]] = {}
     parsed_by_config: dict[str, dict[str, dict[str, object] | None]] = {}
@@ -127,30 +155,43 @@ def compare_runs(inputs: Mapping[str, object]) -> dict[str, object]:
             config_id,
             _mapping(runs[config_id], f"{config_id} run"),
             _mapping(receipts[config_id], f"{config_id} receipt"),
-            case_ids,
+            cases,
             candidates,
             reviewer,
+            expected_canary_identity,
         )
         config_results[config_id] = result
         parsed_by_config[config_id] = parsed
 
     _add_cross_model_agreement(config_results, parsed_by_config, case_ids)
     qwen_changes = _qwen_changes(parsed_by_config, case_ids)
-    v1_differences = _v1_differences(v1_runs, parsed_by_config, case_ids)
+    v1_differences = _v1_differences(v1_runs, parsed_by_config, cases)
+    global_gates = _accounting_gates(
+        config_results,
+        runs,
+        spend,
+        attempts,
+        markers,
+        spend_receipt,
+        expected_canary_identity,
+    )
     return {
         "version": 1,
         "comparison_kind": "pointwise_judge_v2_diagnostic_canary",
         "case_count": len(cases),
         "claim": permitted_claim(len(cases)),
         "inputs": {
-            "manifest_hash": manifest.get("manifest_hash"),
+            "manifest_sha256": manifest_sha256,
             "spend_ledger": spend,
             "attempt_ledger": attempts,
+            "attempt_markers": {"count": len(markers)},
+            "spend_receipt": {"spent_usd": spend_receipt.get("spent_usd")},
             "reviewer_pass2": reviewer["summary"],
         },
         "configs": config_results,
         "qwen_direct_thinking": qwen_changes,
         "v1_differences": v1_differences,
+        "global_hard_gate_failures": global_gates,
     }
 
 
@@ -158,11 +199,13 @@ def _compare_config(
     config_id: str,
     run: Mapping[str, object],
     receipt: Mapping[str, object],
-    case_ids: Sequence[str],
+    cases: Sequence[CandidateCase],
     candidates: Mapping[str, str],
     reviewer: Mapping[str, object],
+    expected_canary_identity: str,
 ) -> tuple[dict[str, object], dict[str, dict[str, object] | None]]:
-    gates = _identity_gates(config_id, run, receipt)
+    case_ids = [case.response_id for case in cases]
+    gates = _identity_gates(config_id, run, receipt, expected_canary_identity)
     records = run.get("records")
     if type(records) is not dict:
         raise ValueError(f"{config_id} run records must be an object")
@@ -180,6 +223,19 @@ def _compare_config(
             gates.append("record_coverage")
             decisions[response_id] = None
             continue
+        if record.get("input_sha256") != _json_hash(
+            asdict(cases[case_ids.index(response_id)])
+        ):
+            gates.append("manifest_record_identity")
+        for identity_key in (
+            "model_alias",
+            "model_id",
+            "prompt_sha256",
+            "schema_sha256",
+            "runtime_receipt_sha256",
+        ):
+            if record.get(identity_key) != run.get(identity_key):
+                gates.append("run_record_identity")
         decision = record.get("decision")
         attempts = record.get("attempts")
         if type(attempts) is not list:
@@ -234,7 +290,10 @@ def _compare_config(
 
 
 def _identity_gates(
-    config_id: str, run: Mapping[str, object], receipt: Mapping[str, object]
+    config_id: str,
+    run: Mapping[str, object],
+    receipt: Mapping[str, object],
+    expected_canary_identity: str,
 ) -> list[str]:
     expected = _EXPECTED_CONFIGS[config_id]
     gates: list[str] = []
@@ -259,11 +318,16 @@ def _identity_gates(
         or receipt.get("schema_sha256") != FROZEN_V2_DECISION_SCHEMA_SHA256
     ):
         gates.append("schema_contract")
-    if (
-        run.get("runtime_receipt_sha256") is None
-        or receipt.get("transport_schema_sha256") is None
-    ):
-        gates.append("runtime_receipt")
+    expected_receipt = _runtime_receipt(
+        V2_CONFIG_SPECS[config_id],
+        load_prompt_contract(_PROTOCOL_DIR, version="v2"),
+        version="v2",
+        canary_identity_sha256=expected_canary_identity,
+    )
+    if receipt != expected_receipt:
+        gates.append("runtime_receipt_contract")
+    if run.get("runtime_receipt_sha256") != _json_hash(receipt):
+        gates.append("runtime_receipt_binding")
     return gates
 
 
@@ -291,29 +355,46 @@ def _agreement_metrics(
     case_ids: Sequence[str],
 ) -> dict[str, object]:
     result: dict[str, object] = {}
+    consensus_by_field = _mapping(reviewer, "review consensus")
     for field in _DECISION_FIELDS:
+        field_consensus = _mapping(consensus_by_field[field], f"{field} consensus")
         comparable = [
             response_id
             for response_id in case_ids
-            if response_id in reviewer and decisions[response_id] is not None
+            if response_id in field_consensus and decisions[response_id] is not None
         ]
+        excluded = [
+            response_id for response_id in case_ids if response_id not in comparable
+        ]
+        excluded_count = len(excluded)
         if field == "error_flags":
             scores = [
                 _jaccard(
                     set(decisions[response_id][field]),
-                    set(reviewer[response_id][field]),
+                    set(field_consensus[response_id][field]),
                 )
                 for response_id in comparable
             ]
-            result["error_flag_mean_jaccard"] = (
-                sum(scores) / len(scores) if scores else None
-            )
+            value = sum(scores) / len(scores) if scores else None
+            result["error_flag_mean_jaccard"] = value
+            result["error_flag_mean_jaccard_detail"] = {
+                "numerator": sum(scores) if scores else None,
+                "denominator": len(comparable),
+                "excluded_count": excluded_count,
+                "excluded_response_ids": excluded,
+            }
             continue
         exact = sum(
-            decisions[response_id][field] == reviewer[response_id][field]
+            decisions[response_id][field] == field_consensus[response_id][field]
             for response_id in comparable
         )
         result[f"{field}_agreement"] = exact / len(comparable) if comparable else None
+        result[f"{field}_agreement_detail"] = {
+            "numerator": exact if comparable else None,
+            "denominator": len(comparable),
+            "excluded_count": excluded_count,
+            "excluded_response_ids": excluded,
+        }
     return result
 
 
@@ -327,23 +408,25 @@ def _reviewer_consensus(
 ) -> dict[str, object]:
     advisor_rows = _review_rows(advisor, "advisor", case_ids)
     claude_rows = _review_rows(claude, "claude", case_ids)
-    consensus: dict[str, dict[str, object]] = {}
+    consensus: dict[str, dict[str, dict[str, object]]] = {
+        field: {} for field in _DECISION_FIELDS
+    }
     disagreement_by_field = {field: 0 for field in _DECISION_FIELDS}
     for response_id in case_ids:
         left = advisor_rows[response_id]
         right = claude_rows[response_id]
-        agreed = True
         for field in _DECISION_FIELDS:
             if left[field] != right[field]:
                 disagreement_by_field[field] += 1
-                agreed = False
-        if agreed:
-            consensus[response_id] = left
+            else:
+                consensus[field][response_id] = left
     return {
         "consensus": consensus,
         "summary": {
             "case_count": len(case_ids),
-            "fully_agreed_cases": len(consensus),
+            "fully_agreed_cases": len(
+                set.intersection(*(set(rows) for rows in consensus.values()))
+            ),
             "field_disagreements": disagreement_by_field,
         },
     }
@@ -352,9 +435,16 @@ def _reviewer_consensus(
 def _review_rows(
     review: Mapping[str, object], name: str, case_ids: Sequence[str]
 ) -> dict[str, dict[str, object]]:
-    rows = review.get("pass2")
-    if type(rows) is not list:
-        raise ValueError(f"{name} review must contain pass2 rows")
+    try:
+        validate_reviewer_record(
+            review,
+            case_ids,
+            expected_reviewer=name,
+            allowed_reviewers=("advisor", "claude"),
+        )
+    except ValueError as error:
+        raise ValueError(f"{name} reviewer ledger is invalid: {error}") from error
+    rows = review["pass2"]
     result: dict[str, dict[str, object]] = {}
     for row in rows:
         if type(row) is not dict or type(row.get("response_id")) is not str:
@@ -363,8 +453,6 @@ def _review_rows(
         if response_id in result:
             raise ValueError(f"{name} pass2 contains a duplicate response ID")
         result[response_id] = _review_decision(row)
-    if set(result) != set(case_ids):
-        raise ValueError(f"{name} pass2 coverage does not match the manifest")
     return result
 
 
@@ -420,6 +508,20 @@ def _qwen_changes(
 ) -> dict[str, object]:
     direct = decisions["qwen3.6-35b-a3b-direct"]
     thinking = decisions["qwen3.6-35b-a3b-thinking"]
+    excluded = [
+        response_id
+        for response_id in case_ids
+        if direct[response_id] is None or thinking[response_id] is None
+    ]
+    if excluded:
+        return {
+            "available": False,
+            "excluded_count": len(excluded),
+            "excluded_response_ids": excluded,
+            "changed_case_count": None,
+            "field_change_counts": None,
+            "changes": [],
+        }
     changes: list[dict[str, object]] = []
     field_counts = {field: 0 for field in _DECISION_FIELDS}
     for response_id in case_ids:
@@ -435,6 +537,9 @@ def _qwen_changes(
         if changed:
             changes.append({"response_id": response_id, "changed_fields": changed})
     return {
+        "available": True,
+        "excluded_count": 0,
+        "excluded_response_ids": [],
         "changed_case_count": len(changes),
         "field_change_counts": field_counts,
         "changes": changes,
@@ -444,8 +549,9 @@ def _qwen_changes(
 def _v1_differences(
     v1_runs: Mapping[str, object],
     v2_decisions: Mapping[str, Mapping[str, dict[str, object] | None]],
-    case_ids: Sequence[str],
+    cases: Sequence[CandidateCase],
 ) -> dict[str, object]:
+    case_ids = [case.response_id for case in cases]
     result: dict[str, object] = {}
     for name, raw_run in v1_runs.items():
         if type(name) is not str or type(raw_run) is not dict:
@@ -453,6 +559,25 @@ def _v1_differences(
         records = raw_run.get("records")
         if type(records) is not dict:
             raise ValueError("v1 run records must be an object")
+        if raw_run.get("schema_sha256") != FROZEN_DECISION_SCHEMA_SHA256:
+            raise ValueError("v1 evidence does not use the frozen v1 schema")
+        if set(records) != set(case_ids):
+            raise ValueError("v1 evidence coverage does not match the manifest")
+        for case in cases:
+            record = records[case.response_id]
+            if type(record) is not dict or record.get("input_sha256") != _json_hash(
+                asdict(case)
+            ):
+                raise ValueError("v1 evidence record identity is invalid")
+            for key in (
+                "model_alias",
+                "model_id",
+                "prompt_sha256",
+                "schema_sha256",
+                "runtime_receipt_sha256",
+            ):
+                if record.get(key) != raw_run.get(key):
+                    raise ValueError("v1 evidence run identity is invalid")
         for config_id, decisions in v2_decisions.items():
             differences: list[dict[str, object]] = []
             for response_id in case_ids:
@@ -494,20 +619,34 @@ def render_sanitized_markdown(comparison: Mapping[str, object]) -> str:
         "",
         "## Per-configuration summary",
         "",
-        "| Configuration | Completion | Label agreement | Flag Jaccard | Cost (USD) | Latency (s) | Gate failures |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Configuration | Provider | Completion | Label agreement | Correctness agreement | Completeness agreement | Relevance agreement | Reference-status agreement | Flag Jaccard | Cross-model label agreement | Cost (USD) | Latency (s) | Repair attempts | Retry attempts | Rationale audit | Hard-gate failures |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |",
     ]
     for config_id in CONFIGS:
         metrics = _mapping(configs.get(config_id), f"{config_id} metrics")
         lines.append(
-            "| {config} | {completion} | {label} | {jaccard} | {cost:.6f} | {latency:.3f} | {gates} |".format(
+            "| {config} | {provider} | {completion} | {label} | {correctness} | {completeness} | {relevance} | {reference_status} | {jaccard} | {cross_model} | {cost:.6f} | {latency:.3f} | {repairs} | {retries} | {audit} | {gates} |".format(
                 config=html.escape(config_id),
+                provider=html.escape(str(metrics.get("provider_identity"))),
                 completion=metrics.get("completion"),
                 label=_format_metric(metrics.get("label_agreement")),
+                correctness=_format_metric(metrics.get("correctness_agreement")),
+                completeness=_format_metric(metrics.get("completeness_agreement")),
+                relevance=_format_metric(metrics.get("relevance_agreement")),
+                reference_status=_format_metric(
+                    metrics.get("reference_status_agreement")
+                ),
                 jaccard=_format_metric(metrics.get("error_flag_mean_jaccard")),
+                cross_model=_format_metric(metrics.get("cross_model_label_agreement")),
                 cost=_number_for_render(metrics.get("cost_usd")),
                 latency=_number_for_render(metrics.get("latency_seconds")),
-                gates=len(metrics.get("hard_gate_failures", [])),
+                repairs=metrics.get("repair_attempts"),
+                retries=metrics.get("retry_attempts"),
+                audit="{}/{}".format(
+                    metrics["rationale_audit"]["failed"],
+                    metrics["rationale_audit"]["checked"],
+                ),
+                gates=", ".join(metrics.get("hard_gate_failures", [])) or "none",
             )
         )
     qwen = _mapping(comparison.get("qwen_direct_thinking"), "Qwen comparison")
@@ -516,7 +655,26 @@ def render_sanitized_markdown(comparison: Mapping[str, object]) -> str:
             "",
             "## Paired Qwen direct/thinking changes",
             "",
-            f"Paired changed cases: {qwen.get('changed_case_count')} of {case_count}.",
+            "Paired comparison available: {available}; changed cases: {changed}; excluded pairs: {excluded}.".format(
+                available=qwen.get("available"),
+                changed=qwen.get("changed_case_count"),
+                excluded=qwen.get("excluded_count"),
+            ),
+            "",
+            "## v1 differences",
+            "",
+            "| Comparison | Changed cases |",
+            "| --- | ---: |",
+            *[
+                f"| {html.escape(name)} | {value.get('changed_case_count')} |"
+                for name, value in _mapping(
+                    comparison.get("v1_differences"), "v1 differences"
+                ).items()
+            ],
+            "",
+            "## Hard-gate failures",
+            "",
+            ", ".join(comparison.get("global_hard_gate_failures", [])) or "none",
             "",
             "## Claim boundary",
             "",
@@ -536,27 +694,46 @@ def _number_for_render(value: object) -> float:
     return float(value)
 
 
-def _cases(manifest: Mapping[str, object]) -> list[dict[str, str]]:
+def _cases(manifest: Mapping[str, object]) -> list[CandidateCase]:
     rows = manifest.get("cases")
     if type(rows) is not list or len(rows) != 10:
         raise ValueError("v2 canary manifest must contain exactly ten cases")
-    result: list[dict[str, str]] = []
+    result: list[CandidateCase] = []
     for row in rows:
-        if (
-            type(row) is not dict
-            or type(row.get("response_id")) is not str
-            or type(row.get("candidate_answer")) is not str
-        ):
-            raise ValueError(
-                "manifest case must include response_id and candidate_answer"
+        if type(row) is not dict:
+            raise ValueError("manifest case must be an object")
+        try:
+            result.append(
+                CandidateCase(
+                    question_id=row["question_id"],
+                    response_id=row["response_id"],
+                    question=row["question"],
+                    reference_answer=row["reference_answer"],
+                    candidate_answer=row["candidate_answer"],
+                    strata=tuple(row["strata"]),
+                    selection_reason=row["selection_reason"],
+                )
             )
-        result.append(
-            {
-                "response_id": row["response_id"],
-                "candidate_answer": row["candidate_answer"],
-            }
+        except (KeyError, TypeError) as error:
+            raise ValueError("manifest case is invalid") from error
+    if any(
+        type(getattr(case, field)) is not str or not getattr(case, field)
+        for case in result
+        for field in (
+            "question_id",
+            "response_id",
+            "question",
+            "reference_answer",
+            "candidate_answer",
+            "selection_reason",
         )
-    if len({row["response_id"] for row in result}) != len(result):
+    ) or any(
+        not case.strata
+        or any(type(item) is not str or not item for item in case.strata)
+        for case in result
+    ):
+        raise ValueError("manifest case fields are invalid")
+    if len({case.response_id for case in result}) != len(result):
         raise ValueError("manifest response IDs must be unique")
     if not _sha256(manifest.get("manifest_hash")):
         raise ValueError("manifest hash must be a SHA-256 digest")
@@ -580,6 +757,7 @@ def _attempt_ledger(value: Mapping[str, object]) -> dict[str, object]:
         value.get("version") != 2
         or type(value.get("cap_calls")) is not int
         or type(value.get("used_calls")) is not int
+        or not _sha256(value.get("canary_identity_sha256"))
     ):
         raise ValueError("attempt ledger is invalid")
     if (
@@ -587,7 +765,95 @@ def _attempt_ledger(value: Mapping[str, object]) -> dict[str, object]:
         or not 40 <= value["used_calls"] <= value["cap_calls"]
     ):
         raise ValueError("attempt ledger is outside canary bounds")
-    return {"cap_calls": value["cap_calls"], "used_calls": value["used_calls"]}
+    return {
+        "cap_calls": value["cap_calls"],
+        "used_calls": value["used_calls"],
+        "canary_identity_sha256": value["canary_identity_sha256"],
+    }
+
+
+def _attempt_markers(
+    value: object, attempts: Mapping[str, object]
+) -> list[dict[str, object]]:
+    if type(value) is not list:
+        raise ValueError("attempt markers must be a list")
+    expected_count = attempts["used_calls"]
+    if len(value) != expected_count:
+        raise ValueError("attempt markers do not reconcile with the attempt ledger")
+    markers: list[dict[str, object]] = []
+    for count, marker in enumerate(value, start=1):
+        if marker != {
+            "version": 1,
+            "attempt": count,
+            "canary_identity_sha256": attempts["canary_identity_sha256"],
+        }:
+            raise ValueError("attempt marker identity is invalid")
+        markers.append(marker)
+    return markers
+
+
+def _accounting_gates(
+    config_results: Mapping[str, Mapping[str, object]],
+    runs: Mapping[str, object],
+    spend: Mapping[str, object],
+    attempts: Mapping[str, object],
+    markers: Sequence[Mapping[str, object]],
+    spend_receipt: Mapping[str, object],
+    expected_canary_identity: str,
+) -> list[str]:
+    gates: list[str] = []
+    if attempts["canary_identity_sha256"] != expected_canary_identity:
+        gates.append("canary_identity")
+    semantic_attempts = sum(
+        len(run.get("records", {}).get(response_id, {}).get("attempts", []))
+        for run in runs.values()
+        if type(run) is dict
+        for response_id in run.get("records", {})
+    )
+    recorded_cost = sum(float(result["cost_usd"]) for result in config_results.values())
+    if (
+        attempts["used_calls"] < semantic_attempts
+        or len(markers) != attempts["used_calls"]
+    ):
+        gates.append("accounting_reconciliation")
+    if not _valid_spend_receipt(spend_receipt, runs, spend, attempts):
+        gates.append("accounting_reconciliation")
+    if not math.isclose(recorded_cost, float(spend["spent_usd"]), abs_tol=1e-12):
+        gates.append("accounting_reconciliation")
+    return sorted(set(gates))
+
+
+def _valid_spend_receipt(
+    receipt: Mapping[str, object],
+    runs: Mapping[str, object],
+    spend: Mapping[str, object],
+    attempts: Mapping[str, object],
+) -> bool:
+    if (
+        receipt.get("version") != 1
+        or receipt.get("api_key_serialized") is not False
+        or receipt.get("cap_usd") != spend["cap_usd"]
+        or receipt.get("spent_usd") != spend["spent_usd"]
+        or receipt.get("call_cap") != attempts["cap_calls"]
+        or receipt.get("used_calls") != attempts["used_calls"]
+    ):
+        return False
+    models = receipt.get("models")
+    if type(models) is not list or len(models) != len(CONFIGS):
+        return False
+    by_config = {
+        model.get("config_id"): model for model in models if type(model) is dict
+    }
+    if set(by_config) != set(CONFIGS):
+        return False
+    for config_id in CONFIGS:
+        model = by_config[config_id]
+        run = runs[config_id]
+        if model.get("record_count") != 10 or model.get("run_sha256") != _json_hash(
+            run
+        ):
+            return False
+    return True
 
 
 def _config_mapping(value: object, name: str) -> Mapping[str, object]:
@@ -611,6 +877,18 @@ def _sha256(value: object) -> bool:
     )
 
 
+def _json_hash(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _finite_nonnegative(value: object) -> bool:
     return type(value) in {int, float} and math.isfinite(float(value)) and value >= 0
 
@@ -626,6 +904,16 @@ def _read_json(path: Path) -> object:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError(f"could not read JSON input: {path}") from error
+
+
+def _read_private_json(path: Path) -> object:
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or stat.S_IMODE(path.stat().st_mode) != 0o600
+    ):
+        raise ValueError("private report input must be a mode-0600 regular file")
+    return _read_json(path)
 
 
 def _parse_keyed_paths(values: Sequence[str], label: str) -> dict[str, Path]:
@@ -695,6 +983,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--spend-ledger", type=Path, required=True)
     parser.add_argument("--attempt-ledger", type=Path, required=True)
+    parser.add_argument("--attempt-marker-dir", type=Path, required=True)
+    parser.add_argument("--spend-receipt", type=Path, required=True)
     parser.add_argument("--v1-run", action="append", default=[], metavar="NAME=PATH")
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--output-markdown", type=Path, required=True)
@@ -711,18 +1001,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not separator or not name or not raw_path or name in v1_paths:
             raise ValueError("v1 runs must use unique NAME=PATH values")
         v1_paths[name] = Path(raw_path)
+    marker_dir = args.attempt_marker_dir
+    if not marker_dir.is_dir() or stat.S_IMODE(marker_dir.stat().st_mode) != 0o700:
+        raise ValueError("attempt marker directory must be mode 0700")
+    marker_paths = sorted(marker_dir.iterdir())
     comparison = compare_runs(
         {
-            "manifest": _read_json(args.manifest),
-            "runs": {config_id: _read_json(path) for config_id, path in runs.items()},
-            "runtime_receipts": {
-                config_id: _read_json(path) for config_id, path in receipts.items()
+            "manifest": _read_private_json(args.manifest),
+            "manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
+            "runs": {
+                config_id: _read_private_json(path) for config_id, path in runs.items()
             },
-            "advisor_review": _read_json(args.advisor_review),
-            "claude_review": _read_json(args.claude_review),
-            "spend_ledger": _read_json(args.spend_ledger),
-            "attempt_ledger": _read_json(args.attempt_ledger),
-            "v1_runs": {name: _read_json(path) for name, path in v1_paths.items()},
+            "runtime_receipts": {
+                config_id: _read_private_json(path)
+                for config_id, path in receipts.items()
+            },
+            "advisor_review": _read_private_json(args.advisor_review),
+            "claude_review": _read_private_json(args.claude_review),
+            "spend_ledger": _read_private_json(args.spend_ledger),
+            "attempt_ledger": _read_private_json(args.attempt_ledger),
+            "attempt_markers": [_read_private_json(path) for path in marker_paths],
+            "spend_receipt": _read_private_json(args.spend_receipt),
+            "v1_runs": {
+                name: _read_private_json(path) for name, path in v1_paths.items()
+            },
         }
     )
     _write_private_json(args.output_json, comparison)

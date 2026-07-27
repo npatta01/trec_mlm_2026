@@ -379,6 +379,9 @@ def test_unknown_judge_alias_in_locked_reviewer_ledger_fails_closed() -> None:
     "sealed",
     [
         {},
+        {"version": True, "seed": 2026, "judge_aliases": {"judge_a": "model-a"}},
+        {"version": 1.0, "seed": 2026, "judge_aliases": {"judge_a": "model-a"}},
+        {"version": "1", "seed": 2026, "judge_aliases": {"judge_a": "model-a"}},
         {"version": 1, "seed": "2026", "judge_aliases": {"judge_a": "model-a"}},
         {"version": 1, "seed": 2026, "judge_aliases": {}},
         {
@@ -400,6 +403,9 @@ def test_unknown_judge_alias_in_locked_reviewer_ledger_fails_closed() -> None:
     ],
     ids=[
         "missing",
+        "boolean_version",
+        "float_version",
+        "string_version",
         "bad_seed",
         "empty",
         "empty_alias",

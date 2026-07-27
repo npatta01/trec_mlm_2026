@@ -942,7 +942,11 @@ def _sealed_judge_aliases(value: Mapping[str, object]) -> set[str]:
     """Validate opaque sealed evidence and return only its safe alias allowlist."""
     if set(value) != {"version", "seed", "judge_aliases"}:
         raise ValueError("sealed judge aliases must contain exact keys")
-    if value.get("version") != 1 or type(value.get("seed")) is not int:
+    if (
+        type(value.get("version")) is not int
+        or value.get("version") != 1
+        or type(value.get("seed")) is not int
+    ):
         raise ValueError("sealed judge aliases have an invalid version or seed")
     aliases = value.get("judge_aliases")
     if type(aliases) is not dict or not aliases:

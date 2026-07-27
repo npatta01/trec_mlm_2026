@@ -1,6 +1,7 @@
 ---
 test_id: semantic-failure-clusters
 title: "Semantic failure clusters"
+github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/50"
 primary_theme_id: evidence-reliability
 theme_ids: [evidence-reliability, query-only-routing, candidate-evidence]
 stage: idea

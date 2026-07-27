@@ -16,6 +16,15 @@ protocol_summary: "Freeze the 75-case cohort, screen historical analogues withou
 conclusion: "Query analogues rarely identify the official positive: only 11 of 75 had strong or corroborated pre-qrel evidence, and 54 of 75 had no top-ten positive from either promoted component."
 decision: reject
 decision_summary: "Do not treat ordinary query-neighbor transfer or another static fusion weight as the missing ranking signal; test stronger response-evidence reranking instead."
+failure_cohorts:
+  fusion_21:
+    count: 21
+    label: "Fusion dilution"
+    definition: "One promoted component already ranks the official positive in its top ten, but equal reciprocal-rank fusion does not."
+  no_signal_54:
+    count: 54
+    label: "No signal"
+    definition: "Neither promoted component ranks the official positive in its top ten."
 system_ids: []
 representative_system_ids: []
 comparison_system_ids: []

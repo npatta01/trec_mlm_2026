@@ -1,20 +1,164 @@
 ---
-title: "Worked example"
-description: "An illustrative request showing how model routing becomes a ranking."
+title: "How one ranking is made"
+description: "A complete, synthetic walkthrough from one request to a frozen candidate ranking."
 ---
 
-## Illustrative only
+::: {.hub-example-notice}
+## A teaching example, not experiment evidence
 
-Suppose the fabricated request is: “Explain why my balcony basil leaves are
-turning yellow, then give me a safe two-week recovery plan.” The fabricated
-candidates are **GardenGuide**, **CodeTutor**, and **QuickFacts**. No private
-collected response appears in this example.
+Everything below is fabricated: the request, candidate names, histories,
+scores, and rankings. No private response text, candidate identity, or model
+rationale appears here. The example explains the pipeline; it does not show
+that any candidate has a real capability.
+:::
 
-GardenGuide might rank first because prior requests and its candidate profile
-suggest strength in plant diagnosis and actionable plans. QuickFacts might rank
-second because it can answer factual pieces but is less reliable for a staged
-plan. CodeTutor ranks last because its evidence concerns software, not plants.
+## 1. Start with the request and objective
 
-The research question is not whether those names sound plausible. It is which
-signals can produce a useful ordering consistently across development requests,
-without borrowing the relevance labels for the request being ranked.
+> “Explain why my balcony basil leaves are turning yellow, then give me a safe
+> two-week recovery plan.”
+
+The system must rank all 150 candidates for this request. To keep the diagram
+readable, we follow three fictional candidates:
+
+- **GardenGuide:** a label associated with practical plant guidance;
+- **QuickFacts:** a label associated with concise factual explanations;
+- **CodeTutor:** a label associated with programming help.
+
+The output is an ordered list of candidates. The system is **not** writing the
+basil answer, and a plausible candidate name is not proof of capability.
+
+## 2. Draw the evidence boundary before scoring
+
+::: {.hub-evidence-boundary}
+**Allowed:** the new request; frozen candidate labels; released historical
+development requests and their permitted judgments; and frozen summaries of
+historical candidate responses.
+
+**Forbidden:** the new request's own relevance judgment, hidden-test labels,
+private raw responses in this guide, or any evidence collected after the
+ranking is frozen.
+:::
+
+Historical development judgments can influence a method learned from similar
+past requests. That makes the current promoted development system useful for
+development research, but not wholly qrel-free. Building the unseen-query
+pipeline in issue [#39](https://github.com/npatta01/trec_mlm_2026/issues/39)
+is therefore a pre-test requirement.
+
+## 3. Look for similar historical requests
+
+Imagine the released development set contains requests about yellow herb
+leaves, safe plant recovery, and unrelated software debugging. A dense
+nearest-neighbor search compares their meanings with the basil request.
+
+The method does not copy a past answer. It transfers the historical candidate
+ranking signal from the closest requests. In this fabricated example it gives:
+
+1. GardenGuide
+2. QuickFacts
+3. CodeTutor
+
+This is the strongest current **query-side** reference signal.
+
+## 4. Compare the request with candidate labels
+
+Candidate labels provide another clue. “GardenGuide” overlaps the topic and
+“CodeTutor” does not, so a label-only route could produce the same ordering.
+But labels are descriptions, not verified capability records. This route is a
+useful control, not the promoted development choice.
+
+## 5. Summarize each candidate's historical responses
+
+For each candidate, the semantic-profile method groups that candidate's past
+response embeddings and stores compact centroids. A centroid is the numerical
+center of a response group; an optional cluster name is only a human-readable
+explanation and never changes the score.
+
+For example, GardenGuide might have a fabricated profile region near “plant
+diagnosis and staged recovery,” while CodeTutor's profile regions concern
+software. The current request is compared with these summaries—never with a
+hidden target answer.
+
+This is the strongest current **candidate-history** signal. The completed E5
+follow-up also tested a bounded candidate-local raw-response refinement, but it
+remains off-ledger, unregistered, and unpromoted.
+
+## 6. Keep the signal rankings separate
+
+Before fusion, each route produces its own complete ranking. Here are three
+fabricated top-three views:
+
+| Evidence route | 1st | 2nd | 3rd | What the route means |
+|---|---|---|---|---|
+| Similar historical requests | GardenGuide | QuickFacts | CodeTutor | Past request neighborhoods favor GardenGuide. |
+| Candidate semantic profiles | QuickFacts | GardenGuide | CodeTutor | Candidate-history summaries slightly favor QuickFacts. |
+| Candidate labels (control) | GardenGuide | QuickFacts | CodeTutor | Label text favors the plant-oriented name. |
+
+These disagreements are useful. If the routes are collapsed too early, a
+strong signal can be diluted by a weak one and the failure becomes harder to
+diagnose.
+
+## 7. Fuse the two frozen development signals
+
+The promoted development system uses **equal reciprocal-rank fusion (RRF)**
+for the dense similar-request ranking and the semantic-profile ranking. RRF
+turns each rank position into a small score and adds the two scores; “equal”
+means neither route receives a tuned advantage.
+
+Using a small teaching constant so the arithmetic is visible:
+
+| Candidate | Similar-request contribution | Profile contribution | Sum | Final rank |
+|---|---:|---:|---:|---:|
+| GardenGuide | 1 / (3 + 1) = 0.250 | 1 / (3 + 2) = 0.200 | 0.450 | 1 |
+| QuickFacts | 1 / (3 + 2) = 0.200 | 1 / (3 + 1) = 0.250 | 0.450 | 2¹ |
+| CodeTutor | 1 / (3 + 3) = 0.167 | 1 / (3 + 3) = 0.167 | 0.334 | 3 |
+
+¹The production implementation has a deterministic tie rule. This teaching
+table preserves the invented ordering and is not a reproduction of a run.
+
+The frozen illustrative result is therefore **GardenGuide → QuickFacts →
+CodeTutor**. Candidate labels helped us understand the example but are not an
+extra component in the promoted fusion.
+
+## 8. Evaluate only after construction is complete
+
+On the development set, legitimate qrels can evaluate the already-frozen
+ordering using ranking metrics. The request's own qrel must not be read while
+constructing that request's ranking. On the hidden test, no effectiveness
+claim is available until the organizer releases evaluation evidence.
+
+This separation answers two different questions:
+
+- **Construction:** what evidence produced the ranking?
+- **Evaluation:** after freezing it, how well did that ranking match judgments?
+
+## 9. Diagnose the miss and name the next falsifier
+
+If later development evaluation says QuickFacts should have ranked first, we
+inspect the components rather than immediately inventing another mixture.
+
+- If the profile ranked QuickFacts first but fusion moved it down, this is a
+  **fusion-dilution** candidate: test a preregistered preservation gate.
+- If neither component ranked QuickFacts well, fusion cannot recover a signal
+  that is absent: improve the evidence source or stop.
+- If generated comparison evidence was unreliable, first test its grounding;
+  do not treat fluent text as a gold answer.
+
+These are falsifiable branches, not post-hoc excuses. The
+[failure-mechanism library](failure-library.qmd) gives the complete evidence
+and stop-rule template.
+
+## 10. State what this example cannot establish
+
+This walkthrough does **not** establish that:
+
+- the fabricated candidates correspond to real systems;
+- the shown rankings or arithmetic came from an experiment;
+- candidate labels, cluster names, or old responses prove capability;
+- equal RRF will generalize to the hidden test;
+- E5 refinement is registered or promoted; or
+- selected failure cases measure how common a mechanism is.
+
+For actual run facts, use the [ledger explorer](../evidence/runs.qmd), which is
+generated from the exact experiment ledger.
+For bounded conclusions, use the [study index](../studies/index.qmd).

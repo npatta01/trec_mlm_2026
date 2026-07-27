@@ -1,35 +1,153 @@
 ---
 title: "Glossary"
-description: "Project vocabulary in plain English."
+description: "Project vocabulary explained from first principles."
 ---
 
-## Core terms
+## The ranking task
 
 **Candidate LLM**
-: One of the 150 models being ranked for a request.
+: One model that can receive a rank for a request. The task ranks candidates;
+  it does not ask the ranking system itself to answer the request.
 
-**Query**
-: A user's request. Historical development queries have organizer relevance
-  labels; the hidden test does not.
+**Query or request**
+: The user's task to route. “Query” is benchmark vocabulary and can describe a
+  full instruction, not just search keywords.
+
+**Candidate label or name**
+: Text associated with one candidate, such as a short name or description. It
+  can be matching evidence, but it is not a ground-truth statement of what the
+  model can do.
 
 **Qrel**
-: A relevance judgment connecting a query to suitable candidates. Development
-  qrels may evaluate development runs, but must not construct a held-out answer.
+: A relevance judgment linking one request to a suitable candidate. Released
+  development qrels can teach or evaluate a development method. A held-out
+  request's qrel must not be used to construct its ranking.
 
-**Study**
-: One coherent experiment, audit, review, or data-quality investigation.
+**Generalization**
+: The ability of a choice learned on development requests to keep working on
+  genuinely unseen requests. A development improvement is evidence for a
+  hypothesis; hidden-test performance is needed to measure generalization.
 
-**Run or system**
-: A technical datapoint in `experiments/ledger.json`. Many variants can belong
-  to one study.
+## Ways to compare text
+
+**Lexical matching**
+: Comparing text through the words or character patterns it shares. “Yellow
+  basil” is lexically close to another passage that repeats those words, but
+  may miss a passage that says “chlorotic herb leaves.”
+
+**Semantic matching**
+: Comparing intended meaning even when wording differs. It can connect “yellow
+  basil” with “chlorotic herb leaves,” but the connection is model-dependent
+  rather than a fact guaranteed by vocabulary overlap.
+
+**Embedding**
+: A list of numbers produced from text so that geometric distance can act as a
+  rough proxy for semantic similarity. An embedding is a representation used
+  for comparison, not a human-readable explanation or a relevance judgment.
+
+**Nearest neighbor**
+: The stored item whose embedding is closest to the new item's embedding under
+  a chosen distance rule. Dense query retrieval uses nearest neighbors to find
+  historical requests similar to a new request.
+
+**Query cluster**
+: A group of historical requests that are similar to one another. Their qrels
+  or other history can be aggregated as request-side evidence. The tested
+  query-cluster aggregation route was rejected; the term still describes the
+  grouping that was studied.
+
+**Centroid**
+: The arithmetic center of a group of embeddings. It compresses many records
+  into one comparison point and therefore loses some detail about individual
+  records.
+
+**Response-profile cluster**
+: A group of one candidate's historical LLM-answer records that are
+  semantically similar. A centroid can compress that group into a candidate
+  response profile. A human-written cluster label may explain the group, but
+  that label does not participate in ranking.
+
+## Three different kinds of answers
+
+**Discovery response**
+: One historical answer produced by a particular candidate for one past request.
+  In source-query-first, request similarity selects 10, 20, or 40 historical
+  requests; every candidate's response to each selected request then supplies a
+  candidate-specific answer-alignment score. The selected request is query-side
+  evidence, while its candidate responses are candidate-side evidence. Lexical
+  alignment does not establish answer correctness.
+
+**Candidate response archive**
+: The collection of historical LLM answers associated with one candidate.
+  Those records can be compared directly or compressed into a candidate
+  response profile. The archive is broader than one discovery response.
+
+**Target response**
+: An answer a candidate produces for the current request. It is neither a
+  historical discovery response nor the candidate's archive, and it may not
+  exist when the router must rank candidates.
+
+**Generated reference answer**
+: A fresh answer generated to represent the current request for comparison or
+  review. It is not a retrieved historical response, a candidate archive, a
+  qrel, or proof that any candidate can produce the same answer.
+
+## Combining and judging signals
 
 **Candidate profile**
-: Candidate-side evidence summarizing what a model appears good at.
+: Candidate-side evidence summarizing what a model's historical records suggest
+  it is good at. A semantic response profile can contain cluster centroids
+  rather than raw answer text.
 
-**Frozen control**
-: A comparison whose definition and output are held fixed while another signal
-  changes.
+**Reciprocal-rank fusion**
+: A way to combine ranked lists. Each item receives more credit for appearing
+  near the top of each input list, using a reciprocal term such as one divided
+  by its rank plus a stabilizing constant; the credits are then added.
+
+**Fusion dilution**
+: A failure in which one input ranking already places the relevant candidate
+  near the top, but combining it with another ranking pushes that candidate
+  down. More signals do not automatically make a better ranking.
+
+**Control**
+: A comparison whose definition and output are kept fixed while another signal
+  changes. A control gives the change a stable reference point.
+
+**Promoted development system**
+: A system selected by the recorded development decision process. “Promoted”
+  does not mean proven on hidden test data.
+
+**Diagnostic system**
+: A valid analysis aid retained to understand behavior. It is not the promoted
+  submission direction merely because one aggregate score is high.
+
+**Rejected system**
+: A tested route that the development decision says not to use in its tested
+  form. Its result remains useful negative evidence.
+
+## Evidence ownership and custody
+
+**Registered**
+: Recorded in the canonical experiment ledger as a ranking-system row, with its
+  scope, status, metrics when available, and evidence state.
+
+**Off-ledger**
+: Outside that registered ranking ledger. An off-ledger follow-up can be useful
+  research evidence without silently becoming a registered or promoted system.
+
+**Artifact custody**
+: Whether the files needed to inspect or reproduce evidence are held in an
+  approved durable location. Custody describes evidence availability, not
+  ranking quality.
+
+**Study**
+: One coherent experiment, audit, review, or data-quality investigation. A
+  study can interpret several registered systems.
+
+**Run or system**
+: One technical datapoint recorded in the experiment ledger. Several systems
+  can belong to one study or experiment family.
 
 **Per-query evidence**
-: Stored measurements for each query, enabling paired analysis beyond aggregate
-  scores.
+: Measurements retained separately for each request. They support paired
+  comparisons and failure analysis that an aggregate score alone cannot show.

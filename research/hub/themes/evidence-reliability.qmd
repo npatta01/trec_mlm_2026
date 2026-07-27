@@ -6,6 +6,8 @@ current_conclusion: "Known failures cluster around ambiguity, evidence custody, 
 decision: iterate
 confidence: low
 confidence_boundary: "Audits use purposive or known-failure samples and do not estimate hidden-test prevalence."
+strongest_evidence_summary: "The grounding-failure review and data-quality audit identify useful safeguards, but neither establishes a population-wide reliability rate."
+open_question: "Which reproducible trigger can route only genuinely unreliable generated evidence to grounding or review?"
 next_test_ids: [failure-aware-fusion, reference-review-trigger, semantic-failure-clusters]
 updated_on: 2026-07-24
 evidence_refs: [reports/trec_2026_four_model_reference_review_2026-07-21.md, reports/trec_2026_grounded_data_quality_audit_2026-07-23.md]

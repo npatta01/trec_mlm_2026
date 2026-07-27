@@ -1,6 +1,7 @@
 ---
 test_id: reference-review-trigger
 title: "Reference review trigger"
+github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/48"
 primary_theme_id: evidence-reliability
 theme_ids: [evidence-reliability, responses-references]
 stage: idea

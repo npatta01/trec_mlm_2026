@@ -8,6 +8,8 @@
 <p class="hub-takeaway">Use a reliability check to choose which evidence sources should influence each request.</p>
 <p>Response and reference evidence help unevenly, so a fixed mixture can hide failures.</p>
 
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/47">Track in GitHub #47</a></p>
+
 <figure class="hub-causal-comparison">
 <section class="hub-causal-current">
 <h3>Today</h3>

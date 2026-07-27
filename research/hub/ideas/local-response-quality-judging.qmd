@@ -1,0 +1,26 @@
+---
+test_id: local-response-quality-judging
+title: "Pilot local LLM response-quality judging with selective pairwise ranking"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
+stage: idea
+summary: "Pilot a local pointwise judge and selective pairwise comparisons over candidate responses."
+plain_english: "Use a local judge to estimate which candidate responses are correct and useful, then compare only close or uncertain candidates."
+why_it_matters: "Response quality could add evidence that query similarity and candidate profiles miss, but generated references and local judges can both be wrong."
+mechanism_steps:
+  - "Select a deterministic stratified pilot sample and judge every candidate response pointwise against the question and provisional grounded reference."
+  - "Apply randomized, reversal-checked pairwise judging only to the top or uncertain group."
+  - "Audit judge quality, stability, position sensitivity, cost, and downstream development-ranking value before any scale-up."
+next_action: "Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule."
+linked_question_ids: [response-evidence, reference-reliability, failure-conditions]
+missing_readiness_fields: [hypothesis, rationale, expected_signal, decision_rule, dependencies, evaluation_boundary, artifact_plan]
+priority: high
+github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/31"
+tags: [responses, local-judge, pairwise-ranking, pilot]
+---
+
+This is prospective work, not evidence that response judging improves the
+registered ranking. The grounded reference is a provisional comparison pivot,
+not organizer gold, and the judge must be allowed to return uncertainty. No
+scale-up is justified until the bounded pilot has frozen quality, stability,
+cost, leakage, and downstream-value gates.

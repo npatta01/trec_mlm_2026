@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+import re
 
 from trec_mlm.experiment_ledger import LedgerBuild
 
@@ -82,6 +83,10 @@ READY_FIELDS = (
     "evaluation_boundary",
     "artifact_plan",
     "next_action",
+)
+
+_GITHUB_ISSUE_URL = re.compile(
+    r"https://github\.com/npatta01/trec_mlm_2026/issues/([1-9][0-9]*)\Z"
 )
 
 
@@ -355,6 +360,16 @@ def validate_study(root: Path, record: HubRecord) -> None:
     require_string_list(record, "supersedes")
     require_string_list(record, "superseded_by")
     require_string(record, "limitations")
+    current_state_role = record.metadata.get("current_state_role")
+    if current_state_role is not None:
+        if current_state_role != "strongest_completed_follow_up":
+            raise ValueError(
+                f"{record.source_path}: current_state_role is not recognized"
+            )
+        if status != "concluded":
+            raise ValueError(
+                f"{record.source_path}: current_state_role requires status concluded"
+            )
     if provenance == "reconstructed" and not evidence_refs:
         raise ValueError(
             f"{record.source_path}: reconstructed rationale requires evidence_refs"
@@ -404,6 +419,25 @@ def validate_test(record: HubRecord) -> None:
             )
     if stage == "completed":
         require_string(record, "resulting_study_id")
+    github_issue = record.metadata.get("github_issue")
+    if github_issue is not None and (
+        not isinstance(github_issue, str)
+        or _GITHUB_ISSUE_URL.fullmatch(github_issue) is None
+    ):
+        raise ValueError(
+            f"{record.source_path}: github_issue must be an issue URL for "
+            "https://github.com/npatta01/trec_mlm_2026"
+        )
+
+
+def github_issue_number(record: HubRecord) -> int | None:
+    """Return the authored repository issue number, if the test has one."""
+
+    value = record.metadata.get("github_issue")
+    if not isinstance(value, str):
+        return None
+    match = _GITHUB_ISSUE_URL.fullmatch(value)
+    return int(match.group(1)) if match is not None else None
 
 
 def validate_dataset(root: Path, record: HubRecord) -> None:
@@ -447,6 +481,8 @@ def validate_background(root: Path, record: HubRecord) -> None:
 def validate_theme(root: Path, record: HubRecord) -> None:
     require_string(record, "plain_english")
     require_string(record, "current_conclusion")
+    require_string(record, "strongest_evidence_summary")
+    require_string(record, "open_question")
     require_choice(record, "decision", DECISIONS)
     require_choice(record, "confidence", CONFIDENCE_LEVELS)
     require_string(record, "confidence_boundary")
@@ -577,6 +613,10 @@ def validate_hub_sources(
     for record in records:
         validate_record_identity(record)
         validate_visual(record)
+        if record.kind != "test" and "github_issue" in record.metadata:
+            raise ValueError(
+                f"{record.source_path}: github_issue is allowed only on test records"
+            )
         key = (record.kind, record.record_id)
         if key in owners:
             raise ValueError(

@@ -5,7 +5,7 @@
 <p class="hub-takeaway">Can a new request be routed well by comparing it with historical requests, before using candidate responses?</p>
 <p>Dense query neighbors are a useful stable control, but candidate-side evidence improved development results.</p>
 
-<p class="hub-next-action"><a href="../generated/ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+<p class="hub-next-action"><a href="../generated/ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.</p>
 </section>
 
 <details class="hub-details">
@@ -40,6 +40,7 @@ descriptions.
 <summary>Relationships and technical details</summary>
 ## Linked tests
 
+- <a href="../generated/ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
 - <a href="../generated/ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
 
 **Themes**

@@ -16,9 +16,9 @@ Development evidence only.
 
 ## Next tests
 
+- **Test hierarchical candidate semantic profiles against the frozen centroid baseline** (`hierarchical-candidate-profiles`; `ready`; priority `high`): Compare one deterministic nested candidate hierarchy with frozen flat and multiresolution profile controls.
 - **Failure-aware evidence fusion** (`failure-aware-fusion`; `idea`; priority `high`): Select evidence sources using a query-level reliability signal.
-- **Reference review trigger** (`reference-review-trigger`; `idea`; priority `high`): Predict which generated references need grounding or human review.
-- **Semantic failure clusters** (`semantic-failure-clusters`; `idea`; priority `medium`): Group development failures to test whether recurring query types predict method weakness.
+- **Pilot local LLM response-quality judging with selective pairwise ranking** (`local-response-quality-judging`; `idea`; priority `high`): Pilot a local pointwise judge and selective pairwise comparisons over candidate responses.
 
 ## Navigation
 

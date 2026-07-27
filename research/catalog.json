@@ -146,6 +146,25 @@
       "type": "background"
     },
     {
+      "canonical_path": "research/hub/background/pretest-readiness-plan.qmd",
+      "id": "pretest-readiness-plan",
+      "related_ids": [
+        "candidate-evidence",
+        "query-only-routing",
+        "response-evidence"
+      ],
+      "rendered_path": "background/pretest-readiness-plan.html",
+      "summary": "A dated authored snapshot of how the pre-test engineering and research workstreams depend on one another.",
+      "tags": [
+        "dependencies",
+        "engineering",
+        "pre-test",
+        "research"
+      ],
+      "title": "Pre-test readiness dependency plan",
+      "type": "background"
+    },
+    {
       "canonical_path": "research/hub/background/prior-participant-approaches.qmd",
       "id": "prior-participant-approaches",
       "related_ids": [
@@ -418,6 +437,7 @@
         "behavior-profile",
         "candidate-evidence",
         "candidate-label-matching",
+        "hierarchical-candidate-profiles",
         "label-ranker-pilots",
         "multiresolution-profiles",
         "semantic-failure-clusters",
@@ -444,7 +464,9 @@
         "failure-aware-fusion",
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
+        "hierarchical-candidate-profiles",
         "label-ranker-pilots",
+        "local-response-quality-judging",
         "query-cluster-aggregation",
         "query-only-routing",
         "reference-review-trigger",
@@ -469,6 +491,7 @@
       "related_ids": [
         "candidate-evidence",
         "dense-query-knn",
+        "hierarchical-candidate-profiles",
         "query-cluster-aggregation",
         "query-controls",
         "query-only-routing",
@@ -494,6 +517,7 @@
         "four-model-reference-review",
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "responses-references"
       ],
@@ -515,6 +539,7 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "four-model-reference-review",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "response-retrieval",
         "response-volume-normalization",
@@ -2203,6 +2228,7 @@
         "candidate-profiles",
         "discovery-responses",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
         "run-artifacts",
         "semantic-failure-clusters"
       ],
@@ -2229,6 +2255,8 @@
         "failure-aware-fusion",
         "failure-conditions",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "run-artifacts",
         "semantic-failure-clusters"
@@ -2252,6 +2280,7 @@
         "dev-qrels",
         "dev-queries",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
         "query-only-routing",
         "run-artifacts",
         "semantic-failure-clusters"
@@ -2278,6 +2307,8 @@
         "failure-aware-fusion",
         "failure-conditions",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "reranking",
         "response-evidence",
@@ -2301,6 +2332,7 @@
         "discovery-responses",
         "evidence-reliability",
         "failure-aware-fusion",
+        "local-response-quality-judging",
         "reference-generation",
         "reference-reliability",
         "reference-review-trigger",
@@ -2326,6 +2358,8 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "failure-conditions",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-generation",
         "reference-reliability",
         "reference-review-trigger",
@@ -2351,6 +2385,8 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "failure-conditions",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-generation",
         "reference-reliability",
         "reference-review-trigger",
@@ -2379,6 +2415,8 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "failure-conditions",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "reranking",
         "run-artifacts",
@@ -2405,6 +2443,7 @@
         "dev-qrels",
         "dev-queries",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
         "run-artifacts",
         "semantic-failure-clusters"
       ],
@@ -2430,6 +2469,8 @@
         "failure-aware-fusion",
         "failure-conditions",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "query-only-routing",
         "reference-review-trigger",
         "run-artifacts",
@@ -2453,6 +2494,7 @@
         "dense-query-retrieval",
         "dev-qrels",
         "dev-queries",
+        "hierarchical-candidate-profiles",
         "query-only-routing",
         "run-artifacts",
         "semantic-failure-clusters"
@@ -2475,6 +2517,7 @@
         "dev-queries",
         "discovery-responses",
         "failure-aware-fusion",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "response-evidence",
         "responses-references",
@@ -2499,6 +2542,7 @@
         "dev-queries",
         "discovery-responses",
         "failure-aware-fusion",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "response-evidence",
         "responses-references",
@@ -2525,6 +2569,7 @@
         "dev-qrels",
         "dev-queries",
         "generated-embeddings",
+        "hierarchical-candidate-profiles",
         "reranking",
         "run-artifacts",
         "semantic-failure-clusters"
@@ -2550,6 +2595,8 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "failure-conditions",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "reranking",
         "response-evidence",
@@ -2580,6 +2627,8 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "failure-conditions",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "query-only-routing",
         "reference-review-trigger",
         "run-artifacts",
@@ -2613,6 +2662,47 @@
         "reliability"
       ],
       "title": "Failure-aware evidence fusion",
+      "type": "test"
+    },
+    {
+      "canonical_path": "research/hub/ideas/hierarchical-candidate-profiles.qmd",
+      "id": "hierarchical-candidate-profiles",
+      "related_ids": [
+        "candidate-evidence",
+        "evidence-reliability",
+        "failure-conditions",
+        "query-only-routing"
+      ],
+      "rendered_path": "generated/ideas/hierarchical-candidate-profiles.html",
+      "summary": "Test whether a coherent broad-to-narrow map of each candidate's past responses ranks candidates better without collapsing onto generic candidates.",
+      "tags": [
+        "candidate-profiles",
+        "hierarchy",
+        "preregistered",
+        "query-sensitivity"
+      ],
+      "title": "Test hierarchical candidate semantic profiles against the frozen centroid baseline",
+      "type": "test"
+    },
+    {
+      "canonical_path": "research/hub/ideas/local-response-quality-judging.qmd",
+      "id": "local-response-quality-judging",
+      "related_ids": [
+        "evidence-reliability",
+        "failure-conditions",
+        "reference-reliability",
+        "response-evidence",
+        "responses-references"
+      ],
+      "rendered_path": "generated/ideas/local-response-quality-judging.html",
+      "summary": "Use a local judge to estimate which candidate responses are correct and useful, then compare only close or uncertain candidates.",
+      "tags": [
+        "local-judge",
+        "pairwise-ranking",
+        "pilot",
+        "responses"
+      ],
+      "title": "Pilot local LLM response-quality judging with selective pairwise ranking",
       "type": "test"
     },
     {
@@ -2657,6 +2747,7 @@
       "canonical_path": "research/hub/themes/candidate-evidence.qmd",
       "id": "candidate-evidence",
       "related_ids": [
+        "hierarchical-candidate-profiles",
         "semantic-failure-clusters"
       ],
       "rendered_path": "generated/themes/candidate-evidence.html",
@@ -2670,6 +2761,8 @@
       "id": "evidence-reliability",
       "related_ids": [
         "failure-aware-fusion",
+        "hierarchical-candidate-profiles",
+        "local-response-quality-judging",
         "reference-review-trigger",
         "semantic-failure-clusters"
       ],
@@ -2683,6 +2776,7 @@
       "canonical_path": "research/hub/themes/query-only-routing.qmd",
       "id": "query-only-routing",
       "related_ids": [
+        "hierarchical-candidate-profiles",
         "semantic-failure-clusters"
       ],
       "rendered_path": "generated/themes/query-only-routing.html",
@@ -2696,6 +2790,7 @@
       "id": "responses-references",
       "related_ids": [
         "failure-aware-fusion",
+        "local-response-quality-judging",
         "reference-review-trigger"
       ],
       "rendered_path": "generated/themes/responses-references.html",

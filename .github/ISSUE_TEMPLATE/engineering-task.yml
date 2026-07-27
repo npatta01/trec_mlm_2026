@@ -1,0 +1,63 @@
+name: Engineering task
+description: Propose a bounded, evidence-backed engineering change.
+title: "[Engineering]: "
+labels:
+  - kind/engineering
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Public issue boundary
+        Do not include secrets, credentials, raw private responses, restricted data,
+        local filesystem paths, or private artifact URLs. Describe sensitive material
+        at a high level and arrange access privately with maintainers when needed.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Exact evidence
+      description: Cite the exact file, command output, reproducible observation, or public reference that motivates this work.
+      placeholder: "Example: `path/to/file.py:42` — observed behavior and command used to observe it."
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Intended outcome
+      description: State the user-visible or system outcome, not only an implementation idea.
+    validations:
+      required: true
+  - type: textarea
+    id: exclusions
+    attributes:
+      label: Explicit exclusions / out of scope
+      description: List work this issue will not do, including adjacent changes deliberately deferred.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Give observable, testable conditions that define completion.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy-artifact-boundaries
+    attributes:
+      label: Privacy and artifact boundaries
+      description: Identify data classification, what may be committed or published, and what must remain local or private. Do not paste private URLs or raw private material.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies-blockers
+    attributes:
+      label: Dependencies and blockers
+      description: List required decisions, artifacts, access, upstream work, or state "None known."
+    validations:
+      required: true
+  - type: textarea
+    id: verification-reproduction
+    attributes:
+      label: Verification and reproduction
+      description: Provide the intended verification commands, expected results, and steps to reproduce the current behavior or confirm the change.
+    validations:
+      required: true

@@ -34,7 +34,7 @@ website:
   navbar:
     left:
       - text: "Start Here"
-        href: start-here/index.qmd
+        href: start-here/current-state.qmd
       - text: "Background"
         href: background/index.qmd
       - text: "Data"

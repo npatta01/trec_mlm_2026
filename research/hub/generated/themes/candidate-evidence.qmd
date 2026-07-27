@@ -20,9 +20,22 @@ toc: false
 Candidate evidence covers labels, behavior summaries, and multiresolution
 profiles used to characterize which models may fit a request.
 
-## Current conclusion
+## Current working answer
 
 Candidate semantic profiles improved development ranking in fusion, but generalization and artifact custody remain unresolved.
+
+## Strongest canonical evidence
+
+The canonical semantic-profiles study supports equal dense/profile fusion as the promoted development direction while keeping higher-scoring weighting variants diagnostic.
+
+Canonical evidence paths:
+
+- <code class="hub-path">reports/trec_2026_experiment_ledger.md</code>
+- <code class="hub-path">reports/trec_2026_candidate_semantic_profiles_results.json</code>
+
+## Open question
+
+Will the frozen dense/profile direction generalize to unseen queries once the pre-test protocol and artifact custody are complete?
 </details>
 
 <details class="hub-details">
@@ -30,13 +43,18 @@ Candidate semantic profiles improved development ranking in fusion, but generali
 **Confidence and evidence boundary**
 
 Moderate confidence. Development-only evidence; diagnostic variants and incomplete construction artifacts do not establish hidden-test gains.
+
+**First linked next test**
+
+<a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+ (1 remaining linked tests).
 </details>
 
 <details class="hub-details">
 <summary>Relationships and evidence</summary>
 ## Other linked tests
 
-- No additional linked test is currently recorded.
+- <a href="../ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
 
 ## Questions in this theme
 

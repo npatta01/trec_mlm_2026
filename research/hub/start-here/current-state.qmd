@@ -1,0 +1,247 @@
+---
+title: "Current state"
+description: "A plain-language tutorial for the ranking task, followed by the generated development-evidence map."
+toc: false
+---
+
+:::: {.hub-current-state-tutorial}
+::: {.hub-current-state-hero}
+## Project in one minute
+
+This project learns how to rank **150 candidate language models** for one new
+request. The system chooses which candidates look most suitable; it does not
+write the answer itself.
+
+The best registered development direction combines two complementary clues:
+**what worked for similar past requests** and **what each candidate's past
+responses suggest it is good at**. That is a development result—not a promise
+about the hidden test.
+
+::: {.hub-evidence-boundary}
+### The boundary to remember
+
+**Development evidence only. No hidden-test evidence is available.** Past
+relevance judgments may be used to learn from and evaluate development
+requests. They must not be borrowed to construct the ranking for a new request.
+:::
+:::
+
+### What should I do with that conclusion?
+
+The generated action strip below translates the exact ledger and Hub statuses
+into newcomer language: what to use now, retain as a control, investigate next,
+finish before test release, or avoid reusing in its already-tested form. The
+status labels remain visible so this summary cannot silently change the
+evidence.
+
+:::: {.hub-current-state-page}
+{{< include ../generated/current-state.qmd >}}
+::::
+
+### See the whole pipeline once
+
+The short example below introduces the evidence routes. For the complete
+ten-stage trace—from the request and leakage boundary through separate signal
+rankings, equal RRF, legitimate evaluation, failure diagnosis, and limits—read
+[How one ranking is made](worked-example.qmd).
+
+### Follow one fabricated request
+
+:::: {.hub-example-thread}
+> “Explain why my balcony basil leaves are turning yellow, then give me a safe
+> two-week recovery plan.”
+
+This running example is **fabricated** and contains **no private response
+text**. It carries the same invented request and candidates used in the
+[longer worked example](worked-example.qmd).
+
+::: {.hub-example-candidates}
+<article class="hub-example-candidate">
+<h4>GardenGuide</h4>
+<p>Its fictional label mentions practical plant guidance and recovery plans.</p>
+</article>
+
+<article class="hub-example-candidate">
+<h4>QuickFacts</h4>
+<p>Its fictional label suggests concise factual answers, but not necessarily a staged plan.</p>
+</article>
+
+<article class="hub-example-candidate">
+<h4>CodeTutor</h4>
+<p>Its fictional label concerns programming rather than balcony gardening.</p>
+</article>
+:::
+
+Candidate labels are text associated with candidates, not ground-truth
+statements about capability. GardenGuide should not win merely because its
+invented name sounds right.
+::::
+
+In plain language, the current development choice is to **combine what worked
+for similar past requests with a summary of what each candidate's past answers
+suggest it is good at**. Here are the evidence routes that sentence separates:
+
+<ol class="hub-example-steps">
+<li class="hub-evidence-route" data-evidence-route="dense-query-knn">
+<strong class="hub-route-title">Find similar past requests</strong>
+<dl class="hub-route-explanation">
+<dt>Evidence read</dt>
+<dd><span class="hub-example-request-ref">The basil request</span> is compared with a neighborhood of released development requests. Their candidate-relevance histories are aggregated to score the 150 candidates.</dd>
+<dt>Illustrative ordering</dt>
+<dd class="hub-route-ordering" data-illustrative="true"><span data-candidate="GardenGuide" data-rank="1">1. GardenGuide</span><span data-candidate="QuickFacts" data-rank="2">2. QuickFacts</span><span data-candidate="CodeTutor" data-rank="3">3. CodeTutor</span><small>Fabricated ordering: aggregated plant-care histories could favor GardenGuide. This is not a capability claim.</small></dd>
+<dt>Development lesson</dt>
+<dd class="hub-route-lesson">Nearest-neighbor evidence remains the query-side reference signal. It transfers historical development qrels, so the combination is not wholly qrel-free.</dd>
+</dl>
+<a class="hub-route-study" href="../studies/dense-query-knn.qmd">Read the dense-query nearest-neighbor study</a>
+</li>
+<li class="hub-evidence-route" data-evidence-route="candidate-label-matching">
+<strong class="hub-route-title">Match the request to candidate text</strong>
+<dl class="hub-route-explanation">
+<dt>Evidence read</dt>
+<dd><span class="hub-example-request-ref">The basil request</span> is compared with the fictional GardenGuide, QuickFacts, and CodeTutor labels or descriptions.</dd>
+<dt>Illustrative ordering</dt>
+<dd class="hub-route-ordering" data-illustrative="true"><span data-candidate="GardenGuide" data-rank="1">1. GardenGuide</span><span data-candidate="QuickFacts" data-rank="2">2. QuickFacts</span><span data-candidate="CodeTutor" data-rank="3">3. CodeTutor</span><small>Fabricated ordering: the plant-related label could place GardenGuide first. This is not a capability claim.</small></dd>
+<dt>Development lesson</dt>
+<dd class="hub-route-lesson">Contextual label matching provides a useful reference method, but labels are clues, not ground truth about capability.</dd>
+</dl>
+<a class="hub-route-study" href="../studies/candidate-label-matching.qmd">Read the candidate-label study</a>
+</li>
+<li class="hub-evidence-route" data-evidence-route="query-cluster-aggregation">
+<strong class="hub-route-title">Group past requests and use their history</strong>
+<dl class="hub-route-explanation">
+<dt>Evidence read</dt>
+<dd><span class="hub-example-request-ref">The basil request</span> is assigned to a cluster of related development requests, whose qrel history is pooled.</dd>
+<dt>Illustrative ordering</dt>
+<dd class="hub-route-ordering" data-illustrative="true"><span data-candidate="QuickFacts" data-rank="1">1. QuickFacts</span><span data-candidate="GardenGuide" data-rank="2">2. GardenGuide</span><span data-candidate="CodeTutor" data-rank="3">3. CodeTutor</span><small>Fabricated ordering: pooled cluster history could move QuickFacts ahead of GardenGuide. This is not a capability claim.</small></dd>
+<dt>Development lesson</dt>
+<dd class="hub-route-lesson">The tested hard query-cluster aggregation did not improve on nearest-neighbor retrieval in that form.</dd>
+</dl>
+<a class="hub-route-study" href="../studies/query-cluster-aggregation.qmd">Read the query-cluster study</a>
+</li>
+<li class="hub-evidence-route" data-evidence-route="source-query-first">
+<strong class="hub-route-title">Use answers tied to several similar past requests</strong>
+<dl class="hub-route-explanation">
+<dt>Evidence read</dt>
+<dd><span class="hub-example-request-ref">The basil request</span> first retrieves 10, 20, or 40 related historical requests. For each one, all 150 candidate responses are equal scoring opportunities. The method weights each answer-alignment score by how closely that historical request matches the basil request, then aggregates the weighted evidence.</dd>
+<dt>Illustrative ordering</dt>
+<dd class="hub-route-ordering" data-illustrative="true"><span data-candidate="GardenGuide" data-rank="1">1. GardenGuide</span><span data-candidate="QuickFacts" data-rank="2">2. QuickFacts</span><span data-candidate="CodeTutor" data-rank="3">3. CodeTutor</span><small>Fabricated ordering: weighted plan-related overlap across several histories could place GardenGuide first. This is not a correctness or capability claim.</small></dd>
+<dt>Development lesson</dt>
+<dd class="hub-route-lesson">The tested source-query-first lexical alignment did not justify continuing in that form. Alignment is not correctness.</dd>
+</dl>
+<a class="hub-route-study" href="../studies/source-query-first.qmd">Read the source-query-first study</a>
+</li>
+<li class="hub-evidence-route" data-evidence-route="candidate-response-archive">
+<strong class="hub-route-title">Use each candidate's archive of past answers</strong>
+<dl class="hub-route-explanation">
+<dt>Evidence read</dt>
+<dd><span class="hub-example-request-ref">The basil request</span> can read each fictional candidate's archive in three distinct ways: direct lexical search; a semantic profile that compresses the candidate's answer records into as many as 10 centroids; or the bounded E5 follow-up, which averages the 10 closest candidate-local historical records, combines 80% broad profile with 20% raw-response refinement, then uses equal reciprocal-rank fusion with the dense ranking.</dd>
+<dt>Illustrative ordering</dt>
+<dd class="hub-route-ordering" data-illustrative="true"><span data-candidate="GardenGuide" data-rank="1">1. GardenGuide</span><span data-candidate="QuickFacts" data-rank="2">2. QuickFacts</span><span data-candidate="CodeTutor" data-rank="3">3. CodeTutor</span><small>Fabricated ordering: a plant-and-plan response profile could put GardenGuide first. No private archive text is shown, and this is not a capability claim.</small></dd>
+<dt>Development lesson</dt>
+<dd class="hub-route-lesson">Direct lexical archive retrieval underperformed, while semantic profiles provided the stronger candidate-history signal. The bounded E5 follow-up adds a candidate-local raw-response check; its separate evidence and registration boundary appear below.</dd>
+</dl>
+<span class="hub-route-studies">Read the <a class="hub-route-study" href="../studies/response-retrieval.qmd">direct response-retrieval study</a>, <a class="hub-route-study" href="../studies/semantic-profiles.qmd">semantic-profile study</a>, and <a class="hub-route-study" href="../studies/e5-raw-response-refinement.qmd">bounded E5 follow-up</a>.</span>
+</li>
+<li class="hub-evidence-route" data-evidence-route="generated-reference">
+<strong class="hub-route-title">Generate a fresh comparison answer</strong>
+<dl class="hub-route-explanation">
+<dt>Evidence read</dt>
+<dd>A fresh reference answer is generated for <span class="hub-example-request-ref">the basil request</span> and used only as comparison evidence.</dd>
+<dt>Illustrative ordering</dt>
+<dd class="hub-route-ordering" data-illustrative="true"><span data-candidate="GardenGuide" data-rank="1">1. GardenGuide</span><span data-candidate="QuickFacts" data-rank="2">2. QuickFacts</span><span data-candidate="CodeTutor" data-rank="3">3. CodeTutor</span><small>Fabricated ordering: comparison with a diagnosis-and-plan reference could favor GardenGuide. This is not a capability claim.</small></dd>
+<dt>Development lesson</dt>
+<dd class="hub-route-lesson">Generated references clarified comparison-evidence boundaries, but they are not gold answers and did not by themselves evaluate a ranking system.</dd>
+</dl>
+<a class="hub-route-study" href="../studies/four-model-reference-review.qmd">Read the generated-reference review</a>
+</li>
+</ol>
+
+The dense nearest-neighbor signal implements the similar-request side of the
+choice. The semantic response profile implements the candidate-history side.
+Those names describe how the evidence is represented; they do not change the
+plain-language decision above.
+
+<section class="hub-example-evaluation" data-own-request-qrel="excluded" data-historical-development-qrels="frozen-evidence" data-evaluation-qrels="when-available">
+<h3>Carry the illustrative ranking to later evaluation</h3>
+<p>Suppose the current development direction combines the clues above into this fabricated ranking:</p>
+<ol class="hub-illustrative-ranking"><li data-candidate="GardenGuide">GardenGuide</li><li data-candidate="QuickFacts">QuickFacts</li><li data-candidate="CodeTutor">CodeTutor</li></ol>
+<p>The new request's <strong>own qrel is not used</strong> to construct its ranking. Frozen historical development evidence can still encode earlier qrels. When evaluation labels are legitimately available, evaluation uses them to judge the ordering. Until then, this remains an illustration rather than a hidden-test result.</p>
+</section>
+
+### Short evidence decoder
+
+<dl class="hub-term-decoder">
+<dt>Query or request</dt>
+<dd>The user's task to route. “Query” is the benchmark term; it does not mean only a short keyword search.</dd>
+<dt>Candidate</dt>
+<dd>One model that can receive a rank for the request. The benchmark ranking contains 150 candidates.</dd>
+<dt>Qrel</dt>
+<dd>A development relevance judgment connecting one request to a suitable candidate. It is evaluation evidence, not a hidden answer available at test time.</dd>
+<dt>Candidate label or name</dt>
+<dd>Text associated with one candidate. It may be useful matching evidence, but it is not ground-truth capability.</dd>
+<dt>Query cluster</dt>
+<dd>A group of historical requests that are similar to one another. Its shared history is request-side evidence.</dd>
+<dt>Response-profile cluster</dt>
+<dd>A group of one candidate's historical answer records that are semantically similar. Any human-readable cluster label is explanation-only and does not affect ranking.</dd>
+<dt>Centroid</dt>
+<dd>The arithmetic center of a response-profile cluster's embeddings, used as a compressed semantic summary for comparison.</dd>
+<dt>Discovery response</dt>
+<dd>One historical answer tied to a selected similar past request.</dd>
+<dt>Target response</dt>
+<dd>An answer a candidate gives to the current request. It is not the discovery response and may not exist when routing begins.</dd>
+<dt>Generated reference answer</dt>
+<dd>A fresh answer produced to compare candidates or evidence against. It is neither a retrieved historical answer nor a candidate archive.</dd>
+<dt>Control</dt>
+<dd>A fixed comparison kept stable while another signal changes.</dd>
+<dt>Promoted</dt>
+<dd>A development system selected by the recorded decision process. Promotion does not claim hidden-test success.</dd>
+<dt>Diagnostic</dt>
+<dd>A valid analysis aid that is not selected as the submission direction.</dd>
+<dt>Rejected</dt>
+<dd>A tested route the current evidence says not to use in that form.</dd>
+</dl>
+
+The [expanded glossary](glossary.qmd) explains the machinery from first
+principles.
+
+### Current conclusion and next boundaries
+
+The current development direction combines similar-request evidence with a
+candidate response profile. It remains an unseen-query design hypothesis, not
+a hidden-test result.
+
+- [#39](https://github.com/npatta01/trec_mlm_2026/issues/39) covers the qrel-free inference and submission pipeline.
+- [#40](https://github.com/npatta01/trec_mlm_2026/issues/40) covers durable private artifact custody.
+- [#41](https://github.com/npatta01/trec_mlm_2026/issues/41) covers the frozen portfolio and release runbook.
+- [#42](https://github.com/npatta01/trec_mlm_2026/issues/42) covers held-out/test registration for the E5 follow-up.
+::::
+
+:::: {.hub-theme-map}
+::: {.hub-theme-node}
+## How the research is organized
+
+The guide uses **evidence routes** for ways to score candidates, **method
+families** to organize the sixteen studies for reading, and four **canonical
+research themes** for durable questions. Method families are presentation
+only; they do not replace canonical records.
+:::
+::::
+
+## Choose a reading path
+
+::: {.hub-reading-paths}
+<article><h3>2 minutes: make the decision</h3><p>Read “Project in one minute,” the evidence boundary, and the generated action strip above.</p></article>
+<article><h3>10 minutes: understand the system</h3><p>Read <a href="worked-example.qmd">How one ranking is made</a>, then return to the six evidence routes.</p></article>
+<article><h3>20 minutes: audit the evidence</h3><p>Open the strongest study from each method-family card, then inspect the exact experiment ledger.</p></article>
+<article><h3>Contributing: extend the record</h3><p>Use the <a href="../contributing.qmd">Research Hub contribution guide</a> before proposing or recording a run.</p></article>
+:::
+
+::: {.hub-result-followup}
+## What the result does not establish
+
+The completed E5 follow-up remains outside the registered ranking ledger. It
+is **not registered** and **not promoted**; issue
+[#42](https://github.com/npatta01/trec_mlm_2026/issues/42) owns the separate
+held-out/test registration boundary. The generated result and failure sections
+above remain development-only, with no hidden-test evidence.
+:::

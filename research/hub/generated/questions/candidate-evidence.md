@@ -5,7 +5,7 @@
 <p class="hub-takeaway">When choosing an LLM, does it help to consider what each candidate model is good at, not only compare the request with past requests?</p>
 <p>Yes on development evidence, subject to the evidence limits below.</p>
 
-<p class="hub-next-action"><a href="../generated/ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
+<p class="hub-next-action"><a href="../generated/ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.</p>
 </section>
 
 <details class="hub-details">
@@ -41,6 +41,7 @@ claim follows.
 <summary>Relationships and technical details</summary>
 ## Linked tests
 
+- <a href="../generated/ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
 - <a href="../generated/ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
 
 **Themes**

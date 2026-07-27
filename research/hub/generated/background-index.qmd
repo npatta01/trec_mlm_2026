@@ -50,6 +50,10 @@ Use the dated planning evidence to choose reference generators and review contro
 Other source-backed context registered by this build.
 
 <div class="hub-background-list">
+<a class="hub-background-row" href="pretest-readiness-plan.qmd">
+<strong>Pre-test readiness dependency plan</strong>
+<span>A dated authored snapshot of how the pre-test engineering and research workstreams depend on one another.</span>
+</a>
 <a class="hub-background-row" href="semantic-demand-frames.qmd">
 <strong>Semantic-demand frames for relation-aware diagnosis</strong>
 <span>A source-backed, factorized vocabulary for testing whether relation, requested-slot, answer-contract, and reasoning features improve analogue matching without replacing response evidence.</span>

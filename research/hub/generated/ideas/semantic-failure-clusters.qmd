@@ -8,6 +8,8 @@
 <p class="hub-takeaway">Group similar ranking failures to find request types where a method repeatedly struggles.</p>
 <p>Recurring failure patterns could show where a ranking method needs a different evidence strategy or should not be used.</p>
 
+<p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/50">Track in GitHub #50</a></p>
+
 <p class="hub-next-action">State a falsifiable hypothesis and evaluation boundary for the clustering test.</p>
 :::
 

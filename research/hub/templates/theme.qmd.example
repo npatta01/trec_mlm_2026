@@ -6,6 +6,8 @@ current_conclusion: "State the current bounded conclusion without overstating th
 decision: pending
 confidence: low
 confidence_boundary: "State what the available evidence cannot establish."
+strongest_evidence_summary: "Summarize the strongest canonical evidence without repeating a ledger metric."
+open_question: "State the unresolved question that the next valid test must address."
 next_test_ids: []
 updated_on: 2026-07-24
 evidence_refs: [reports/replace-with-canonical-evidence.md]

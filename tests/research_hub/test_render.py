@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -9,7 +10,7 @@ import yaml
 
 from trec_mlm.experiment_ledger import LedgerBuild
 from trec_mlm.research_hub import render as module
-from trec_mlm.research_hub.build import HubBuild
+from trec_mlm.research_hub.build import HubBuild, build_research_hub
 from trec_mlm.research_hub.model import HubSources
 from trec_mlm.research_hub.render import (
     _inline_code,
@@ -31,6 +32,9 @@ from trec_mlm.research_hub.render import (
 from trec_mlm.research_hub.validate import ValidationSummary
 
 from conftest import CAUSAL_VISUAL
+
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
@@ -56,6 +60,18 @@ def sample_build(
     )
 
 
+def _render_fixture_outputs(build: HubBuild) -> Mapping[Path, str]:
+    """Isolate generic output tests from the repository-specific current-state map."""
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            module,
+            "render_current_state_qmd",
+            lambda _build: "<!-- synthetic fixture: current state not exercised -->\n",
+        )
+        return render_hub_outputs(build)
+
+
 def test_render_catalog_is_deterministic(sample_build: HubBuild) -> None:
     first = render_catalog(sample_build)
     second = render_catalog(sample_build)
@@ -73,7 +89,7 @@ def test_render_catalog_is_deterministic(sample_build: HubBuild) -> None:
 def test_idea_index_and_details_expand_from_canonical_records(
     sample_build: HubBuild,
 ) -> None:
-    outputs = render_hub_outputs(sample_build)
+    outputs = _render_fixture_outputs(sample_build)
     index = outputs[Path("research/hub/generated/ideas-index.qmd")]
     detail = outputs[Path("research/hub/generated/ideas/test-candidate-evidence.qmd")]
 
@@ -91,6 +107,89 @@ def test_idea_index_and_details_expand_from_canonical_records(
     assert 'href="../generated/ideas/test-candidate-evidence.qmd"' in index
     assert detail.index("hub-record-hero") < detail.index("hub-details")
     assert detail.count('<details class="hub-details">') == 3
+
+
+def test_idea_views_render_authored_github_issue_without_mutable_issue_state(
+    sample_build: HubBuild,
+) -> None:
+    test = sample_build.sources.tests[0]
+    test = replace(
+        test,
+        metadata={
+            **test.metadata,
+            "github_issue": (
+                "https://github.com/npatta01/trec_mlm_2026/issues/19"
+            ),
+        },
+    )
+    build = replace(
+        sample_build,
+        sources=replace(sample_build.sources, tests=(test,)),
+    )
+
+    outputs = _render_fixture_outputs(build)
+    index = outputs[Path("research/hub/generated/ideas-index.qmd")]
+    detail = outputs[
+        Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
+    ]
+
+    link = (
+        '<a href="https://github.com/npatta01/trec_mlm_2026/issues/19">'
+        "Track in GitHub #19</a>"
+    )
+    assert link in index
+    assert link in detail
+    assert "issue_state" not in index + detail
+    assert "issue_title" not in index + detail
+
+
+def test_current_state_include_derives_counts_from_build_and_diagnostic_receipt(
+) -> None:
+    render_current_state_qmd = getattr(module, "render_current_state_qmd")
+    build = build_research_hub(ROOT)
+    systems = build.ledger.systems
+    evidence = build.completed_follow_up
+    assert evidence is not None
+
+    include = render_current_state_qmd(build)
+
+    assert f"{len({system.experiment_family for system in systems})} experiment families" in include
+    assert f"{len(systems)} registered systems" in include
+    assert f"{len(build.sources.studies)} authored studies" in include
+    assert "1 promoted development system" in include
+    assert "No hidden-test evidence" in include
+    assert evidence.candidate_id in include
+    assert evidence.source_path in include
+    assert "outside the ledger" in include
+    assert "not registered" in include
+    assert "not promoted" in include
+
+
+def test_current_state_rejects_e5_study_linked_to_registered_systems(
+) -> None:
+    render_current_state_qmd = getattr(module, "render_current_state_qmd")
+    build = build_research_hub(ROOT)
+    original = next(
+        study
+        for study in build.sources.studies
+        if study.record_id == "e5-raw-response-refinement"
+    )
+    linked_study = replace(
+        original,
+        metadata={
+            **original.metadata,
+            "system_ids": ["dense_profile_equal"],
+        },
+    )
+    studies = tuple(
+        linked_study if study.record_id == original.record_id else study
+        for study in build.sources.studies
+    )
+
+    with pytest.raises(ValueError, match="must not link registered systems"):
+        render_current_state_qmd(
+            replace(build, sources=replace(build.sources, studies=studies))
+        )
 
 
 def test_idea_detail_emits_semantic_visuals_with_every_process_step(
@@ -112,7 +211,7 @@ def test_idea_detail_emits_semantic_visuals_with_every_process_step(
         ),
     )
 
-    detail = render_hub_outputs(build)[
+    detail = _render_fixture_outputs(build)[
         Path("research/hub/generated/ideas/test-candidate-evidence.qmd")
     ]
 
@@ -191,7 +290,7 @@ def test_idea_first_view_precedes_collapsed_evidence(
 def test_theme_question_and_study_first_views_precede_collapsed_evidence(
     sample_build: HubBuild,
 ) -> None:
-    outputs = render_hub_outputs(sample_build)
+    outputs = _render_fixture_outputs(sample_build)
     pages = (
         outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")],
         outputs[Path("research/hub/generated/questions/candidate-evidence.md")],
@@ -222,7 +321,9 @@ def test_idea_index_shows_fallback_when_priority_is_not_specified(
         ),
     )
 
-    index = render_hub_outputs(build)[Path("research/hub/generated/ideas-index.qmd")]
+    index = _render_fixture_outputs(build)[
+        Path("research/hub/generated/ideas-index.qmd")
+    ]
 
     assert "Priority not specified" in index
     assert "1/9 readiness fields complete" in index
@@ -253,7 +354,7 @@ def test_second_test_record_expands_every_derived_reader_surface(
         ),
     )
 
-    outputs = render_hub_outputs(build)
+    outputs = _render_fixture_outputs(build)
     expected_details = {
         Path("research/hub/generated/ideas/test-candidate-evidence.qmd"),
         Path("research/hub/generated/ideas/second-candidate-test.qmd"),
@@ -363,7 +464,7 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
         ),
     )
 
-    outputs = render_hub_outputs(build)
+    outputs = _render_fixture_outputs(build)
     summary = outputs[Path("research/hub/generated/summary.qmd")]
     assert "## Studies" not in summary
     assert "Candidate-side evidence" in summary
@@ -398,7 +499,7 @@ def test_hierarchy_outputs_are_derived_from_canonical_relationships(
 def test_theme_question_and_study_details_follow_the_explainer_sequence(
     sample_build: HubBuild,
 ) -> None:
-    outputs = render_hub_outputs(sample_build)
+    outputs = _render_fixture_outputs(sample_build)
     pages = (
         outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")],
         outputs[Path("research/hub/generated/questions/candidate-evidence.md")],
@@ -412,10 +513,27 @@ def test_theme_question_and_study_details_follow_the_explainer_sequence(
     assert '<code class="hub-path">evidence/receipt.md</code>' in pages[1]
 
 
+def test_theme_page_renders_authored_answer_evidence_and_open_question(
+    sample_build: HubBuild,
+) -> None:
+    theme = sample_build.sources.themes[0]
+    outputs = _render_fixture_outputs(sample_build)
+    page = outputs[Path("research/hub/generated/themes/candidate-evidence.qmd")]
+
+    assert str(theme.metadata["current_conclusion"]) in page
+    assert str(theme.metadata["strongest_evidence_summary"]) in page
+    assert str(theme.metadata["open_question"]) in page
+    assert "Current working answer" in page
+    assert "Strongest canonical evidence" in page
+    assert "Open question" in page
+    assert "Confidence and evidence boundary" in page
+    assert "First linked next test" in page
+
+
 def test_generated_landing_indexes_repeat_the_development_evidence_boundary(
     sample_build: HubBuild,
 ) -> None:
-    outputs = render_hub_outputs(sample_build)
+    outputs = _render_fixture_outputs(sample_build)
     notice = (
         "**Development evidence only.** Promotion labels do not imply held-out results."
     )
@@ -474,7 +592,7 @@ def test_data_index_is_derived_from_dataset_records_and_reflects_changes(
 def test_generated_study_detail_contains_decision_and_evidence_sections(
     sample_build: HubBuild,
 ) -> None:
-    outputs = render_hub_outputs(sample_build)
+    outputs = _render_fixture_outputs(sample_build)
     detail = outputs[Path("research/hub/generated/studies/dense-baseline.md")]
 
     assert "Why does it matter?" in detail
@@ -761,7 +879,7 @@ def test_render_rejects_hub_record_filename_identity_mismatch(
     )
 
     with pytest.raises(ValueError, match="must exactly match filename stem"):
-        render_hub_outputs(build)
+        _render_fixture_outputs(build)
 
 
 def test_decision_history_orders_known_dates_ascending_and_labels_unknown(

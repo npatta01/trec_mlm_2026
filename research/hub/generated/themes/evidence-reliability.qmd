@@ -20,9 +20,22 @@ toc: false
 Evidence reliability spans failure diagnosis, provenance, evaluation scope,
 and escalation decisions for generated references and ranking signals.
 
-## Current conclusion
+## Current working answer
 
 Known failures cluster around ambiguity, evidence custody, and scope changes; selective review is warranted but no complete reliability predictor exists.
+
+## Strongest canonical evidence
+
+The grounding-failure review and data-quality audit identify useful safeguards, but neither establishes a population-wide reliability rate.
+
+Canonical evidence paths:
+
+- <code class="hub-path">reports/trec_2026_four_model_reference_review_2026-07-21.md</code>
+- <code class="hub-path">reports/trec_2026_grounded_data_quality_audit_2026-07-23.md</code>
+
+## Open question
+
+Which reproducible trigger can route only genuinely unreliable generated evidence to grounding or review?
 </details>
 
 <details class="hub-details">
@@ -30,6 +43,11 @@ Known failures cluster around ambiguity, evidence custody, and scope changes; se
 **Confidence and evidence boundary**
 
 Low confidence. Audits use purposive or known-failure samples and do not estimate hidden-test prevalence.
+
+**First linked next test**
+
+<a href="../ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.
+ (4 remaining linked tests).
 </details>
 
 <details class="hub-details">
@@ -38,6 +56,8 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 
 - <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
 - <a href="../ideas/semantic-failure-clusters.qmd">Semantic failure clusters</a>: State a falsifiable hypothesis and evaluation boundary for the clustering test.
+- <a href="../ideas/hierarchical-candidate-profiles.qmd">Test hierarchical candidate semantic profiles against the frozen centroid baseline</a>: Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
+- <a href="../ideas/local-response-quality-judging.qmd">Pilot local LLM response-quality judging with selective pairwise ranking</a>: Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
 
 ## Questions in this theme
 

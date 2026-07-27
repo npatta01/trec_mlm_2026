@@ -1,0 +1,131 @@
+---
+resource_id: pretest-readiness-plan
+title: "Pre-test readiness dependency plan"
+resource_type: methods_landscape
+summary: "A dated authored snapshot of how the pre-test engineering and research workstreams depend on one another."
+canonical_source_path: plans/trec-2026-newcomer-research-map.md
+citations:
+  - "GitHub issues #39–#42, reconciled on 2026-07-25"
+tags: [pre-test, dependencies, engineering, research]
+question_ids: [query-only-routing, response-evidence, candidate-evidence]
+reviewed_on: 2026-07-25
+dependency_snapshot:
+  as_of: "2026-07-25"
+  explanation: "Engineering readiness converges at the portfolio freeze. E5 registration independently freezes the research boundary before the organizer-controlled release."
+  issues:
+    inference:
+      github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/39"
+      label: "Qrel-free unseen-query pipeline"
+      lane: input
+    custody:
+      github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/40"
+      label: "Durable private artifact custody"
+      lane: input
+    portfolio:
+      github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/41"
+      label: "Five-run portfolio and release runbook"
+      lane: freeze
+    e5-boundary:
+      github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/42"
+      label: "E5 held-out/test registration"
+      lane: research
+  external:
+    id: organizer-release
+    label: "Organizer hidden-test release"
+  edges:
+    - {from: inference, to: portfolio, relation: "is a prerequisite for"}
+    - {from: custody, to: portfolio, relation: "is a prerequisite for"}
+    - {from: portfolio, to: organizer-release, relation: "must precede"}
+    - {from: e5-boundary, to: organizer-release, relation: "freezes the research boundary before"}
+---
+
+This is an authored project dependency snapshot, not a cache of mutable GitHub
+state. Issue URLs and numbers are stable identifiers; GitHub remains the source
+for current titles, status, labels, assignees, milestones, and discussion.
+
+The inference and artifact-custody workstreams converge at the portfolio freeze.
+E5 registration independently freezes its leakage and interpretation boundary.
+Both paths precede the organizer-controlled hidden-test release.
+
+## The branch-complete queue
+
+These are stable work contracts, not copies of mutable issue status. A branch
+is complete only when its decision rule can be evaluated from durable evidence.
+
+### [#39 — Build qrel-free unseen-query inference](https://github.com/npatta01/trec_mlm_2026/issues/39)
+
+- **Depends on:** nothing in this queue; it can proceed alongside #40.
+- **Outcome:** one command accepts unseen requests, uses no request-specific
+  qrels, produces valid TREC rankings, and leaves a reproducible receipt.
+- **Smallest valid work item:** a synthetic end-to-end request through input
+  validation, frozen feature loading, ranking, and submission validation.
+- **Controls and safeguards:** deny qrel-bearing inputs; freeze configuration;
+  validate candidate coverage, rank uniqueness, determinism, and TREC format.
+- **Decision / stop rule:** pass only when two clean replays are byte-identical
+  and the leakage and format checks pass. Stop portfolio work if the path needs
+  development-only state unavailable at test time.
+- **Positive-result boundary:** this proves executability and integrity, not
+  hidden-test effectiveness.
+- **Blocker:** the production input/release contract must be known well enough
+  to validate the adapter.
+
+### [#40 — Restore durable private artifact custody](https://github.com/npatta01/trec_mlm_2026/issues/40)
+
+- **Depends on:** nothing in this queue; it can proceed alongside #39.
+- **Outcome:** every decision-critical profile artifact has a durable private
+  object, checksum, provenance receipt, and tested restore path.
+- **Smallest valid work item:** restore and verify one representative profile
+  bundle from private custody without consulting an ephemeral run directory.
+- **Controls and safeguards:** private-only storage, SHA-256 verification,
+  least-privilege paths, no raw response publication, and restore rehearsal.
+- **Decision / stop rule:** pass only when every portfolio-critical artifact is
+  complete and independently restorable. Stop if a required object has only a
+  receipt or report snapshot.
+- **Positive-result boundary:** custody proves reproducibility, not ranking
+  quality.
+- **Blocker:** any decision-critical artifact that remains incomplete must be
+  restored or explicitly excluded from the frozen portfolio. The generated
+  current-state custody view owns the live ledger-derived count.
+
+### [#41 — Freeze the five-run portfolio and release runbook](https://github.com/npatta01/trec_mlm_2026/issues/41)
+
+- **Depends on:** #39 and #40.
+- **Outcome:** five named, reproducible runs and an operator-readable release
+  runbook are frozen before organizer release.
+- **Smallest valid work item:** a dry run that reconstructs one portfolio entry
+  from private custody and emits a validated submission through #39.
+- **Controls and safeguards:** immutable system IDs/configuration, checksums,
+  role separation between selection and execution, rollback steps, and no
+  tuning after release evidence is seen.
+- **Decision / stop rule:** freeze only when all five entries pass the same dry
+  run and every dependency is closed. Reduce the portfolio rather than include
+  an unreproducible entry.
+- **Positive-result boundary:** readiness to execute five preselected systems;
+  not a claim that all five will outperform on hidden data.
+- **Blocker:** any unresolved pipeline or custody dependency.
+
+### [#42 — Register E5 raw-response refinement](https://github.com/npatta01/trec_mlm_2026/issues/42)
+
+- **Depends on:** an executable unseen-query path from #39. It does not depend
+  on #40 unless its selected artifacts require restoration.
+- **Hypothesis:** the frozen 80% broad profile + 20% candidate-local refinement,
+  fused equally with the dense ranking, improves the preregistered held-out/test
+  metric without unacceptable cohort regressions.
+- **Smallest valid panel:** the already specified held-out/test inference scope;
+  no additional development search after registration.
+- **Controls and safeguards:** dense and promoted controls, frozen variables,
+  explicit leakage boundary, fixed metric, and an immutable registration
+  receipt created before release evidence.
+- **Decision / stop rule:** advance only under the preregistered primary metric
+  and cohort guardrail; otherwise retain as informational evidence and stop
+  refinement in this form.
+- **Positive-result boundary:** evidence for the registered E5 mechanism on the
+  named scope, not general proof that raw responses improve routing.
+- **Blocker:** E5 is currently completed development follow-up evidence but
+  remains off-ledger, unregistered, and unpromoted.
+
+## Deep dive
+
+Use the canonical working plan for the complete backlog rationale and GitHub for
+the live issue state. Changing an issue title, label, milestone, or status does
+not silently rewrite this dated dependency decision.

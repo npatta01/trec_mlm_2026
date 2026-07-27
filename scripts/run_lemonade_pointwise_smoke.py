@@ -15,6 +15,7 @@ from trec_mlm.pointwise_runner import (
     MAX_RESPONSE_BYTES,
     FROZEN_DECISION_SCHEMA_SHA256,
     _open_no_redirect,
+    _sha256_json,
     run_cases,
     validate_loopback_endpoint,
 )
@@ -23,6 +24,46 @@ from trec_mlm.pointwise_runner import (
 def _validate_backend_response_model(body: object, expected_model: str) -> None:
     if type(body) is not dict or body.get("model") != expected_model:
         raise ValueError("backend response model does not match checkpoint")
+
+
+def _lemonade_transport_schema(schema: object) -> dict[str, object]:
+    """Return the minimal Lemonade 11.5 adaptation of the frozen schema."""
+    if (
+        type(schema) is not dict
+        or _sha256_json(schema) != FROZEN_DECISION_SCHEMA_SHA256
+    ):
+        raise ValueError("transport schema is not the exact frozen decision schema")
+    transport_schema = copy.deepcopy(schema)
+    if transport_schema["properties"]["rationale"].pop("maxLength") != 4000:
+        raise ValueError("frozen rationale length constraint changed")
+    return transport_schema
+
+
+def _runtime_observation(
+    schema: object,
+    *,
+    backend_model: str,
+    backend_response_model: str,
+    thinking: bool,
+    thinking_control_omitted: bool,
+    reasoning_effort: str | None,
+    max_output_tokens: int,
+) -> dict[str, object]:
+    transport_schema = _lemonade_transport_schema(schema)
+    return {
+        "schema_sha256": FROZEN_DECISION_SCHEMA_SHA256,
+        "transport_schema_sha256": _sha256_json(transport_schema),
+        "transport": "lemonade-11.5-llamacpp-rocm",
+        "backend_model": backend_model,
+        "backend_response_model": backend_response_model,
+        "thinking": thinking,
+        "thinking_control_omitted": thinking_control_omitted,
+        "reasoning_effort": reasoning_effort,
+        "max_output_tokens": max_output_tokens,
+        "schema_transport_adjustment": (
+            "rationale.maxLength omitted; frozen parser retained"
+        ),
+    }
 
 
 def _parse_backend_response_body(
@@ -92,9 +133,7 @@ def main() -> int:
     endpoint = validate_loopback_endpoint(args.base_url)
 
     def call(_model: str, messages: object, schema: object):
-        transport_schema = copy.deepcopy(schema)
-        transport_schema["properties"]["rationale"].pop("maxLength")
-        transport_schema["properties"]["error_flags"].pop("uniqueItems")
+        transport_schema = _lemonade_transport_schema(schema)
         payload = {
             "model": args.backend_model,
             "messages": messages,
@@ -126,20 +165,15 @@ def main() -> int:
         )
         return content, body
 
-    runtime_observation = {
-        "schema_sha256": FROZEN_DECISION_SCHEMA_SHA256,
-        "transport": "lemonade-11.5-llamacpp-rocm",
-        "backend_model": args.backend_model,
-        "backend_response_model": args.backend_response_model or args.backend_model,
-        "thinking": args.thinking,
-        "thinking_control_omitted": args.omit_thinking_control,
-        "reasoning_effort": args.reasoning_effort,
-        "max_output_tokens": args.max_output_tokens,
-        "schema_transport_adjustment": (
-            "rationale.maxLength and error_flags.uniqueItems omitted; "
-            "frozen parser retained"
-        ),
-    }
+    runtime_observation = _runtime_observation(
+        contract.schema,
+        backend_model=args.backend_model,
+        backend_response_model=args.backend_response_model or args.backend_model,
+        thinking=args.thinking,
+        thinking_control_omitted=args.omit_thinking_control,
+        reasoning_effort=args.reasoning_effort,
+        max_output_tokens=args.max_output_tokens,
+    )
     run_cases(
         cases,
         model_alias=args.model_alias,

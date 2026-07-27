@@ -1,9 +1,54 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from scripts.run_lemonade_pointwise_smoke import (
+    _lemonade_transport_schema,
     _parse_backend_response_body,
+    _runtime_observation,
     _validate_backend_response_model,
 )
+from trec_mlm.pointwise_runner import FROZEN_DECISION_SCHEMA_SHA256
+
+
+SCHEMA = json.loads(
+    Path("protocols/pointwise_judge_bakeoff/decision-v1.schema.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+def test_lemonade_transport_schema_omits_only_unsupported_max_length() -> None:
+    frozen = json.loads(json.dumps(SCHEMA))
+
+    transport = _lemonade_transport_schema(frozen)
+
+    assert frozen == SCHEMA
+    assert "maxLength" not in transport["properties"]["rationale"]
+    assert transport["properties"]["error_flags"]["uniqueItems"] is True
+    transport["properties"]["rationale"]["maxLength"] = 4000
+    assert transport == SCHEMA
+
+
+def test_runtime_observation_hashes_exact_adjusted_transport_schema() -> None:
+    observation = _runtime_observation(
+        SCHEMA,
+        backend_model="friendly-model",
+        backend_response_model="/verified/checkpoint.gguf",
+        thinking=False,
+        thinking_control_omitted=False,
+        reasoning_effort=None,
+        max_output_tokens=4096,
+    )
+
+    assert observation["schema_sha256"] == FROZEN_DECISION_SCHEMA_SHA256
+    assert observation["transport_schema_sha256"] == (
+        "40a725cf89740c377ba6b91fa3d1fbe4657127d5f0592b884110cae4e944bc67"
+    )
+    assert observation["schema_transport_adjustment"] == (
+        "rationale.maxLength omitted; frozen parser retained"
+    )
 
 
 def test_validate_backend_response_model_accepts_pinned_canonical_path() -> None:

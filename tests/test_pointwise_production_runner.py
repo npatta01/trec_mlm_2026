@@ -440,3 +440,74 @@ def test_run_lock_rejects_second_active_runner(tmp_path: Path) -> None:
             second.run()
     finally:
         first._release_run_lock()
+
+
+def test_advisory_lock_is_released_when_owner_descriptor_closes(tmp_path: Path) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    first = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    second = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    first._acquire_run_lock()
+    first._abandon_lock_owner_for_test()
+    second._acquire_run_lock()
+    second._release_run_lock()
+
+
+@pytest.mark.parametrize(
+    "boundary", ["after_reconcile_ledger_write", "after_conservative_ledger_write"]
+)
+def test_ledger_settlement_crash_recovers_idempotently(
+    tmp_path: Path, boundary: str
+) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+
+    def fault(name: str) -> None:
+        if name == boundary:
+            raise RuntimeError(f"fault:{name}")
+
+    def transient(record: dict[str, object], repair: bool) -> dict[str, object]:
+        if boundary == "after_conservative_ledger_write":
+            raise TimeoutError("fixture transport failure")
+        return _response(record, repair)
+
+    runner = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=transient,
+        total_cap_usd=1.0,
+        fault_hook=fault,
+    )
+    with pytest.raises(RuntimeError, match=boundary):
+        runner.run()
+    resumed = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    if boundary == "after_reconcile_ledger_write":
+        assert resumed.run()["completed_records"] == 1
+    else:
+        with pytest.raises(BlockGateError, match="ambiguous"):
+            resumed.run()
+    ledger = json.loads((tmp_path / "run" / "spend-ledger.json").read_text())
+    assert ledger["spent_usd"] == pytest.approx(
+        0.0 if boundary == "after_reconcile_ledger_write" else 0.01
+    )

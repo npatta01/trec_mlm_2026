@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
+import fcntl
 import hashlib
 import json
 import math
@@ -314,7 +315,7 @@ class ProductionRunner:
         )
         self._fault_hook = fault_hook or (lambda _boundary: None)
         self._lock_path = self.run_dir / "run.lock"
-        self._lock_held = False
+        self._lock_descriptor: int | None = None
         self._record_count, self._input_manifest = _validate_inventory(
             self.inventory, self.inventory_manifest
         )
@@ -357,25 +358,44 @@ class ProductionRunner:
             )
 
     def _acquire_run_lock(self) -> None:
+        if self._lock_descriptor is not None:
+            return
         try:
             descriptor = os.open(
                 self._lock_path,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                os.O_RDWR | os.O_CREAT,
                 _FILE_MODE,
             )
-        except FileExistsError as error:
+            os.fchmod(descriptor, _FILE_MODE)
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            try:
+                os.close(descriptor)
+            except UnboundLocalError:
+                pass
             raise BlockGateError("production run is already active") from error
         try:
-            os.write(descriptor, b"private production runner lock\n")
+            os.ftruncate(descriptor, 0)
+            os.write(descriptor, b"private production runner advisory lock\n")
             os.fsync(descriptor)
-        finally:
+        except BaseException:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
             os.close(descriptor)
-        self._lock_held = True
+            raise
+        self._lock_descriptor = descriptor
 
     def _release_run_lock(self) -> None:
-        if self._lock_held:
-            self._lock_path.unlink(missing_ok=True)
-            self._lock_held = False
+        if self._lock_descriptor is not None:
+            fcntl.flock(self._lock_descriptor, fcntl.LOCK_UN)
+            os.close(self._lock_descriptor)
+            self._lock_descriptor = None
+
+    def _abandon_lock_owner_for_test(self) -> None:
+        """Test-only simulation of OS releasing a lock when an owner dies."""
+        if self._lock_descriptor is None:
+            raise RuntimeError("test lock owner is not active")
+        os.close(self._lock_descriptor)
+        self._lock_descriptor = None
 
     def _recover_crash_windows(self) -> None:
         """Resolve only unambiguous raw writes; never resend a reserved call."""
@@ -505,7 +525,49 @@ class ProductionRunner:
         )
         return path
 
-    def _reconcile(self, *, reservation: float, response: Mapping[str, object]) -> None:
+    def _raw_checkpoint_for_attempt(self, attempt: int) -> dict[str, object] | None:
+        matches = list((self.run_dir / "raw").glob(f"*-{attempt:09d}.json"))
+        if len(matches) > 1:
+            raise BlockGateError("multiple raw checkpoints share an attempt")
+        if not matches:
+            return None
+        return _read_private_json(matches[0], label="raw response checkpoint")
+
+    def _settlement_baseline(self, exclude_attempt: int) -> tuple[float, float]:
+        """Replay all settled markers except one transition being recovered."""
+        spent, unreconciled = 0.0, 0.0
+        for path in (self.run_dir / "attempts").glob("*.json"):
+            marker = _read_private_json(path, label="physical attempt marker")
+            attempt, reservation = marker.get("attempt"), marker.get("reservation_usd")
+            if type(attempt) is not int or type(reservation) not in {int, float}:
+                raise BlockGateError("attempt marker accounting identity is invalid")
+            if attempt == exclude_attempt:
+                continue
+            state = marker.get("state")
+            if state == "reconciled":
+                checkpoint = self._raw_checkpoint_for_attempt(attempt)
+                if checkpoint is None or type(checkpoint.get("response")) is not dict:
+                    raise BlockGateError(
+                        "reconciled marker is missing its raw checkpoint"
+                    )
+                cost = checkpoint["response"].get("cost_usd")
+                if type(cost) not in {int, float}:
+                    raise BlockGateError("reconciled raw checkpoint cost is invalid")
+                spent += float(cost)
+            elif state in {
+                "transport_error_conservatively_charged",
+                "ambiguous_conservatively_charged",
+            }:
+                spent += float(reservation)
+            elif state in {"reserved", "response_checkpointed"}:
+                unreconciled += float(reservation)
+            else:
+                raise BlockGateError("attempt marker state is invalid")
+        return spent, unreconciled
+
+    def _response_cost(
+        self, response: Mapping[str, object], reservation: float
+    ) -> float:
         cost = response.get("cost_usd")
         if (
             type(cost) not in {int, float}
@@ -519,14 +581,7 @@ class ProductionRunner:
             for key in ("prompt_tokens", "completion_tokens")
         ):
             raise BlockGateError("provider usage is incomplete")
-        spend = self._spend()
-        if float(spend["unreconciled_reservation_usd"]) + 1e-12 < reservation:
-            raise BlockGateError("spend ledger reservation rollback detected")
-        spend["unreconciled_reservation_usd"] = (
-            float(spend["unreconciled_reservation_usd"]) - reservation
-        )
-        spend["spent_usd"] = float(spend["spent_usd"]) + float(cost)
-        _write_private_json(self.run_dir / "spend-ledger.json", spend)
+        return float(cost)
 
     def _reconcile_checkpoint(self, checkpoint: Mapping[str, object]) -> None:
         attempt = checkpoint.get("attempt")
@@ -548,20 +603,58 @@ class ProductionRunner:
             raise BlockGateError(
                 "raw checkpoint does not have a pending attempt marker"
             )
-        self._reconcile(reservation=float(reservation), response=response)
+        baseline_spent, baseline_unreconciled = self._settlement_baseline(attempt)
+        cost = self._response_cost(response, float(reservation))
+        spend = self._spend()
+        already_settled = math.isclose(
+            float(spend["spent_usd"]), baseline_spent + cost, abs_tol=1e-12
+        ) and math.isclose(
+            float(spend["unreconciled_reservation_usd"]),
+            baseline_unreconciled,
+            abs_tol=1e-12,
+        )
+        not_settled = math.isclose(
+            float(spend["spent_usd"]), baseline_spent, abs_tol=1e-12
+        ) and math.isclose(
+            float(spend["unreconciled_reservation_usd"]),
+            baseline_unreconciled + float(reservation),
+            abs_tol=1e-12,
+        )
+        if not already_settled and not not_settled:
+            raise BlockGateError("spend ledger cannot be replayed for raw checkpoint")
+        if not already_settled:
+            spend["spent_usd"] = baseline_spent + cost
+            spend["unreconciled_reservation_usd"] = baseline_unreconciled
+            _write_private_json(self.run_dir / "spend-ledger.json", spend)
+            self._fault_hook("after_reconcile_ledger_write")
         self._update_attempt(attempt, state="reconciled")
 
     def _conservatively_charge_failed_attempt(
         self, attempt: int, reservation: float
     ) -> None:
+        baseline_spent, baseline_unreconciled = self._settlement_baseline(attempt)
         spend = self._spend()
-        if float(spend["unreconciled_reservation_usd"]) + 1e-12 < reservation:
-            raise BlockGateError("failed attempt reservation is missing")
-        spend["unreconciled_reservation_usd"] = (
-            float(spend["unreconciled_reservation_usd"]) - reservation
+        already_settled = math.isclose(
+            float(spend["spent_usd"]), baseline_spent + reservation, abs_tol=1e-12
+        ) and math.isclose(
+            float(spend["unreconciled_reservation_usd"]),
+            baseline_unreconciled,
+            abs_tol=1e-12,
         )
-        spend["spent_usd"] = float(spend["spent_usd"]) + reservation
-        _write_private_json(self.run_dir / "spend-ledger.json", spend)
+        not_settled = math.isclose(
+            float(spend["spent_usd"]), baseline_spent, abs_tol=1e-12
+        ) and math.isclose(
+            float(spend["unreconciled_reservation_usd"]),
+            baseline_unreconciled + reservation,
+            abs_tol=1e-12,
+        )
+        if not already_settled and not not_settled:
+            raise BlockGateError("spend ledger cannot be replayed for failed attempt")
+        if not already_settled:
+            spend["spent_usd"] = baseline_spent + reservation
+            spend["unreconciled_reservation_usd"] = baseline_unreconciled
+            _write_private_json(self.run_dir / "spend-ledger.json", spend)
+            self._fault_hook("after_conservative_ledger_write")
         self._update_attempt(attempt, state="transport_error_conservatively_charged")
 
     def _save_result(self, ordinal: int, value: dict[str, object]) -> None:

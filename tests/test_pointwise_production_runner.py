@@ -511,3 +511,43 @@ def test_ledger_settlement_crash_recovers_idempotently(
     assert ledger["spent_usd"] == pytest.approx(
         0.0 if boundary == "after_reconcile_ledger_write" else 0.01
     )
+
+
+def test_pre_send_marker_without_ledger_reservation_is_cancelled_and_resumes(
+    tmp_path: Path,
+) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    calls: list[int] = []
+
+    def fault(name: str) -> None:
+        if name == "after_attempt_marker_write":
+            raise RuntimeError("fault:after_attempt_marker_write")
+
+    def tracked(record: dict[str, object], repair: bool) -> dict[str, object]:
+        calls.append(int(record["source_ordinal"]))
+        return _response(record, repair)
+
+    runner = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=tracked,
+        total_cap_usd=1.0,
+        fault_hook=fault,
+    )
+    with pytest.raises(RuntimeError, match="after_attempt_marker_write"):
+        runner.run()
+    assert calls == []
+    resumed = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=tracked,
+        total_cap_usd=1.0,
+    )
+    assert resumed.run()["completed_records"] == 1
+    marker = json.loads((tmp_path / "run" / "attempts" / "000000001.json").read_text())
+    assert marker["state"] == "cancelled_pre_send"
+    assert calls == [0]

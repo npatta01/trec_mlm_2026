@@ -423,6 +423,23 @@ class ProductionRunner:
                         raw_checkpoint=raw_path.name,
                     )
                     continue
+                baseline_spent, baseline_unreconciled = self._settlement_baseline(
+                    attempt
+                )
+                spend = self._spend()
+                if math.isclose(
+                    float(spend["spent_usd"]), baseline_spent, abs_tol=1e-12
+                ) and math.isclose(
+                    float(spend["unreconciled_reservation_usd"]),
+                    baseline_unreconciled,
+                    abs_tol=1e-12,
+                ):
+                    # The marker write precedes the reservation-ledger write.
+                    # This exact shape proves no caller could have crossed the
+                    # provider boundary, so retain an audit marker but charge
+                    # nothing and permit the record to be scheduled afresh.
+                    self._update_attempt(attempt, state="cancelled_pre_send")
+                    continue
                 self._conservatively_charge_failed_attempt(
                     attempt, float(marker["reservation_usd"])
                 )
@@ -472,6 +489,7 @@ class ProductionRunner:
             "state": "reserved",
         }
         _write_private_json(self.run_dir / "attempts" / f"{number:09d}.json", marker)
+        self._fault_hook("after_attempt_marker_write")
         spend["unreconciled_reservation_usd"] = (
             committed - float(spend["spent_usd"]) + self.worst_call_usd
         )
@@ -559,6 +577,8 @@ class ProductionRunner:
                 "ambiguous_conservatively_charged",
             }:
                 spent += float(reservation)
+            elif state == "cancelled_pre_send":
+                continue
             elif state in {"reserved", "response_checkpointed"}:
                 unreconciled += float(reservation)
             else:
@@ -931,6 +951,9 @@ class ProductionRunner:
                         "failed transport has an unexpected raw checkpoint"
                     )
                 recomputed_spend += float(reservation)
+            elif state == "cancelled_pre_send":
+                if checkpoint is not None:
+                    raise BlockGateError("cancelled pre-send marker has raw checkpoint")
             else:
                 raise BlockGateError("attempt state is not replayable")
         spend = self._spend()
@@ -1088,7 +1111,16 @@ class ProductionRunner:
             "repair_rate": sum(1 for value in raw if value.get("repair") is True)
             / len(raw),
             "retry_rate": (
-                len([path for path in (self.run_dir / "attempts").glob("*.json")])
+                len(
+                    [
+                        path
+                        for path in (self.run_dir / "attempts").glob("*.json")
+                        if _read_private_json(
+                            path, label="physical attempt marker"
+                        ).get("state")
+                        != "cancelled_pre_send"
+                    ]
+                )
                 - len([path for path in (self.run_dir / "results").glob("*.json")])
             )
             / max(1, len(values)),

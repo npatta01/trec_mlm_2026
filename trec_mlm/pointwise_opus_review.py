@@ -407,7 +407,7 @@ class ClaudeCliReviewCall:
             packet, protocol_dir=protocol_dir
         )
         schema_text = json.dumps(
-            OpusPromptReview.model_json_schema(),
+            _transport_review_schema(),
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,

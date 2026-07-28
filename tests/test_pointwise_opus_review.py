@@ -477,6 +477,8 @@ def test_claude_cli_transport_uses_bounded_json_mode_without_credentials(
     argv, input_text = calls[0]
     assert argv[:5] == ["claude", "-p", "--model", "opus", "--output-format"]
     assert "--json-schema" in argv
+    schema_arg = argv[argv.index("--json-schema") + 1]
+    assert "maxItems" not in schema_arg
     assert "--max-budget-usd" in argv
     assert "--no-session-persistence" in argv
     assert argv[-2:] == ["--tools", ""]

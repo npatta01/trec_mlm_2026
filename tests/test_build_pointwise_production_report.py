@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.build_pointwise_production_report import (
     build_report,
     render_sanitized_markdown,
+    write_report,
 )
 
 
@@ -28,7 +31,7 @@ def _run(tmp_path: Path) -> Path:
             "version": 1,
             "cap_usd": 60.0,
             "spent_usd": 1.25,
-            "unreconciled_reservation_usd": 0.0,
+            "unreconciled_reservation_usd": 0.75,
         },
     )
     for ordinal, decision in enumerate(
@@ -121,7 +124,9 @@ def test_report_projects_cost_and_preserves_claim_boundaries(tmp_path: Path) -> 
         "block_receipts": 1,
     }
     assert summary["cost"]["spent_usd"] == 1.25
-    assert summary["cost"]["projected_total_usd"] == 1250.0 / 3
+    assert summary["cost"]["unreconciled_reservation_usd"] == 0.75
+    assert summary["cost"]["committed_usd"] == 2.0
+    assert summary["cost"]["projected_total_usd"] == 2000.0 / 3
     assert summary["claims"]["population_quality"] is False
     assert summary["opus_findings"] == {"accepted": 1, "rejected": 2}
 
@@ -145,4 +150,10 @@ def test_markdown_is_sanitized_but_contains_operational_sections(
     assert "candidate answer" not in markdown
     assert "sk-do-not-emit" not in markdown
     assert "private malformed" not in markdown
+    assert "unreconciled reservation" in markdown
     assert "does not establish population quality" in markdown
+
+
+def test_public_writer_rejects_arbitrary_markdown_and_secrets(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="summary"):
+        write_report(tmp_path / "unsafe.md", "# raw question sk-do-not-emit-secret")

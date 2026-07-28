@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic, text-free private audit packet for a production run."""
+"""Build a deterministic private semantic audit packet for a production run."""
 
 from __future__ import annotations
 
@@ -9,9 +9,19 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import tempfile
-from typing import Sequence
+from typing import Literal, Sequence
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    conint,
+    field_validator,
+)
 
 
 DEFAULT_AUDIT_SEED = "pointwise-production-audit-v1"
@@ -45,6 +55,58 @@ _SAFE_REASONS = {
     "anomaly",
     "seeded_ordinary",
 }
+_SECRET_PATTERNS = (
+    re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"(?i)(?:api[_-]?key|authorization|bearer)\s*[:=]\s*\S+"),
+)
+
+
+class _AuditDecisionModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    label: Literal["good", "partial", "incorrect", "uncertain"]
+    correctness: conint(strict=True, ge=0, le=4)
+    completeness: conint(strict=True, ge=0, le=2)
+    relevance: conint(strict=True, ge=0, le=2)
+    error_flags: list[
+        Literal[
+            "entity_error",
+            "number_error",
+            "date_error",
+            "negation_error",
+            "unsupported_specificity",
+            "refusal",
+            "ambiguity",
+            "reference_conflict",
+        ]
+    ] = Field(max_length=3)
+    reference_status: Literal["sound", "incomplete", "suspect", "uncertain"]
+    confidence: Literal["high", "medium", "low"]
+
+    @field_validator("error_flags")
+    @classmethod
+    def _unique_flags(cls, flags: list[str]) -> list[str]:
+        if len(flags) != len(set(flags)):
+            raise ValueError("error_flags must be unique")
+        return flags
+
+
+class _AuditCaseContentModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    question: str = Field(min_length=1, max_length=200_000)
+    reference: str = Field(min_length=1, max_length=200_000)
+    candidate_response: str = Field(min_length=1, max_length=200_000)
+
+    @classmethod
+    def model_validate(
+        cls, obj: object, *args: object, **kwargs: object
+    ) -> "_AuditCaseContentModel":
+        model = super().model_validate(obj, *args, **kwargs)
+        for value in (model.question, model.reference, model.candidate_response):
+            if any(pattern.search(value) for pattern in _SECRET_PATTERNS):
+                raise ValueError("semantic case content contains a secret")
+        return model
 
 
 def build_audit_packet(
@@ -53,14 +115,15 @@ def build_audit_packet(
     milestone_block: int,
     seed: str = DEFAULT_AUDIT_SEED,
     ordinary_sample_size: int = 20,
+    inventory: Path | None = None,
 ) -> dict[str, object]:
-    """Return a review packet with structured decisions, never model/input text.
+    """Return a private semantic audit packet with structured decisions and case text.
 
     Block zero is deliberately exhaustive.  Later milestones carry every
     exception stratum, every record from an anomalous block, and a stable seeded
     ordinary sample.  This gives reviewers reproducible evidence without
-    placing questions, references, candidate responses, raw provider output,
-    rationales, or credentials in the packet.
+    The case text is authorized private review content; raw provider output,
+    rationales, and credentials are never copied.
     """
     if type(milestone_block) is not int or milestone_block < 0:
         raise ValueError("milestone block must be a nonnegative integer")
@@ -86,16 +149,27 @@ def build_audit_packet(
         if any(record_id not in selected_ids for record_id in receipt_ids):
             raise ValueError("a block receipt lacks a terminal result")
 
+    if milestone_block == 0:
+        _validate_first_block(selected, receipts)
+    content = _inventory_content(
+        _inventory_path(directory, manifest, inventory), selected_ids
+    )
     repairs = _repair_ordinals(directory)
     if milestone_block == 0:
         rows = [
-            _packet_row(row, repairs, ["first_100"])
+            _packet_row(row, repairs, ["first_100"], content[str(row["record_id"])])
             for row in sorted(selected, key=_ordinal)
         ]
         scope = "first_100"
     else:
         rows = _milestone_rows(
-            selected, repairs, receipts, directory, seed, ordinary_sample_size
+            selected,
+            repairs,
+            receipts,
+            directory,
+            seed,
+            ordinary_sample_size,
+            content,
         )
         scope = "milestone"
     body = {
@@ -108,7 +182,7 @@ def build_audit_packet(
         "seed": seed,
         "records": rows,
         "safety": {
-            "contains_raw_question_or_response_text": False,
+            "contains_semantic_case_content": True,
             "contains_provider_raw_output": False,
             "contains_credentials": False,
         },
@@ -153,7 +227,7 @@ def _valid_packet(packet: object) -> bool:
         or type(packet.get("records")) is not list
         or packet.get("safety")
         != {
-            "contains_raw_question_or_response_text": False,
+            "contains_semantic_case_content": True,
             "contains_provider_raw_output": False,
             "contains_credentials": False,
         }
@@ -168,12 +242,16 @@ def _valid_packet(packet: object) -> bool:
             "repaired",
             "decision",
             "reasons",
+            "question",
+            "reference",
+            "candidate_response",
         }:
             return False
         ordinal = row.get("source_ordinal")
         if (
             type(row.get("record_id")) is not str
             or not row["record_id"]
+            or any(pattern.search(row["record_id"]) for pattern in _SECRET_PATTERNS)
             or type(ordinal) is not int
             or ordinal < 0
             or ordinal in seen
@@ -183,18 +261,32 @@ def _valid_packet(packet: object) -> bool:
         ):
             return False
         seen.add(ordinal)
+        try:
+            _validated_content(
+                {
+                    "question": row["question"],
+                    "reference": row["reference"],
+                    "candidate_response": row["candidate_response"],
+                }
+            )
+        except ValueError:
+            return False
         decision = row.get("decision")
         if decision is None:
             continue
         if type(decision) is not dict or set(decision) != set(_SAFE_DECISION_FIELDS):
             return False
-        if (
-            decision.get("label") not in _SAFE_LABELS
-            or decision.get("confidence") not in _SAFE_CONFIDENCE
-            or type(decision.get("error_flags")) is not list
-            or any(flag not in _SAFE_FLAGS for flag in decision["error_flags"])
-        ):
+        try:
+            _validated_decision(decision)
+        except ValueError:
             return False
+    if packet["scope"] == "first_100" and (
+        len(seen) != 100
+        or sorted(seen) != list(range(100))
+        or packet["covered_records"] != 100
+        or packet["expected_records_through_milestone"] != 100
+    ):
+        return False
     return True
 
 
@@ -205,6 +297,7 @@ def _milestone_rows(
     directory: Path,
     seed: str,
     ordinary_sample_size: int,
+    content: dict[str, dict[str, str]],
 ) -> list[dict[str, object]]:
     labels = Counter(
         str(row["decision"].get("label"))
@@ -234,21 +327,26 @@ def _milestone_rows(
     for row in ordinary[:ordinary_sample_size]:
         reason_by_id[str(row["record_id"])].append("seeded_ordinary")
     return [
-        _packet_row(row, repairs, reason_by_id[str(row["record_id"])])
+        _packet_row(
+            row,
+            repairs,
+            reason_by_id[str(row["record_id"])],
+            content[str(row["record_id"])],
+        )
         for row in sorted(selected, key=_ordinal)
         if str(row["record_id"]) in reason_by_id
     ]
 
 
 def _packet_row(
-    result: dict[str, object], repairs: set[int], reasons: list[str]
+    result: dict[str, object],
+    repairs: set[int],
+    reasons: list[str],
+    content: dict[str, str],
 ) -> dict[str, object]:
     decision = result.get("decision")
-    safe_decision = (
-        {field: decision.get(field) for field in _SAFE_DECISION_FIELDS}
-        if type(decision) is dict
-        else None
-    )
+    safe_decision = _validated_decision(decision) if decision is not None else None
+    safe_content = _validated_content(content)
     ordinal = _ordinal(result)
     return {
         "record_id": result["record_id"],
@@ -257,7 +355,116 @@ def _packet_row(
         "repaired": ordinal in repairs,
         "decision": safe_decision,
         "reasons": sorted(set(reasons)),
+        **safe_content,
     }
+
+
+def _validated_decision(value: object) -> dict[str, object]:
+    if type(value) is not dict:
+        raise ValueError("decision is not a valid audit decision")
+    if set(value) not in (
+        set(_SAFE_DECISION_FIELDS),
+        set(_SAFE_DECISION_FIELDS) | {"rationale"},
+    ):
+        raise ValueError("decision is not a valid audit decision")
+    payload = {field: value[field] for field in _SAFE_DECISION_FIELDS}
+    try:
+        return _AuditDecisionModel.model_validate(payload).model_dump(mode="json")
+    except ValidationError as error:
+        raise ValueError("decision is not a valid audit decision") from error
+
+
+def _validated_content(value: object) -> dict[str, str]:
+    try:
+        return _AuditCaseContentModel.model_validate(value).model_dump(mode="json")
+    except ValueError:
+        raise
+    except (TypeError, ValidationError) as error:
+        raise ValueError("semantic case content is invalid") from error
+
+
+def _inventory_path(
+    directory: Path, manifest: dict[str, object], inventory: Path | None
+) -> Path:
+    if inventory is not None:
+        return Path(inventory)
+    value = manifest.get("inventory")
+    if type(value) is not str or not value:
+        raise ValueError("private inventory is required for semantic audit")
+    candidate = Path(value)
+    return candidate if candidate.is_absolute() else directory / candidate
+
+
+def _inventory_content(path: Path, needed_ids: set[str]) -> dict[str, dict[str, str]]:
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or stat.S_IMODE(path.stat().st_mode) != 0o600
+    ):
+        raise ValueError("private inventory must be a mode-0600 regular file")
+    expected = {
+        "record_id",
+        "source_ordinal",
+        "question_id",
+        "candidate_id",
+        "question",
+        "provisional_reference",
+        "candidate_response",
+    }
+    found: dict[str, dict[str, str]] = {}
+    with path.open("r", encoding="utf-8") as handle:
+        for ordinal, line in enumerate(handle):
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError("private inventory is not valid JSONL") from error
+            if (
+                type(row) is not dict
+                or set(row) != expected
+                or row.get("source_ordinal") != ordinal
+            ):
+                raise ValueError("private inventory row identity is invalid")
+            record_id = row["record_id"]
+            if type(record_id) is not str or record_id not in needed_ids:
+                continue
+            if any(
+                type(row[key]) is not str or not row[key]
+                for key in expected - {"source_ordinal"}
+            ):
+                raise ValueError("private inventory row contains an invalid string")
+            found[record_id] = _validated_content(
+                {
+                    "question": row["question"],
+                    "reference": row["provisional_reference"],
+                    "candidate_response": row["candidate_response"],
+                }
+            )
+    if found.keys() != needed_ids:
+        raise ValueError("private inventory is missing an audited record")
+    return found
+
+
+def _validate_first_block(
+    selected: list[dict[str, object]], receipts: list[dict[str, object]]
+) -> None:
+    if len(receipts) != 1 or len(selected) != 100:
+        raise ValueError("complete first block receipt is required for first_100")
+    ordered = sorted(selected, key=_ordinal)
+    if [_ordinal(row) for row in ordered] != list(range(100)):
+        raise ValueError("complete first block receipt is required for first_100")
+    receipt = receipts[0]
+    if receipt.get("block_index") != 0:
+        raise ValueError("complete first block receipt is required for first_100")
+    if _receipt_ids(receipt) != [str(row["record_id"]) for row in ordered]:
+        raise ValueError("complete first block receipt is required for first_100")
+    receipt_hash = receipt.get("receipt_sha256")
+    body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    if type(receipt_hash) is not str or receipt_hash != _json_hash(body):
+        raise ValueError("complete first block receipt is invalid")
+    for row in ordered:
+        if row.get("status") != "valid":
+            raise ValueError("complete first block terminal coverage is invalid")
+        _validated_decision(row.get("decision"))
 
 
 def _receipts_through(directory: Path, milestone_block: int) -> list[dict[str, object]]:
@@ -375,6 +582,11 @@ def _write_private(path: Path, value: object) -> None:
             os.fsync(handle.fileno())
         os.replace(temporary, path)
         path.chmod(0o600)
+        directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
     finally:
         if descriptor >= 0:
             os.close(descriptor)
@@ -396,6 +608,7 @@ def _json_hash(value: object) -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--inventory", type=Path)
     parser.add_argument("--milestone-block", type=int, required=True)
     parser.add_argument("--seed", default=DEFAULT_AUDIT_SEED)
     parser.add_argument("--ordinary-sample-size", type=int, default=20)
@@ -412,6 +625,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             milestone_block=args.milestone_block,
             seed=args.seed,
             ordinary_sample_size=args.ordinary_sample_size,
+            inventory=args.inventory,
         ),
     )
     return 0

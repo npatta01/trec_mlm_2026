@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a text-free operational progress or final report for a private run."""
+"""Build a sanitized operational progress or final report for a private run."""
 
 from __future__ import annotations
 
@@ -60,7 +60,9 @@ def build_report(run_dir: Path) -> dict[str, object]:
     ]
     invalid = completed - len(valid)
     spent = _number(spend.get("spent_usd"))
-    projection = None if completed == 0 else spent * planned / completed
+    reservation = _number(spend.get("unreconciled_reservation_usd"))
+    committed = spent + reservation
+    projection = None if completed == 0 else committed * planned / completed
     return {
         "version": 1,
         "coverage": {
@@ -83,6 +85,8 @@ def build_report(run_dir: Path) -> dict[str, object]:
         },
         "cost": {
             "spent_usd": spent,
+            "unreconciled_reservation_usd": reservation,
+            "committed_usd": committed,
             "cap_usd": _number(spend.get("cap_usd")),
             "projected_total_usd": projection,
         },
@@ -96,6 +100,7 @@ def build_report(run_dir: Path) -> dict[str, object]:
 
 def render_sanitized_markdown(summary: dict[str, object]) -> str:
     """Render only report fields built by ``build_report``; never interpolate inputs."""
+    _validate_summary(summary)
     coverage = _mapping(summary.get("coverage"))
     failures = _mapping(summary.get("parse_invariant_failures"))
     retries = _mapping(summary.get("retries_repairs"))
@@ -124,6 +129,7 @@ def render_sanitized_markdown(summary: dict[str, object]) -> str:
             "",
             "## Cost and latency",
             f"- Recorded spend: USD {_money(cost['spent_usd'])} of USD {_money(cost['cap_usd'])} cap.",
+            f"- unreconciled reservation: USD {_money(cost['unreconciled_reservation_usd'])}; conservative committed spend: USD {_money(cost['committed_usd'])}.",
             f"- Projected total at current observed rate: {_projected(cost['projected_total_usd'])}.",
             f"- Observed checkpoint latency: {latency['count']} records, mean {_number(latency['mean']):.3f}s, max {_number(latency['max']):.3f}s.",
             "",
@@ -148,8 +154,9 @@ def render_sanitized_markdown(summary: dict[str, object]) -> str:
     )
 
 
-def write_report(destination: Path, markdown: str) -> None:
-    """Write a sanitized report atomically; it contains no private record text."""
+def write_report(destination: Path, summary: dict[str, object]) -> None:
+    """Validate and write only a closed sanitized summary schema."""
+    markdown = render_sanitized_markdown(summary)
     path = Path(destination)
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -293,6 +300,123 @@ def _mapping(value: object) -> dict[str, object]:
     return value
 
 
+def _validate_summary(summary: object) -> None:
+    if type(summary) is not dict or set(summary) != {
+        "version",
+        "coverage",
+        "parse_invariant_failures",
+        "retries_repairs",
+        "cost",
+        "latency",
+        "distributions",
+        "anomaly_findings",
+        "opus_findings",
+        "claims",
+    }:
+        raise ValueError("report summary is invalid")
+    if summary.get("version") != 1:
+        raise ValueError("report summary is invalid")
+    _validate_nonnegative_ints(
+        _mapping(summary["coverage"]),
+        {"completed_records", "planned_records", "block_receipts"},
+    )
+    _validate_nonnegative_ints(
+        _mapping(summary["parse_invariant_failures"]),
+        {"terminal_invalid", "terminal_valid"},
+    )
+    _validate_nonnegative_ints(
+        _mapping(summary["retries_repairs"]),
+        {"physical_attempts", "repairs", "retries"},
+    )
+    cost = _mapping(summary["cost"])
+    if set(cost) != {
+        "spent_usd",
+        "unreconciled_reservation_usd",
+        "committed_usd",
+        "cap_usd",
+        "projected_total_usd",
+    }:
+        raise ValueError("report summary is invalid")
+    for key in (
+        "spent_usd",
+        "unreconciled_reservation_usd",
+        "committed_usd",
+        "cap_usd",
+    ):
+        _number(cost[key])
+    if not math.isclose(
+        float(cost["committed_usd"]),
+        float(cost["spent_usd"]) + float(cost["unreconciled_reservation_usd"]),
+        rel_tol=0.0,
+        abs_tol=1e-12,
+    ):
+        raise ValueError("report summary is invalid")
+    projection = cost["projected_total_usd"]
+    if projection is not None:
+        _number(projection)
+    coverage = _mapping(summary["coverage"])
+    completed = coverage["completed_records"]
+    planned = coverage["planned_records"]
+    if completed > planned:
+        raise ValueError("report summary is invalid")
+    expected_projection = (
+        None if completed == 0 else float(cost["committed_usd"]) * planned / completed
+    )
+    if projection is None and expected_projection is not None:
+        raise ValueError("report summary is invalid")
+    if projection is not None and not math.isclose(
+        float(projection), expected_projection or 0.0, rel_tol=0.0, abs_tol=1e-12
+    ):
+        raise ValueError("report summary is invalid")
+    latency = _mapping(summary["latency"])
+    if set(latency) != {"count", "mean", "max"}:
+        raise ValueError("report summary is invalid")
+    if type(latency["count"]) is not int or latency["count"] < 0:
+        raise ValueError("report summary is invalid")
+    _number(latency["mean"])
+    _number(latency["max"])
+    distributions = _mapping(summary["distributions"])
+    if set(distributions) != {"labels", "confidence", "error_flags"}:
+        raise ValueError("report summary is invalid")
+    for name, allowed in (
+        ("labels", _LABELS),
+        ("confidence", _CONFIDENCE),
+        ("error_flags", _FLAGS),
+    ):
+        values = _mapping(distributions[name])
+        if any(key not in allowed for key in values):
+            raise ValueError("report summary is invalid")
+        _validate_nonnegative_ints(values, set(values))
+    anomalies = summary["anomaly_findings"]
+    if type(anomalies) is not list or any(
+        value
+        not in {
+            "identical labels in a full block",
+            "repeated provider output",
+            "provider/model drift",
+            "elevated repair or retry rate",
+            "projected spend pause threshold",
+            "decision distribution shift",
+            "operational metric mean shift",
+        }
+        for value in anomalies
+    ):
+        raise ValueError("report summary is invalid")
+    _validate_nonnegative_ints(
+        _mapping(summary["opus_findings"]), {"accepted", "rejected"}
+    )
+    claims = _mapping(summary["claims"])
+    if claims != {"population_quality": False, "operational_only": True}:
+        raise ValueError("report summary is invalid")
+
+
+def _validate_nonnegative_ints(value: dict[str, object], keys: set[str]) -> None:
+    if set(value) != keys or any(
+        type(value[key]) is not int or value[key] < 0 for key in keys
+    ):
+        raise ValueError("report summary is invalid")
+
+
 def _money(value: object) -> str:
     return f"{_number(value):.2f}"
 
@@ -321,7 +445,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    write_report(args.output, render_sanitized_markdown(build_report(args.run_dir)))
+    write_report(args.output, build_report(args.run_dir))
     return 0
 
 

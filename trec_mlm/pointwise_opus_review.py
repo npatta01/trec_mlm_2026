@@ -398,6 +398,7 @@ class ClaudeCliReviewCall:
         self._budget = budget
         self._timeout_seconds = timeout_seconds
         self._runner = runner
+        self._unreconciled_reservation_usd = 0.0
 
     def __call__(
         self, packet: Mapping[str, object], *, protocol_dir: Path | None = None
@@ -431,36 +432,46 @@ class ClaudeCliReviewCall:
             schema_text.encode("utf-8")
         )
         reservation = _worst_case_cost(encoded_size)
-        self._budget.reserve(reservation)
-        try:
-            completed = self._runner(
-                argv,
-                input=prompt_text,
-                text=True,
-                capture_output=True,
-                timeout=self._timeout_seconds,
-                check=False,
+        for attempt in range(2):
+            self._budget.reserve(reservation)
+            try:
+                completed = self._runner(
+                    argv,
+                    input=prompt_text,
+                    text=True,
+                    capture_output=True,
+                    timeout=self._timeout_seconds,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as error:
+                self._unreconciled_reservation_usd += reservation
+                if attempt == 1:
+                    raise ValueError("Claude CLI review transport failed") from error
+                continue
+            if completed.returncode != 0:
+                self._unreconciled_reservation_usd += reservation
+                if attempt == 1:
+                    raise ValueError("Claude CLI review failed")
+                continue
+            if (
+                type(completed.stdout) is not str
+                or len(completed.stdout.encode("utf-8")) > MAX_RESPONSE_BYTES
+            ):
+                raise ValueError("Claude CLI review response exceeds its size limit")
+            raw, usage, cost = _parse_claude_cli_envelope(completed.stdout)
+            self._budget.reconcile(reservation, cost)
+            # Parse semantic content only after accounting for the successful
+            # transport; malformed/schema-invalid content is never retried.
+            review = parse_opus_review(
+                raw, packet=validated_packet, protocol_dir=protocol_dir
             )
-        except BaseException:
-            raise
-        if completed.returncode != 0:
-            raise ValueError("Claude CLI review failed")
-        if (
-            type(completed.stdout) is not str
-            or len(completed.stdout.encode("utf-8")) > MAX_RESPONSE_BYTES
-        ):
-            raise ValueError("Claude CLI review response exceeds its size limit")
-        raw, usage, cost = _parse_claude_cli_envelope(completed.stdout)
-        self._budget.reconcile(reservation, cost)
-        review = parse_opus_review(
-            raw, packet=validated_packet, protocol_dir=protocol_dir
-        )
-        return review, {
-            "usage": usage,
-            "cost_usd": cost,
-            "model_alias": OPUS_MODEL_ALIAS,
-            "unreconciled_reservation_usd": 0.0,
-        }
+            return review, {
+                "usage": usage,
+                "cost_usd": cost,
+                "model_alias": OPUS_MODEL_ALIAS,
+                "unreconciled_reservation_usd": self._unreconciled_reservation_usd,
+            }
+        raise RuntimeError("unreachable Claude CLI retry state")
 
 
 def build_review_receipt(

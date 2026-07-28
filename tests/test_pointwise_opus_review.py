@@ -306,6 +306,95 @@ def test_cli_adjudication_mode_writes_the_sealed_contract_and_ledger(
     assert stat.S_IMODE(adjudication_path.stat().st_mode) == 0o600
 
 
+def test_cli_review_phase_writes_receipt_without_preknown_recommendation_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    packet = _packet(tmp_path)
+    packet_path = tmp_path / "packet.json"
+    write_private_json(packet_path, packet)
+    review_path = tmp_path / "review.json"
+
+    class FakeClaudeCall:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __call__(
+            self, _packet: object, **_kwargs: object
+        ) -> tuple[object, dict[str, object]]:
+            review = parse_opus_review(json.dumps(_review(packet)), packet=packet)
+            return review, {
+                "usage": {"input_tokens": 1, "output_tokens": 2},
+                "cost_usd": 0.01,
+                "model_alias": OPUS_MODEL_ALIAS,
+                "unreconciled_reservation_usd": 0.0,
+            }
+
+    monkeypatch.setattr(
+        "scripts.run_opus_pointwise_prompt_review.ClaudeCliReviewCall", FakeClaudeCall
+    )
+    assert (
+        main(
+            [
+                "--packet",
+                str(packet_path),
+                "--protocol-dir",
+                str(_protocol_dir()),
+                "--output",
+                str(review_path),
+            ]
+        )
+        == 0
+    )
+    saved = json.loads(review_path.read_text(encoding="utf-8"))
+    assert saved["review"]["packet_sha256"] == packet["packet_sha256"]
+    assert not (tmp_path / "adjudication.json").exists()
+
+
+def test_cli_adjudication_rejects_missing_and_unknown_decision_ids(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    packet_path = tmp_path / "packet.json"
+    write_private_json(packet_path, packet)
+    review = parse_opus_review(json.dumps(_review(packet)), packet=packet)
+    review_path = tmp_path / "review.json"
+    write_private_json(
+        review_path,
+        build_review_receipt(
+            packet=packet,
+            review=review,
+            provider={
+                "usage": {"input_tokens": 1},
+                "cost_usd": 0.01,
+                "model_alias": OPUS_MODEL_ALIAS,
+                "unreconciled_reservation_usd": 0.0,
+            },
+        ),
+    )
+    for decisions in (
+        {},
+        {"unknown": {"decision": "rejected", "reason": "No."}},
+    ):
+        decisions_path = tmp_path / "decisions.json"
+        write_private_json(decisions_path, decisions)
+        with pytest.raises(ValueError, match="exactly cover"):
+            main(
+                [
+                    "--packet",
+                    str(packet_path),
+                    "--protocol-dir",
+                    str(_protocol_dir()),
+                    "--review-input",
+                    str(review_path),
+                    "--decisions",
+                    str(decisions_path),
+                    "--adjudication-output",
+                    str(tmp_path / "adjudication.json"),
+                    "--adjudicate-only",
+                ]
+            )
+
+
 def test_review_content_rejects_all_identity_terms(tmp_path: Path) -> None:
     packet = _packet(tmp_path)
     for term in (
@@ -390,3 +479,58 @@ def test_claude_cli_transport_uses_bounded_json_mode_without_credentials(
     assert "--no-session-persistence" in argv
     assert argv[-2:] == ["--tools", ""]
     assert "not-serialized" not in input_text
+
+
+def test_claude_cli_transport_retries_one_timeout_and_keeps_failed_reservation(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    attempts = 0
+
+    def runner(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise subprocess.TimeoutExpired(argv, 1.0)
+        envelope = {
+            "type": "result",
+            "result": json.dumps(_review(packet)),
+            "model": "opus",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+            "total_cost_usd": 0.01,
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    budget = SpendBudget(2.0)
+    review, provider = ClaudeCliReviewCall(
+        budget=budget, timeout_seconds=3.0, runner=runner
+    )(packet, protocol_dir=_protocol_dir())
+    assert review.packet_sha256 == packet["packet_sha256"]
+    assert attempts == 2
+    assert provider["unreconciled_reservation_usd"] > 0
+    assert budget.spent_usd > provider["cost_usd"]
+
+
+def test_claude_cli_transport_does_not_retry_semantic_invalid_output(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    attempts = 0
+
+    def runner(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        envelope = {
+            "type": "result",
+            "result": "not-json",
+            "model": "opus",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+            "total_cost_usd": 0.01,
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    with pytest.raises(ValueError, match="JSON|valid"):
+        ClaudeCliReviewCall(
+            budget=SpendBudget(2.0), timeout_seconds=3.0, runner=runner
+        )(packet, protocol_dir=_protocol_dir())
+    assert attempts == 1

@@ -76,9 +76,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.output is None:
         raise ValueError("--output/--review-output is required for a live review")
-    if args.decisions is None or args.adjudication_output is None:
+    if (args.decisions is None) != (args.adjudication_output is None):
         raise ValueError(
-            "a live review must provide --decisions and --adjudication-output"
+            "--decisions and --adjudication-output must be supplied together"
         )
     budget = SpendBudget(args.cap_usd)
     if args.transport == "claude-cli":
@@ -95,12 +95,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output,
         build_review_receipt(packet=packet, review=review, provider=provider),
     )
-    receipt = adjudicate_opus_review(
-        packet=packet,
-        review=review,
-        decisions=read_private_json(args.decisions),
-    )
-    write_private_json(args.adjudication_output, receipt)
+    if args.decisions is not None and args.adjudication_output is not None:
+        receipt = adjudicate_opus_review(
+            packet=packet,
+            review=review,
+            decisions=read_private_json(args.decisions),
+        )
+        write_private_json(args.adjudication_output, receipt)
     return 0
 
 

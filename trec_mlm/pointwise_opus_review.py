@@ -651,7 +651,7 @@ def _build_request_payload(packet: Mapping[str, object]) -> dict[str, object]:
             "json_schema": {
                 "name": "opus_pointwise_prompt_review",
                 "strict": True,
-                "schema": OpusPromptReview.model_json_schema(),
+                "schema": _transport_review_schema(),
             },
         },
         "max_tokens": MAX_OUTPUT_TOKENS,
@@ -666,6 +666,23 @@ def _build_request_payload(packet: Mapping[str, object]) -> dict[str, object]:
             },
         },
     }
+
+
+def _transport_review_schema() -> dict[str, object]:
+    """Adapt only the provider transport schema; local Pydantic stays strict."""
+    return _remove_schema_keyword(OpusPromptReview.model_json_schema(), "maxItems")
+
+
+def _remove_schema_keyword(value: object, keyword: str) -> object:
+    if isinstance(value, dict):
+        return {
+            key: _remove_schema_keyword(item, keyword)
+            for key, item in value.items()
+            if key != keyword
+        }
+    if isinstance(value, list):
+        return [_remove_schema_keyword(item, keyword) for item in value]
+    return value
 
 
 def _parse_provider_response(body: object) -> tuple[str, dict[str, object], float]:

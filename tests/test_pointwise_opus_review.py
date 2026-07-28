@@ -17,6 +17,7 @@ from trec_mlm.pointwise_opus_review import (
     OpusReviewCall,
     OPUS_MODEL_ALIAS,
     SpendBudget,
+    _build_request_payload,
     adjudicate_opus_review,
     build_review_receipt,
     parse_opus_review,
@@ -24,6 +25,7 @@ from trec_mlm.pointwise_opus_review import (
     write_private_json,
 )
 from trec_mlm.pointwise_production import build_opus_prompt_review_packet
+from pydantic import ValidationError
 
 
 def _packet(tmp_path: Path) -> dict[str, object]:
@@ -479,6 +481,29 @@ def test_claude_cli_transport_uses_bounded_json_mode_without_credentials(
     assert "--no-session-persistence" in argv
     assert argv[-2:] == ["--tools", ""]
     assert "not-serialized" not in input_text
+
+
+def test_transport_schema_omits_array_max_items_but_local_review_limit_remains(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    payload = _build_request_payload(packet)
+    schema = payload["response_format"]["json_schema"]["schema"]
+
+    def contains_max_items(value: object) -> bool:
+        if isinstance(value, dict):
+            return "maxItems" in value or any(
+                contains_max_items(item) for item in value.values()
+            )
+        if isinstance(value, list):
+            return any(contains_max_items(item) for item in value)
+        return False
+
+    assert not contains_max_items(schema)
+    body = _review(packet)
+    body["recommendations"] = [body["recommendations"][0]] * 25
+    with pytest.raises(ValidationError):
+        OpusPromptReview.model_validate(body)
 
 
 def test_claude_cli_transport_retries_one_timeout_and_keeps_failed_reservation(

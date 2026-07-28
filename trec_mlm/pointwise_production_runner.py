@@ -292,6 +292,7 @@ class ProductionRunner:
         worst_call_usd: float = 0.01,
         model_id: str = MODEL_ID,
         provider: str = PROVIDER,
+        fault_hook: Callable[[str], None] | None = None,
     ) -> None:
         if not math.isfinite(total_cap_usd) or not 0 < total_cap_usd <= HARD_CAP_USD:
             raise ValueError("total spend cap must be positive and at most USD 60")
@@ -311,6 +312,9 @@ class ProductionRunner:
             model_id,
             provider,
         )
+        self._fault_hook = fault_hook or (lambda _boundary: None)
+        self._lock_path = self.run_dir / "run.lock"
+        self._lock_held = False
         self._record_count, self._input_manifest = _validate_inventory(
             self.inventory, self.inventory_manifest
         )
@@ -351,6 +355,65 @@ class ProductionRunner:
                     "unreconciled_reservation_usd": 0.0,
                 },
             )
+
+    def _acquire_run_lock(self) -> None:
+        try:
+            descriptor = os.open(
+                self._lock_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                _FILE_MODE,
+            )
+        except FileExistsError as error:
+            raise BlockGateError("production run is already active") from error
+        try:
+            os.write(descriptor, b"private production runner lock\n")
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        self._lock_held = True
+
+    def _release_run_lock(self) -> None:
+        if self._lock_held:
+            self._lock_path.unlink(missing_ok=True)
+            self._lock_held = False
+
+    def _recover_crash_windows(self) -> None:
+        """Resolve only unambiguous raw writes; never resend a reserved call."""
+        raw_by_attempt: dict[int, Path] = {}
+        for raw_path in (self.run_dir / "raw").glob("*.json"):
+            raw = _read_private_json(raw_path, label="raw response checkpoint")
+            attempt = raw.get("attempt")
+            if type(attempt) is not int or attempt in raw_by_attempt:
+                raise BlockGateError("raw checkpoint attempt identity is invalid")
+            raw_by_attempt[attempt] = raw_path
+        for marker_path in sorted((self.run_dir / "attempts").glob("*.json")):
+            marker = _read_private_json(marker_path, label="physical attempt marker")
+            attempt = marker.get("attempt")
+            if type(attempt) is not int:
+                raise BlockGateError("physical attempt identity is invalid")
+            raw_path = raw_by_attempt.get(attempt)
+            if marker.get("state") == "reserved":
+                if raw_path is not None:
+                    raw = _read_private_json(raw_path, label="raw response checkpoint")
+                    if raw.get("source_ordinal") != marker.get("source_ordinal"):
+                        raise BlockGateError("raw checkpoint/attempt identity mismatch")
+                    self._update_attempt(
+                        attempt,
+                        state="response_checkpointed",
+                        raw_checkpoint=raw_path.name,
+                    )
+                    continue
+                self._conservatively_charge_failed_attempt(
+                    attempt, float(marker["reservation_usd"])
+                )
+                self._update_attempt(attempt, state="ambiguous_conservatively_charged")
+                raise BlockGateError(
+                    "ambiguous reserved provider call requires manual resolution"
+                )
+            if marker.get("state") == "ambiguous_conservatively_charged":
+                raise BlockGateError(
+                    "ambiguous reserved provider call requires manual resolution"
+                )
 
     def _spend(self) -> dict[str, object]:
         value = _read_private_json(
@@ -590,6 +653,7 @@ class ProductionRunner:
                 return
         for retry in range(MAX_TRANSIENT_RETRIES + 1):
             attempt, reservation = self._reserve_attempt(ordinal, repair)
+            self._fault_hook("after_reservation")
             try:
                 started = time.perf_counter()
                 response = self.call(record, repair)
@@ -598,6 +662,7 @@ class ProductionRunner:
                 if retry == MAX_TRANSIENT_RETRIES:
                     raise BlockGateError("bounded provider retry limit exhausted")
                 continue
+            self._fault_hook("after_provider_return")
             response = dict(response)
             response["latency_seconds"] = time.perf_counter() - started
             checkpoint_path = self._checkpoint_response(
@@ -607,12 +672,14 @@ class ProductionRunner:
                 repair=repair,
                 response=response,
             )
+            self._fault_hook("after_raw_write")
             self._update_attempt(
                 attempt,
                 state="response_checkpointed",
                 raw_checkpoint=checkpoint_path.name,
                 latency_seconds=response["latency_seconds"],
             )
+            self._fault_hook("after_attempt_state")
             if response.get("crash_after_checkpoint") is True:
                 raise RuntimeError("injected crash after raw checkpoint")
             self._reconcile_checkpoint(
@@ -648,9 +715,9 @@ class ProductionRunner:
                     },
                 )
                 return
-            repair = True
+            repair = MAX_REPAIRS > 0
             break
-        if repair:
+        if repair and MAX_REPAIRS == 1:
             self._process_record(record)
 
     def _validate_block(
@@ -675,15 +742,113 @@ class ProductionRunner:
             raise BlockGateError(
                 f"terminal-invalid result prevents block promotion: {reason}"
             )
-        attempts = list((self.run_dir / "attempts").glob("*.json"))
-        raw = list((self.run_dir / "raw").glob("*.json"))
-        if len(raw) > len(attempts):
-            raise BlockGateError(
-                "raw checkpoint/attempt ledger count does not reconcile"
-            )
+        markers: dict[int, dict[str, object]] = {}
+        for path in sorted((self.run_dir / "attempts").glob("*.json")):
+            marker = _read_private_json(path, label="physical attempt marker")
+            attempt = marker.get("attempt")
+            if (
+                type(attempt) is not int
+                or attempt in markers
+                or path.name != f"{attempt:09d}.json"
+            ):
+                raise BlockGateError("physical attempt marker mapping is invalid")
+            markers[attempt] = marker
+        raw_by_attempt: dict[int, dict[str, object]] = {}
+        for path in sorted((self.run_dir / "raw").glob("*.json")):
+            checkpoint = _read_private_json(path, label="raw response checkpoint")
+            attempt = checkpoint.get("attempt")
+            ordinal = checkpoint.get("source_ordinal")
+            if (
+                type(attempt) is not int
+                or type(ordinal) is not int
+                or attempt in raw_by_attempt
+                or path.name != f"{ordinal:08d}-{attempt:09d}.json"
+            ):
+                raise BlockGateError("raw checkpoint mapping is invalid")
+            raw_by_attempt[attempt] = checkpoint
+        for record, result in zip(records, results, strict=True):
+            ordinal = record["source_ordinal"]
+            if (
+                set(result)
+                != {
+                    "version",
+                    "record_id",
+                    "source_ordinal",
+                    "status",
+                    "attempt",
+                    "decision",
+                }
+                or result.get("version") != 1
+                or result.get("source_ordinal") != ordinal
+            ):
+                raise BlockGateError("terminal result identity is invalid")
+            attempt = result.get("attempt")
+            if (
+                type(attempt) is not int
+                or attempt not in markers
+                or attempt not in raw_by_attempt
+            ):
+                raise BlockGateError("terminal result attempt/raw mapping is invalid")
+            marker, checkpoint = markers[attempt], raw_by_attempt[attempt]
+            if (
+                marker.get("source_ordinal") != ordinal
+                or checkpoint.get("source_ordinal") != ordinal
+                or marker.get("state") != "reconciled"
+            ):
+                raise BlockGateError("terminal result attempt state is invalid")
+            valid, error, decision = self._terminal_from_response(record, checkpoint)
+            if not valid or decision != result.get("decision"):
+                raise BlockGateError(
+                    f"terminal decision does not satisfy v2 contract: {error or 'raw mismatch'}"
+                )
+        recomputed_spend = 0.0
+        for attempt, marker in markers.items():
+            reservation = marker.get("reservation_usd")
+            if (
+                type(reservation) not in {int, float}
+                or float(reservation) != self.worst_call_usd
+            ):
+                raise BlockGateError("attempt reservation is invalid")
+            state = marker.get("state")
+            checkpoint = raw_by_attempt.get(attempt)
+            if state == "reconciled":
+                if (
+                    checkpoint is None
+                    or checkpoint.get("reservation_usd") != reservation
+                ):
+                    raise BlockGateError("reconciled attempt/raw mapping is invalid")
+                response = checkpoint.get("response")
+                if type(response) is not dict:
+                    raise BlockGateError("raw checkpoint response is invalid")
+                cost = response.get("cost_usd")
+                if type(cost) not in {int, float} or not 0 <= float(cost) <= float(
+                    reservation
+                ):
+                    raise BlockGateError("raw checkpoint cost is invalid")
+                usage = response.get("usage")
+                if type(usage) is not dict or any(
+                    type(usage.get(key)) is not int or usage[key] < 0
+                    for key in ("prompt_tokens", "completion_tokens")
+                ):
+                    raise BlockGateError("raw checkpoint usage is invalid")
+                recomputed_spend += float(cost)
+            elif state == "transport_error_conservatively_charged":
+                if checkpoint is not None:
+                    raise BlockGateError(
+                        "failed transport has an unexpected raw checkpoint"
+                    )
+                recomputed_spend += float(reservation)
+            else:
+                raise BlockGateError("attempt state is not replayable")
         spend = self._spend()
         if float(spend["unreconciled_reservation_usd"]) > 1e-12:
             raise BlockGateError("spend ledger has an unreconciled reservation")
+        if not math.isclose(
+            float(spend["spent_usd"]), recomputed_spend, rel_tol=0.0, abs_tol=1e-12
+        ):
+            raise BlockGateError(
+                "spend ledger does not match replayed physical attempts"
+            )
         receipt_body = {
             "version": 1,
             "block_index": block_index,
@@ -697,8 +862,8 @@ class ProductionRunner:
             "schema_sha256": self.contract["schema_sha256"],
             "model_id": self.model_id,
             "provider": self.provider,
-            "attempt_count": len(attempts),
-            "raw_checkpoint_count": len(raw),
+            "attempt_count": len(markers),
+            "raw_checkpoint_count": len(raw_by_attempt),
             "spent_usd": spend["spent_usd"],
             "unreconciled_reservation_usd": spend["unreconciled_reservation_usd"],
         }
@@ -715,6 +880,51 @@ class ProductionRunner:
         else:
             _write_private_json(path, computed)
 
+    @staticmethod
+    def _distribution(values: list[object]) -> dict[str, int]:
+        return {
+            key: count
+            for key, count in sorted(Counter(str(value) for value in values).items())
+        }
+
+    @staticmethod
+    def _numeric_summary(values: list[float]) -> dict[str, float | int]:
+        if not values:
+            return {"count": 0, "min": 0.0, "mean": 0.0, "max": 0.0}
+        ordered = sorted(values)
+        return {
+            "count": len(ordered),
+            "min": ordered[0],
+            "mean": sum(ordered) / len(ordered),
+            "max": ordered[-1],
+        }
+
+    def _prior_metrics(self, block_index: int) -> dict[str, object] | None:
+        if block_index == 0:
+            return None
+        path = self.run_dir / "anomalies" / f"{block_index - 1:06d}.json"
+        if not path.exists():
+            return None
+        value = _read_private_json(path, label="prior anomaly diagnostics")
+        metrics = value.get("metrics")
+        return metrics if type(metrics) is dict else None
+
+    @staticmethod
+    def _distribution_shift(current: dict[str, int], prior: dict[str, int]) -> float:
+        current_total, prior_total = sum(current.values()), sum(prior.values())
+        if current_total == 0 or prior_total == 0:
+            return 0.0
+        return (
+            sum(
+                abs(
+                    current.get(key, 0) / current_total
+                    - prior.get(key, 0) / prior_total
+                )
+                for key in set(current) | set(prior)
+            )
+            / 2
+        )
+
     def _anomalies(
         self, block_index: int, records: list[dict[str, object]]
     ) -> list[str]:
@@ -725,11 +935,128 @@ class ProductionRunner:
             )
             for record in records
         ]
+        decisions = [value["decision"] for value in values]
+        assert all(type(value) is dict for value in decisions)
+        raw = [
+            _read_private_json(
+                self.run_dir
+                / "raw"
+                / f"{int(value['source_ordinal']):08d}-{int(value['attempt']):09d}.json",
+                label="raw response checkpoint",
+            )
+            for value in values
+        ]
+        response_values = [value["response"] for value in raw]
+        assert all(type(value) is dict for value in response_values)
+        metrics: dict[str, object] = {
+            "label": self._distribution([value["label"] for value in decisions]),
+            "correctness": self._distribution(
+                [value["correctness"] for value in decisions]
+            ),
+            "completeness": self._distribution(
+                [value["completeness"] for value in decisions]
+            ),
+            "relevance": self._distribution(
+                [value["relevance"] for value in decisions]
+            ),
+            "error_flags": self._distribution(
+                [flag for value in decisions for flag in value["error_flags"]]
+            ),
+            "confidence": self._distribution(
+                [value["confidence"] for value in decisions]
+            ),
+            "reference_status": self._distribution(
+                [value["reference_status"] for value in decisions]
+            ),
+            "output_sha256": self._distribution(
+                [
+                    hashlib.sha256(str(value["content"]).encode()).hexdigest()
+                    for value in response_values
+                ]
+            ),
+            "provider_model": self._distribution(
+                [f"{value['provider']}::{value['model']}" for value in response_values]
+            ),
+            "prompt_tokens": self._numeric_summary(
+                [float(value["usage"]["prompt_tokens"]) for value in response_values]
+            ),
+            "completion_tokens": self._numeric_summary(
+                [
+                    float(value["usage"]["completion_tokens"])
+                    for value in response_values
+                ]
+            ),
+            "cost_usd": self._numeric_summary(
+                [float(value["cost_usd"]) for value in response_values]
+            ),
+            "latency_seconds": self._numeric_summary(
+                [float(value.get("latency_seconds", 0.0)) for value in response_values]
+            ),
+            "repair_rate": sum(1 for value in raw if value.get("repair") is True)
+            / len(raw),
+            "retry_rate": (
+                len([path for path in (self.run_dir / "attempts").glob("*.json")])
+                - len([path for path in (self.run_dir / "results").glob("*.json")])
+            )
+            / max(1, len(values)),
+        }
         diagnostics: list[str] = []
-        if len(values) >= BLOCK_SIZE:
-            labels = Counter(str(value["decision"]["label"]) for value in values)
-            if max(labels.values()) == len(values) and len(labels) == 1:
-                diagnostics.append("all labels in a full block are identical")
+        labels = metrics["label"]
+        repeated = metrics["output_sha256"]
+        providers = metrics["provider_model"]
+        assert (
+            isinstance(labels, dict)
+            and isinstance(repeated, dict)
+            and isinstance(providers, dict)
+        )
+        if len(values) >= BLOCK_SIZE and max(labels.values()) == len(values):
+            diagnostics.append("all labels in a full block are identical")
+        if (
+            len(values) >= BLOCK_SIZE
+            and max(repeated.values()) * 20 >= len(values) * 19
+        ):
+            diagnostics.append("repeated provider output exceeds 95 percent of block")
+        if set(providers) != {f"{self.provider}::{self.model_id}"}:
+            diagnostics.append("provider/model drift observed in anomaly metrics")
+        if float(metrics["repair_rate"]) > 0.25 or float(metrics["retry_rate"]) > 0.25:
+            diagnostics.append("repair or retry rate exceeds 25 percent")
+        prior = self._prior_metrics(block_index)
+        if prior is not None:
+            if len(values) >= BLOCK_SIZE:
+                for name in (
+                    "label",
+                    "correctness",
+                    "completeness",
+                    "relevance",
+                    "error_flags",
+                    "confidence",
+                    "reference_status",
+                ):
+                    previous, current = prior.get(name), metrics[name]
+                    if (
+                        type(previous) is dict
+                        and type(current) is dict
+                        and self._distribution_shift(current, previous) > 0.8
+                    ):
+                        diagnostics.append(f"{name} distribution shifted more than 0.8")
+            for name in (
+                "prompt_tokens",
+                "completion_tokens",
+                "cost_usd",
+                "latency_seconds",
+            ):
+                previous = prior.get(name)
+                current = metrics[name]
+                if (
+                    type(previous) is dict
+                    and type(current) is dict
+                    and float(previous.get("mean", 0.0)) > 0
+                    and (
+                        float(current.get("mean", 0.0)) > float(previous["mean"]) * 5
+                        or float(current.get("mean", 0.0)) * 5 < float(previous["mean"])
+                    )
+                ):
+                    diagnostics.append(f"{name} mean increased more than fivefold")
         spend = self._spend()
         completed = sum(
             1
@@ -745,14 +1072,62 @@ class ProductionRunner:
             diagnostics.append(
                 "projected DeepSeek spend exceeds USD 50 pause threshold"
             )
+        _write_private_json(
+            self.run_dir / "anomalies" / f"{block_index:06d}.json",
+            {
+                "version": 1,
+                "block_index": block_index,
+                "metrics": metrics,
+                "diagnostics": diagnostics,
+            },
+        )
         if diagnostics:
+            token = _json_hash(
+                {
+                    "block_index": block_index,
+                    "diagnostics": diagnostics,
+                    "run": self._input_manifest["manifest_sha256"],
+                }
+            )
             _write_private_json(
-                self.run_dir / "anomalies" / f"{block_index:06d}.json",
-                {"version": 1, "block_index": block_index, "diagnostics": diagnostics},
+                self.run_dir / "anomalies" / f"{block_index:06d}-pause.json",
+                {
+                    "version": 1,
+                    "block_index": block_index,
+                    "diagnostics": diagnostics,
+                    "pause_token": token,
+                    "state": "pending",
+                },
             )
         return diagnostics
 
-    def run(self, *, max_blocks: int | None = None) -> dict[str, object]:
+    def _acknowledge_pending_pause(self, token: str | None) -> None:
+        pending = []
+        for path in sorted((self.run_dir / "anomalies").glob("*-pause.json")):
+            value = _read_private_json(path, label="anomaly pause")
+            if value.get("state") == "pending":
+                pending.append((path, value))
+        if not pending:
+            return
+        path, pause = pending[0]
+        if type(token) is not str or token != pause.get("pause_token"):
+            raise SoftAnomalyPause(
+                "anomaly acknowledgement token is required before resume"
+            )
+        _write_private_json(path, pause | {"state": "acknowledged"})
+
+    def run(
+        self, *, max_blocks: int | None = None, acknowledgement_token: str | None = None
+    ) -> dict[str, object]:
+        self._acquire_run_lock()
+        try:
+            self._recover_crash_windows()
+            self._acknowledge_pending_pause(acknowledgement_token)
+            return self._run_unlocked(max_blocks=max_blocks)
+        finally:
+            self._release_run_lock()
+
+    def _run_unlocked(self, *, max_blocks: int | None = None) -> dict[str, object]:
         processed = 0
         for block_index, (start, end) in enumerate(block_slices(self._record_count)):
             records = list(_iter_inventory(self.inventory, start, end))

@@ -9,6 +9,7 @@ from trec_mlm.pointwise_production_runner import (
     BLOCK_SIZE,
     BlockGateError,
     ProductionRunner,
+    SoftAnomalyPause,
     block_slices,
 )
 
@@ -253,3 +254,189 @@ def test_two_block_fixture_has_private_receipts_and_partial_final_block(
         )
         == 0o600
     )
+
+
+def test_persisted_anomaly_blocks_a_restarted_runner_until_token_acknowledged(
+    tmp_path: Path,
+) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 101)
+    calls: list[int] = []
+
+    def identical(record: dict[str, object], repair: bool) -> dict[str, object]:
+        calls.append(int(record["source_ordinal"]))
+        return _response(record, repair) | {"content": json.dumps(VALID)}
+
+    first = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=identical,
+        total_cap_usd=1.0,
+    )
+    with pytest.raises(SoftAnomalyPause, match="identical"):
+        first.run()
+    pause = json.loads(
+        (tmp_path / "run" / "anomalies" / "000000-pause.json").read_text()
+    )
+    diagnostics = json.loads(
+        (tmp_path / "run" / "anomalies" / "000000.json").read_text()
+    )
+    assert set(diagnostics["metrics"]) >= {
+        "label",
+        "correctness",
+        "error_flags",
+        "confidence",
+        "output_sha256",
+        "prompt_tokens",
+        "completion_tokens",
+        "cost_usd",
+        "latency_seconds",
+        "repair_rate",
+        "retry_rate",
+        "provider_model",
+    }
+    restarted = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=identical,
+        total_cap_usd=1.0,
+    )
+    with pytest.raises(SoftAnomalyPause, match="acknowledgement"):
+        restarted.run()
+    assert calls == list(range(100))
+    assert (
+        restarted.run(acknowledgement_token=pause["pause_token"])["completed_records"]
+        == 101
+    )
+
+
+@pytest.mark.parametrize("boundary", ["after_reservation", "after_provider_return"])
+def test_ambiguous_crash_before_raw_checkpoint_never_resends(
+    tmp_path: Path, boundary: str
+) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    calls: list[int] = []
+
+    def fault(name: str) -> None:
+        if name == boundary:
+            raise RuntimeError(f"fault:{name}")
+
+    def tracked(record: dict[str, object], repair: bool) -> dict[str, object]:
+        calls.append(int(record["source_ordinal"]))
+        return _response(record, repair)
+
+    runner = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=tracked,
+        total_cap_usd=1.0,
+        fault_hook=fault,
+    )
+    with pytest.raises(RuntimeError, match=boundary):
+        runner.run()
+    resumed = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=tracked,
+        total_cap_usd=1.0,
+    )
+    with pytest.raises(BlockGateError, match="ambiguous"):
+        resumed.run()
+    assert calls == ([] if boundary == "after_reservation" else [0])
+
+
+def test_raw_checkpoint_before_marker_transition_recovers_without_resend(
+    tmp_path: Path,
+) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    calls: list[int] = []
+
+    def fault(name: str) -> None:
+        if name == "after_raw_write":
+            raise RuntimeError("fault:after_raw_write")
+
+    def tracked(record: dict[str, object], repair: bool) -> dict[str, object]:
+        calls.append(int(record["source_ordinal"]))
+        return _response(record, repair)
+
+    runner = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=tracked,
+        total_cap_usd=1.0,
+        fault_hook=fault,
+    )
+    with pytest.raises(RuntimeError, match="after_raw_write"):
+        runner.run()
+    resumed = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=tracked,
+        total_cap_usd=1.0,
+    )
+    assert resumed.run()["completed_records"] == 1
+    assert calls == [0]
+
+
+def test_receipt_gate_reparses_tampered_terminal_decision(tmp_path: Path) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    runner = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    runner.run()
+    result_path = tmp_path / "run" / "results" / "00000000.json"
+    result = json.loads(result_path.read_text())
+    result["decision"]["correctness"] = 99
+    _private(result_path, result)
+    resumed = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    with pytest.raises(BlockGateError, match="terminal decision"):
+        resumed.run()
+
+
+def test_run_lock_rejects_second_active_runner(tmp_path: Path) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    first = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    second = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=_response,
+        total_cap_usd=1.0,
+    )
+    first._acquire_run_lock()
+    try:
+        with pytest.raises(BlockGateError, match="already active"):
+            second.run()
+    finally:
+        first._release_run_lock()

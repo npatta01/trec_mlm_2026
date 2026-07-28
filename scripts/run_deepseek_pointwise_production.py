@@ -40,6 +40,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--worst-call-usd", type=float, default=0.01)
     parser.add_argument("--max-blocks", type=int)
     parser.add_argument(
+        "--acknowledge-pause-token",
+        help="exact private anomaly token required to resume a paused run",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="validate sealed inputs without network access",
@@ -190,7 +194,15 @@ def main(argv: list[str] | None = None) -> int:
         total_cap_usd=args.cap_usd,
         worst_call_usd=args.worst_call_usd,
     )
-    print(json.dumps(runner.run(max_blocks=args.max_blocks), sort_keys=True))
+    print(
+        json.dumps(
+            runner.run(
+                max_blocks=args.max_blocks,
+                acknowledgement_token=args.acknowledge_pause_token,
+            ),
+            sort_keys=True,
+        )
+    )
     return 0
 
 

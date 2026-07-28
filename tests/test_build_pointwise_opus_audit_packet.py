@@ -37,13 +37,16 @@ def _result(
             if status != "valid"
             else {
                 "label": label,
-                "correctness": 4,
+                "correctness": 0 if label == "incorrect" else 4,
                 "completeness": 2,
                 "relevance": 2,
-                "error_flags": [],
+                "error_flags": ["entity_error"] if label == "incorrect" else [],
                 "reference_status": "sound",
                 "confidence": confidence,
-                "rationale": "private rationale and candidate response must not escape",
+                "rationale": (
+                    "The private rationale explains the terminal decision while "
+                    "keeping semantic review content bounded and safe."
+                ),
             }
         ),
         **({"reason": "private invalid response"} if status != "valid" else {}),
@@ -75,7 +78,12 @@ def _run(tmp_path: Path, count: int = 120, *, first_block_valid: bool = False) -
     inventory.chmod(0o600)
     _private(
         run / "run-manifest.json",
-        {"version": 1, "record_count": count, "inventory": str(inventory)},
+        {
+            "version": 1,
+            "record_count": count,
+            "inventory": str(inventory),
+            "inventory_sha256": hashlib.sha256(inventory.read_bytes()).hexdigest(),
+        },
     )
     for ordinal in range(count):
         _private(run / "results" / f"{ordinal:08d}.json", _result(ordinal))
@@ -105,19 +113,22 @@ def _run(tmp_path: Path, count: int = 120, *, first_block_valid: bool = False) -
         "block_index": 0,
         "record_ids": [f"record-{ordinal}" for ordinal in range(100)],
         "expected_count": 100,
+        "inventory_sha256": hashlib.sha256(inventory.read_bytes()).hexdigest(),
     }
     _private(
         run / "blocks" / "000000-receipt.json",
         first_receipt | {"receipt_sha256": audit_module._json_hash(first_receipt)},
     )
+    second_receipt = {
+        "version": 1,
+        "block_index": 1,
+        "record_ids": [f"record-{ordinal}" for ordinal in range(100, count)],
+        "expected_count": count - 100,
+        "inventory_sha256": hashlib.sha256(inventory.read_bytes()).hexdigest(),
+    }
     _private(
         run / "blocks" / "000001-receipt.json",
-        {
-            "version": 1,
-            "block_index": 1,
-            "record_ids": [f"record-{ordinal}" for ordinal in range(100, count)],
-            "expected_count": count - 100,
-        },
+        second_receipt | {"receipt_sha256": audit_module._json_hash(second_receipt)},
     )
     _private(
         run / "anomalies" / "000001.json",
@@ -256,6 +267,18 @@ def test_private_case_content_rejects_secret_value(tmp_path: Path) -> None:
     )
     inventory.write_text(poisoned, encoding="utf-8")
     inventory.chmod(0o600)
+    manifest_path = run / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["inventory_sha256"] = hashlib.sha256(inventory.read_bytes()).hexdigest()
+    _private(manifest_path, manifest)
+    receipt_path = run / "blocks" / "000000-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["inventory_sha256"] = manifest["inventory_sha256"]
+    receipt_body = {
+        key: value for key, value in receipt.items() if key != "receipt_sha256"
+    }
+    receipt["receipt_sha256"] = audit_module._json_hash(receipt_body)
+    _private(receipt_path, receipt)
 
     with pytest.raises(ValueError, match="secret"):
         build_audit_packet(run, milestone_block=0, seed="fixture-seed")
@@ -276,3 +299,85 @@ def test_packet_writer_fsyncs_parent_directory_after_rename(
     write_packet(tmp_path / "private" / "opus-audit.json", packet)
 
     assert len(calls) >= 2
+
+
+def test_same_id_different_content_inventory_is_rejected(tmp_path: Path) -> None:
+    run = _run(tmp_path, first_block_valid=True)
+    alternate = tmp_path / "alternate.jsonl"
+    alternate.write_text(
+        (run / "production-records.jsonl")
+        .read_text(encoding="utf-8")
+        .replace("Question 0?", "Substituted question 0?"),
+        encoding="utf-8",
+    )
+    alternate.chmod(0o600)
+
+    with pytest.raises(ValueError, match="inventory hash"):
+        build_audit_packet(
+            run,
+            inventory=alternate,
+            milestone_block=0,
+            seed="fixture-seed",
+        )
+
+
+def test_github_token_in_status_is_rejected_by_private_writer(tmp_path: Path) -> None:
+    packet = build_audit_packet(
+        _run(tmp_path, first_block_valid=True), milestone_block=0, seed="fixture-seed"
+    )
+    packet["records"][0]["status"] = "ghp_1234567890abcdef1234567890abcdef12345678"
+    body = {key: value for key, value in packet.items() if key != "packet_sha256"}
+    packet["packet_sha256"] = audit_module._json_hash(body)
+
+    with pytest.raises(ValueError, match="audit packet is invalid"):
+        write_packet(tmp_path / "private" / "status-token.json", packet)
+
+
+def test_secret_like_seed_is_rejected(tmp_path: Path) -> None:
+    run = _run(tmp_path, first_block_valid=True)
+
+    with pytest.raises(ValueError, match="seed"):
+        build_audit_packet(
+            run,
+            milestone_block=0,
+            seed="ghp_1234567890abcdef1234567890abcdef12345678",
+        )
+
+
+def test_non_sk_provider_credential_in_case_content_is_rejected(tmp_path: Path) -> None:
+    run = _run(tmp_path, first_block_valid=True)
+    inventory = run / "production-records.jsonl"
+    inventory.write_text(
+        inventory.read_text(encoding="utf-8").replace(
+            "Question 0?",
+            "Question 0? github_pat_1234567890abcdef1234567890abcdef1234567890",
+        ),
+        encoding="utf-8",
+    )
+    inventory.chmod(0o600)
+    manifest_path = run / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["inventory_sha256"] = hashlib.sha256(inventory.read_bytes()).hexdigest()
+    _private(manifest_path, manifest)
+    receipt_path = run / "blocks" / "000000-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["inventory_sha256"] = manifest["inventory_sha256"]
+    receipt_body = {
+        key: value for key, value in receipt.items() if key != "receipt_sha256"
+    }
+    receipt["receipt_sha256"] = audit_module._json_hash(receipt_body)
+    _private(receipt_path, receipt)
+
+    with pytest.raises(ValueError, match="secret"):
+        build_audit_packet(run, milestone_block=0, seed="fixture-seed")
+
+
+def test_decision_v2_cross_field_contradiction_is_rejected(tmp_path: Path) -> None:
+    run = _run(tmp_path, first_block_valid=True)
+    result_path = run / "results" / "00000000.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["decision"]["correctness"] = 0
+    _private(result_path, result)
+
+    with pytest.raises(ValueError, match="decision"):
+        build_audit_packet(run, milestone_block=0, seed="fixture-seed")

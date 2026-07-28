@@ -12,16 +12,10 @@ from pathlib import Path
 import re
 import stat
 import tempfile
-from typing import Literal, Sequence
+from typing import Sequence
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    ValidationError,
-    conint,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from trec_mlm.pointwise_judge import DecisionV2
 
 
 DEFAULT_AUDIT_SEED = "pointwise-production-audit-v1"
@@ -55,40 +49,20 @@ _SAFE_REASONS = {
     "anomaly",
     "seeded_ordinary",
 }
+_TERMINAL_STATUSES = {"valid", "invalid"}
+_SYNTHETIC_RATIONALE = (
+    "Structured audit validation uses the sealed production decision contract "
+    "and intentionally omits the provider rationale from the packet."
+)
 _SECRET_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"),
     re.compile(r"(?i)(?:api[_-]?key|authorization|bearer)\s*[:=]\s*\S+"),
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\b(?:hf|xai|pplx|xoxb)[-_][A-Za-z0-9_-]{16,}\b"),
+    re.compile(r"\bAIza[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
 )
-
-
-class _AuditDecisionModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    label: Literal["good", "partial", "incorrect", "uncertain"]
-    correctness: conint(strict=True, ge=0, le=4)
-    completeness: conint(strict=True, ge=0, le=2)
-    relevance: conint(strict=True, ge=0, le=2)
-    error_flags: list[
-        Literal[
-            "entity_error",
-            "number_error",
-            "date_error",
-            "negation_error",
-            "unsupported_specificity",
-            "refusal",
-            "ambiguity",
-            "reference_conflict",
-        ]
-    ] = Field(max_length=3)
-    reference_status: Literal["sound", "incomplete", "suspect", "uncertain"]
-    confidence: Literal["high", "medium", "low"]
-
-    @field_validator("error_flags")
-    @classmethod
-    def _unique_flags(cls, flags: list[str]) -> list[str]:
-        if len(flags) != len(set(flags)):
-            raise ValueError("error_flags must be unique")
-        return flags
 
 
 class _AuditCaseContentModel(BaseModel):
@@ -127,8 +101,7 @@ def build_audit_packet(
     """
     if type(milestone_block) is not int or milestone_block < 0:
         raise ValueError("milestone block must be a nonnegative integer")
-    if type(seed) is not str or not seed:
-        raise ValueError("audit seed must be a nonempty string")
+    _validate_seed(seed)
     if type(ordinary_sample_size) is not int or ordinary_sample_size < 0:
         raise ValueError("ordinary sample size must be a nonnegative integer")
     directory = Path(run_dir)
@@ -143,7 +116,8 @@ def build_audit_packet(
     if len(ordinals) != len(set(ordinals)):
         raise ValueError("terminal results contain duplicate source ordinals")
     receipts = _receipts_through(directory, milestone_block)
-    selected_ids = {str(row["record_id"]) for row in selected}
+    selected_pairs = {str(row["record_id"]): _ordinal(row) for row in selected}
+    selected_ids = set(selected_pairs)
     for receipt in receipts:
         receipt_ids = _receipt_ids(receipt)
         if any(record_id not in selected_ids for record_id in receipt_ids):
@@ -151,9 +125,9 @@ def build_audit_packet(
 
     if milestone_block == 0:
         _validate_first_block(selected, receipts)
-    content = _inventory_content(
-        _inventory_path(directory, manifest, inventory), selected_ids
-    )
+    inventory_path = _inventory_path(directory, manifest, inventory)
+    _validate_inventory_binding(inventory_path, manifest, receipts)
+    content = _inventory_content(inventory_path, selected_pairs)
     repairs = _repair_ordinals(directory)
     if milestone_block == 0:
         rows = [
@@ -187,6 +161,8 @@ def build_audit_packet(
             "contains_credentials": False,
         },
     }
+    if not _serialized_strings_are_safe(body):
+        raise ValueError("audit packet contains a secret-like string")
     return body | {"packet_sha256": _json_hash(body)}
 
 
@@ -233,6 +209,10 @@ def _valid_packet(packet: object) -> bool:
         }
     ):
         return False
+    try:
+        _validate_seed(packet["seed"])
+    except ValueError:
+        return False
     seen: set[int] = set()
     for row in packet["records"]:
         if type(row) is not dict or set(row) != {
@@ -252,12 +232,17 @@ def _valid_packet(packet: object) -> bool:
             type(row.get("record_id")) is not str
             or not row["record_id"]
             or any(pattern.search(row["record_id"]) for pattern in _SECRET_PATTERNS)
+            or type(row.get("status")) is not str
+            or row["status"] not in _TERMINAL_STATUSES
             or type(ordinal) is not int
             or ordinal < 0
             or ordinal in seen
             or type(row.get("repaired")) is not bool
             or type(row.get("reasons")) is not list
-            or any(reason not in _SAFE_REASONS for reason in row["reasons"])
+            or any(
+                type(reason) is not str or reason not in _SAFE_REASONS
+                for reason in row["reasons"]
+            )
         ):
             return False
         seen.add(ordinal)
@@ -280,6 +265,8 @@ def _valid_packet(packet: object) -> bool:
             _validated_decision(decision)
         except ValueError:
             return False
+    if not _serialized_strings_are_safe(body):
+        return False
     if packet["scope"] == "first_100" and (
         len(seen) != 100
         or sorted(seen) != list(range(100))
@@ -344,14 +331,28 @@ def _packet_row(
     reasons: list[str],
     content: dict[str, str],
 ) -> dict[str, object]:
+    record_id = result.get("record_id")
+    if (
+        type(record_id) is not str
+        or not record_id
+        or any(pattern.search(record_id) for pattern in _SECRET_PATTERNS)
+    ):
+        raise ValueError("terminal result identity is invalid or secret-like")
     decision = result.get("decision")
-    safe_decision = _validated_decision(decision) if decision is not None else None
+    safe_decision = (
+        _validated_decision(decision, require_rationale=True)
+        if decision is not None
+        else None
+    )
     safe_content = _validated_content(content)
     ordinal = _ordinal(result)
+    status = result.get("status")
+    if type(status) is not str or status not in _TERMINAL_STATUSES:
+        raise ValueError("terminal status is invalid")
     return {
         "record_id": result["record_id"],
         "source_ordinal": ordinal,
-        "status": result.get("status"),
+        "status": status,
         "repaired": ordinal in repairs,
         "decision": safe_decision,
         "reasons": sorted(set(reasons)),
@@ -359,17 +360,24 @@ def _packet_row(
     }
 
 
-def _validated_decision(value: object) -> dict[str, object]:
+def _validated_decision(
+    value: object, *, require_rationale: bool = False
+) -> dict[str, object]:
     if type(value) is not dict:
         raise ValueError("decision is not a valid audit decision")
+    expected_keys = set(_SAFE_DECISION_FIELDS) | {"rationale"}
     if set(value) not in (
         set(_SAFE_DECISION_FIELDS),
-        set(_SAFE_DECISION_FIELDS) | {"rationale"},
+        expected_keys,
     ):
         raise ValueError("decision is not a valid audit decision")
+    if require_rationale and set(value) != expected_keys:
+        raise ValueError("decision is not a valid production decision")
     payload = {field: value[field] for field in _SAFE_DECISION_FIELDS}
+    payload["rationale"] = value.get("rationale", _SYNTHETIC_RATIONALE)
     try:
-        return _AuditDecisionModel.model_validate(payload).model_dump(mode="json")
+        validated = DecisionV2.model_validate(payload).model_dump(mode="json")
+        return {field: validated[field] for field in _SAFE_DECISION_FIELDS}
     except ValidationError as error:
         raise ValueError("decision is not a valid audit decision") from error
 
@@ -395,7 +403,35 @@ def _inventory_path(
     return candidate if candidate.is_absolute() else directory / candidate
 
 
-def _inventory_content(path: Path, needed_ids: set[str]) -> dict[str, dict[str, str]]:
+def _validate_seed(seed: object) -> None:
+    if (
+        type(seed) is not str
+        or not seed
+        or len(seed) > 128
+        or any(character.isspace() for character in seed)
+        or any(pattern.search(seed) for pattern in _SECRET_PATTERNS)
+    ):
+        raise ValueError("audit seed is invalid or secret-like")
+
+
+def _validate_inventory_binding(
+    path: Path,
+    manifest: dict[str, object],
+    receipts: list[dict[str, object]],
+) -> None:
+    observed = _bytes_hash(path)
+    committed = manifest.get("inventory_sha256")
+    if type(committed) is not str or observed != committed:
+        raise ValueError("inventory hash does not match the sealed run manifest")
+    for receipt in receipts:
+        receipt_hash = receipt.get("inventory_sha256")
+        if type(receipt_hash) is not str or observed != receipt_hash:
+            raise ValueError("inventory hash does not match the block receipt")
+
+
+def _inventory_content(
+    path: Path, expected_pairs: dict[str, int]
+) -> dict[str, dict[str, str]]:
     if (
         path.is_symlink()
         or not path.is_file()
@@ -425,8 +461,10 @@ def _inventory_content(path: Path, needed_ids: set[str]) -> dict[str, dict[str, 
             ):
                 raise ValueError("private inventory row identity is invalid")
             record_id = row["record_id"]
-            if type(record_id) is not str or record_id not in needed_ids:
+            if type(record_id) is not str or record_id not in expected_pairs:
                 continue
+            if row["source_ordinal"] != expected_pairs[record_id]:
+                raise ValueError("inventory row ordinal/record ID pair is invalid")
             if any(
                 type(row[key]) is not str or not row[key]
                 for key in expected - {"source_ordinal"}
@@ -439,7 +477,7 @@ def _inventory_content(path: Path, needed_ids: set[str]) -> dict[str, dict[str, 
                     "candidate_response": row["candidate_response"],
                 }
             )
-    if found.keys() != needed_ids:
+    if found.keys() != expected_pairs.keys():
         raise ValueError("private inventory is missing an audited record")
     return found
 
@@ -464,7 +502,7 @@ def _validate_first_block(
     for row in ordered:
         if row.get("status") != "valid":
             raise ValueError("complete first block terminal coverage is invalid")
-        _validated_decision(row.get("decision"))
+        _validated_decision(row.get("decision"), require_rationale=True)
 
 
 def _receipts_through(directory: Path, milestone_block: int) -> list[dict[str, object]]:
@@ -475,6 +513,10 @@ def _receipts_through(directory: Path, milestone_block: int) -> list[dict[str, o
             continue
         receipt = _read_private(path, "block receipt")
         if receipt.get("block_index") != index:
+            raise ValueError("block receipt identity is invalid")
+        receipt_hash = receipt.get("receipt_sha256")
+        body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        if type(receipt_hash) is not str or receipt_hash != _json_hash(body):
             raise ValueError("block receipt identity is invalid")
         receipts.append(receipt)
     return receipts
@@ -502,8 +544,14 @@ def _results(directory: Path) -> list[dict[str, object]]:
             type(row.get("record_id")) is not str
             or not row["record_id"]
             or row["record_id"] in seen
+            or any(pattern.search(row["record_id"]) for pattern in _SECRET_PATTERNS)
         ):
             raise ValueError("terminal result identity is invalid")
+        if (
+            type(row.get("status")) is not str
+            or row["status"] not in _TERMINAL_STATUSES
+        ):
+            raise ValueError("terminal status is invalid")
         _ordinal(row)
         seen.add(row["record_id"])
     return rows
@@ -603,6 +651,27 @@ def _json_hash(value: object) -> str:
             allow_nan=False,
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _serialized_strings_are_safe(value: object) -> bool:
+    if isinstance(value, str):
+        return not any(pattern.search(value) for pattern in _SECRET_PATTERNS)
+    if isinstance(value, dict):
+        return all(_serialized_strings_are_safe(item) for item in value.values())
+    if isinstance(value, list):
+        return all(_serialized_strings_are_safe(item) for item in value)
+    return True
+
+
+def _bytes_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except (FileNotFoundError, OSError) as error:
+        raise ValueError("private inventory is unavailable") from error
+    return digest.hexdigest()
 
 
 def _parser() -> argparse.ArgumentParser:

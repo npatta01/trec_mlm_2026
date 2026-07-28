@@ -538,6 +538,33 @@ def test_claude_cli_transport_retries_one_timeout_and_keeps_failed_reservation(
     assert budget.spent_usd > provider["cost_usd"]
 
 
+def test_claude_cli_accepts_observed_success_envelope_without_model_field(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+
+    def runner(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        envelope = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 10,
+            "duration_api_ms": 9,
+            "num_turns": 1,
+            "result": json.dumps(_review(packet)),
+            "session_id": "ephemeral",
+            "total_cost_usd": 0.01,
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    review, provider = ClaudeCliReviewCall(
+        budget=SpendBudget(2.0), timeout_seconds=3.0, runner=runner
+    )(packet, protocol_dir=_protocol_dir())
+    assert review.packet_sha256 == packet["packet_sha256"]
+    assert provider["cost_usd"] == 0.01
+
+
 def test_claude_cli_transport_does_not_retry_semantic_invalid_output(
     tmp_path: Path,
 ) -> None:

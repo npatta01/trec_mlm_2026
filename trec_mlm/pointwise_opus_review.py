@@ -731,15 +731,20 @@ def _parse_claude_cli_envelope(raw: str) -> tuple[str, dict[str, int | float], f
     }
     if (
         type(envelope) is not dict
-        or not {"type", "result", "model"} <= set(envelope)
+        or not {"type", "result"} <= set(envelope)
         or not set(envelope) <= allowed
         or envelope["type"] != "result"
         or type(envelope["result"]) is not str
-        or type(envelope["model"]) is not str
-        or "opus" not in envelope["model"].casefold()
-        or envelope.get("is_error") is True
     ):
         raise ValueError("Claude CLI envelope has invalid exact result/model fields")
+    if "model" in envelope and (
+        type(envelope["model"]) is not str or "opus" not in envelope["model"].casefold()
+    ):
+        raise ValueError("Claude CLI envelope has an unexpected model identity")
+    if "is_error" in envelope and (
+        type(envelope["is_error"]) is not bool or envelope["is_error"]
+    ):
+        raise ValueError("Claude CLI envelope has an invalid error state")
     usage = _sanitize_usage(envelope.get("usage", {}))
     cost_value = envelope.get("total_cost_usd", 0.0)
     if type(cost_value) not in {int, float} or isinstance(cost_value, bool):

@@ -1,7 +1,7 @@
 # Pointwise Phase 0 Ranking Gate Design
 
-**Issue:** GitHub #31, Phase 0 only  
-**Base:** `origin/main` at `eeea2d5cc69c0205f56806e13bb1ccf0bfa9096a`  
+**Issue:** GitHub #31, Phase 0 only
+**Base:** `origin/main` at `eeea2d5cc69c0205f56806e13bb1ccf0bfa9096a`
 **Audience:** technical reviewers of the TREC Million LLMs 2026 routing study
 
 ## Objective
@@ -77,10 +77,18 @@ candidate-minus-control deltas, paired 95% percentile bootstrap intervals with
 10,000 resamples and seed 31, win/tie/loss, and zero-nDCG transitions.
 
 Prespecified query slices are organizer-qrel density (`<=5`, `6-20`, `>20`
-positive candidates), frozen dense zero/nonzero nDCG, and qrel-free local
-support concentration quartiles. Candidate slices are stable quartiles of
-audited-response count and smoothed support prior. Candidate-slice metrics
-filter rankings and qrels to that candidate group before recomputation.
+positive candidates), frozen dense zero/nonzero nDCG, and qrel-free quartiles
+of each query's arithmetic mean of its 10 frozen E5 similarities across all
+candidate slots. Candidate slices are quartiles of audited-response count and
+smoothed support prior. For every quartile feature, stably sort the finite
+`(value, identifier)` pairs ascending, using the exact identifier string as the
+secondary key, and assign zero-based sorted position `i` among `N` items to
+quartile `1 + floor(4 * i / N)`. Thus the bins are deterministic, differ in
+size by at most one, and run from low (1) to high (4). If `N < 4`, later bins
+may be empty; retain all four labels, emit an empty slice with its count, and
+report its metric as unavailable rather than borrowing or merging a bin. If
+`N = 0`, all four bins are empty. Candidate-slice metrics filter rankings and
+qrels to that candidate group before recomputation.
 
 Pointwise evidence passes the Phase 0 gate only when:
 
@@ -92,6 +100,15 @@ Pointwise evidence passes the Phase 0 gate only when:
 Recommend a later pairwise pilot only if the gate passes and the frozen
 qrel-free selector exposes at least 500 close same-tier supported pairs across
 at least 100 discovery questions. Otherwise stop after Phase 0.
+
+The selector version is the literal `pointwise-phase0-pair-selector-v1`. Its
+final tie key is the SHA-256 digest of canonical UTF-8 JSON containing exactly
+`candidate_ids`, `question_id`, and `selector_version`: keys are in ascending
+Unicode code-point order; `candidate_ids` contains the two exact, unnormalised
+candidate ID strings in ascending Unicode code-point order; string values are
+unescaped except as required by JSON; and the serialization has no insignificant
+whitespace. This is equivalent to Python `json.dumps(payload, ensure_ascii=False,
+sort_keys=True, separators=(",", ":")).encode("utf-8")` for that payload.
 
 ## Components and artifacts
 

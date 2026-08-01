@@ -101,7 +101,7 @@
 
 - [ ] Obtain independent task and whole-branch reviews; fix and re-review critical/important findings.
 - [ ] Run generated-output checks, Hub render/audit, Ruff, full pytest, `git diff --check`, and tracked-file secret/private-path scans.
-- [ ] Produce sanitized derived HTML under `/home/npatta01/codex-rendered/plans/`, update the private portal index, verify live tailnet-only HTTPS, and confirm no private data exposure.
+- [ ] Produce sanitized derived HTML in the host-configured private rendered-artifact directory, update the private portal index, verify live tailnet-only HTTPS, and confirm no private data exposure.
 - [ ] Commit intended files, push `codex/issue-31-phase0`, and open a reviewable draft PR to `main` with the leakage boundary, results, checks, and issue linkage.
 
 ## Current status

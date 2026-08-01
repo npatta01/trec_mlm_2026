@@ -71,9 +71,18 @@ No pointwise constant, label, neighbor, or rank uses organizer qrels.
 - Comparisons: candidate minus control, 10,000 paired percentile bootstrap
   resamples, 95% interval, seed 31, win/tie/loss, and zero-nDCG transitions.
 - Query slices: qrel positive density `<=5`, `6-20`, `>20`; dense zero/nonzero;
-  and stable quartiles of mean valid top-10 E5 similarity.
-- Candidate slices: stable quartiles of audited-row count and smoothed prior.
-  Filter rankings and qrels to each candidate slice before metric computation.
+  and quartiles of the arithmetic mean of the 10 frozen E5 similarities for
+  every candidate slot of that query. The tensor must provide exactly 10 finite
+  similarities per slot; a missing or non-finite value fails closed.
+- Candidate slices: quartiles of audited-row count and smoothed prior. Filter
+  rankings and qrels to each candidate slice before metric computation.
+- Quartile rule for every query or candidate feature: stably sort finite
+  `(value, identifier)` pairs ascending, with the exact identifier string as the
+  secondary key. Give zero-based sorted position `i` among `N` items label
+  `1 + floor(4 * i / N)`. Labels therefore run low (1) to high (4) and bin
+  sizes differ by at most one. Retain all four labels even when `N < 4`: an
+  empty bin is emitted with count zero and an unavailable metric, never merged,
+  omitted, or assigned another bin's value. If `N = 0`, all four bins are empty.
 - Diagnostics: prior-only and routing-only. They cannot replace the primary
   pointwise-only or combined systems or override the decision rule.
 
@@ -93,13 +102,25 @@ A negative result stops pairwise work.
 
 ## Frozen zero-call pair selector
 
+The selector version literal is `pointwise-phase0-pair-selector-v1`.
+
 Eligibility requires two supported records for the same source question and
 the same verdict tier. Priority is:
 
 1. `partial/partial` before `correct/correct`;
 2. smaller absolute difference between candidate priors;
 3. lower current candidate-use count;
-4. SHA-256 of selector version, question ID, and sorted candidate IDs.
+4. SHA-256 of the canonical UTF-8 JSON selector tie input below.
+
+For the fourth key, form an object containing exactly `candidate_ids`,
+`question_id`, and `selector_version`. Its keys are lexicographically ordered
+by Unicode code point; `candidate_ids` is the two exact, unnormalised candidate
+ID strings ordered ascending by Unicode code point; `question_id` is the exact,
+unnormalised source question ID; and `selector_version` is the literal above.
+Serialize without insignificant whitespace, UTF-8 encode without a BOM, and
+take SHA-256 of those bytes. In Python this is exactly
+`json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",",
+":")).encode("utf-8")`.
 
 Select at most one pair per source question on the first pass, then fill in the
 same order, with no candidate used more than 20 times unless 500 pairs are not

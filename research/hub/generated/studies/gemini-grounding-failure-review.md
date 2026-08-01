@@ -72,6 +72,7 @@ rescues are diagnostic evidence on a selected cohort, not a corpus-wide rate.
 - [Four-model reference-answer review](four-model-reference-review.qmd)
 - [Grounded reference data-quality audit](grounded-data-quality-audit.qmd)
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
+- [OpenAI Luna pointwise production audit](openai-luna-pointwise-production-audit.qmd)
 - [Query-cluster aggregation](query-cluster-aggregation.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)
 - [Sparse-failure analogue diagnosis](sparse-failure-analogue-diagnosis.qmd)

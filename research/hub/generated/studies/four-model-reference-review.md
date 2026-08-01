@@ -74,6 +74,7 @@ ranking system. Creating a leaderboard row would manufacture comparability.
 - [E5 raw-response refinement](e5-raw-response-refinement.qmd)
 - [Gemini grounding failure review](gemini-grounding-failure-review.qmd)
 - [Grounded reference data-quality audit](grounded-data-quality-audit.qmd)
+- [OpenAI Luna pointwise production audit](openai-luna-pointwise-production-audit.qmd)
 - [Lexical response retrieval](response-retrieval.qmd)
 - [Response-volume normalization](response-volume-normalization.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)

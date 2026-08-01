@@ -3,7 +3,7 @@
 <section class="hub-record-hero">
 <p class="hub-record-status">Partially answered · Moderate confidence</p>
 <p class="hub-takeaway">When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?</p>
-<p>Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.</p>
+<p>Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth.</p>
 
 <p class="hub-next-action"><a href="../generated/ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.</p>
 </section>
@@ -18,7 +18,7 @@ or mark a case unresolved.
 
 ## Current bounded answer
 
-Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.
+Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth.
 
 **Confidence:** Moderate
 </details>
@@ -54,6 +54,7 @@ judgments, not organizer answer-correctness labels.
 - [Four-model reference-answer review](../studies/four-model-reference-review.qmd)
 - [Gemini grounding failure review](../studies/gemini-grounding-failure-review.qmd)
 - [Grounded reference data-quality audit](../studies/grounded-data-quality-audit.qmd)
+- [OpenAI Luna pointwise production audit](../studies/openai-luna-pointwise-production-audit.qmd)
 
 The model review chooses a default; the failure review evaluates selective
 grounding; the data-quality audit checks the resulting corpus.
@@ -62,4 +63,5 @@ grounding; the data-quality audit checks the resulting corpus.
 
 - <code class="hub-path">reports/trec_2026_four_model_reference_review_2026-07-21.md</code>
 - <code class="hub-path">reports/trec_2026_gemini_grounding_failure_review_2026-07-21.md</code>
+- <code class="hub-path">reports/openai-luna-pointwise-production-audit.md</code>
 </details>

@@ -21,6 +21,20 @@
     "restore_verified": true,
     "uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/experiments/openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0"
   },
+  "github_release": {
+    "assets": [
+      "pointwise-labels.jsonl",
+      "final-results.json",
+      "openai-luna-pointwise-production-audit.md",
+      "openai-luna-pointwise-production-checkpoint.json",
+      "openai-luna-pointwise-production-restore.md",
+      "SHA256SUMS"
+    ],
+    "private": true,
+    "published": true,
+    "tag": "pointwise-judgments-v1",
+    "url": "https://github.com/npatta01/trec_mlm_2026/releases/tag/pointwise-judgments-v1"
+  },
   "integrity": {
     "audited_results_sha256": "8b6ae7d2d8b0a9e3ed9e92de43006aa9f4d4f5ca90af72905f153d19383462e2",
     "checksums_manifest_sha256": "c6acf2615e12788d37e2c7dd83f06f4c615cda0b7b8a0b808e4deb3162598edb",

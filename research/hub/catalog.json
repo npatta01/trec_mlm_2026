@@ -54,6 +54,7 @@
         "four-model-reference-review",
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
+        "openai-luna-pointwise-production-audit",
         "reference-reliability",
         "response-evidence"
       ],
@@ -95,6 +96,7 @@
       "related_ids": [
         "e5-raw-response-refinement",
         "failure-conditions",
+        "openai-luna-pointwise-production-audit",
         "response-evidence",
         "response-retrieval",
         "response-volume-normalization",
@@ -364,6 +366,7 @@
         "four-model-reference-review",
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
+        "openai-luna-pointwise-production-audit",
         "response-retrieval",
         "response-volume-normalization",
         "source-query-first",
@@ -399,6 +402,23 @@
         "profiles"
       ],
       "title": "Generated embeddings and profiles",
+      "type": "dataset"
+    },
+    {
+      "canonical_path": "research/hub/data/pointwise-judgments.qmd",
+      "id": "pointwise-judgments",
+      "related_ids": [
+        "openai-luna-pointwise-production-audit"
+      ],
+      "rendered_path": "data/pointwise-judgments.html",
+      "summary": "Supported or unsupported labels, detailed verdicts, and explanations produced by comparing collected candidate responses with supplied grounded evidence.",
+      "tags": [
+        "generated",
+        "labels",
+        "pointwise-judging",
+        "private"
+      ],
+      "title": "Audited pointwise response judgments",
       "type": "dataset"
     },
     {
@@ -518,6 +538,7 @@
         "gemini-grounding-failure-review",
         "grounded-data-quality-audit",
         "local-response-quality-judging",
+        "openai-luna-pointwise-production-audit",
         "reference-review-trigger",
         "responses-references"
       ],
@@ -540,6 +561,7 @@
         "failure-aware-fusion",
         "four-model-reference-review",
         "local-response-quality-judging",
+        "openai-luna-pointwise-production-audit",
         "reference-review-trigger",
         "response-retrieval",
         "response-volume-normalization",
@@ -2455,6 +2477,32 @@
         "profiles"
       ],
       "title": "Multiresolution candidate profiles",
+      "type": "study"
+    },
+    {
+      "canonical_path": "research/hub/studies/openai-luna-pointwise-production-audit.qmd",
+      "id": "openai-luna-pointwise-production-audit",
+      "related_ids": [
+        "discovery-responses",
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "local-response-quality-judging",
+        "pointwise-judgments",
+        "reference-generation",
+        "reference-reliability",
+        "reference-review-trigger",
+        "response-evidence",
+        "responses-references"
+      ],
+      "rendered_path": "studies/openai-luna-pointwise-production-audit.html",
+      "summary": "Verify that the full pointwise response-labeling run is complete, internally consistent, safe for automated use, and durably recoverable.",
+      "tags": [
+        "artifact-custody",
+        "data-quality",
+        "pointwise-judging",
+        "response-evidence"
+      ],
+      "title": "OpenAI Luna pointwise production audit",
       "type": "study"
     },
     {

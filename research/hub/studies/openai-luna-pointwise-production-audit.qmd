@@ -1,0 +1,123 @@
+---
+study_id: openai-luna-pointwise-production-audit
+title: "OpenAI Luna pointwise production audit"
+primary_theme_id: evidence-reliability
+theme_ids: [evidence-reliability, responses-references]
+study_type: audit
+question_ids: [response-evidence, reference-reliability]
+approach_ids: [response-evidence, reference-generation]
+status: concluded
+outcome: positive
+objective: "Verify that the full pointwise response-labeling run is complete, internally consistent, safe for automated use, and durably recoverable."
+rationale: "The production run needed a final execution, semantic, and custody audit before its labels could feed the next ranking stage."
+rationale_provenance: contemporaneous
+protocol_summary: "Validate every record and identifier, audit exact-input consistency and a deterministic verdict-stratified semantic sample, apply explicit reviewed corrections, then verify a private checksum-backed restore."
+conclusion: "The 182,764-record artifact is ready for automated use with supported defined as correct or partial, subject to the supplied-Gemini-evidence boundary."
+decision: adopt
+decision_summary: "Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged. This is an artifact-use decision, not a ranking-system promotion."
+system_ids: []
+representative_system_ids: []
+comparison_system_ids: []
+evidence_refs: [reports/openai-luna-pointwise-production-audit.md, reports/openai-luna-pointwise-production-checkpoint.json, reports/openai-luna-pointwise-production-release.md, reports/openai-luna-pointwise-production-restore.md]
+dataset_ids: [discovery-responses, pointwise-judgments]
+started_on: 2026-07-31
+concluded_on: 2026-08-01
+supersedes: []
+superseded_by: []
+limitations: "The labels measure agreement with supplied Gemini evaluator evidence, not absolute factual truth; five ambiguous exact-input groups remain unresolved, and downstream ranking value has not yet been measured. This audit registers no ranking system and makes no promotion claim."
+tags: [pointwise-judging, response-evidence, data-quality, artifact-custody]
+---
+
+{{< include ../generated/studies/openai-luna-pointwise-production-audit.md >}}
+
+<!--
+## The audited label artifact is ready for the next stage
+
+The run produced **182,764 unique response judgments** across 6,816 questions
+and 150 candidate models. Every record passed the frozen schema and identity
+checks. The automated label is:
+
+```text
+supported = verdict in {correct, partial}
+```
+
+This definition deliberately separates factual support from completeness. A
+response can therefore be incomplete but still count as supported when its
+central answer agrees with the supplied evidence and does not contradict it.
+
+| Readiness check | Result |
+|---|---:|
+| Unique records | 182,764 / 182,764 |
+| Provider invariant failures | 0 |
+| Deterministic invariant failures | 0 |
+| Audited verdict changes | 55 |
+| Explanation-only repairs | 4 |
+| Estimated Batch cost | $31.82 |
+
+## Curation reduced decision-level inconsistency
+
+Exact-input duplicate analysis found 25 raw groups in which otherwise identical
+judge inputs crossed the supported/unsupported boundary. Twenty clearly
+adjudicable groups were canonicalized, leaving five ambiguous or broken-question
+groups unchanged. Pairwise supported/unsupported disagreements fell from 303 to
+171 among 58,909 duplicate pairs.
+
+Five-way verdict differences that stay inside the same automated bucket are
+retained as debugging detail. They do not change the downstream `supported`
+label.
+
+| Curated verdict | Count | Rate |
+|---|---:|---:|
+| correct | 114,319 | 62.55% |
+| partial | 17,758 | 9.72% |
+| incorrect | 10,402 | 5.69% |
+| nonanswer | 23,539 | 12.88% |
+| not_established | 16,746 | 9.16% |
+
+## The semantic audit targeted both labels and explanations
+
+A deterministic 103-record packet covered 20 examples from each raw verdict
+plus explanation-integrity controls. Two supported/unsupported corrections from
+that sample were applied. Four additional repairs changed explanations only.
+After curation, no control characters remain in explanation text.
+
+The audit supports operational use of the labels; it does not estimate absolute
+answer correctness. The judge compared candidate responses with supplied,
+grounded Gemini evidence after citations and model identity were withheld.
+Gemini evidence can still be incomplete or wrong.
+
+This is a generated-dataset audit, not a registered TREC ranking run. Exact
+record counts, content digests, and custody checks come from the linked audit
+receipts; no ranking metric or promotion state is asserted here.
+
+## The complete evidence bundle is private and recoverable
+
+The compact labels and audited full results are available in the private
+[GitHub Release `pointwise-judgments-v1`](https://github.com/npatta01/trec_mlm_2026/releases/tag/pointwise-judgments-v1).
+The immutable raw output, controller state, batch receipts, prompts, and
+checksum manifest are preserved in both a local archive and a private Hugging
+Face Bucket. A fresh restore downloaded 1,128 files (2,121,195,834 bytes) and
+passed all 1,127 payload checksums.
+
+Primary content digests:
+
+| Artifact | SHA-256 |
+|---|---|
+| Audited full results | `8b6ae7d2d8b0a9e3ed9e92de43006aa9f4d4f5ca90af72905f153d19383462e2` |
+| Compact labels | `7cde37d0d913b97ede43c4791b2f808e6d1b0c863bdcac729efde78480113c48` |
+| Immutable raw results | `033edf940d31299340ebb3283774fbf0f77e4fe75d834f67e7d36f9caca65436` |
+
+Use `reports/openai-luna-pointwise-production-restore.md` for the private
+GitHub and Hugging Face restore procedures. The tracked repository contains
+only aggregate evidence and restore pointers; it does not contain raw
+responses or provider payloads.
+
+## Next use and remaining uncertainty
+
+Use `results/pointwise-labels.jsonl` as the machine-facing input to the next
+stage, while retaining the full five-way judgments for diagnosis. The next
+decision-relevant test is whether this response-quality signal improves ranking
+on a frozen development comparison. That experiment must preserve the current
+label artifact and must not reinterpret agreement with Gemini evidence as
+organizer ground truth.
+-->

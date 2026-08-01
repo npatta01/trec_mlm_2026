@@ -68,6 +68,7 @@ grid remains available for audit in the run registry.
 
 - [E5 raw-response refinement](e5-raw-response-refinement.qmd)
 - [Four-model reference-answer review](four-model-reference-review.qmd)
+- [OpenAI Luna pointwise production audit](openai-luna-pointwise-production-audit.qmd)
 - [Response-volume normalization](response-volume-normalization.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)
 

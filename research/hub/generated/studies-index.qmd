@@ -53,6 +53,12 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 <span>Grounding materially helped many true failures but did not provide a reliable blanket cure.</span>
 <span class="hub-next-action"><strong>Practical decision</strong> Develop a two-pass disagreement trigger rather than grounding every request.</span>
 </a>
+<a class="hub-study-row" data-study-id="openai-luna-pointwise-production-audit" data-themes="evidence-reliability responses-references" href="openai-luna-pointwise-production-audit.qmd">
+<span>Positive · Adopt</span>
+<strong>OpenAI Luna pointwise production audit</strong>
+<span>The 182,764-record artifact is ready for automated use with supported defined as correct or partial, subject to the supplied-Gemini-evidence boundary.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged. This is an artifact-use decision, not a ranking-system promotion.</span>
+</a>
 <a class="hub-study-row" data-study-id="sparse-failure-analogue-diagnosis" data-themes="evidence-reliability query-only-routing candidate-evidence" href="sparse-failure-analogue-diagnosis.qmd">
 <span>Negative · Reject</span>
 <strong>Sparse-failure analogue diagnosis</strong>

@@ -110,6 +110,20 @@ unescaped except as required by JSON; and the serialization has no insignificant
 whitespace. This is equivalent to Python `json.dumps(payload, ensure_ascii=False,
 sort_keys=True, separators=(",", ":")).encode("utf-8")` for that payload.
 
+Within each selector pass, rank eligible pairs by this full ascending key:
+`(tier, abs(prior_a - prior_b), use_key, selector_hash)`, where `tier` is 0
+for `partial/partial` and 1 for `correct/correct`, and `use_key` is exactly
+`(max(use_a, use_b), use_a + use_b, use_min_id, use_max_id)`. Here `min_id`
+and `max_id` are the lexical candidate-ID order, and `use_min_id` and
+`use_max_id` are the current counts for those respectively ordered IDs. Recompute
+the complete key after every selection. The first pass selects at most one pair
+per source question; the later fill has no per-source limit. Both use the same
+dynamic key and preserve the declared tier, prior-distance, use-key, then hash
+precedence. Start at candidate-use cap 20. At each cap, complete every available
+selection under that cap (first the one-per-source pass, then the fill), stopping
+only at 500 pairs or exhaustion. If fewer than 500 pairs result, repeat at caps
+21, 22, and so on until 500 pairs or no eligible unselected pair remains.
+
 ## Components and artifacts
 
 - `trec_mlm/pointwise_ranking.py`: validation, signal construction, ranks,

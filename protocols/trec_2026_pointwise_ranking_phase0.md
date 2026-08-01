@@ -105,12 +105,17 @@ A negative result stops pairwise work.
 The selector version literal is `pointwise-phase0-pair-selector-v1`.
 
 Eligibility requires two supported records for the same source question and
-the same verdict tier. Priority is:
+the same verdict tier. Within each selector pass, the full ascending priority
+key is:
 
-1. `partial/partial` before `correct/correct`;
-2. smaller absolute difference between candidate priors;
-3. lower current candidate-use count;
-4. SHA-256 of the canonical UTF-8 JSON selector tie input below.
+1. `tier`: `partial/partial` (0) before `correct/correct` (1);
+2. `abs(prior_a - prior_b)`: smaller first;
+3. `use_key`: exactly `(max(use_a, use_b), use_a + use_b, use_min_id,
+   use_max_id)`, smaller lexicographically first, where `min_id` and `max_id`
+   are the lexical candidate-ID order and `use_min_id`/`use_max_id` are their
+   respective current use counts;
+4. `selector_hash`: SHA-256 of the canonical UTF-8 JSON selector tie input
+   below, ascending lexicographically by digest text.
 
 For the fourth key, form an object containing exactly `candidate_ids`,
 `question_id`, and `selector_version`. Its keys are lexicographically ordered
@@ -122,10 +127,16 @@ take SHA-256 of those bytes. In Python this is exactly
 `json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",",
 ":")).encode("utf-8")`.
 
-Select at most one pair per source question on the first pass, then fill in the
-same order, with no candidate used more than 20 times unless 500 pairs are not
-otherwise available. The Phase 0 receipt contains IDs and counts only. It must
-not contain response/reference text, prompts, pairwise outcomes, or API state.
+At each candidate-use cap, select at most one pair per source question on the
+first pass, then fill without a per-source limit. Both passes use the full
+dynamic priority above, recomputed after every selection; the earlier tier,
+prior-distance, use-key, and hash precedence never changes. Start with cap 20
+and complete all available selections under it, stopping at 500 pairs or
+exhaustion. If fewer than 500 pairs result, repeat at cap 21, then 22, and so
+on, each time recomputing after every selection, until reaching 500 pairs or
+exhausting all eligible unselected pairs. The Phase 0 receipt contains IDs and
+counts only. It must not contain response/reference text, prompts, pairwise
+outcomes, or API state.
 
 ## Artifact plan
 

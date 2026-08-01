@@ -83,4 +83,4 @@
 - [x] Compact downstream JSONL emitted with `supported = verdict in {correct, partial}`; unsupported subtypes remain debugging signals.
 - [x] Private local archive created and verified by SHA-256 at `/home/npatta01/data/artifacts/trec_mlm_2026/openai_pointwise_judgments/openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0/`.
 - [x] Private HF Bucket upload completed at the immutable `openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0` prefix; a fresh 1,128-file download passed all 1,127 payload checksums and reproduced both primary artifact hashes.
-- [ ] Focused production PR merged; long-running experimental work archived and parked.
+- [x] Focused production PR #52 merged to `main` at `013e88da`; long-running experimental work archived on private branch `codex/pointwise-judge-archive-20260801` at `13b45b1`.

@@ -50,6 +50,14 @@ Machine-generated vectors and summaries used to compare queries or describe cand
 
 ---
 
+### [Audited pointwise response judgments](pointwise-judgments.qmd)
+
+Supported or unsupported labels, detailed verdicts, and explanations produced by comparing collected candidate responses with supplied grounded evidence.
+
+<div class="hub-badges"><span class="hub-badge">Generated</span><span class="hub-badge hub-restricted">Primary judgments are in a private github release; complete execution evidence remains in verified private local and hugging face archives.</span></div>
+
+---
+
 ### [Run evidence artifacts](run-artifacts.qmd)
 
 Rankings, metrics, per-query tables, and receipts supporting technical runs.

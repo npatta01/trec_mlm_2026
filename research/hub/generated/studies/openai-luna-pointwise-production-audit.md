@@ -30,14 +30,14 @@ The 182,764-record artifact is ready for automated use with supported defined as
 
 **Decision:** `adopt`
 
-Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged.
+Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged. This is an artifact-use decision, not a ranking-system promotion.
 
 Rationale provenance: `contemporaneous`.
 </details>
 
 <details class="hub-details">
 <summary>Limits and readiness</summary>
-The labels measure agreement with supplied Gemini evaluator evidence, not absolute factual truth; five ambiguous exact-input groups remain unresolved, and downstream ranking value has not yet been measured.
+The labels measure agreement with supplied Gemini evaluator evidence, not absolute factual truth; five ambiguous exact-input groups remain unresolved, and downstream ranking value has not yet been measured. This audit registers no ranking system and makes no promotion claim.
 
 Development results do not establish hidden-test effectiveness.
 </details>
@@ -100,6 +100,10 @@ The audit supports operational use of the labels; it does not estimate absolute
 answer correctness. The judge compared candidate responses with supplied,
 grounded Gemini evidence after citations and model identity were withheld.
 Gemini evidence can still be incomplete or wrong.
+
+This is a generated-dataset audit, not a registered TREC ranking run. Exact
+record counts, content digests, and custody checks come from the linked audit
+receipts; no ranking metric or promotion state is asserted here.
 
 ## The complete evidence bundle is private and recoverable
 

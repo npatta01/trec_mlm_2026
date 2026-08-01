@@ -23,11 +23,9 @@ controller/provider evidence bundle.
 ## Complete evidence bundle
 
 The controller state, raw provider outputs, prompts, batch receipts, shards,
-and audit packets remain in the local archive and private Hugging Face Bucket:
+and audit packets remain in the verified local archive and private Hugging Face
+Bucket. Their locations are intentionally kept in the existing restore receipt
+rather than repeated here.
 
-```text
-hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/experiments/openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0
-```
-
-Use `reports/openai-luna-pointwise-production-restore.md` for both GitHub and
-Hugging Face restore commands and the expected content hashes.
+Use `reports/openai-luna-pointwise-production-restore.md` for both private
+restore commands and the expected content hashes.

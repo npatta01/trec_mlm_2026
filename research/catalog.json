@@ -405,6 +405,23 @@
       "type": "dataset"
     },
     {
+      "canonical_path": "research/hub/data/pointwise-judgments.qmd",
+      "id": "pointwise-judgments",
+      "related_ids": [
+        "openai-luna-pointwise-production-audit"
+      ],
+      "rendered_path": "data/pointwise-judgments.html",
+      "summary": "Supported or unsupported labels, detailed verdicts, and explanations produced by comparing collected candidate responses with supplied grounded evidence.",
+      "tags": [
+        "generated",
+        "labels",
+        "pointwise-judging",
+        "private"
+      ],
+      "title": "Audited pointwise response judgments",
+      "type": "dataset"
+    },
+    {
       "canonical_path": "research/hub/data/run-artifacts.qmd",
       "id": "run-artifacts",
       "related_ids": [
@@ -415,7 +432,6 @@
         "gemini-grounding-failure-review",
         "label-ranker-pilots",
         "multiresolution-profiles",
-        "openai-luna-pointwise-production-audit",
         "query-cluster-aggregation",
         "query-controls",
         "response-retrieval",
@@ -2471,12 +2487,12 @@
         "evidence-reliability",
         "failure-aware-fusion",
         "local-response-quality-judging",
+        "pointwise-judgments",
         "reference-generation",
         "reference-reliability",
         "reference-review-trigger",
         "response-evidence",
-        "responses-references",
-        "run-artifacts"
+        "responses-references"
       ],
       "rendered_path": "studies/openai-luna-pointwise-production-audit.html",
       "summary": "Verify that the full pointwise response-labeling run is complete, internally consistent, safe for automated use, and durably recoverable.",

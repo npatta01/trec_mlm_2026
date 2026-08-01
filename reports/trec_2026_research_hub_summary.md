@@ -4,7 +4,7 @@ Development evidence only.
 
 ## Current position
 
-- **OpenAI Luna pointwise production audit** (`openai-luna-pointwise-production-audit`; `adopt`): Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged.
+- **OpenAI Luna pointwise production audit** (`openai-luna-pointwise-production-audit`; `adopt`): Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged. This is an artifact-use decision, not a ranking-system promotion.
 - **Grounded reference data-quality audit** (`grounded-data-quality-audit`; `iterate`): Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth.
 - **Four-model reference-answer review** (`four-model-reference-review`; `adopt`): Use Gemini as the default reference generator while retaining Perplexity evidence and escalation.
 

@@ -14,17 +14,17 @@ rationale_provenance: contemporaneous
 protocol_summary: "Validate every record and identifier, audit exact-input consistency and a deterministic verdict-stratified semantic sample, apply explicit reviewed corrections, then verify a private checksum-backed restore."
 conclusion: "The 182,764-record artifact is ready for automated use with supported defined as correct or partial, subject to the supplied-Gemini-evidence boundary."
 decision: adopt
-decision_summary: "Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged."
+decision_summary: "Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged. This is an artifact-use decision, not a ranking-system promotion."
 system_ids: []
 representative_system_ids: []
 comparison_system_ids: []
 evidence_refs: [reports/openai-luna-pointwise-production-audit.md, reports/openai-luna-pointwise-production-checkpoint.json, reports/openai-luna-pointwise-production-release.md, reports/openai-luna-pointwise-production-restore.md]
-dataset_ids: [discovery-responses, run-artifacts]
+dataset_ids: [discovery-responses, pointwise-judgments]
 started_on: 2026-07-31
 concluded_on: 2026-08-01
 supersedes: []
 superseded_by: []
-limitations: "The labels measure agreement with supplied Gemini evaluator evidence, not absolute factual truth; five ambiguous exact-input groups remain unresolved, and downstream ranking value has not yet been measured."
+limitations: "The labels measure agreement with supplied Gemini evaluator evidence, not absolute factual truth; five ambiguous exact-input groups remain unresolved, and downstream ranking value has not yet been measured. This audit registers no ranking system and makes no promotion claim."
 tags: [pointwise-judging, response-evidence, data-quality, artifact-custody]
 ---
 
@@ -85,6 +85,10 @@ The audit supports operational use of the labels; it does not estimate absolute
 answer correctness. The judge compared candidate responses with supplied,
 grounded Gemini evidence after citations and model identity were withheld.
 Gemini evidence can still be incomplete or wrong.
+
+This is a generated-dataset audit, not a registered TREC ranking run. Exact
+record counts, content digests, and custody checks come from the linked audit
+receipts; no ranking metric or promotion state is asserted here.
 
 ## The complete evidence bundle is private and recoverable
 

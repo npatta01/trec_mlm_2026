@@ -4,9 +4,11 @@
 
 Implemented the frozen Phase 0 evaluator, zero-call CLI, complete deterministic
 TREC runs, paired receipts, query and candidate slices, exact decision gate,
-atomic ignored bundle, and sanitized exports. Ranking construction and pair
-selection completed before the development qrels were hashed or opened. No API,
-judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
+and a durable single-directory ignored bundle containing sanitized evaluator
+evidence. Ranking construction and pair selection completed before the
+development qrels were hashed or opened. No API, judge, pairwise,
+pointwise-regeneration, or embedding-inference call occurred. Task 3 never
+publishes tracked reports; Task 4 independently validates and admits copies.
 
 ## Red/green evidence
 
@@ -33,23 +35,31 @@ judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
   receipt, dimension, dense metric, zero count, tolerance, bootstrap count, and
   seed behind the no-override orchestration signature. The lower-level private
   evaluator now carries explicit synthetic bootstrap settings. The writer
-  validates those values, serializes the actual computation metadata, stages
-  every output, restores all prior exports on failure, removes incomplete
-  state, and permits immediate retry. The injected second-export failure test
-  proves the full rollback and retry behavior.
+  validates those values and serializes the actual computation metadata. Its
+  intermediate exception-rollback design was then superseded by the stronger
+  single-directory contract below.
+- Whole-branch standards red: 5 tests failed while 11 passed because the writer,
+  production entrypoint, and CLI still exposed three external report targets.
+  Exception rollback could not make that multi-root publication durable across
+  process termination or power loss.
+- Whole-branch standards green: 17 focused tests passed after removing every
+  external report destination from production code and CLI. The evaluator now
+  writes all files into one same-filesystem staging directory, fsyncs files and
+  directories, performs exactly one rename, and fsyncs the destination parent.
+  An injected failure at the rename leaves no finalized destination or staging
+  residue, does not touch tracked-report stand-ins, and permits immediate retry.
 
 ## Verification commands
 
 - `uv run pytest -q tests/test_pointwise_ranking_evaluation.py
   tests/test_pointwise_ranking.py tests/test_metrics.py tests/test_runio.py
-  tests/test_artifact_io.py` — 58 passed after integrity fixes.
+  tests/test_artifact_io.py` — 60 passed after the durable-publication fix.
 - `uv run ruff check trec_mlm/pointwise_ranking_evaluation.py
   scripts/evaluate_pointwise_ranking_phase0.py
   tests/test_pointwise_ranking_evaluation.py` — passed.
 - `uv run python -m py_compile ...` and CLI `--help` — passed.
-- Post-fix frozen CLI run with the protocol paths — passed; a second post-fix
-  execution used separate ignored artifact and export destinations.
-- `cmp` on the three sanitized exports and both manifests — all byte-identical.
+- A fresh frozen CLI run published only an ignored temporary artifact directory
+  and reproduced the canonical internal sanitized hashes exactly.
 - The production result records the actual paired computation as 10,000
   resamples, seed 31, Python MT19937; each comparison receipt matches it.
 - All five emitted TREC runs validated at 322 queries, 150 candidates, and
@@ -87,8 +97,9 @@ judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
   `e2193404d8f1052199b6b6a396d78556e48bb84b145a6e7adda125634218d889`.
 - Sanitized candidate-slice TSV:
   `4d56304bf73f6d0e6bfd3c5612b922c3c3ce6e43f349857fc180aab9d83f3329`.
-- The three exact Task 4 report files exist as untracked files and were not
-  staged or committed. Task 4 owns independent validation and their commit.
+- These are evaluator-output hashes inside the ignored Task 3 bundle. Task 4 is
+  the separate admission boundary for independently validated tracked copies;
+  the durable-publication fix did not modify its reports.
 
 ## Commit and concerns
 
@@ -96,6 +107,8 @@ judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
 - Production-integrity fix commit: `65c5676` (`fix: seal pointwise evaluation
   publication`). This commit also updates the canonical plan to Task 3
   completed pending independent review and Task 4.
+- Durable single-directory publication commit: `0c26721` (`fix: publish
+  pointwise evaluation as one bundle`).
 - No correctness or leakage concern is known. The paired percentile interval
   uses the repository metric primitive with Python's seeded MT19937 and records
   that generator explicitly because the protocol freezes seed 31 but does not

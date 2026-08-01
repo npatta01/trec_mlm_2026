@@ -22,7 +22,27 @@ HF Bucket:
 hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/experiments/openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0
 ```
 
-## Restore and verify
+Private GitHub Release containing the primary judgment artifacts:
+
+<https://github.com/npatta01/trec_mlm_2026/releases/tag/pointwise-judgments-v1>
+
+## Restore primary judgments from GitHub
+
+```bash
+release_dir=$(mktemp -d /tmp/openai-pointwise-release.XXXXXX)
+chmod 700 "$release_dir"
+gh release download pointwise-judgments-v1 \
+  --repo npatta01/trec_mlm_2026 \
+  --dir "$release_dir"
+sha256sum "$release_dir/pointwise-labels.jsonl" \
+  "$release_dir/final-results.json"
+```
+
+Expected hashes are listed below. The GitHub Release is the shortest restore
+path for downstream judgment use; use the Hugging Face restore for controller
+state, provider receipts, raw outputs, prompts, shards, and audit packets.
+
+## Restore the complete evidence bundle from Hugging Face
 
 ```bash
 restore_dir=$(mktemp -d /tmp/openai-pointwise-restore.XXXXXX)

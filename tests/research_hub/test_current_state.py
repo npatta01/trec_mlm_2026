@@ -58,6 +58,7 @@ EXPECTED_READING_THEMES = (
         (
             "gemini-grounding-failure-review",
             "grounded-data-quality-audit",
+            "openai-luna-pointwise-production-audit",
             "sparse-failure-analogue-diagnosis",
         ),
     ),

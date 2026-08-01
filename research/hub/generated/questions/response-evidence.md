@@ -3,7 +3,7 @@
 <section class="hub-record-hero">
 <p class="hub-record-status">Partially answered · Low confidence</p>
 <p class="hub-takeaway">Does comparing a request or reference answer with candidate responses help choose the best models?</p>
-<p>Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.</p>
+<p>A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed.</p>
 
 <p class="hub-next-action"><a href="../generated/ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.</p>
 </section>
@@ -18,7 +18,7 @@ when its wording overlaps the request.
 
 ## Current bounded answer
 
-Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.
+A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed.
 
 **Confidence:** Low
 </details>
@@ -54,6 +54,7 @@ are pivots rather than gold labels.
 
 - [E5 raw-response refinement](../studies/e5-raw-response-refinement.qmd)
 - [Four-model reference-answer review](../studies/four-model-reference-review.qmd)
+- [OpenAI Luna pointwise production audit](../studies/openai-luna-pointwise-production-audit.qmd)
 - [Lexical response retrieval](../studies/response-retrieval.qmd)
 - [Response-volume normalization](../studies/response-volume-normalization.qmd)
 - [Source-query-first response evidence](../studies/source-query-first.qmd)
@@ -65,4 +66,5 @@ controls, and a bounded E5 refinement.
 
 - <code class="hub-path">reports/trec_2026_experiment_ledger.md</code>
 - <code class="hub-path">reports/trec_2026_e5_raw_response_refinement_results.md</code>
+- <code class="hub-path">reports/openai-luna-pointwise-production-audit.md</code>
 </details>

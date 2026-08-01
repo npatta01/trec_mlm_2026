@@ -5,14 +5,14 @@ primary_theme_id: evidence-reliability
 theme_ids: [evidence-reliability, responses-references]
 plain_english: "When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?"
 status: partially_answered
-current_answer: "Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation."
+current_answer: "Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth."
 confidence: moderate
 confidence_boundary: "The 400-question review was purposive and has no organizer gold; the grounding audit focused on known failures."
-study_ids: [four-model-reference-review, gemini-grounding-failure-review, grounded-data-quality-audit]
+study_ids: [four-model-reference-review, gemini-grounding-failure-review, grounded-data-quality-audit, openai-luna-pointwise-production-audit]
 open_subquestions: ["Can a local judge reproduce the escalation set?", "How often does grounding harm an initially good answer?"]
 next_test_ids: [reference-review-trigger, failure-aware-fusion]
-evidence_refs: [reports/trec_2026_four_model_reference_review_2026-07-21.md, reports/trec_2026_gemini_grounding_failure_review_2026-07-21.md]
-updated_on: 2026-07-24
+evidence_refs: [reports/trec_2026_four_model_reference_review_2026-07-21.md, reports/trec_2026_gemini_grounding_failure_review_2026-07-21.md, reports/openai-luna-pointwise-production-audit.md]
+updated_on: 2026-08-01
 tags: [references, reliability, grounding]
 ---
 

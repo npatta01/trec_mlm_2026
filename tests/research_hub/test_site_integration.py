@@ -938,7 +938,7 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert build.validation.record_counts == {
         "theme": 4,
         "question": 5,
-        "study": 16,
+        "study": 17,
         "test": 5,
         "approach": 5,
         "dataset": 6,

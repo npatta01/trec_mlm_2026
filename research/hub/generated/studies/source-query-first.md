@@ -75,6 +75,7 @@ remain visible without effectiveness metrics.
 - [Gemini grounding failure review](gemini-grounding-failure-review.qmd)
 - [Grounded reference data-quality audit](grounded-data-quality-audit.qmd)
 - [Label-ranker feasibility pilots](label-ranker-pilots.qmd)
+- [OpenAI Luna pointwise production audit](openai-luna-pointwise-production-audit.qmd)
 - [Query-cluster aggregation](query-cluster-aggregation.qmd)
 - [Lexical response retrieval](response-retrieval.qmd)
 - [Response-volume normalization](response-volume-normalization.qmd)

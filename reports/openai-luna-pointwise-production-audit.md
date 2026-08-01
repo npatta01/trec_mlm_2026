@@ -59,3 +59,8 @@
 ## Interpretation boundary
 
 This audit establishes complete, schema-valid, identity-bound execution and a reviewed downstream label artifact. The primary automated label is `supported = verdict in {correct, partial}`; the three unsupported subtypes are debugging signals. The labels measure agreement with the supplied Gemini evaluator evidence, not absolute factual truth; the Gemini evidence can itself be incomplete or wrong.
+
+## Persistence
+
+- Primary judgments and audit metadata: private [GitHub Release `pointwise-judgments-v1`](https://github.com/npatta01/trec_mlm_2026/releases/tag/pointwise-judgments-v1).
+- Complete controller/provider evidence: private Hugging Face Bucket and verified local archive, as documented in `reports/openai-luna-pointwise-production-restore.md`.

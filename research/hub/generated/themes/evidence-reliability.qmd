@@ -75,7 +75,7 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 <div class="hub-question-row">
 <h3><a href="../../questions/reference-reliability.qmd">How reliable must a generated reference be?</a></h3>
 <p>When a generated answer guides candidate comparison, when is it trustworthy enough and when should it be reviewed?</p>
-<p><strong>Current bounded answer</strong><br>Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.</p>
+<p><strong>Current bounded answer</strong><br>Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth.</p>
 <p><strong>Still open</strong></p>
 <ul>
 <li>Can a local judge reproduce the escalation set?</li>
@@ -86,7 +86,7 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 <div class="hub-question-row">
 <h3><a href="../../questions/response-evidence.qmd">Can model responses provide useful ranking evidence?</a></h3>
 <p>Does comparing a request or reference answer with candidate responses help choose the best models?</p>
-<p><strong>Current bounded answer</strong><br>Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.</p>
+<p><strong>Current bounded answer</strong><br>A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed.</p>
 <p><strong>Still open</strong></p>
 <ul>
 <li>Can reliable references support a leakage-safe reranker?</li>
@@ -96,5 +96,5 @@ Low confidence. Audits use purposive or known-failure samples and do not estimat
 
 ## Evidence behind this position
 
-<a class="hub-evidence-line" href="../../studies/index.html?theme=evidence-reliability">Explore 9 studies linked to this theme in the study library.</a>
+<a class="hub-evidence-line" href="../../studies/index.html?theme=evidence-reliability">Explore 10 studies linked to this theme in the study library.</a>
 </details>

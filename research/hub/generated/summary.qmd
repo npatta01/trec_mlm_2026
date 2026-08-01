@@ -34,10 +34,10 @@
 
 ## Open across themes
 
+- [How reliable must a generated reference be?](questions/reference-reliability.qmd): Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth.
+- [Can model responses provide useful ranking evidence?](questions/response-evidence.qmd): A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed.
 - [When do promising signals fail?](questions/failure-conditions.qmd): Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists.
 - [How far can query-only routing go?](questions/query-only-routing.qmd): Dense query neighbors are a useful stable control, but candidate-side evidence improved development results.
-- [How reliable must a generated reference be?](questions/reference-reliability.qmd): Gemini was the strongest reviewed default, but difficult and ambiguous cases still need selective escalation.
-- [Can model responses provide useful ranking evidence?](questions/response-evidence.qmd): Direct lexical response retrieval underperformed; bounded refinement and reference-based paths have separate evidence.
 
 ## Highest-value next tests
 

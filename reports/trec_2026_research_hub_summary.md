@@ -4,15 +4,15 @@ Development evidence only.
 
 ## Current position
 
+- **OpenAI Luna pointwise production audit** (`openai-luna-pointwise-production-audit`; `adopt`): Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged.
 - **Grounded reference data-quality audit** (`grounded-data-quality-audit`; `iterate`): Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth.
 - **Four-model reference-answer review** (`four-model-reference-review`; `adopt`): Use Gemini as the default reference generator while retaining Perplexity evidence and escalation.
-- **Gemini grounding failure review** (`gemini-grounding-failure-review`; `iterate`): Develop a two-pass disagreement trigger rather than grounding every request.
 
 ## Open questions
 
+- **How reliable must a generated reference be?** (`reference-reliability`; `partially_answered`; confidence `moderate`): Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth. **Confidence boundary:** The 400-question review was purposive and has no organizer gold; the grounding audit focused on known failures.
+- **Can model responses provide useful ranking evidence?** (`response-evidence`; `partially_answered`; confidence `low`): A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed. **Confidence boundary:** Most ranking evidence is development-only and some response corpora are private or locally held.
 - **When do promising signals fail?** (`failure-conditions`; `open`; confidence `low`): Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists. **Confidence boundary:** Observed development and audit failures are diagnostic; they do not estimate hidden-test prevalence.
-- **Can candidate-side semantic evidence improve query-only retrieval?** (`candidate-evidence`; `partially_answered`; confidence `moderate`): Yes on development evidence, subject to the evidence limits below. **Confidence boundary:** Development-only evidence; candidate artifacts have mixed custody and the hidden test is unavailable.
-- **How far can query-only routing go?** (`query-only-routing`; `partially_answered`; confidence `moderate`): Dense query neighbors are a useful stable control, but candidate-side evidence improved development results. **Confidence boundary:** Development-only evidence; repeated tuning on the same queries may overfit and the hidden test is unavailable.
 
 ## Next tests
 

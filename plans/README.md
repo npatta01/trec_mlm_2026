@@ -7,8 +7,8 @@ complete, approved, or promoted into the experiment ledger.
 ## Active working records
 
 - [Pointwise ranking Phase 0](trec-2026-pointwise-ranking-phase0.md) — active
-  zero-call evaluation of audited pointwise judgments against the frozen dense
-  control under GitHub issue #31.
+  final review and PR handoff for the completed zero-call negative evaluation
+  under GitHub issue #31; the evidence gate stops pairwise work.
 
 ## Completed or superseded
 

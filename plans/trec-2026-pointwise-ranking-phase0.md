@@ -42,12 +42,12 @@
 **Interfaces:**
 - Produces `load_pointwise_evidence(...) -> PointwiseEvidence`, `construct_pointwise_rankings(...) -> PointwisePredictions`, and `select_pairwise_candidates(...) -> PairSelectionReceipt`.
 
-- [ ] Write failing tests for identity/hash mismatch and supported/verdict inconsistency.
-- [ ] Run the focused tests and verify the expected failures.
-- [ ] Implement streaming validation and strict record-ID joins.
-- [ ] Add failing tests for Beta prior, top-10 local mean, residual, deterministic RRF, and selector diversity/caps.
-- [ ] Implement the minimal construction and make focused tests pass.
-- [ ] Run a real-input structural preflight without qrels and verify all frozen counts/hashes.
+- [x] Write failing tests for identity/hash mismatch and supported/verdict inconsistency.
+- [x] Run the focused tests and verify the expected failures.
+- [x] Implement streaming validation and strict record-ID joins.
+- [x] Add failing tests for Beta prior, top-10 local mean, residual, deterministic RRF, and selector diversity/caps.
+- [x] Implement the minimal construction and make focused tests pass.
+- [x] Run a real-input structural preflight without qrels and verify all frozen counts/hashes.
 
 ### Task 3: Leakage-safe evaluation and receipts
 
@@ -60,11 +60,11 @@
 - Consumes frozen pointwise predictions, dense rankings, and development qrels.
 - Produces control, pointwise-only, and combined rankings; diagnostics; metrics; paired intervals; slices; decision; zero-call selector receipt.
 
-- [ ] Write failing synthetic tests for baseline reproduction, metric grain, slice partitions, zero transitions, and decision conditions.
-- [ ] Implement evaluation, complete TREC runs, atomic local artifacts, and sanitized exports.
-- [ ] Run focused tests and Ruff green.
-- [ ] Execute the frozen evaluation once into `artifacts/pointwise_ranking_phase0/`.
-- [ ] Re-run and require byte-identical sanitized outputs.
+- [x] Write failing synthetic tests for baseline reproduction, metric grain, slice partitions, zero transitions, and decision conditions.
+- [x] Implement evaluation, complete TREC runs, atomic local artifacts, and sanitized exports.
+- [x] Run focused tests and Ruff green.
+- [x] Execute the frozen evaluation once into `artifacts/pointwise_ranking_phase0/`.
+- [x] Re-run and require byte-identical sanitized outputs.
 
 ### Task 4: Independent analytical validation
 
@@ -73,11 +73,11 @@
 - Create: `reports/trec_2026_pointwise_ranking_phase0_per_query.tsv`
 - Create: `reports/trec_2026_pointwise_ranking_phase0_candidate_slices.tsv`
 
-- [ ] Recompute aggregate metrics independently from the emitted TREC runs.
-- [ ] Reconcile row counts, candidate sets, slice partitions, and paired differences.
-- [ ] Verify dense control against both tracked receipts at `5e-12`.
-- [ ] Scan tracked evidence for private paths/text, secrets, and API artifacts.
-- [ ] Record a validation assessment and mandatory caveats in the structured result.
+- [x] Recompute aggregate metrics independently from the emitted TREC runs.
+- [x] Reconcile row counts, candidate sets, slice partitions, and paired differences.
+- [x] Verify dense control against both tracked receipts at `5e-12`.
+- [x] Scan tracked evidence for private paths/text, secrets, and API artifacts.
+- [x] Record a validation assessment and mandatory caveats in the structured result.
 
 ### Task 5: Canonical QMD report and run registry
 
@@ -89,10 +89,10 @@
 - Modify: ledger loaders/tests only if a truthful generic per-query source kind is required.
 - Regenerate: Hub and ledger derived outputs.
 
-- [ ] Add failing ledger/Hub tests for the two new systems and study relationships.
-- [ ] Register pointwise-only and combined once; reference the existing control without automatic promotion.
-- [ ] Write the QMD with answer-first summary, definitions, method, aggregate evidence, query/candidate slices, robustness, decision, limitations, next step, and further questions.
-- [ ] Regenerate outputs, pass focused tests, render the Hub, and inspect the final report.
+- [x] Add failing ledger/Hub tests for the two new systems and study relationships.
+- [x] Register pointwise-only and combined once; reference the existing control without automatic promotion.
+- [x] Write the QMD with answer-first summary, definitions, method, aggregate evidence, query/candidate slices, robustness, decision, limitations, next step, and further questions.
+- [x] Regenerate outputs, pass focused tests, render the Hub, and inspect the final report.
 
 ### Task 6: Review, verification, and PR
 
@@ -106,10 +106,11 @@
 
 ## Current status
 
-- Phase: Task 3 leakage-safe evaluation completed; pending independent review
-  and Task 4 validation.
+- Phase: Task 6 whole-branch fix/re-review and final handoff.
 - Base: `eeea2d5cc69c0205f56806e13bb1ccf0bfa9096a` from current `origin/main`.
-- Baseline verification: 1,035 tests passed and 3 skipped after supplying optional test dependencies in the isolated environment.
+- Baseline verification: 1,035 tests passed and 3 skipped before implementation;
+  the first whole-branch run passed 1,069 tests with 3 skipped before final
+  review fixes.
 - Latest result: the frozen dense control reproduced at nDCG@10
   `0.35985474409504775`, MRR `0.40406330811168817`, 116 zero queries, and all
   322 per-query receipt values within `5e-12`. The combined system reached
@@ -120,9 +121,18 @@
 - Determinism: the post-fix evaluation and independent repeat were
   byte-identical. The ignored artifact aggregate is
   `f5e7575e1ca83391c852555441a1ba0488e7eacd4b493da1cf0a8fd6aa4a5e4b`;
-  sanitized results, per-query, and candidate-slice hashes are respectively
-  `449e325582b29dff37d917a55f48837a4167e0845c1da4f42a672955ea1d0be2`,
+  the validated results, per-query, and candidate-slice hashes are respectively
+  `48ffaa81c77fde9dafb67ff9bbc29de98e51b8735a9320b2117f5662e31a7e6d`,
   `e2193404d8f1052199b6b6a396d78556e48bb84b145a6e7adda125634218d889`,
   and `4d56304bf73f6d0e6bfd3c5612b922c3c3ce6e43f349857fc180aab9d83f3329`.
-- Next action: Task 4 independently recomputes metrics from emitted runs,
-  reconciles all slices and receipts, and owns the result-export commit.
+- Independent validation: all 3,220 per-query metric cells, five aggregates,
+  paired intervals, nine query slices, and 40 candidate-slice rows reconciled;
+  the committed stdlib-only finalizer recreates the validated result bytes and
+  exact SHA-256 from the evaluator bundle.
+- Whole-branch review: all important Standards/Spec findings have fixes
+  committed; the remaining minor module-structure observations are deferred
+  because splitting the frozen, fully tested evaluation path would add risk
+  without changing Phase 0 evidence.
+- Next action: obtain independent re-review of the important fixes, rerun the
+  full verification matrix, restore and verify the private rendered portal,
+  then push and open the draft PR.

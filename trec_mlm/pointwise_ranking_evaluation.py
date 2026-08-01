@@ -863,31 +863,27 @@ def _candidate_slice_tsv(rows: Sequence[Mapping[str, Any]]) -> str:
     return handle.getvalue()
 
 
-def _stage_bytes(path: Path, payload: bytes) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        return temporary
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
-def _validate_publication_paths(destination: Path, export_paths: Sequence[Path]) -> None:
-    absolute_exports = [path.absolute() for path in export_paths]
-    if len(set(absolute_exports)) != len(absolute_exports):
-        raise ValueError("sanitized export destinations must be distinct")
-    absolute_destination = destination.absolute()
-    if any(
-        path == absolute_destination or absolute_destination in path.parents
-        for path in absolute_exports
-    ):
-        raise ValueError("sanitized exports must live outside the artifact destination")
+def _fsync_tree(root: Path) -> None:
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        descriptor = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    directories = [path for path in root.rglob("*") if path.is_dir()]
+    for path in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+        _fsync_directory(path)
+    _fsync_directory(root)
 
 
 def write_evaluation_outputs(
@@ -897,13 +893,10 @@ def write_evaluation_outputs(
     selector_receipt: PairSelectionReceipt,
     *,
     artifact_dir: str | Path,
-    result_export_path: str | Path,
-    per_query_export_path: str | Path,
-    candidate_slice_export_path: str | Path,
     input_receipt: Mapping[str, Any],
     baseline_reproduction: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Atomically emit a complete ignored bundle and sanitized tracked exports."""
+    """Durably publish one complete ignored bundle with sanitized evidence inside."""
 
     destination = Path(artifact_dir)
     if destination.exists():
@@ -917,36 +910,10 @@ def write_evaluation_outputs(
     )
     per_query_payload = _per_query_tsv(evaluation.per_query)
     candidate_slice_payload = _candidate_slice_tsv(evaluation.candidate_slices)
-    exports = {
-        "results": (
-            Path(result_export_path),
-            (
-                json.dumps(
-                    result_payload,
-                    indent=2,
-                    sort_keys=True,
-                    ensure_ascii=False,
-                    allow_nan=False,
-                )
-                + "\n"
-            ).encode("utf-8"),
-        ),
-        "per_query": (Path(per_query_export_path), per_query_payload.encode("utf-8")),
-        "candidate_slices": (
-            Path(candidate_slice_export_path),
-            candidate_slice_payload.encode("utf-8"),
-        ),
-    }
-    _validate_publication_paths(
-        destination, [path for path, _ in exports.values()]
-    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent)
     )
-    staged_exports: dict[str, Path] = {}
-    backups: dict[Path, Path] = {}
-    published_exports: list[Path] = []
     try:
         rankings_dir = staging / "rankings"
         runs_dir = staging / "runs"
@@ -991,44 +958,23 @@ def write_evaluation_outputs(
                 "aggregate_sha256": manifest_aggregate_sha256(entries),
             },
         )
-        for name, (path, payload) in exports.items():
-            staged_exports[name] = _stage_bytes(path, payload)
-            if path.exists():
-                if not path.is_file():
-                    raise ValueError(f"sanitized export is not a regular file: {path}")
-                backups[path] = _stage_bytes(path, path.read_bytes())
-        for name, (path, _) in exports.items():
-            staged_exports[name].replace(path)
-            published_exports.append(path)
+        _fsync_tree(staging)
         if destination.exists():
             raise FileExistsError(f"artifact destination already exists: {destination}")
         os.rename(staging, destination)
     except BaseException:
-        rollback_errors: list[OSError] = []
-        for path in reversed(published_exports):
-            try:
-                backup = backups.pop(path, None)
-                if backup is None:
-                    path.unlink(missing_ok=True)
-                else:
-                    os.replace(backup, path)
-            except OSError as error:
-                rollback_errors.append(error)
-        for temporary in (*staged_exports.values(), *backups.values()):
-            temporary.unlink(missing_ok=True)
         shutil.rmtree(staging, ignore_errors=True)
-        if rollback_errors:
-            raise RuntimeError("evaluation publication rollback failed") from rollback_errors[0]
         raise
-    for temporary in backups.values():
-        temporary.unlink(missing_ok=True)
+    _fsync_directory(destination.parent)
     return {
         "artifact_manifest_sha256": sha256_file(destination / "manifest.json"),
         "artifact_aggregate_sha256": json.loads(
             (destination / "manifest.json").read_text(encoding="utf-8")
         )["aggregate_sha256"],
         "export_sha256": {
-            name: sha256_file(path) for name, (path, _) in exports.items()
+            "results": sha256_file(destination / "results.json"),
+            "per_query": sha256_file(destination / "per_query.tsv"),
+            "candidate_slices": sha256_file(destination / "candidate_slices.tsv"),
         },
     }
 
@@ -1069,11 +1015,8 @@ def run_pointwise_phase0_evaluation(
     dense_result_receipt_path: str | Path,
     dense_per_query_receipt_path: str | Path,
     artifact_dir: str | Path,
-    result_export_path: str | Path,
-    per_query_export_path: str | Path,
-    candidate_slice_export_path: str | Path,
 ) -> dict[str, Any]:
-    """Run the frozen zero-call construction, verify control, then open qrels."""
+    """Run frozen evaluation and durably publish one complete artifact directory."""
 
     labels_file = Path(labels_path)
     records_file = Path(records_path)
@@ -1157,9 +1100,6 @@ def run_pointwise_phase0_evaluation(
         predictions,
         selector_receipt,
         artifact_dir=artifact_dir,
-        result_export_path=result_export_path,
-        per_query_export_path=per_query_export_path,
-        candidate_slice_export_path=candidate_slice_export_path,
         input_receipt=input_receipt,
         baseline_reproduction=baseline_reproduction,
     )

@@ -6,10 +6,13 @@ import hashlib
 import inspect
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import numpy as np
 import pytest
 
+import trec_mlm.pointwise_ranking_evaluation as evaluation_module
 from trec_mlm.metrics import evaluate_rankings
 from trec_mlm.pointwise_ranking import (
     PairSelectionReceipt,
@@ -351,8 +354,6 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
     baseline_receipt = {"status": "passed", "per_query_values_checked": 5}
     first_artifact = tmp_path / "artifact-1"
     second_artifact = tmp_path / "artifact-2"
-    first_exports = tmp_path / "exports-1"
-    second_exports = tmp_path / "exports-2"
 
     first = write_evaluation_outputs(
         evaluation,
@@ -360,9 +361,6 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
         predictions,
         _selector(),
         artifact_dir=first_artifact,
-        result_export_path=first_exports / "results.json",
-        per_query_export_path=first_exports / "per-query.tsv",
-        candidate_slice_export_path=first_exports / "candidate.tsv",
         input_receipt=input_receipt,
         baseline_reproduction=baseline_receipt,
     )
@@ -372,9 +370,6 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
         predictions,
         _selector(),
         artifact_dir=second_artifact,
-        result_export_path=second_exports / "results.json",
-        per_query_export_path=second_exports / "per-query.tsv",
-        candidate_slice_export_path=second_exports / "candidate.tsv",
         input_receipt=input_receipt,
         baseline_reproduction=baseline_receipt,
     )
@@ -391,11 +386,14 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
         assert len(path.read_text().splitlines()) == 20
     assert (first_artifact / "manifest.json").is_file()
     assert not any(path.name.startswith(".") for path in tmp_path.rglob("*"))
-    tracked_text = "\n".join(path.read_text() for path in first_exports.iterdir())
-    assert "/home/" not in tracked_text
-    assert "raw private question" not in tracked_text
+    sanitized_text = "\n".join(
+        (first_artifact / filename).read_text()
+        for filename in ("results.json", "per_query.tsv", "candidate_slices.tsv")
+    )
+    assert "/home/" not in sanitized_text
+    assert "raw private question" not in sanitized_text
 
-    result_payload = json.loads((first_exports / "results.json").read_text())
+    result_payload = json.loads((first_artifact / "results.json").read_text())
     assert evaluation.bootstrap_resamples == 100
     assert evaluation.bootstrap_seed == 31
     assert result_payload["protocol"]["bootstrap_resamples"] == 100
@@ -408,18 +406,15 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
             predictions,
             _selector(),
             artifact_dir=first_artifact,
-            result_export_path=first_exports / "results.json",
-            per_query_export_path=first_exports / "per-query.tsv",
-            candidate_slice_export_path=first_exports / "candidate.tsv",
             input_receipt=input_receipt,
             baseline_reproduction=baseline_receipt,
         )
     assert {
-        name: _sha256(first_exports / filename)
+        name: _sha256(first_artifact / filename)
         for name, filename in (
             ("results", "results.json"),
-            ("per_query", "per-query.tsv"),
-            ("candidate_slices", "candidate.tsv"),
+            ("per_query", "per_query.tsv"),
+            ("candidate_slices", "candidate_slices.tsv"),
         )
     } == export_hashes
 
@@ -451,9 +446,6 @@ def test_writer_rejects_bootstrap_metadata_that_disagrees_with_computation(
             predictions,
             _selector(),
             artifact_dir=tmp_path / "artifact",
-            result_export_path=tmp_path / "results.json",
-            per_query_export_path=tmp_path / "per-query.tsv",
-            candidate_slice_export_path=tmp_path / "candidate.tsv",
             input_receipt={},
             baseline_reproduction={"status": "passed"},
         )
@@ -476,13 +468,31 @@ def test_public_production_entrypoint_has_no_frozen_integrity_overrides() -> Non
         "expected_mrr",
         "expected_zero_ndcg",
         "baseline_tolerance",
+        "result_export_path",
+        "per_query_export_path",
+        "candidate_slice_export_path",
     }
 
     assert forbidden.isdisjoint(parameters)
     assert forbidden.isdisjoint(inspect.signature(evaluate_frozen_rankings).parameters)
+    assert forbidden.isdisjoint(inspect.signature(write_evaluation_outputs).parameters)
 
 
-def test_publication_rolls_back_second_export_failure_and_retry_succeeds(
+def test_cli_exposes_only_the_single_artifact_publication_root() -> None:
+    result = subprocess.run(
+        [sys.executable, "scripts/evaluate_pointwise_ranking_phase0.py", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "--artifact-dir" in result.stdout
+    assert "--result-export" not in result.stdout
+    assert "--per-query-export" not in result.stdout
+    assert "--candidate-slice-export" not in result.stdout
+
+
+def test_failure_before_single_rename_leaves_no_publish_and_retry_succeeds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     predictions = _predictions()
@@ -499,34 +509,35 @@ def test_publication_rolls_back_second_export_failure_and_retry_succeeds(
         n_resamples=100,
     )
     artifact = tmp_path / "artifact"
-    exports = [tmp_path / "results.json", tmp_path / "per-query.tsv", tmp_path / "candidate.tsv"]
+    exports = [
+        tmp_path / "tracked-results.json",
+        tmp_path / "tracked-per-query.tsv",
+        tmp_path / "tracked-candidate.tsv",
+    ]
     old_payloads = {}
     for index, path in enumerate(exports):
         payload = f"old-{index}\n".encode()
         path.write_bytes(payload)
         old_payloads[path] = payload
-    original_replace = Path.replace
+    original_rename = evaluation_module.os.rename
     calls = 0
 
-    def fail_second_export(source: Path, target: Path) -> Path:
+    def fail_before_publish(source: Path, target: Path) -> None:
         nonlocal calls
         calls += 1
-        if calls == 2:
-            raise OSError("injected second-export failure")
-        return original_replace(source, target)
+        if calls == 1:
+            raise OSError("injected pre-rename failure")
+        original_rename(source, target)
 
-    monkeypatch.setattr(Path, "replace", fail_second_export)
+    monkeypatch.setattr(evaluation_module.os, "rename", fail_before_publish)
 
-    with pytest.raises(OSError, match="second-export"):
+    with pytest.raises(OSError, match="pre-rename"):
         write_evaluation_outputs(
             evaluation,
             evidence,
             predictions,
             _selector(),
             artifact_dir=artifact,
-            result_export_path=exports[0],
-            per_query_export_path=exports[1],
-            candidate_slice_export_path=exports[2],
             input_receipt={},
             baseline_reproduction={"status": "passed"},
         )
@@ -541,14 +552,51 @@ def test_publication_rolls_back_second_export_failure_and_retry_succeeds(
         predictions,
         _selector(),
         artifact_dir=artifact,
-        result_export_path=exports[0],
-        per_query_export_path=exports[1],
-        candidate_slice_export_path=exports[2],
         input_receipt={},
         baseline_reproduction={"status": "passed"},
     )
     assert artifact.is_dir()
+    assert calls == 2
+    assert {path: path.read_bytes() for path in exports} == old_payloads
     assert set(receipt["export_sha256"]) == {"results", "per_query", "candidate_slices"}
+
+
+def test_single_directory_publish_fsyncs_staged_tree_then_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    predictions = _predictions()
+    evidence = _evidence()
+    evaluation = _evaluate_frozen_rankings(
+        evidence,
+        predictions,
+        {query_id: ["A", "B", "C", "D"] for query_id in predictions.query_ids},
+        _qrels(),
+        _selector(),
+        n_resamples=100,
+    )
+    artifact = tmp_path / "artifact"
+    fsynced_directories: list[Path] = []
+    original_fsync_directory = evaluation_module._fsync_directory
+
+    def record_fsync(path: Path) -> None:
+        fsynced_directories.append(path)
+        original_fsync_directory(path)
+
+    monkeypatch.setattr(evaluation_module, "_fsync_directory", record_fsync)
+
+    write_evaluation_outputs(
+        evaluation,
+        evidence,
+        predictions,
+        _selector(),
+        artifact_dir=artifact,
+        input_receipt={},
+        baseline_reproduction={"status": "passed"},
+    )
+
+    assert artifact.is_dir()
+    assert fsynced_directories[-1] == artifact.parent
+    assert len(fsynced_directories) >= 5
 
 
 def test_qrel_matrix_requires_exact_dimensions_and_identities() -> None:

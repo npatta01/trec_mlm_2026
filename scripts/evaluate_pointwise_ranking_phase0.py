@@ -47,21 +47,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("artifacts/pointwise_ranking_phase0"),
     )
-    parser.add_argument(
-        "--result-export",
-        type=Path,
-        default=Path("reports/trec_2026_pointwise_ranking_phase0_results.json"),
-    )
-    parser.add_argument(
-        "--per-query-export",
-        type=Path,
-        default=Path("reports/trec_2026_pointwise_ranking_phase0_per_query.tsv"),
-    )
-    parser.add_argument(
-        "--candidate-slice-export",
-        type=Path,
-        default=Path("reports/trec_2026_pointwise_ranking_phase0_candidate_slices.tsv"),
-    )
     return parser.parse_args()
 
 
@@ -82,9 +67,6 @@ def main() -> None:
         dense_result_receipt_path=args.dense_result_receipt,
         dense_per_query_receipt_path=args.dense_per_query_receipt,
         artifact_dir=args.artifact_dir,
-        result_export_path=args.result_export,
-        per_query_export_path=args.per_query_export,
-        candidate_slice_export_path=args.candidate_slice_export,
     )
     print(json.dumps(receipt, indent=2, sort_keys=True, ensure_ascii=False))
 

@@ -55,7 +55,7 @@ Low confidence. Most ranking evidence is development-only, some response data is
 ## Other linked tests
 
 - <a href="../ideas/reference-review-trigger.qmd">Reference review trigger</a>: Define the local trigger features and acceptance rule.
-- <a href="../ideas/local-response-quality-judging.qmd">Pilot local LLM response-quality judging with selective pairwise ranking</a>: Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
+- <a href="../ideas/local-response-quality-judging.qmd">Test pointwise response-quality ranking before pairwise work</a>: Keep pairwise work stopped and investigate the observed pointwise-to-qrel mismatch using only existing artifacts before proposing any new frozen study.
 
 ## Questions in this theme
 
@@ -84,7 +84,7 @@ Low confidence. Most ranking evidence is development-only, some response data is
 <div class="hub-question-row">
 <h3><a href="../../questions/response-evidence.qmd">Can model responses provide useful ranking evidence?</a></h3>
 <p>Does comparing a request or reference answer with candidate responses help choose the best models?</p>
-<p><strong>Current bounded answer</strong><br>A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed.</p>
+<p><strong>Current bounded answer</strong><br>Audited pointwise support labels are usable as an artifact, but their frozen Phase 0 rankings disagreed too strongly with organizer qrels and reduced both nDCG@10 and MRR versus the dense control.</p>
 <p><strong>Still open</strong></p>
 <ul>
 <li>Can reliable references support a leakage-safe reranker?</li>
@@ -94,5 +94,5 @@ Low confidence. Most ranking evidence is development-only, some response data is
 
 ## Evidence behind this position
 
-<a class="hub-evidence-line" href="../../studies/index.html?theme=responses-references">Explore 8 studies linked to this theme in the study library.</a>
+<a class="hub-evidence-line" href="../../studies/index.html?theme=responses-references">Explore 9 studies linked to this theme in the study library.</a>
 </details>

@@ -111,6 +111,7 @@ EVIDENCE_SCOPE_PROMOTION_CONTRACTS = frozenset(
     {
         ("stored_per_query", "dev_322x150", "promoted_development"),
         ("stored_per_query", "dev_322x150", "stable_control"),
+        ("stored_per_query", "dev_322x150", "valid_negative"),
         ("stored_per_query", "dev_322x150", "diagnostic_only"),
         ("aggregate_only", "dev_322x150", "stable_control"),
         ("aggregate_only", "dev_322x150", "valid_negative"),
@@ -1182,21 +1183,21 @@ def _load_per_query_metrics(
                     query_id=query_id,
                 ),
             )
-    elif kind == "dense_per_query_tsv":
+    elif kind in {"dense_per_query_tsv", "wide_per_query_tsv"}:
         query_column = source_ref.get("query_id_column")
         ndcg_column = source_ref.get("ndcg_column")
         rr_column = source_ref.get("reciprocal_rank_column")
         if not all(
             isinstance(column, str) for column in (query_column, ndcg_column, rr_column)
         ):
-            raise ValueError(f"invalid dense per-query columns for {system_id}")
+            raise ValueError(f"invalid TSV per-query columns for {system_id}")
         with (root / source_path).open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle, delimiter="\t")
             required_columns = {query_column, ndcg_column, rr_column}
             if reader.fieldnames is None or not required_columns <= set(
                 reader.fieldnames
             ):
-                raise ValueError(f"missing dense per-query columns for {system_id}")
+                raise ValueError(f"missing TSV per-query columns for {system_id}")
             for line_number, raw_row in enumerate(reader, start=2):
                 query_id = raw_row[query_column]
                 if not query_id:
@@ -1212,7 +1213,7 @@ def _load_per_query_metrics(
                     rr_value = float(raw_row[rr_column])
                 except (TypeError, ValueError) as error:
                     raise ValueError(
-                        f"invalid dense per-query metric for {system_id}/{query_id}"
+                        f"invalid TSV per-query metric for {system_id}/{query_id}"
                     ) from error
                 rows[query_id] = (
                     _validate_per_query_metric(

@@ -5,13 +5,13 @@ primary_theme_id: responses-references
 theme_ids: [responses-references, evidence-reliability]
 plain_english: "Does comparing a request or reference answer with candidate responses help choose the best models?"
 status: partially_answered
-current_answer: "A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed."
-confidence: low
+current_answer: "Audited pointwise support labels are usable as an artifact, but their frozen Phase 0 rankings disagreed too strongly with organizer qrels and reduced both nDCG@10 and MRR versus the dense control."
+confidence: moderate
 confidence_boundary: "Most ranking evidence is development-only and some response corpora are private or locally held."
-study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement, four-model-reference-review, openai-luna-pointwise-production-audit]
+study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement, four-model-reference-review, openai-luna-pointwise-production-audit, pointwise-ranking-phase0]
 open_subquestions: ["Can reliable references support a leakage-safe reranker?", "Which response failures are predictable before ranking?"]
 next_test_ids: [failure-aware-fusion, reference-review-trigger]
-evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_e5_raw_response_refinement_results.md, reports/openai-luna-pointwise-production-audit.md]
+evidence_refs: [reports/trec_2026_experiment_ledger.md, reports/trec_2026_e5_raw_response_refinement_results.md, reports/openai-luna-pointwise-production-audit.md, reports/trec_2026_pointwise_ranking_phase0_results.json]
 updated_on: 2026-08-01
 tags: [responses, retrieval, reranking]
 ---

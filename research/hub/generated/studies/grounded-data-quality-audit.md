@@ -56,7 +56,7 @@ static hub.
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.
 - [Test hierarchical candidate semantic profiles against the frozen centroid baseline](../generated/ideas/hierarchical-candidate-profiles.qmd): Implement the three-candidate deterministic smoke test and verify exact fresh-process topology and rankings.
-- [Pilot local LLM response-quality judging with selective pairwise ranking](../generated/ideas/local-response-quality-judging.qmd): Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
+- [Test pointwise response-quality ranking before pairwise work](../generated/ideas/local-response-quality-judging.qmd): Keep pairwise work stopped and investigate the observed pointwise-to-qrel mismatch using only existing artifacts before proposing any new frozen study.
 - [Reference review trigger](../generated/ideas/reference-review-trigger.qmd): Define the local trigger features and acceptance rule.
 - [Semantic failure clusters](../generated/ideas/semantic-failure-clusters.qmd): State a falsifiable hypothesis and evaluation boundary for the clustering test.
 

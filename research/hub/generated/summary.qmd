@@ -35,7 +35,7 @@
 ## Open across themes
 
 - [How reliable must a generated reference be?](questions/reference-reliability.qmd): Gemini was the strongest reviewed default, and the production audit supports using its evidence for pointwise agreement labels; this still does not make Gemini absolute ground truth.
-- [Can model responses provide useful ranking evidence?](questions/response-evidence.qmd): A complete audited pointwise support-label artifact is available for downstream experiments, but its ranking value is not yet measured; direct lexical response retrieval underperformed.
+- [Can model responses provide useful ranking evidence?](questions/response-evidence.qmd): Audited pointwise support labels are usable as an artifact, but their frozen Phase 0 rankings disagreed too strongly with organizer qrels and reduced both nDCG@10 and MRR versus the dense control.
 - [When do promising signals fail?](questions/failure-conditions.qmd): Failures cluster around ambiguity, entity resolution, evidence custody, scope changes, and over-tuned fusion, but no complete predictor exists.
 - [How far can query-only routing go?](questions/query-only-routing.qmd): Dense query neighbors are a useful stable control, but candidate-side evidence improved development results.
 
@@ -43,7 +43,7 @@
 
 - **Test hierarchical candidate semantic profiles against the frozen centroid baseline** (`hierarchical-candidate-profiles`; `ready`; priority `high`): Compare one deterministic nested candidate hierarchy with frozen flat and multiresolution profile controls.
 - **Failure-aware evidence fusion** (`failure-aware-fusion`; `idea`; priority `high`): Select evidence sources using a query-level reliability signal.
-- **Pilot local LLM response-quality judging with selective pairwise ranking** (`local-response-quality-judging`; `idea`; priority `high`): Pilot a local pointwise judge and selective pairwise comparisons over candidate responses.
+- **Reference review trigger** (`reference-review-trigger`; `idea`; priority `high`): Predict which generated references need grounding or human review.
 
 ## Explore
 

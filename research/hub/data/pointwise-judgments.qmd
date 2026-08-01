@@ -11,7 +11,7 @@ repository_path: reports/openai-luna-pointwise-production-checkpoint.json
 sensitivity: restricted
 leakage_constraints: "These labels measure agreement with supplied Gemini evidence, not organizer ground truth; do not use development qrels to reinterpret or regenerate them."
 permitted_use: "Private downstream candidate-evidence experiments, diagnostics, and reproducible audit review."
-study_ids: [openai-luna-pointwise-production-audit]
+study_ids: [openai-luna-pointwise-production-audit, pointwise-ranking-phase0]
 availability: "Primary judgments are in a private GitHub Release; complete execution evidence remains in verified private local and Hugging Face archives."
 reproducibility: "Use the tracked checkpoint and restore guide to verify content hashes and recover the appropriate private artifact tier."
 representative_sample: "No raw candidate response or provider payload is included in the static Hub."

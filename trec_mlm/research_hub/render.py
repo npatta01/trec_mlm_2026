@@ -700,14 +700,15 @@ _CURRENT_STATE_METHOD_FAMILY_SPECS = (
         "direct-response-evidence",
         "Direct response evidence",
         "Compare bounded candidate-response evidence with the control without disclosing response content.",
-        "The tested lexical and source-alignment response routes did not displace the control in their tested forms.",
-        "response-retrieval",
+        "Lexical, source-alignment, and audited pointwise response routes did not displace the control in their tested forms.",
+        "pointwise-ranking-phase0",
         "What privacy-safe response signal can add evidence where both promoted components have no top-ten signal?",
         "failure-aware-fusion",
         (
             "response-retrieval",
             "response-volume-normalization",
             "source-query-first",
+            "pointwise-ranking-phase0",
         ),
     ),
     (

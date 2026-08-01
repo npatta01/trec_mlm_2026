@@ -30,7 +30,7 @@ Start with the question and its current bounded answer; open a row for supportin
 <span class="hub-next-action">Failure-aware evidence fusion: Define and freeze the reliability signal, fallback, and artifact plan.</span>
 </a>
 <a class="hub-question-row" href="response-evidence.qmd">
-<span>Partially answered · Low confidence</span>
+<span>Partially answered · Moderate confidence</span>
 <strong>Can model responses provide useful ranking evidence?</strong>
 <span>Does comparing a request or reference answer with candidate responses help choose the best models?</span>
 <span class="hub-next-action">Failure-aware evidence fusion: Define and freeze the reliability signal, fallback, and artifact plan.</span>

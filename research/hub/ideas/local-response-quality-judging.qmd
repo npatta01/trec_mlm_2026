@@ -1,26 +1,33 @@
 ---
 test_id: local-response-quality-judging
-title: "Pilot local LLM response-quality judging with selective pairwise ranking"
+title: "Test pointwise response-quality ranking before pairwise work"
 primary_theme_id: responses-references
 theme_ids: [responses-references, evidence-reliability]
-stage: idea
-summary: "Pilot a local pointwise judge and selective pairwise comparisons over candidate responses."
-plain_english: "Use a local judge to estimate which candidate responses are correct and useful, then compare only close or uncertain candidates."
-why_it_matters: "Response quality could add evidence that query similarity and candidate profiles miss, but generated references and local judges can both be wrong."
+stage: completed
+summary: "Test whether audited pointwise support labels improve a frozen candidate ranking before authorizing any pairwise work."
+plain_english: "Transfer audited response-quality labels to development requests, compare the resulting rankings with the frozen dense control, and stop before pairwise judging when the gate fails."
+why_it_matters: "Response quality could add evidence that query similarity misses, but supplied references and pointwise judges are not organizer gold and must earn downstream value."
 mechanism_steps:
-  - "Select a deterministic stratified pilot sample and judge every candidate response pointwise against the question and provisional grounded reference."
-  - "Apply randomized, reversal-checked pairwise judging only to the top or uncertain group."
-  - "Audit judge quality, stability, position sensitivity, cost, and downstream development-ranking value before any scale-up."
-next_action: "Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule."
+  - "Join the audited support labels to the frozen candidate-local E5 neighbors without organizer qrels."
+  - "Construct prior, routing-residual, pointwise-only, and dense-fused rankings under the frozen Phase 0 protocol."
+  - "Evaluate once on all 322 development queries and authorize pairwise work only if every effectiveness gate passes."
+next_action: "Keep pairwise work stopped and investigate the observed pointwise-to-qrel mismatch using only existing artifacts before proposing any new frozen study."
 linked_question_ids: [response-evidence, reference-reliability, failure-conditions]
-missing_readiness_fields: [hypothesis, rationale, expected_signal, decision_rule, dependencies, evaluation_boundary, artifact_plan]
+missing_readiness_fields: []
+hypothesis: "Audited pointwise labels contain query-specific candidate evidence that improves the frozen dense control."
+rationale: "The complete audited label artifact and candidate-local E5 tensor made a zero-call, qrel-free ranking construction possible."
+expected_signal: "Combined nDCG@10 improves with a positive paired lower bound, acceptable MRR, fewer zero-nDCG queries, and routing above the prior diagnostic."
+decision_rule: "Advance to a 500-pair pilot only if all five frozen effectiveness checks pass and the zero-call selector finds 500 pairs across at least 100 source questions; otherwise stop pairwise work."
+dependencies: "Audited compact labels, frozen candidate-local E5 tensors, dense_nested control, complete development qrels, and the frozen Phase 0 protocol."
 priority: high
+evaluation_boundary: "Previously seen 322-query development evidence only; ranking construction is qrel-free, and no new judge, embedding, pointwise, pairwise, inference, or API call is allowed."
+artifact_plan: "Retain sanitized aggregate JSON, complete wide per-query TSV, candidate-slice TSV, canonical Hub report, and experiment-ledger records; keep private responses and tensors outside Git."
+resulting_study_id: pointwise-ranking-phase0
 github_issue: "https://github.com/npatta01/trec_mlm_2026/issues/31"
-tags: [responses, local-judge, pairwise-ranking, pilot]
+tags: [responses, pointwise-judging, ranking, stopped]
 ---
 
-This is prospective work, not evidence that response judging improves the
-registered ranking. The grounded reference is a provisional comparison pivot,
-not organizer gold, and the judge must be allowed to return uncertainty. No
-scale-up is justified until the bounded pilot has frozen quality, stability,
-cost, leakage, and downstream-value gates.
+The completed Phase 0 study found that neither the pointwise-only ranking nor
+its fixed dense fusion improved the control. The supplied evidence remains a
+provisional judging pivot rather than organizer gold. Four of five gates failed,
+so the recorded action is `stop_pairwise_work`.

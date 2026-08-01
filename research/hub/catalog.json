@@ -97,6 +97,7 @@
         "e5-raw-response-refinement",
         "failure-conditions",
         "openai-luna-pointwise-production-audit",
+        "pointwise-ranking-phase0",
         "response-evidence",
         "response-retrieval",
         "response-volume-normalization",
@@ -408,7 +409,8 @@
       "canonical_path": "research/hub/data/pointwise-judgments.qmd",
       "id": "pointwise-judgments",
       "related_ids": [
-        "openai-luna-pointwise-production-audit"
+        "openai-luna-pointwise-production-audit",
+        "pointwise-ranking-phase0"
       ],
       "rendered_path": "data/pointwise-judgments.html",
       "summary": "Supported or unsupported labels, detailed verdicts, and explanations produced by comparing collected candidate responses with supplied grounded evidence.",
@@ -432,6 +434,7 @@
         "gemini-grounding-failure-review",
         "label-ranker-pilots",
         "multiresolution-profiles",
+        "pointwise-ranking-phase0",
         "query-cluster-aggregation",
         "query-controls",
         "response-retrieval",
@@ -562,6 +565,7 @@
         "four-model-reference-review",
         "local-response-quality-judging",
         "openai-luna-pointwise-production-audit",
+        "pointwise-ranking-phase0",
         "reference-review-trigger",
         "response-retrieval",
         "response-volume-normalization",
@@ -1194,7 +1198,8 @@
       "canonical_path": "experiments/ledger.json",
       "id": "dense_nested",
       "related_ids": [
-        "dense-query-knn"
+        "dense-query-knn",
+        "pointwise-ranking-phase0"
       ],
       "rendered_path": "generated/runs/dense_nested.html",
       "summary": "Nested leave-one-query-out dense query-neighbor grade transfer with MPNet/k selection.",
@@ -1887,6 +1892,40 @@
     },
     {
       "canonical_path": "experiments/ledger.json",
+      "id": "pointwise_phase0_combined",
+      "related_ids": [
+        "pointwise-ranking-phase0"
+      ],
+      "rendered_path": "generated/runs/pointwise_phase0_combined.html",
+      "summary": "Equal reciprocal-rank fusion of the pointwise-only ranking and the frozen dense_nested control.",
+      "tags": [
+        "dev_322x150",
+        "pointwise_ranking_phase0",
+        "stored_per_query",
+        "valid_negative"
+      ],
+      "title": "pointwise_phase0_combined",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
+      "id": "pointwise_phase0_pointwise_only",
+      "related_ids": [
+        "pointwise-ranking-phase0"
+      ],
+      "rendered_path": "generated/runs/pointwise_phase0_pointwise_only.html",
+      "summary": "Equal reciprocal-rank fusion of the audited pointwise candidate prior and query-local routing-residual ranks.",
+      "tags": [
+        "dev_322x150",
+        "pointwise_ranking_phase0",
+        "stored_per_query",
+        "valid_negative"
+      ],
+      "title": "pointwise_phase0_pointwise_only",
+      "type": "run"
+    },
+    {
+      "canonical_path": "experiments/ledger.json",
       "id": "pointwise_qwen",
       "related_ids": [
         "label-ranker-pilots"
@@ -2506,6 +2545,30 @@
       "type": "study"
     },
     {
+      "canonical_path": "research/hub/studies/pointwise-ranking-phase0.qmd",
+      "id": "pointwise-ranking-phase0",
+      "related_ids": [
+        "evidence-reliability",
+        "failure-aware-fusion",
+        "local-response-quality-judging",
+        "pointwise-judgments",
+        "reference-review-trigger",
+        "response-evidence",
+        "responses-references",
+        "run-artifacts"
+      ],
+      "rendered_path": "studies/pointwise-ranking-phase0.html",
+      "summary": "Test whether audited pointwise response judgments produce candidate rankings that agree with organizer qrels and improve the frozen dense control.",
+      "tags": [
+        "negative-result",
+        "pointwise-judging",
+        "ranking",
+        "response-evidence"
+      ],
+      "title": "Pointwise response-quality ranking Phase 0",
+      "type": "study"
+    },
+    {
       "canonical_path": "research/hub/studies/query-cluster-aggregation.qmd",
       "id": "query-cluster-aggregation",
       "related_ids": [
@@ -2743,14 +2806,14 @@
         "responses-references"
       ],
       "rendered_path": "generated/ideas/local-response-quality-judging.html",
-      "summary": "Use a local judge to estimate which candidate responses are correct and useful, then compare only close or uncertain candidates.",
+      "summary": "Transfer audited response-quality labels to development requests, compare the resulting rankings with the frozen dense control, and stop before pairwise judging when the gate fails.",
       "tags": [
-        "local-judge",
-        "pairwise-ranking",
-        "pilot",
-        "responses"
+        "pointwise-judging",
+        "ranking",
+        "responses",
+        "stopped"
       ],
-      "title": "Pilot local LLM response-quality judging with selective pairwise ranking",
+      "title": "Test pointwise response-quality ranking before pairwise work",
       "type": "test"
     },
     {

@@ -10,6 +10,14 @@
       "path": "reports/trec_2026_dense_query_knn_per_query.tsv",
       "sha256": "ae4a0cf8bc7eb0642e1c0d315cafa3a56cf60b3d6bfb6ab63e80fb2d0de56437"
     },
+    "pointwise_phase0_results": {
+      "path": "reports/trec_2026_pointwise_ranking_phase0_results.json",
+      "sha256": "48ffaa81c77fde9dafb67ff9bbc29de98e51b8735a9320b2117f5662e31a7e6d"
+    },
+    "pointwise_phase0_per_query": {
+      "path": "reports/trec_2026_pointwise_ranking_phase0_per_query.tsv",
+      "sha256": "e2193404d8f1052199b6b6a396d78556e48bb84b145a6e7adda125634218d889"
+    },
     "response_retrieval_results": {
       "path": "reports/trec_2026_response_retrieval_results.json",
       "sha256": "0d922c3b78137f0478cd2a70cda2bd89ec1621821a1f536aca665e359aea04bd"
@@ -179,6 +187,14 @@
     "initial_embedding_prompt_contract_superseded": {
       "scope": "family",
       "summary": "The initial Qwen8B and E5 embedding runs omitted each checkpoint's required model-specific prompt and asymmetric terminal-token behavior; their low scores are invalid, superseded by corrected formatted reruns, and retain no numeric quality claim."
+    },
+    "pointwise_phase0_failed_gate": {
+      "scope": "family",
+      "summary": "The frozen pointwise Phase 0 gate failed four of five effectiveness checks, so neither evaluated pointwise system is promotable and pairwise work stopped."
+    },
+    "pointwise_support_not_gold": {
+      "scope": "family",
+      "summary": "Pointwise support measures conditional agreement with supplied evidence among audited source questions; it is not organizer-qrel gold, candidate coverage, or routing relevance."
     }
   },
   "experiments": [
@@ -3696,6 +3712,89 @@
             "external_encoder_taxonomy",
             "hard_cluster_posthoc_preflight",
             "hard_cluster_preflight_not_promotable"
+          ]
+        }
+      ]
+    },
+    {
+      "experiment_id": "pointwise_ranking_phase0",
+      "experiment_family": "pointwise_ranking_phase0",
+      "metadata": {
+        "control_system_id": "dense_nested",
+        "decision": "fail",
+        "recommendation": "stop_pairwise_work"
+      },
+      "systems": [
+        {
+          "system_id": "pointwise_phase0_pointwise_only",
+          "source_system_id": "pointwise_only",
+          "aliases": [],
+          "method_summary": "Equal reciprocal-rank fusion of the audited pointwise candidate prior and query-local routing-residual ranks.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "pointwise_phase0_results",
+            "pointer": "/systems/pointwise_only"
+          },
+          "per_query_source": {
+            "kind": "wide_per_query_tsv",
+            "source_id": "pointwise_phase0_per_query",
+            "query_id_column": "query_id",
+            "ndcg_column": "pointwise_only_ndcg_at_10",
+            "reciprocal_rank_column": "pointwise_only_reciprocal_rank"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "tracked_complete",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "pointwise_phase0_failed_gate",
+            "pointwise_support_not_gold"
+          ]
+        },
+        {
+          "system_id": "pointwise_phase0_combined",
+          "source_system_id": "combined",
+          "aliases": [],
+          "method_summary": "Equal reciprocal-rank fusion of the pointwise-only ranking and the frozen dense_nested control.",
+          "evaluation_scope": "dev_322x150",
+          "evidence_status": "stored_per_query",
+          "promotion_status": "valid_negative",
+          "query_count": 322,
+          "candidate_count": 150,
+          "aggregate_source": {
+            "kind": "json_pointer",
+            "source_id": "pointwise_phase0_results",
+            "pointer": "/systems/combined"
+          },
+          "per_query_source": {
+            "kind": "wide_per_query_tsv",
+            "source_id": "pointwise_phase0_per_query",
+            "query_id_column": "query_id",
+            "ndcg_column": "combined_ndcg_at_10",
+            "reciprocal_rank_column": "combined_reciprocal_rank"
+          },
+          "per_query_blocker": null,
+          "ranking_coverage": "per_query_metrics_only",
+          "native_scores_available": false,
+          "artifact_state": "tracked_complete",
+          "qrel_usage": "evaluation_only",
+          "run_classification": "external_automatic",
+          "caveat_ids": [
+            "development_only",
+            "adaptive_program_overfit",
+            "external_encoder_taxonomy",
+            "pointwise_phase0_failed_gate",
+            "pointwise_support_not_gold"
           ]
         }
       ]

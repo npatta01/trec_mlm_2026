@@ -22,6 +22,7 @@ from trec_mlm.experiment_ledger import (
     resolve_json_pointer,
     validate_registry,
 )
+from trec_mlm import experiment_ledger as ledger_module
 
 
 def minimal_registry() -> dict[str, object]:
@@ -280,6 +281,46 @@ def build_fixture_ledger(
 def test_resolve_json_pointer_handles_escaped_tokens() -> None:
     value = {"a/b": {"~key": 7}}
     assert resolve_json_pointer(value, "/a~1b/~0key") == 7
+
+
+def test_wide_per_query_tsv_selects_declared_metric_columns(tmp_path: Path) -> None:
+    """Catch regressions that couple a wide TSV loader to dense-only columns."""
+
+    report = tmp_path / "reports" / "wide.tsv"
+    report.parent.mkdir()
+    report.write_text(
+        "query\tignored\tcandidate_ndcg\tcandidate_rr\n"
+        "q1\tkeep-out\t0.25\t0.5\n"
+        "q2\tkeep-out\t0\t1\n",
+        encoding="utf-8",
+    )
+    sources = {
+        "wide": {
+            "path": "reports/wide.tsv",
+            "sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+        }
+    }
+
+    rows, provenance, source_path, source_sha256 = (
+        ledger_module._load_per_query_metrics(
+            tmp_path,
+            sources,
+            {
+                "kind": "wide_per_query_tsv",
+                "source_id": "wide",
+                "query_id_column": "query",
+                "ndcg_column": "candidate_ndcg",
+                "reciprocal_rank_column": "candidate_rr",
+            },
+            {},
+            system_id="candidate",
+        )
+    )
+
+    assert rows == {"q1": (0.25, 0.5), "q2": (0.0, 1.0)}
+    assert provenance == "stored"
+    assert source_path == "reports/wide.tsv"
+    assert source_sha256 == sources["wide"]["sha256"]
 
 
 def test_validate_registry_rejects_duplicate_system_ids(tmp_path: Path) -> None:
@@ -1172,7 +1213,12 @@ def test_build_ledger_rejects_quality_metrics_for_unevaluated_evidence(
 PROMOTION_CONTRACT_CASES = [
     (
         "profile_only",
-        {"promoted_development", "stable_control", "diagnostic_only"},
+        {
+            "promoted_development",
+            "stable_control",
+            "valid_negative",
+            "diagnostic_only",
+        },
     ),
     (
         "global_prior",
@@ -1264,6 +1310,7 @@ def test_reviewed_registry_has_required_families_and_systems() -> None:
         "dense_query_knn",
         "label_ranker_pilots",
         "multiresolution_profiles",
+        "pointwise_ranking_phase0",
         "query_cluster_aggregation",
         "query_controls",
         "response_retrieval",
@@ -1298,8 +1345,10 @@ def test_reviewed_registry_has_required_families_and_systems() -> None:
         "a1_top2_k10",
         "x1_multires_top2_dense_equal",
         "local_domain_prior",
+        "pointwise_phase0_pointwise_only",
+        "pointwise_phase0_combined",
     } <= system_ids
-    assert len(system_ids) == 98
+    assert len(system_ids) == 100
 
     assert (
         len(experiments["dense_query_knn"]["grid_contracts"][0]["allowed_keys"]) == 28
@@ -1572,6 +1621,8 @@ def test_real_ledger_extracts_complete_recoverable_vectors() -> None:
         "r1_multires_max_dense_equal",
         "x1_multires_top2",
         "x1_multires_top2_dense_equal",
+        "pointwise_phase0_pointwise_only",
+        "pointwise_phase0_combined",
     }
     assert set(counts) == recoverable_systems
     assert set(counts.values()) == {322}
@@ -1658,10 +1709,10 @@ def test_real_ledger_extracts_complete_recoverable_vectors() -> None:
     assert systems["matched_neighbor_k20_preflight"].zero_ndcg_queries == 124
     assert systems["hard_cluster_k40_preflight"].zero_ndcg_queries == 154
     assert systems["matched_neighbor_k40_preflight"].zero_ndcg_queries == 136
-    assert build.validation["system_count"] == 98
-    assert len(build.per_query) == 3542
-    assert len(build.topic_slices) == 1650
-    assert len(build.density_slices) == 33
+    assert build.validation["system_count"] == 100
+    assert len(build.per_query) == 4186
+    assert len(build.topic_slices) == 1950
+    assert len(build.density_slices) == 39
     assert (
         sum(
             system.artifact_state

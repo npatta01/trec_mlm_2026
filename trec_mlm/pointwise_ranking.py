@@ -11,6 +11,7 @@ import json
 import math
 from pathlib import Path
 from typing import Any
+import unicodedata
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,6 +28,9 @@ FROZEN_LABELS_SHA256 = (
 )
 FROZEN_RECORDS_SHA256 = (
     "e25237be81ffd86726fb4b3ccd1a2a8bdea7213197f84341b6bf50c23274ae92"
+)
+FROZEN_DEVELOPMENT_QUERIES_SHA256 = (
+    "862ff85381b8055cd927ada25c56666594ab1ec3c21e182beb20c58f6c637f3c"
 )
 OFFICIAL_RECORD_COUNT = 182_764
 OFFICIAL_QUESTION_COUNT = 6_816
@@ -83,6 +87,7 @@ class PointwiseEvidence:
     labels_by_record_id: dict[str, PointwiseLabel]
     record_ids: tuple[str, ...]
     question_ids: tuple[str, ...]
+    source_question_fingerprints: dict[str, str]
     candidate_ids: tuple[str, ...]
     audited_counts: dict[str, int]
     supported_counts: dict[str, int]
@@ -149,6 +154,14 @@ def _require_non_empty_string(value: Any, label: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{label} must be a non-empty string")
     return value
+
+
+def _normalized_text_fingerprint(value: Any, label: str) -> str:
+    text = _require_non_empty_string(value, label)
+    normalized = " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+    if not normalized:
+        raise ValueError(f"{label} must remain non-empty after normalization")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def _stream_json_array(path: Path, *, chunk_size: int = 64 * 1024) -> Iterator[Any]:
@@ -287,6 +300,7 @@ def load_pointwise_evidence(
 
     record_ids: list[str] = []
     seen_records: set[str] = set()
+    source_text_identities: dict[str, tuple[str, str]] = {}
     for index, row in enumerate(_stream_json_array(records_file)):
         if not isinstance(row, dict) or not RECORD_IDENTITY_KEYS <= set(row):
             raise ValueError(f"construction record {index} identity schema changed")
@@ -295,6 +309,17 @@ def load_pointwise_evidence(
             row["source_query_id"], "source query ID"
         )
         candidate_id = _require_non_empty_string(row["candidate_id"], "candidate ID")
+        question_text = _require_non_empty_string(
+            row.get("question"), "source question text"
+        )
+        normalized_fingerprint = _normalized_text_fingerprint(
+            question_text, "source question text"
+        )
+        exact_fingerprint = hashlib.sha256(question_text.encode("utf-8")).hexdigest()
+        text_identity = (exact_fingerprint, normalized_fingerprint)
+        previous_identity = source_text_identities.setdefault(question_id, text_identity)
+        if previous_identity != text_identity:
+            raise ValueError("source question text is inconsistent for one question ID")
         if record_id in seen_records:
             raise ValueError(f"duplicate construction record ID: {record_id!r}")
         label = labels.get(record_id)
@@ -336,6 +361,10 @@ def load_pointwise_evidence(
         labels,
         tuple(record_ids),
         question_ids,
+        {
+            question_id: source_text_identities[question_id][1]
+            for question_id in question_ids
+        },
         candidate_ids,
         audited_counts,
         supported_counts,
@@ -440,10 +469,72 @@ def _load_refinement_inputs(root: Path) -> tuple[tuple[str, ...], tuple[str, ...
     return query_ids, candidate_ids
 
 
+def _resolve_development_queries_path(
+    root: Path, supplied: str | Path | None
+) -> Path:
+    if supplied is not None:
+        return Path(supplied)
+    refinement_config = json.loads(
+        (root / "config.json").read_text(encoding="utf-8")
+    )
+    if not isinstance(refinement_config, dict):
+        raise ValueError("refinement configuration schema changed")
+    construction_path = _require_non_empty_string(
+        refinement_config.get("construction_path"), "construction path"
+    )
+    construction_config = json.loads(
+        (Path(construction_path) / "config.json").read_text(encoding="utf-8")
+    )
+    if not isinstance(construction_config, dict):
+        raise ValueError("construction configuration schema changed")
+    query_path = Path(
+        _require_non_empty_string(
+            construction_config.get("query_path"), "development query path"
+        )
+    )
+    if query_path.is_absolute():
+        return query_path
+    return Path(__file__).resolve().parents[1] / query_path
+
+
+def _load_development_query_fingerprints(
+    path: Path, expected_sha256: str | None
+) -> tuple[tuple[str, ...], dict[str, str]]:
+    _validate_hash(path, expected_sha256, "development query file")
+    query_ids: list[str] = []
+    fingerprints: dict[str, str] = {}
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.rstrip("\r\n")
+            if not line:
+                continue
+            fields = line.split("\t", maxsplit=1)
+            if len(fields) != 2:
+                raise ValueError(
+                    f"development query line {line_number} must have ID and text"
+                )
+            query_id = fields[0].strip()
+            if not query_id:
+                raise ValueError("development query ID must be non-empty")
+            if query_id in fingerprints:
+                raise ValueError("development query IDs must be unique")
+            fingerprints[query_id] = _normalized_text_fingerprint(
+                fields[1], "development query text"
+            )
+            query_ids.append(query_id)
+    if not query_ids:
+        raise ValueError("development query inventory must be non-empty")
+    return tuple(query_ids), fingerprints
+
+
 def construct_pointwise_rankings(
     evidence: PointwiseEvidence,
     refinement_root: str | Path,
     *,
+    development_queries_path: str | Path | None = None,
+    expected_development_queries_sha256: str | None = (
+        FROZEN_DEVELOPMENT_QUERIES_SHA256
+    ),
     expected_refinement_aggregate_sha256: str | None = (
         FROZEN_REFINEMENT_AGGREGATE_SHA256
     ),
@@ -487,6 +578,20 @@ def construct_pointwise_rankings(
         "top-record similarities",
     )
     query_ids, candidate_ids = _load_refinement_inputs(root)
+    query_path = _resolve_development_queries_path(root, development_queries_path)
+    development_query_ids, development_fingerprints = (
+        _load_development_query_fingerprints(
+            query_path, expected_development_queries_sha256
+        )
+    )
+    if development_query_ids != query_ids:
+        raise ValueError("development query inventory differs from refinement inputs")
+    if set(development_query_ids) & set(evidence.question_ids):
+        raise ValueError("development/source question ID overlap")
+    if set(development_fingerprints.values()) & set(
+        evidence.source_question_fingerprints.values()
+    ):
+        raise ValueError("normalized development/source text overlap")
     if set(candidate_ids) != set(evidence.candidate_ids):
         raise ValueError("refinement and pointwise candidate inventories differ")
     shape = (len(query_ids), len(candidate_ids), 10)

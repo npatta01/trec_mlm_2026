@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "correct",
+        "incorrect",
+        "nonanswer",
+        "not_established",
+        "partial"
+      ]
+    },
+    "explanation": {
+      "type": "string",
+      "maxLength": 400
+    }
+  },
+  "required": [
+    "verdict",
+    "explanation"
+  ]
+}

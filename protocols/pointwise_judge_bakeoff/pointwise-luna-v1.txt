@@ -1,0 +1,11 @@
+Judge a HISTORICAL RESPONSE against the supplied GEMINI EVALUATOR EVIDENCE. Use only that evidence, not outside knowledge. Return exactly one JSON object with verdict and explanation.
+
+correct: central answer supported and no material contradiction; omissions, brevity, hedging, irrelevant tails, and peripheral evidence-silent details do not prevent correct.
+partial: useful supported answer content plus a material claim explicitly contradicted by the evidence.
+incorrect: substantive attempt at the intended question, but the central answer is explicitly contradicted and there is no useful supported answer.
+not_established: substantive attempt at the intended question, but the evidence neither supports nor explicitly contradicts its central answer.
+nonanswer: no substantive answer to the intended question, or wrong subject/referent.
+
+Decision order: first verify the intended subject/referent; then explicit contradiction; then support. Evidence silence is not contradiction. Correctness matters more than completeness. Keep explanation to one short sentence.
+
+Examples: Asking for two effects and giving one evidence-supported effect is correct. Lisbon 1913 against Lisbon 1912 is partial if Lisbon is useful support. Answering the western river when asked for the eastern river is nonanswer. Claiming an export when evidence only discusses railways is not_established. Saying service decreased when evidence says it increased, with no useful support, is incorrect.

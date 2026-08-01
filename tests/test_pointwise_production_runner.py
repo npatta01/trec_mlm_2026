@@ -185,7 +185,7 @@ def test_cost_cap_prevents_physical_send(tmp_path: Path) -> None:
         runner.run(max_blocks=1)
 
 
-def test_invalid_response_gets_one_repair_then_gate_fails(tmp_path: Path) -> None:
+def test_invalid_response_gets_bounded_repairs_then_gate_fails(tmp_path: Path) -> None:
     inventory, manifest, receipt = _inputs(tmp_path, 1)
     calls: list[bool] = []
 
@@ -203,7 +203,31 @@ def test_invalid_response_gets_one_repair_then_gate_fails(tmp_path: Path) -> Non
     )
     with pytest.raises(BlockGateError, match="terminal-invalid"):
         runner.run(max_blocks=1)
-    assert calls == [False, True]
+    assert calls == [False, True, True]
+
+
+def test_second_repair_can_recover_cross_field_invariant(tmp_path: Path) -> None:
+    inventory, manifest, receipt = _inputs(tmp_path, 1)
+    calls: list[bool] = []
+    invalid_good = VALID | {"completeness": 1}
+
+    def repair_once(record: dict[str, object], repair: bool) -> dict[str, object]:
+        calls.append(repair)
+        decision = invalid_good if len(calls) < 3 else VALID
+        return _response(record, repair) | {"content": json.dumps(decision)}
+
+    runner = ProductionRunner(
+        inventory=inventory,
+        inventory_manifest=manifest,
+        contract_receipt=receipt,
+        run_dir=tmp_path / "run",
+        call=repair_once,
+        total_cap_usd=1.0,
+    )
+    with pytest.raises(SoftAnomalyPause, match="repair"):
+        runner.run(max_blocks=1)
+    assert (tmp_path / "run" / "blocks" / "000000-receipt.json").exists()
+    assert calls == [False, True, True]
 
 
 def test_length_finish_reason_is_terminal_invalid_and_never_promoted(

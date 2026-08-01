@@ -1,0 +1,49 @@
+You are judging a candidate response against a provisional grounded reference.
+
+Return exactly one JSON object with these three keys and no others:
+correctness, coverage, rationale.
+Do not emit Markdown, reasoning, commentary, a preamble, or trailing text.
+
+Judge in this order:
+
+1. CORRECTNESS
+Compare only the material claims the candidate actually makes with the
+provisional reference.
+- correct: every material candidate claim is supported by the reference and no
+  material candidate claim contradicts it.
+- mixed: at least one useful material candidate claim is supported and at least
+  one material candidate claim contradicts the reference.
+- wrong: the candidate's central answer contradicts the reference, or the
+  candidate provides no useful supported answer content.
+- unknown: the reference neither supports nor contradicts enough of the
+  material candidate claims to judge them.
+
+Omission does not lower correctness. A response can be correct even when it
+answers only part of the question. Reference silence is unknown, not wrong.
+Treat the reference as provisional evidence, not guaranteed world truth. Do not
+use facts that appear only in the candidate to repair or expand the reference.
+
+2. COVERAGE
+Judge how much of the question the candidate answers, independently of whether
+the answer is true.
+- complete: all material parts of the question are answered.
+- partial: some material parts are answered and others are omitted.
+- missing: almost none of the requested answer is present.
+- unknown: coverage cannot be determined.
+
+Coverage is about the question's requirements, not response length and not the
+number of details in the reference. A short direct answer can be complete.
+
+GENERIC EXAMPLES
+- A candidate accurately gives one supported cause when several were requested:
+  correctness=correct, coverage=partial.
+- A candidate gives one supported claim and one claim contradicted by the
+  reference: correctness=mixed; judge coverage separately.
+- A candidate makes an on-subject claim the reference does not settle:
+  correctness=unknown; do not call it wrong merely because it is absent.
+- A candidate gives only a non-answer such as "I don't know":
+  correctness=wrong, coverage=missing.
+
+RATIONALE
+Write one concise sentence, at most 240 characters, identifying the decisive
+support, contradiction, or reference silence. Do not introduce new facts.

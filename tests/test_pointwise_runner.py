@@ -44,6 +44,12 @@ CONTRACT = replace(
 V2_CONTRACT = load_prompt_contract(
     Path("protocols/pointwise_judge_bakeoff"), version="v2"
 )
+V3_CONTRACT = load_prompt_contract(
+    Path("protocols/pointwise_judge_bakeoff"), version="v3"
+)
+V4_CONTRACT = load_prompt_contract(
+    Path("protocols/pointwise_judge_bakeoff"), version="v4"
+)
 RECEIPT = {
     "runtime": "local-test",
     "gpu": "fake",
@@ -55,6 +61,12 @@ V2_RECEIPT = {
     "gpu": "fake",
     "passed": True,
     "schema_sha256": runner.FROZEN_V2_DECISION_SCHEMA_SHA256,
+}
+V3_RECEIPT = {
+    "runtime": "local-test",
+    "gpu": "fake",
+    "passed": True,
+    "schema_sha256": runner.FROZEN_V3_DECISION_SCHEMA_SHA256,
 }
 VALID_DECISION = {
     "label": "good",
@@ -78,6 +90,42 @@ VALID_V2_DECISION = {
     ),
 }
 VALID_V2_DECISION_JSON = json.dumps(VALID_V2_DECISION)
+
+
+def test_v3_contract_is_registered_as_frozen() -> None:
+    assert (
+        runner.validate_judge_contract(V3_CONTRACT, version="v3")
+        == runner.FROZEN_V3_DECISION_SCHEMA_SHA256
+    )
+
+
+def test_v4_contract_is_registered_as_frozen() -> None:
+    assert (
+        runner.validate_judge_contract(V4_CONTRACT, version="v4")
+        == runner.FROZEN_V4_DECISION_SCHEMA_SHA256
+    )
+
+
+def test_v5_contract_is_registered_as_frozen() -> None:
+    contract = load_prompt_contract(
+        Path("protocols/pointwise_judge_bakeoff"), version="v5"
+    )
+
+    assert (
+        runner.validate_judge_contract(contract, version="v5")
+        == runner.FROZEN_V5_DECISION_SCHEMA_SHA256
+    )
+
+
+def test_v6_contract_is_registered_as_frozen() -> None:
+    contract = load_prompt_contract(
+        Path("protocols/pointwise_judge_bakeoff"), version="v6"
+    )
+
+    assert (
+        runner.validate_judge_contract(contract, version="v6")
+        == runner.FROZEN_V6_DECISION_SCHEMA_SHA256
+    )
 INVALID_V2_INVARIANT_JSON = json.dumps(
     {
         **VALID_V2_DECISION,

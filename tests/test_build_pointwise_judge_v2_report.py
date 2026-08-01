@@ -30,8 +30,8 @@ CONFIGS = (
     "qwen3.6-35b-a3b-direct",
     "qwen3.6-35b-a3b-thinking",
 )
-PROMPT_SHA256 = "408a66ab4461d08973b645a4aa466a08b7f533beb324b902a5c3dbbe6e99a5c0"
-SCHEMA_SHA256 = "bf647c4f3ae85148774c9196f5dea6dc92c95e1a77c5a1288761c3697f4e0615"
+PROMPT_SHA256 = "67c2c5b5c53afe22838270dd060934e8ca182735c0d6f150efdeff9dc1173e91"
+SCHEMA_SHA256 = "a6b12b74932c20c12087c7922cde557b879f3e0442115d402a2758bcf57751c1"
 PROTOCOL_DIR = (
     Path(__file__).resolve().parents[1] / "protocols" / "pointwise_judge_bakeoff"
 )

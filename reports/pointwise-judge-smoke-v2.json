@@ -1,0 +1,241 @@
+{
+  "case_count": 10,
+  "diagnostic_proxies": {
+    "entity_mismatch_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 1,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "high_overlap_control": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "low_overlap_error_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "negation_mismatch_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 0,
+      "unresolved_case_count": 1
+    },
+    "number_or_date_mismatch_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 1,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 1,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "possible_reference_conflict_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "refusal_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "short_incomplete_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "underspecified_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    },
+    "verbose_error_proxy": {
+      "case_count": 1,
+      "judges": {
+        "judge_a": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        },
+        "judge_b": {
+          "reference_conflict_count": 0,
+          "schema_success_count": 1
+        }
+      },
+      "model_reviewer_consensus_count": 1,
+      "unresolved_case_count": 0
+    }
+  },
+  "judges": {
+    "judge_a": {
+      "advisor_adjacent_good_partial_agreement": 0.9,
+      "advisor_exact_agreement": 0.9,
+      "claude_adjacent_good_partial_agreement": 0.9,
+      "claude_exact_agreement": 0.8,
+      "failure_rate": 0.0,
+      "false_confident_error_rate": 0.1111111111111111,
+      "false_confident_errors": 1,
+      "label_distribution": {
+        "good": 5,
+        "incorrect": 5,
+        "partial": 0,
+        "uncertain": 0
+      },
+      "latency_seconds": {
+        "mean": 3.1925547181017464,
+        "total": 31.925547181017464
+      },
+      "model_reviewer_consensus_adjacent_good_partial_agreement": 0.8888888888888888,
+      "model_reviewer_consensus_count": 9,
+      "model_reviewer_consensus_exact_agreement": 0.8888888888888888,
+      "record_count": 10,
+      "reference_conflict_count": 2,
+      "reference_conflict_rate": 0.2,
+      "repair_count": 0,
+      "repair_rate": 0.0,
+      "runtime": {
+        "startup_seconds": null,
+        "visible_memory_bytes": null
+      },
+      "schema_failure_count": 0,
+      "schema_success": 1.0,
+      "throughput": {
+        "records_per_second": 0.3132287739126325,
+        "tokens_per_second": 260.8882457918316,
+        "total_tokens": 8329.0
+      }
+    },
+    "judge_b": {
+      "advisor_adjacent_good_partial_agreement": 1.0,
+      "advisor_exact_agreement": 1.0,
+      "claude_adjacent_good_partial_agreement": 1.0,
+      "claude_exact_agreement": 0.9,
+      "failure_rate": 0.0,
+      "false_confident_error_rate": 0.0,
+      "false_confident_errors": 0,
+      "label_distribution": {
+        "good": 5,
+        "incorrect": 4,
+        "partial": 1,
+        "uncertain": 0
+      },
+      "latency_seconds": {
+        "mean": 24.27852463059826,
+        "total": 242.78524630598258
+      },
+      "model_reviewer_consensus_adjacent_good_partial_agreement": 1.0,
+      "model_reviewer_consensus_count": 9,
+      "model_reviewer_consensus_exact_agreement": 1.0,
+      "record_count": 10,
+      "reference_conflict_count": 1,
+      "reference_conflict_rate": 0.1,
+      "repair_count": 0,
+      "repair_rate": 0.0,
+      "runtime": {
+        "startup_seconds": null,
+        "visible_memory_bytes": null
+      },
+      "schema_failure_count": 0,
+      "schema_success": 1.0,
+      "throughput": {
+        "records_per_second": 0.041188664270797516,
+        "tokens_per_second": 76.0177987781839,
+        "total_tokens": 18456.0
+      }
+    }
+  },
+  "manifest_hash": "98f15dcdbb2782a5a904168d9ee3c80c2f77da0aa3fc60c465fc5e4e6a796b5d",
+  "reviewers": {
+    "model_reviewer_consensus_count": 9,
+    "pass2_disagreement_count": 1,
+    "pass2_disagreement_rate": 0.1,
+    "unresolved_case_count": 1
+  },
+  "version": 1
+}

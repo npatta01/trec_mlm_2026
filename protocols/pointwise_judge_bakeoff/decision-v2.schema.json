@@ -29,7 +29,8 @@
           "unsupported_specificity",
           "refusal",
           "ambiguity",
-          "reference_conflict"
+          "reference_conflict",
+          "other_error"
         ],
         "type": "string"
       },

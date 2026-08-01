@@ -251,6 +251,13 @@ def test_opus_call_retries_once_and_keeps_a_conservative_failed_reservation(
     assert budget.spent_usd > provider["cost_usd"]
 
 
+def test_spend_budget_reconciles_actual_cost_above_estimate() -> None:
+    budget = SpendBudget(2.0)
+    budget.reserve(0.5)
+    budget.reconcile(0.5, 0.8)
+    assert budget.spent_usd == pytest.approx(0.8)
+
+
 def test_cli_adjudication_mode_writes_the_sealed_contract_and_ledger(
     tmp_path: Path,
 ) -> None:
@@ -403,9 +410,6 @@ def test_review_content_rejects_all_identity_terms(tmp_path: Path) -> None:
         "Anthropic",
         "Claude",
         "Opus",
-        "provider",
-        "model",
-        "run",
         "credential",
         "OpenRouter",
         "API key",
@@ -463,7 +467,24 @@ def test_claude_cli_transport_uses_bounded_json_mode_without_credentials(
             "is_error": False,
             "result": json.dumps(_review(packet)),
             "model": "opus",
-            "usage": {"input_tokens": 10, "output_tokens": 20},
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "cache_creation_input_tokens": 3,
+                "cache_read_input_tokens": 4,
+                "server_tool_use": {
+                    "web_search_requests": 0,
+                    "web_fetch_requests": 0,
+                },
+                "service_tier": "standard",
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                "inference_geo": "",
+                "iterations": [],
+                "speed": "standard",
+            },
             "total_cost_usd": 0.01,
         }
         return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
@@ -472,7 +493,12 @@ def test_claude_cli_transport_uses_bounded_json_mode_without_credentials(
         budget=SpendBudget(2.0), timeout_seconds=3.0, runner=runner
     )(packet, protocol_dir=_protocol_dir())
     assert review.packet_sha256 == packet["packet_sha256"]
-    assert provider["usage"] == {"input_tokens": 10, "output_tokens": 20}
+    assert provider["usage"] == {
+        "input_tokens": 10,
+        "output_tokens": 20,
+        "cache_creation_input_tokens": 3,
+        "cache_read_input_tokens": 4,
+    }
     assert provider["cost_usd"] == 0.01
     argv, input_text = calls[0]
     assert argv[:5] == ["claude", "-p", "--model", "opus", "--output-format"]
@@ -502,6 +528,12 @@ def test_transport_schema_omits_array_max_items_but_local_review_limit_remains(
         return False
 
     assert not contains_max_items(schema)
+    target_schema = schema["$defs"]["OpusRecommendation"]["properties"]["target"]
+    assert target_schema["enum"] == ["prompt"]
+    system_text = payload["messages"][0]["content"]
+    assert "standalone JSON object" in system_text
+    assert "no markdown fences" in system_text
+    assert "Do not make schema recommendations" in system_text
     body = _review(packet)
     body["recommendations"] = [body["recommendations"][0]] * 25
     with pytest.raises(ValidationError):
@@ -521,6 +553,7 @@ def test_claude_cli_transport_retries_one_timeout_and_keeps_failed_reservation(
             raise subprocess.TimeoutExpired(argv, 1.0)
         envelope = {
             "type": "result",
+            "subtype": "success",
             "result": json.dumps(_review(packet)),
             "model": "opus",
             "usage": {"input_tokens": 10, "output_tokens": 20},
@@ -563,6 +596,70 @@ def test_claude_cli_accepts_observed_success_envelope_without_model_field(
     )(packet, protocol_dir=_protocol_dir())
     assert review.packet_sha256 == packet["packet_sha256"]
     assert provider["cost_usd"] == 0.01
+
+
+def test_claude_cli_accepts_current_metadata_envelope_fields(tmp_path: Path) -> None:
+    packet = _packet(tmp_path)
+
+    def runner(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        envelope = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 10,
+            "duration_api_ms": 9,
+            "num_turns": 1,
+            "result": json.dumps(_review(packet)),
+            "stop_reason": None,
+            "session_id": "ephemeral",
+            "total_cost_usd": 0.01,
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+            "modelUsage": {"claude-opus-4-6": {"inputTokens": 10}},
+            "permission_denials": [],
+            "uuid": "result-id",
+            "structured_output": _review(packet),
+            "ttft_ms": 5,
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    review, provider = ClaudeCliReviewCall(
+        budget=SpendBudget(2.0), timeout_seconds=3.0, runner=runner
+    )(packet, protocol_dir=_protocol_dir())
+    assert review.packet_sha256 == packet["packet_sha256"]
+    assert provider["usage"] == {"input_tokens": 10, "output_tokens": 20}
+
+
+def test_review_allows_generic_model_word_without_provider_identity(
+    tmp_path: Path,
+) -> None:
+    packet = _packet(tmp_path)
+    review = _review(packet)
+    review["summary"] = "The model should apply the rubric consistently."
+    parsed = parse_opus_review(
+        json.dumps(review), packet=packet, protocol_dir=_protocol_dir()
+    )
+    assert parsed.summary == review["summary"]
+
+
+def test_claude_cli_prefers_structured_output_when_present(tmp_path: Path) -> None:
+    packet = _packet(tmp_path)
+
+    def runner(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        envelope = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "Human-readable wrapper text.",
+            "structured_output": _review(packet),
+            "usage": {"input_tokens": 1, "output_tokens": 2},
+            "total_cost_usd": 0.01,
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    review, _provider = ClaudeCliReviewCall(
+        budget=SpendBudget(2.0), timeout_seconds=3.0, runner=runner
+    )(packet, protocol_dir=_protocol_dir())
+    assert review.packet_sha256 == packet["packet_sha256"]
 
 
 def test_claude_cli_transport_does_not_retry_semantic_invalid_output(

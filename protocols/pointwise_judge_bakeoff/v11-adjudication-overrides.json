@@ -1,0 +1,637 @@
+{
+  "version": 1,
+  "overrides": [
+    {
+      "ordinal": 6,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 7,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 8,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 10,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 18,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 19,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 20,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 23,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 24,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 29,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 32,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 35,
+      "preferred_pair": "0/nonanswer",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 38,
+      "preferred_pair": "0/nonanswer",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 41,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 43,
+      "preferred_pair": "0/nonanswer",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 46,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 53,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 62,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 66,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 69,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 71,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 73,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 74,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 75,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 76,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 77,
+      "preferred_pair": "1/reference_silent",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 78,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 79,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 80,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 81,
+      "preferred_pair": "0/nonanswer",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 83,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 85,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 87,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 94,
+      "preferred_pair": "0/nonanswer",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 96,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 99,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 107,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 108,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 109,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 110,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 112,
+      "preferred_pair": "1/reference_silent",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 115,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 118,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 119,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 131,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 146,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 162,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 172,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 196,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 198,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 200,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 201,
+      "preferred_pair": "1/reference_silent",
+      "source_report": "artifacts/pointwise_production/deepinfra-v10-thinking-pilot-100/audit.md"
+    },
+    {
+      "ordinal": 207,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 212,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 227,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-a.md"
+    },
+    {
+      "ordinal": 233,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 236,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 252,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 261,
+      "preferred_pair": "0/nonanswer",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 272,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 273,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 275,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 285,
+      "preferred_pair": "0/contradicted",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 292,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 301,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 303,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 304,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 307,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 308,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 313,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 315,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 321,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 326,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 327,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 329,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 330,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 336,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 340,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 345,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 358,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 361,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 362,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 380,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 382,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 383,
+      "preferred_pair": "1/reference_silent",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 384,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 385,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 387,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 388,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 393,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 402,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 404,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 406,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 413,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 420,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 422,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 425,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 428,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 449,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-b.md"
+    },
+    {
+      "ordinal": 468,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 473,
+      "preferred_pair": "2/supported",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 491,
+      "preferred_pair": "1/mixed",
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    }
+  ],
+  "grade_2_controls": [
+    {
+      "ordinal": 1,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 22,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 37,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 56,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 86,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 100,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 127,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 138,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 153,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 164,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-a.md"
+    },
+    {
+      "ordinal": 165,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 177,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 191,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 209,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 235,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 248,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 266,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 287,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 309,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 325,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-b.md"
+    },
+    {
+      "ordinal": 332,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 347,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 368,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 394,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 421,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 441,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 454,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 470,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 485,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    },
+    {
+      "ordinal": 498,
+      "source_report": ".superpowers/sdd/2026-07-30-simplified-pointwise-v10-pilot/semantic-audit-500-c.md"
+    }
+  ]
+}

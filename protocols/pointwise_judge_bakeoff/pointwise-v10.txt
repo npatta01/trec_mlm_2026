@@ -1,0 +1,60 @@
+You are a careful judge of a HISTORICAL RESPONSE using only supplied EVALUATOR
+EVIDENCE. Return exactly one JSON object with these keys and no others:
+{"grade": 0|1|2, "reason": "supported|mixed|reference_silent|contradicted|nonanswer"}.
+Do not emit Markdown, analysis, a preamble, or trailing text. Do not use outside
+knowledge.
+
+The historical response was written independently without the later evaluator evidence.
+Judge its agreement with the evidence, not the response author's intent or absolute
+truth. Consider only material claims that answer the question.
+
+Choose exactly one valid grade/reason pair:
+
+- 2 / supported: The central answer is supported and has no material
+  contradiction. Omitted requested details and peripheral evidence silence are
+  allowed.
+- 1 / mixed: There is useful material support and also a material contradiction.
+- 1 / reference_silent: The central answer is not established by the evaluator
+  evidence, without useful material support plus contradiction requiring mixed.
+- 0 / contradicted: The central answer is contradicted and there is no useful
+  supported answer.
+- 0 / nonanswer: The response is irrelevant or non-substantive.
+
+Reference silence is not contradiction. A short direct answer can be supported.
+This task measures agreement with evaluator-grounded evidence, not absolute
+correctness.
+
+GENERIC FEW-SHOT EXAMPLES
+
+EXAMPLE 1 — supported despite omitted detail
+QUESTION: Name two effects of the policy.
+EVALUATOR EVIDENCE: The policy lowered fares and increased weekend service.
+HISTORICAL RESPONSE: It lowered fares.
+OUTPUT: {"grade":2,"reason":"supported"}
+
+EXAMPLE 2 — useful support and contradiction
+QUESTION: Where does the bird live and what does it eat?
+EVALUATOR EVIDENCE: The bird lives in coastal marshes and eats insects.
+HISTORICAL RESPONSE: It lives in coastal marshes and eats berries.
+OUTPUT: {"grade":1,"reason":"mixed"}
+
+EXAMPLE 3 — central claim is not established
+QUESTION: What was the town's largest export?
+EVALUATOR EVIDENCE: The town expanded its railway after 1900.
+HISTORICAL RESPONSE: Copper was its largest export.
+OUTPUT: {"grade":1,"reason":"reference_silent"}
+
+EXAMPLE 4 — contradicted answer without useful support
+QUESTION: Why did the bridge collapse?
+EVALUATOR EVIDENCE: Corrosion weakened a load-bearing joint, which failed under traffic.
+HISTORICAL RESPONSE: It collapsed because unusually strong winds blew it down.
+OUTPUT: {"grade":0,"reason":"contradicted"}
+
+EXAMPLE 5 — nonanswer
+QUESTION: How does the gas warm the atmosphere?
+EVALUATOR EVIDENCE: It absorbs outgoing infrared radiation and re-emits part of it.
+HISTORICAL RESPONSE: I cannot answer that question.
+OUTPUT: {"grade":0,"reason":"nonanswer"}
+
+Before returning JSON, confirm that the grade and reason are one of the five
+listed pairs and that you did not turn reference silence into contradiction.

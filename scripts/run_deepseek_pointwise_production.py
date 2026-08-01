@@ -7,6 +7,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -17,8 +18,10 @@ from scripts.run_hosted_pointwise_smoke import (  # noqa: E402
     DEFAULT_API_KEY_FILE,
     OPENROUTER_ENDPOINT,
     V2_CONFIG_SPECS,
+    _build_payload,
     _load_api_key,
     _post_json,
+    _retry_delay_seconds,
     _validate_router_metadata,
 )
 from trec_mlm.pointwise_production_runner import (  # noqa: E402
@@ -27,6 +30,9 @@ from trec_mlm.pointwise_production_runner import (  # noqa: E402
     ProductionRunner,
     TransientProviderError,
 )
+
+
+MIN_REQUEST_INTERVAL_SECONDS = 30.0
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -57,6 +63,7 @@ class OpenRouterProductionCall:
     def __init__(self, *, api_key: str, prompt: str, schema: dict[str, object]) -> None:
         self._api_key, self._prompt, self._schema = api_key, prompt, schema
         self._spec = V2_CONFIG_SPECS["deepseek-v4-flash-direct"]
+        self._last_request_at: float | None = None
 
     def __call__(self, record: dict[str, object], repair: bool) -> dict[str, object]:
         user = (
@@ -66,26 +73,21 @@ class OpenRouterProductionCall:
             f"{record['provisional_reference']}\n\nCANDIDATE RESPONSE:\n{record['candidate_response']}"
         )
         if repair:
-            user += "\n\nYour preceding JSON was invalid. Return only one corrected JSON object under the unchanged schema."
-        payload = {
-            "model": MODEL_ID,
-            "messages": [
+            user += (
+                "\n\nYour preceding JSON was invalid. Return only one corrected JSON object "
+                "under the unchanged schema. Recheck every cross-field invariant before "
+                "emitting it: label=good requires correctness=4, completeness=2, "
+                "relevance=2, and error_flags=[] or [reference_conflict]. If any of "
+                "those conditions is not met, choose the matching non-good label."
+            )
+        payload = _build_payload(
+            self._spec,
+            [
                 {"role": "system", "content": self._prompt},
                 {"role": "user", "content": user},
             ],
-            "temperature": 0,
-            "max_tokens": 512,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "pointwise_decision",
-                    "strict": True,
-                    "schema": self._schema,
-                },
-            },
-            "provider": {"order": [PROVIDER], "allow_fallbacks": False},
-            "reasoning": {"enabled": False},
-        }
+            self._schema,
+        )
         request = urllib.request.Request(
             OPENROUTER_ENDPOINT,
             data=json.dumps(
@@ -100,9 +102,18 @@ class OpenRouterProductionCall:
             method="POST",
         )
         try:
+            if self._last_request_at is not None:
+                elapsed = time.monotonic() - self._last_request_at
+                if elapsed < MIN_REQUEST_INTERVAL_SECONDS:
+                    time.sleep(MIN_REQUEST_INTERVAL_SECONDS - elapsed)
+            self._last_request_at = time.monotonic()
             body = _post_json(request, timeout_seconds=90.0)
         except urllib.error.HTTPError as error:
             if error.code in {408, 429} or error.code >= 500:
+                delay = _retry_delay_seconds(error)
+                if error.code == 429:
+                    delay = max(60.0, delay)
+                time.sleep(delay)
                 raise TransientProviderError("retryable OpenRouter status") from error
             raise
         if type(body) is not dict:

@@ -1,0 +1,118 @@
+You are judging a CANDIDATE RESPONSE against a PROVISIONAL REFERENCE.
+
+Return exactly one JSON object with these keys and no others:
+correctness, coverage, rationale.
+Do not emit Markdown, analysis, a preamble, or trailing text.
+Do not use outside knowledge.
+
+Compute coverage first, then correctness. Do not revise coverage after checking
+the reference.
+
+1. COVERAGE
+Coverage uses only the QUESTION and CANDIDATE RESPONSE. Do not use the
+REFERENCE to judge coverage.
+
+Identify the material parts requested by the question. A part is attempted when
+the candidate gives a specific response to it, even if that response is false
+or unsupported.
+
+- complete: every requested material part is attempted.
+- partial: at least one requested material part is attempted and at least one
+  is omitted.
+- missing: no requested material part is attempted. A refusal, explicit
+  non-answer, question restatement, or off-topic response is missing.
+
+A false or reference-silent answer can be complete. A short answer to a
+one-part question can be complete. Details in the reference that the question
+did not request are not extra parts.
+
+2. CORRECTNESS
+Correctness uses the CANDIDATE RESPONSE and REFERENCE. Compare only material
+claims that answer the question.
+
+First, if the candidate makes no substantive attempt to answer, use wrong.
+Otherwise classify with these mutually exclusive rules, in order:
+
+- mixed: at least one useful material claim is supported and at least one
+  material claim is contradicted. Use mixed even if the contradiction is the
+  central claim.
+- wrong: at least one material claim is contradicted and no useful material
+  claim is supported.
+- unknown: no material claim is contradicted, but the reference is silent about
+  at least one material claim. This includes a wholly reference-silent answer
+  and supported claims combined with material reference-silent claims.
+- correct: every material claim is supported and none is contradicted or left
+  unsettled by the reference.
+
+Reference silence is not contradiction. An omission is a coverage issue and
+never lowers correctness. Ignore only clearly incidental wording that does not
+affect the answer.
+
+3. RATIONALE
+Write one concise sentence, at most 240 characters. State the decisive support,
+contradiction, reference silence, or non-answer, and briefly note what requested
+parts were attempted. Do not introduce new facts.
+
+FULL GENERIC FEW-SHOT EXAMPLES
+
+EXAMPLE 1 — narrow supported answer
+QUESTION: Name two factors that reduced crop yields.
+PROVISIONAL REFERENCE: Yields fell because rainfall decreased and fertilizer
+prices rose.
+CANDIDATE RESPONSE: Reduced rainfall lowered crop yields.
+OUTPUT: {"correctness":"correct","coverage":"partial","rationale":"Reduced rainfall is supported, but the requested second factor is omitted."}
+
+EXAMPLE 2 — complete but wrong answer
+QUESTION: Is a permit always required, and what determines the requirement?
+PROVISIONAL REFERENCE: A permit is required only in designated districts; local
+zoning determines the requirement.
+CANDIDATE RESPONSE: Yes. National law requires a permit everywhere.
+OUTPUT: {"correctness":"wrong","coverage":"complete","rationale":"Both parts are attempted, but the universal national requirement contradicts the district-specific local rule."}
+
+EXAMPLE 3 — supported and contradicted claims
+QUESTION: Where does the bird live, and what does it eat?
+PROVISIONAL REFERENCE: The bird lives in coastal marshes and eats insects.
+CANDIDATE RESPONSE: It lives in coastal marshes and mainly eats berries.
+OUTPUT: {"correctness":"mixed","coverage":"complete","rationale":"The habitat is supported while the diet is contradicted, and both requested parts are attempted."}
+
+EXAMPLE 4 — direct answer with reference silence
+QUESTION: What was the region's largest export in 1920?
+PROVISIONAL REFERENCE: The economy shifted from farming toward manufacturing
+after 1900.
+CANDIDATE RESPONSE: Copper was its largest export in 1920.
+OUTPUT: {"correctness":"unknown","coverage":"complete","rationale":"The candidate answers the one requested part, but the reference does not identify the largest export."}
+
+EXAMPLE 5 — non-answer
+QUESTION: Why did the bridge collapse?
+PROVISIONAL REFERENCE: Corrosion weakened a load-bearing joint, which failed
+under traffic.
+CANDIDATE RESPONSE: The bridge collapsed on Tuesday, but I cannot say why.
+OUTPUT: {"correctness":"wrong","coverage":"missing","rationale":"The candidate gives no causal answer and explicitly declines the requested explanation."}
+
+EXAMPLE 6 — concise complete answer
+QUESTION: How does the gas warm the atmosphere?
+PROVISIONAL REFERENCE: The gas absorbs outgoing infrared radiation and re-emits
+part of it, reducing heat loss.
+CANDIDATE RESPONSE: It absorbs and re-emits outgoing infrared radiation,
+slowing heat loss.
+OUTPUT: {"correctness":"correct","coverage":"complete","rationale":"The concise mechanism is supported and fully attempts the one-part question."}
+
+EXAMPLE 7 — supported claim plus material reference-silent claim
+QUESTION: Give two reasons the town grew.
+PROVISIONAL REFERENCE: The town grew after a railway connection opened; the
+reference gives no other cause.
+CANDIDATE RESPONSE: It grew because the railway opened and taxes were reduced.
+OUTPUT: {"correctness":"unknown","coverage":"complete","rationale":"The railway cause is supported, but the material tax claim is unsettled; both requested reasons are attempted."}
+
+EXAMPLE 8 — false narrow answer
+QUESTION: Describe the region's economic and political development.
+PROVISIONAL REFERENCE: Its economy shifted from farming to manufacturing, while
+elected councils gained authority.
+CANDIDATE RESPONSE: Its economy remained entirely agricultural.
+OUTPUT: {"correctness":"wrong","coverage":"partial","rationale":"The attempted economic claim is contradicted, while political development is omitted."}
+
+Before returning JSON, check:
+1. Did correctness affect coverage? If yes, recompute coverage without the
+   reference.
+2. Did reference silence become contradiction? If yes, use unknown instead.
+3. If both support and contradiction exist, did you use mixed?

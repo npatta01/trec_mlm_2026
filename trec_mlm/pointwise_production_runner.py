@@ -28,7 +28,7 @@ PROVIDER = "DeepInfra"
 HARD_CAP_USD = 60.0
 PAUSE_PROJECTION_USD = 50.0
 MAX_TRANSIENT_RETRIES = 1
-MAX_REPAIRS = 1
+MAX_REPAIRS = 2
 _DIR_MODE = 0o700
 _FILE_MODE = 0o600
 
@@ -692,6 +692,14 @@ class ProductionRunner:
             return None
         return _read_private_json(entries[-1], label="raw response checkpoint")
 
+    def _repair_count(self, ordinal: int) -> int:
+        return sum(
+            1
+            for path in (self.run_dir / "raw").glob(f"{ordinal:08d}-*.json")
+            if _read_private_json(path, label="raw response checkpoint").get("repair")
+            is True
+        )
+
     def _terminal_from_response(
         self, record: dict[str, object], checkpoint: Mapping[str, object]
     ) -> tuple[bool, str | None, dict[str, object] | None]:
@@ -750,7 +758,7 @@ class ProductionRunner:
                     },
                 )
                 return
-            repair = bool(checkpoint.get("repair") is False)
+            repair = self._repair_count(ordinal) < MAX_REPAIRS
             if not repair:
                 self._save_result(
                     ordinal,
@@ -815,7 +823,7 @@ class ProductionRunner:
                     },
                 )
                 return
-            if repair or response.get("finish_reason") != "stop":
+            if response.get("finish_reason") != "stop":
                 self._save_result(
                     ordinal,
                     {
@@ -828,9 +836,22 @@ class ProductionRunner:
                     },
                 )
                 return
-            repair = MAX_REPAIRS > 0
-            break
-        if repair and MAX_REPAIRS == 1:
+            if not repair or self._repair_count(ordinal) < MAX_REPAIRS:
+                repair = True
+                break
+            self._save_result(
+                ordinal,
+                {
+                    "version": 1,
+                    "record_id": record["record_id"],
+                    "source_ordinal": ordinal,
+                    "status": "invalid",
+                    "reason": error,
+                    "attempt": attempt,
+                },
+            )
+            return
+        if repair:
             self._process_record(record)
 
     def _validate_block(

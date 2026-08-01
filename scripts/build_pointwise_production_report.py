@@ -25,6 +25,7 @@ _FLAGS = {
     "refusal",
     "ambiguity",
     "reference_conflict",
+    "other_error",
 }
 
 

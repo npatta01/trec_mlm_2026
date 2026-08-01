@@ -96,10 +96,34 @@ FROZEN_DECISION_SCHEMA_SHA256 = (
     "84557061030827f09f94063a85ccbaa5324797b958963af503342ae1fce6c69b"
 )
 FROZEN_V2_PROMPT_SHA256 = (
-    "408a66ab4461d08973b645a4aa466a08b7f533beb324b902a5c3dbbe6e99a5c0"
+    "67c2c5b5c53afe22838270dd060934e8ca182735c0d6f150efdeff9dc1173e91"
 )
 FROZEN_V2_DECISION_SCHEMA_SHA256 = (
-    "bf647c4f3ae85148774c9196f5dea6dc92c95e1a77c5a1288761c3697f4e0615"
+    "a6b12b74932c20c12087c7922cde557b879f3e0442115d402a2758bcf57751c1"
+)
+FROZEN_V3_PROMPT_SHA256 = (
+    "e27b986e9739b0cb2e6ae1c186778046011f09a797039f3ff4442e4707b3ca11"
+)
+FROZEN_V3_DECISION_SCHEMA_SHA256 = (
+    "7e567ecb2b458caf2dd4dc14706f20140936032bc3bbcfb0146c9272d8a532ba"
+)
+FROZEN_V4_PROMPT_SHA256 = (
+    "b66a657b8317766b52885a7a8a70c8edc70436fa8e5537c31a5c53ad90c2bbd0"
+)
+FROZEN_V4_DECISION_SCHEMA_SHA256 = (
+    "b88a46ec2c7ae36062dd47e780557b1abc888df3354b8cce066353ce463aac30"
+)
+FROZEN_V5_PROMPT_SHA256 = (
+    "9c4e5af43e413125cbbc811e91e0d904243bb29e9eb4581fc412d66b47d7a08e"
+)
+FROZEN_V5_DECISION_SCHEMA_SHA256 = (
+    "b5facb9bc314b6e53232195fbfdeea2ff9a0e5d785b34092f138cae8ef1c24d5"
+)
+FROZEN_V6_PROMPT_SHA256 = (
+    "bee4c78f526cf70079a1a90c98305ceb1e9ec2b9a64b7b13e7cc233b8cbca405"
+)
+FROZEN_V6_DECISION_SCHEMA_SHA256 = (
+    "b5facb9bc314b6e53232195fbfdeea2ff9a0e5d785b34092f138cae8ef1c24d5"
 )
 _FROZEN_JUDGE_CONTRACTS = MappingProxyType(
     {
@@ -117,6 +141,38 @@ _FROZEN_JUDGE_CONTRACTS = MappingProxyType(
                 "schema_filename": "decision-v2.schema.json",
                 "prompt_sha256": FROZEN_V2_PROMPT_SHA256,
                 "schema_sha256": FROZEN_V2_DECISION_SCHEMA_SHA256,
+            }
+        ),
+        "v3": MappingProxyType(
+            {
+                "prompt_filename": "pointwise-v3.txt",
+                "schema_filename": "decision-v3.schema.json",
+                "prompt_sha256": FROZEN_V3_PROMPT_SHA256,
+                "schema_sha256": FROZEN_V3_DECISION_SCHEMA_SHA256,
+            }
+        ),
+        "v4": MappingProxyType(
+            {
+                "prompt_filename": "pointwise-v4.txt",
+                "schema_filename": "decision-v4.schema.json",
+                "prompt_sha256": FROZEN_V4_PROMPT_SHA256,
+                "schema_sha256": FROZEN_V4_DECISION_SCHEMA_SHA256,
+            }
+        ),
+        "v5": MappingProxyType(
+            {
+                "prompt_filename": "pointwise-v5.txt",
+                "schema_filename": "decision-v5.schema.json",
+                "prompt_sha256": FROZEN_V5_PROMPT_SHA256,
+                "schema_sha256": FROZEN_V5_DECISION_SCHEMA_SHA256,
+            }
+        ),
+        "v6": MappingProxyType(
+            {
+                "prompt_filename": "pointwise-v6.txt",
+                "schema_filename": "decision-v6.schema.json",
+                "prompt_sha256": FROZEN_V6_PROMPT_SHA256,
+                "schema_sha256": FROZEN_V6_DECISION_SCHEMA_SHA256,
             }
         ),
     }
@@ -651,14 +707,14 @@ def run_cases(
 
 
 def validate_judge_contract(contract: PromptContract, *, version: str) -> str:
-    """Require the requested frozen judge schema and, for v2, prompt snapshot."""
+    """Require the requested frozen judge schema and prompt snapshot."""
     try:
         expected = _FROZEN_JUDGE_CONTRACTS[version]
     except KeyError as error:
         raise ValueError(
             f"unsupported frozen judge contract version: {version}"
         ) from error
-    if version == "v2":
+    if version in {"v2", "v3", "v4", "v5", "v6"}:
         if contract.prompt_path.name != expected["prompt_filename"]:
             raise ValueError(
                 f"judge contract prompt filename is not frozen for {version}"

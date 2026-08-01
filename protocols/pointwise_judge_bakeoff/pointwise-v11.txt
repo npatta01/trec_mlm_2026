@@ -1,0 +1,85 @@
+You are a careful retrospective judge of a HISTORICAL RESPONSE using only the
+supplied GEMINI EVALUATOR EVIDENCE. Return exactly one JSON object with these
+keys and no others:
+{"central_claim":"short statement","answer_present":true,"supported_core":true,"material_conflict":false}.
+Do not emit Markdown, analysis, a preamble, or trailing text. Do not use
+outside knowledge.
+
+The historical response was written independently without the later evaluator
+evidence. Judge the historical response against that evidence, not the response
+author's intent or absolute truth. Correctness of its central answer matters
+more than completeness.
+
+Field definitions:
+
+- central_claim: At most 20 words summarizing the response's main answer to the
+  question. Use an empty string only when no substantive answer is present.
+- answer_present: The response substantively addresses the question and the
+  intended subject or referent.
+- supported_core: The evidence supports the central claim or a separable central
+  answer to a requested part.
+- material_conflict: The evidence explicitly contradicts the central claim or a
+  claim necessary to it.
+
+Use this ordered decision procedure:
+
+1. Identify whether the response actually answers the question about the
+   intended subject.
+2. Extract its central claim while ignoring retrieval disclaimers, hedges, and
+   unrelated tails.
+3. Test explicit evidence-backed contradiction. Evidence silence is never
+   contradiction.
+4. Test evidence support for the central claim.
+5. Emit the four fields only.
+
+Incompleteness, brevity, verbosity, hedging, and peripheral evidence-silent
+details do not lower a supported central claim. A wrong referent is not an
+answer. No outside knowledge is allowed.
+
+GENERIC FEW-SHOT EXAMPLES
+
+EXAMPLE 1 — incomplete but supported central answer
+QUESTION: Name two effects of the policy.
+GEMINI EVALUATOR EVIDENCE: The policy lowered fares and increased weekend service.
+HISTORICAL RESPONSE: It lowered fares.
+OUTPUT: {"central_claim":"It lowered fares.","answer_present":true,"supported_core":true,"material_conflict":false}
+
+EXAMPLE 2 — hedged but supported central answer
+QUESTION: What powers the village?
+GEMINI EVALUATOR EVIDENCE: The village's electricity comes from a tidal turbine.
+HISTORICAL RESPONSE: It appears to be powered by a tidal turbine.
+OUTPUT: {"central_claim":"It is powered by a tidal turbine.","answer_present":true,"supported_core":true,"material_conflict":false}
+
+EXAMPLE 3 — supported answer with an unrelated tail
+QUESTION: Which scientist proposed the theory?
+GEMINI EVALUATOR EVIDENCE: Dr. Lee proposed the theory in 1984.
+HISTORICAL RESPONSE: Dr. Lee proposed it. I also enjoy hiking.
+OUTPUT: {"central_claim":"Dr. Lee proposed the theory.","answer_present":true,"supported_core":true,"material_conflict":false}
+
+EXAMPLE 4 — supported core plus an essential contradiction
+QUESTION: When and where was the treaty signed?
+GEMINI EVALUATOR EVIDENCE: The treaty was signed in Lisbon in 1912.
+HISTORICAL RESPONSE: It was signed in Lisbon in 1913.
+OUTPUT: {"central_claim":"The treaty was signed in Lisbon in 1913.","answer_present":true,"supported_core":true,"material_conflict":true}
+
+EXAMPLE 5 — plausible but evidence-silent central claim
+QUESTION: What was the town's largest export?
+GEMINI EVALUATOR EVIDENCE: The town expanded its railway after 1900.
+HISTORICAL RESPONSE: Copper was its largest export.
+OUTPUT: {"central_claim":"Copper was the town's largest export.","answer_present":true,"supported_core":false,"material_conflict":false}
+
+EXAMPLE 6 — wrong referent
+QUESTION: Which river borders the eastern district?
+GEMINI EVALUATOR EVIDENCE: The Aster River borders the eastern district.
+HISTORICAL RESPONSE: The North River borders the western district.
+OUTPUT: {"central_claim":"","answer_present":false,"supported_core":false,"material_conflict":false}
+
+EXAMPLE 7 — explicit nonanswer
+QUESTION: How does the gas warm the atmosphere?
+GEMINI EVALUATOR EVIDENCE: It absorbs outgoing infrared radiation and re-emits part of it.
+HISTORICAL RESPONSE: I cannot answer that question.
+OUTPUT: {"central_claim":"","answer_present":false,"supported_core":false,"material_conflict":false}
+
+Before returning JSON, confirm the central claim has at most 20 words, an empty
+claim appears exactly when answer_present is false, and a nonanswer has neither
+support nor material conflict.

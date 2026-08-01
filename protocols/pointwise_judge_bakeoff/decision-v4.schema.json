@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "enum": ["yes", "partial", "no", "uncertain"],
+      "type": "string"
+    },
+    "correctness": {
+      "enum": ["correct", "mixed", "wrong", "unknown"],
+      "type": "string"
+    },
+    "completeness": {
+      "enum": ["complete", "partial", "missing", "unknown"],
+      "type": "string"
+    },
+    "relevance": {
+      "enum": ["relevant", "off_topic", "unknown"],
+      "type": "string"
+    },
+    "reference_status": {
+      "enum": ["sound", "incomplete", "suspect", "uncertain"],
+      "type": "string"
+    },
+    "rationale": {
+      "maxLength": 240,
+      "type": "string"
+    }
+  },
+  "required": [
+    "verdict",
+    "correctness",
+    "completeness",
+    "relevance",
+    "reference_status",
+    "rationale"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "correctness": {
+      "enum": ["correct", "mixed", "wrong", "unknown"],
+      "type": "string"
+    },
+    "coverage": {
+      "enum": ["complete", "partial", "missing"],
+      "type": "string"
+    },
+    "rationale": {
+      "maxLength": 240,
+      "type": "string"
+    }
+  },
+  "required": ["correctness", "coverage", "rationale"],
+  "type": "object"
+}

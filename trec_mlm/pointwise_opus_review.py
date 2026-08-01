@@ -34,19 +34,16 @@ INPUT_USD_PER_MILLION = 15.0
 OUTPUT_USD_PER_MILLION = 75.0
 _RETRYABLE_STATUS = {408, 429} | set(range(500, 600))
 _FROZEN_V2_PROMPT_SHA256 = (
-    "408a66ab4461d08973b645a4aa466a08b7f533beb324b902a5c3dbbe6e99a5c0"
+    "67c2c5b5c53afe22838270dd060934e8ca182735c0d6f150efdeff9dc1173e91"
 )
 _FROZEN_V2_SCHEMA_SHA256 = (
-    "20bd1e2c9bc7ad51e03a5afbf3f8f6a5600fe86ad27c2b77bf8404d900decb32"
+    "85023ff14b808149e8373ba9d3b9b567443a568d9eac78f526314d0e59a517eb"
 )
 _PACKET_FORBIDDEN_TEXT = ("deepseek", "openrouter", "api key", "api_key")
 _REVIEW_FORBIDDEN_TEXT = (
     "anthropic",
     "claude",
     "opus",
-    "provider",
-    "model",
-    "run",
     "credential",
     "openrouter",
     "api key",
@@ -65,6 +62,16 @@ _USAGE_NUMERIC_FIELDS = frozenset(
         "cache_creation_input_tokens_5m",
         "cache_creation_input_tokens_1h",
         "reasoning_tokens",
+    }
+)
+_CLAUDE_CLI_USAGE_METADATA_FIELDS = frozenset(
+    {
+        "cache_creation",
+        "server_tool_use",
+        "service_tier",
+        "speed",
+        "inference_geo",
+        "iterations",
     }
 )
 
@@ -134,9 +141,19 @@ class SpendBudget:
         self.spent_usd += amount
 
     def reconcile(self, reservation: float, actual: float) -> None:
-        if not math.isfinite(actual) or actual < 0 or actual > reservation:
-            raise ValueError("provider-reported Opus cost exceeds its reservation")
-        self.spent_usd -= reservation - actual
+        if (
+            not math.isfinite(reservation)
+            or reservation < 0
+            or reservation > self.spent_usd
+            or not math.isfinite(actual)
+            or actual < 0
+            or actual > self.cap_usd
+        ):
+            raise ValueError("provider-reported Opus cost is invalid")
+        reconciled = self.spent_usd - reservation + actual
+        if reconciled > self.cap_usd:
+            raise ValueError("provider-reported Opus cost exceeds the spend cap")
+        self.spent_usd = reconciled
 
 
 def validate_opus_review_packet(
@@ -637,6 +654,11 @@ def _build_request_payload(packet: Mapping[str, object]) -> dict[str, object]:
                 "role": "system",
                 "content": (
                     "Return only one JSON object matching the supplied review schema. "
+                    "For schema recommendations, expected and replacement must each "
+                    "be a standalone JSON object serialized as JSON text, with no "
+                    "markdown fences or explanatory text; omit the recommendation "
+                    "if an exact object cannot be supplied. "
+                    "Review prompt text only. Do not make schema recommendations. "
                     "Do not identify any target model, provider, credential, or run."
                 ),
             },
@@ -670,7 +692,15 @@ def _build_request_payload(packet: Mapping[str, object]) -> dict[str, object]:
 
 def _transport_review_schema() -> dict[str, object]:
     """Adapt only the provider transport schema; local Pydantic stays strict."""
-    return _remove_schema_keyword(OpusPromptReview.model_json_schema(), "maxItems")
+    schema = _remove_schema_keyword(OpusPromptReview.model_json_schema(), "maxItems")
+    recommendation = schema.get("$defs", {}).get("OpusRecommendation")
+    if isinstance(recommendation, dict):
+        properties = recommendation.get("properties")
+        if isinstance(properties, dict):
+            target = properties.get("target")
+            if isinstance(target, dict):
+                target["enum"] = ["prompt"]
+    return schema
 
 
 def _remove_schema_keyword(value: object, keyword: str) -> object:
@@ -728,12 +758,36 @@ def _parse_claude_cli_envelope(raw: str) -> tuple[str, dict[str, int | float], f
         "duration_api_ms",
         "num_turns",
         "session_id",
+        # Current Claude Code versions include these transport metadata fields.
+        # They are validated only at the core boundary and are not copied into
+        # the private review receipt.
+        "stop_reason",
+        "modelUsage",
+        "permission_denials",
+        "uuid",
+        "structured_output",
+        "ttft_ms",
+        "ttft_stream_ms",
+        "time_to_request_ms",
+        "deferred_tool_use",
+        "terminal_reason",
+        "fast_mode_state",
+        "fast_mode_disabled_reason",
+        "origin",
+        "api_error_status",
+        "user_message_uuid",
+        "request_sent_wall_ms",
+        "time_to_request_from_spawn_ms",
+        "warm_spare_claimed",
+        "time_origin_ms",
+        "errors",
     }
     if (
         type(envelope) is not dict
         or not {"type", "result"} <= set(envelope)
         or not set(envelope) <= allowed
         or envelope["type"] != "result"
+        or envelope.get("subtype") != "success"
         or type(envelope["result"]) is not str
     ):
         raise ValueError("Claude CLI envelope has invalid exact result/model fields")
@@ -745,14 +799,21 @@ def _parse_claude_cli_envelope(raw: str) -> tuple[str, dict[str, int | float], f
         type(envelope["is_error"]) is not bool or envelope["is_error"]
     ):
         raise ValueError("Claude CLI envelope has an invalid error state")
-    usage = _sanitize_usage(envelope.get("usage", {}))
+    usage = _sanitize_claude_cli_usage(envelope.get("usage", {}))
     cost_value = envelope.get("total_cost_usd", 0.0)
     if type(cost_value) not in {int, float} or isinstance(cost_value, bool):
         raise ValueError("Claude CLI envelope cost is invalid")
     cost = float(cost_value)
     if not math.isfinite(cost) or cost < 0:
         raise ValueError("Claude CLI envelope cost is invalid")
-    return envelope["result"], usage, cost
+    result = envelope["result"]
+    if "structured_output" in envelope:
+        if type(envelope["structured_output"]) is not dict:
+            raise ValueError("Claude CLI structured output must be an object")
+        result = json.dumps(
+            envelope["structured_output"], ensure_ascii=False, allow_nan=False
+        )
+    return result, usage, cost
 
 
 def _post_json(request: urllib.request.Request, timeout_seconds: float) -> object:
@@ -848,6 +909,38 @@ def _sanitize_usage(value: object) -> dict[str, int | float]:
             raise ValueError("provider usage fields must be finite and nonnegative")
         sanitized[key] = item
     return sanitized
+
+
+def _sanitize_claude_cli_usage(value: object) -> dict[str, int | float]:
+    """Keep billed numeric usage while validating known Claude CLI metadata."""
+    if type(value) is not dict:
+        raise ValueError("Claude CLI usage must be an object")
+    numeric: dict[str, int | float] = {}
+    for key, item in value.items():
+        if key == "cost":
+            continue
+        if key in _USAGE_NUMERIC_FIELDS:
+            if type(item) not in {int, float} or isinstance(item, bool):
+                raise ValueError("Claude CLI usage fields must be numeric")
+            number = float(item)
+            if not math.isfinite(number) or number < 0:
+                raise ValueError(
+                    "Claude CLI usage fields must be finite and nonnegative"
+                )
+            numeric[key] = item
+            continue
+        if key not in _CLAUDE_CLI_USAGE_METADATA_FIELDS:
+            raise ValueError("Claude CLI usage contains an unexpected field")
+        if key in {"cache_creation", "server_tool_use"} and item is not None:
+            if type(item) is not dict:
+                raise ValueError("Claude CLI usage metadata has an invalid object")
+        elif key in {"service_tier", "speed", "inference_geo"} and item is not None:
+            if type(item) is not str:
+                raise ValueError("Claude CLI usage metadata has an invalid string")
+        elif key == "iterations" and item is not None:
+            if type(item) is not list:
+                raise ValueError("Claude CLI usage metadata has an invalid list")
+    return numeric
 
 
 def _reject_forbidden_text(

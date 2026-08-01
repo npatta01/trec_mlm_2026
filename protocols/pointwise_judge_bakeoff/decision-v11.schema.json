@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "central_claim": {
+      "maxLength": 240,
+      "type": "string"
+    },
+    "answer_present": {
+      "type": "boolean"
+    },
+    "supported_core": {
+      "type": "boolean"
+    },
+    "material_conflict": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "central_claim",
+    "answer_present",
+    "supported_core",
+    "material_conflict"
+  ],
+  "type": "object"
+}

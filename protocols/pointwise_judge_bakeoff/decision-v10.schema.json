@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "grade": {
+      "enum": [0, 1, 2],
+      "type": "integer"
+    },
+    "reason": {
+      "enum": [
+        "supported",
+        "mixed",
+        "reference_silent",
+        "contradicted",
+        "nonanswer"
+      ],
+      "type": "string"
+    }
+  },
+  "required": ["grade", "reason"],
+  "type": "object"
+}

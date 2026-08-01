@@ -12,7 +12,8 @@ from pathlib import Path
 from trec_mlm.experiment_ledger import LedgerBuild, build_ledger
 
 from .load import load_hub_sources
-from .model import CompletedFollowUpEvidence, HubSources
+from .model import CompletedFollowUpEvidence, HubSources, PointwisePhase0Evidence
+from .pointwise_phase0 import load_pointwise_phase0_evidence
 from .validate import ValidationSummary, validate_hub_sources
 
 
@@ -23,6 +24,7 @@ class HubBuild:
     validation: ValidationSummary
     failure_diagnostic: Mapping[str, object] = field(default_factory=dict)
     completed_follow_up: CompletedFollowUpEvidence | None = None
+    pointwise_phase0: PointwisePhase0Evidence | None = None
 
 
 _COMPLETED_FOLLOW_UP_ROLE = "strongest_completed_follow_up"
@@ -358,4 +360,5 @@ def build_research_hub(root: Path) -> HubBuild:
         validation=validation,
         failure_diagnostic=_load_failure_diagnostic(root, sources),
         completed_follow_up=_load_completed_follow_up(root, sources, ledger),
+        pointwise_phase0=load_pointwise_phase0_evidence(root, sources, ledger),
     )

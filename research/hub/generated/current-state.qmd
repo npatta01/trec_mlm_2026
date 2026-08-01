@@ -439,7 +439,7 @@
 <tr><td>Dense query nearest-neighbor retrieval</td><td>29</td><td>Retained control</td><td>Retain dense_nested as the frozen query-only control.</td></tr>
 <tr><td>Label-ranker feasibility pilots</td><td>8</td><td>Stopped</td><td>Stop the current pilot forms and preserve restricted diagnostics for future redesign.</td></tr>
 <tr><td>Multiresolution candidate profiles</td><td>6</td><td>Retained control</td><td>Retain the promoted semantic-profile system; keep multiresolution variants diagnostic.</td></tr>
-<tr><td>Pointwise response-quality ranking Phase 0</td><td>2</td><td>Stopped</td><td>Stop pairwise work: four of five effectiveness gates failed despite the zero-call selector finding enough eligible pairs.</td></tr>
+<tr><td>Pointwise response-quality ranking Phase 0</td><td>2</td><td>Stopped</td><td>Stop pairwise work because the frozen effectiveness gate failed despite sufficient zero-call selector capacity.</td></tr>
 <tr><td>Query-cluster aggregation</td><td>5</td><td>Rejected</td><td>Do not replace dense retrieval with the tested cluster aggregations.</td></tr>
 <tr><td>Simple query controls</td><td>2</td><td>Retained control</td><td>Keep the simple baselines for orientation, not as the current development choice.</td></tr>
 <tr><td>Lexical response retrieval</td><td>25</td><td>Rejected</td><td>Reject direct lexical response retrieval as the primary ranking path.</td></tr>
@@ -461,7 +461,7 @@
 <tr><td>Dense query nearest-neighbor retrieval</td><td>29</td><td>Retained control</td><td>Retain dense_nested as the frozen query-only control.</td></tr>
 <tr><td>Label-ranker feasibility pilots</td><td>8</td><td>Stopped</td><td>Stop the current pilot forms and preserve restricted diagnostics for future redesign.</td></tr>
 <tr><td>Multiresolution candidate profiles</td><td>6</td><td>Retained control</td><td>Retain the promoted semantic-profile system; keep multiresolution variants diagnostic.</td></tr>
-<tr><td>Pointwise response-quality ranking Phase 0</td><td>2</td><td>Stopped</td><td>Stop pairwise work: four of five effectiveness gates failed despite the zero-call selector finding enough eligible pairs.</td></tr>
+<tr><td>Pointwise response-quality ranking Phase 0</td><td>2</td><td>Stopped</td><td>Stop pairwise work because the frozen effectiveness gate failed despite sufficient zero-call selector capacity.</td></tr>
 <tr><td>Query-cluster aggregation</td><td>5</td><td>Rejected</td><td>Do not replace dense retrieval with the tested cluster aggregations.</td></tr>
 <tr><td>Simple query controls</td><td>2</td><td>Retained control</td><td>Keep the simple baselines for orientation, not as the current development choice.</td></tr>
 <tr><td>Lexical response retrieval</td><td>25</td><td>Rejected</td><td>Reject direct lexical response retrieval as the primary ranking path.</td></tr>

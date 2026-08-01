@@ -5,7 +5,7 @@ Development evidence only.
 ## Current position
 
 - **OpenAI Luna pointwise production audit** (`openai-luna-pointwise-production-audit`; `adopt`): Use the compact supported label in downstream experiments; retain the five-way verdict and explanation for debugging and preserve the audited artifact unchanged. This is an artifact-use decision, not a ranking-system promotion.
-- **Pointwise response-quality ranking Phase 0** (`pointwise-ranking-phase0`; `stop`): Stop pairwise work: four of five effectiveness gates failed despite the zero-call selector finding enough eligible pairs.
+- **Pointwise response-quality ranking Phase 0** (`pointwise-ranking-phase0`; `stop`): Stop pairwise work because the frozen effectiveness gate failed despite sufficient zero-call selector capacity.
 - **Grounded reference data-quality audit** (`grounded-data-quality-audit`; `iterate`): Adjudicate uncertain records and a stratified non-Search sample before treating references as validated ground truth.
 
 ## Open questions

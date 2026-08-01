@@ -8,85 +8,15 @@
 <p class="hub-next-action"><a href="../generated/ideas/failure-aware-fusion.qmd">Failure-aware evidence fusion</a>: Define and freeze the reliability signal, fallback, and artifact plan.</p>
 </section>
 
-<details class="hub-details">
-<summary>Evidence and current knowledge</summary>
-## Why does it matter?
-
-**Rationale:** A completed audit made 182,764 support labels available, and the frozen candidate-local E5 tensor enabled a zero-call query-specific transfer test.
-
-**Research question:** [Can model responses provide useful ranking evidence?](../questions/response-evidence.qmd)
-
-## How does it work?
-
-**Hypothesis:** A query-local pointwise ranking, and its fixed fusion with dense_nested, improve candidate ranking on the complete development set.
-
-Join labels by record ID, separate a smoothed candidate prior from the query-local residual, rank with fixed reciprocal-rank fusion, and evaluate the frozen control, pointwise-only, and combined systems once on 322 by 150 development qrels.
-
-Any run comparison below is partitioned by ledger evaluation scope.
-
-## What do we know?
-
-**Outcome:** `negative`
-
-Audited pointwise judgments did not produce rankings that agreed well enough with organizer qrels and did not improve the frozen dense control.
-
-**Decision:** `stop`
-
-Stop pairwise work: four of five effectiveness gates failed despite the zero-call selector finding enough eligible pairs.
-
-Rationale provenance: `contemporaneous`.
-</details>
-
-<details class="hub-details">
-<summary>Limits and readiness</summary>
-Previously seen development evidence only; pointwise support is conditional agreement with supplied evidence rather than organizer gold, audited exposure is uneven, and private responses and tensors are not published.
-
-Development results do not establish hidden-test effectiveness.
-</details>
-
-<details class="hub-details">
-<summary>Relationships and technical details</summary>
-## Authored decision notes
-
 ## Answer first
 
-**No. Audited pointwise judgments do not produce candidate rankings that agree
-well enough with organizer qrels, and they do not improve the frozen
-`dense_nested` control.** Pointwise-only nDCG@10 was **0.118825**, versus
-**0.359855** for the control. Equal fusion with the control recovered some
-quality but reached only **0.211324**. Its control-relative nDCG@10 difference
-was **−0.148531**, with paired 95% interval **[−0.183811, −0.114267]**.
+**No. Audited pointwise judgments do not produce candidate rankings that agree well enough with organizer qrels, and they do not improve the frozen `dense_nested` control.** Pointwise-only nDCG@10 was **0.118825**, versus **0.359855** for the control. Equal fusion with the control recovered some quality but reached only **0.211324**. Its control-relative nDCG@10 difference was **−0.148531**, with paired 95% interval **[−0.183811, −0.114267]**.
 
-Only one of five frozen gates passed. The binding recommendation is
-`stop_pairwise_work`; no pairwise judging was run. The existing promoted
-development system is unchanged, and neither new Phase 0 system is promoted.
-
-## What the signals mean
-
-- **Supported label:** `supported = verdict in {correct, partial}`. It records
-  agreement with the supplied grounded evidence, not organizer relevance gold.
-- **Candidate prior:** for candidate (c),
-  ((supported_c + 1)/(audited_c + 2)), a Beta(1,1)-smoothed overall support
-  rate. It is global, not query-specific.
-- **Local score:** for query (q) and candidate (c), the arithmetic mean of
-  the ten support labels selected by the frozen candidate-local E5 tensor.
-- **Routing residual:** `local score − candidate prior`. It asks whether the
-  local evidence is better or worse than that candidate's usual audited rate.
-- **RRF:** reciprocal-rank fusion. Each ranked list contributes
-  (1/(60 + rank)); larger summed values rank first. Pointwise-only fuses prior
-  and residual ranks; combined fuses pointwise-only and dense ranks.
-- **nDCG@10:** normalized discounted cumulative gain in the first ten ranks,
-  using raw positive qrel grades. Higher is better; zero means no graded gain in
-  the top ten.
-- **MRR:** mean reciprocal rank of the first candidate with qrel grade greater
-  than zero. Higher is better.
+Only 1 of 5 frozen gates passed. The binding recommendation is `stop_pairwise_work`; no pairwise judging was run. The existing promoted development system is unchanged, and neither new Phase 0 system is promoted.
 
 ## Frozen comparison
 
-The three main systems were the existing **control** (`dense_nested`),
-**pointwise-only**, and their fixed **combined** RRF. Prior-only and
-routing-only were prespecified diagnostics; they cannot replace the main
-result or override the gate.
+The three main systems were the existing **control** (`dense_nested`), **pointwise-only**, and their fixed **combined** RRF. Prior-only and routing-only were prespecified diagnostics; they cannot replace the main result or override the gate.
 
 | Role | System | nDCG@10 | MRR | Zero-nDCG queries |
 |---|---|---:|---:|---:|
@@ -96,16 +26,11 @@ result or override the gate.
 | Main | Pointwise-only | 0.118825 | 0.170864 | 231 |
 | Main | Combined | 0.211324 | 0.269119 | 172 |
 
-All rankings covered the same 322 queries and 150 candidates. Construction was
-qrel-free: labels and E5 records were joined by exact `record_id`, the pointwise
-source set had zero ID or normalized-text overlap with the development queries,
-and qrels were opened only after rankings existed.
+All rankings covered the same 322 queries and 150 candidates. Construction was qrel-free: labels and representation records were joined by exact record ID, the pointwise source set had zero ID or normalized-text overlap with development queries, and qrels were opened only after rankings existed.
 
 ## Paired evidence against the control
 
-Differences are candidate minus control. Intervals are query-grain paired
-percentile bootstrap intervals with 10,000 resamples and seed 31. W/T/L uses a
-`1e-12` tie tolerance.
+Differences are candidate minus control. Intervals are query-grain paired percentile bootstrap intervals with 10,000 resamples and seed 31. W/T/L uses a `1e-12` tie tolerance.
 
 | System | Metric | Difference | Paired 95% CI | W/T/L |
 |---|---|---:|---:|---:|
@@ -123,13 +48,10 @@ Zero-nDCG transitions reinforce the aggregate result:
 
 ## Query slices
 
-Each system cell is **nDCG@10 / MRR / zero-nDCG count**. Density uses the
-organizer-qrel positive count; dense status uses control nDCG; similarity
-quartiles run from low (Q1) to high (Q4) frozen E5 mean similarity. The counts
-form complete partitions: 248+30+44, 116+206, and 81+80+81+80 all equal 322.
+Each system cell is **nDCG@10 / MRR / zero-nDCG count**. Density uses the organizer-qrel positive count; dense status uses control nDCG; similarity quartiles run from low (Q1) to high (Q4) frozen E5 mean similarity. The counts form complete partitions: 248+30+44, 116+206, 81+80+81+80 all equal 322.
 
 | Family | Stratum | Queries | Control | Prior | Routing | Pointwise | Combined | Combined Δ nDCG |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Positive density | ≤5 | 248 | .312616 / .296877 / 113 | .020766 / .034193 / 231 | .096772 / .108374 / 188 | .034616 / .050660 / 220 | .136520 / .139528 / 168 | −.176096 |
 | Positive density | 6–20 | 30 | .287435 / .628874 / 3 | .066268 / .169392 / 15 | .109884 / .304897 / 13 | .097214 / .271261 / 11 | .185567 / .468452 / 4 | −.101868 |
 | Positive density | >20 | 44 | .675489 / .854924 / 0 | .585469 / .807386 / 0 | .548567 / .732449 / 0 | .608188 / .779924 / 0 | .650509 / .863636 / 0 | −.024980 |
@@ -140,17 +62,11 @@ form complete partitions: 248+30+44, 116+206, and 81+80+81+80 all equal 322.
 | Similarity quartile | Q3 | 81 | .304944 / .357157 / 37 | .079294 / .126855 / 65 | .126456 / .191040 / 57 | .096000 / .135830 / 60 | .163228 / .195926 / 49 | −.141716 |
 | Similarity quartile | Q4 | 80 | .282034 / .363862 / 38 | .150584 / .227726 / 51 | .145802 / .198709 / 50 | .173426 / .259513 / 47 | .210035 / .308992 / 42 | −.071999 |
 
-Combined trails control in every density and similarity stratum. It rescues
-some control-zero queries, but the 206 control-nonzero queries fall from
-0.562491 to 0.312343 nDCG@10. That loss dominates the 0.031928 gain on the 116
-control-zero queries.
+Combined trails control in every density and similarity stratum. It rescues some control-zero queries, but the 206 control-nonzero queries fall from 0.562491 to 0.312343 nDCG@10. That loss dominates the 0.031928 gain on the 116 control-zero queries.
 
 ## Candidate slices
 
-Candidate quartiles were recomputed correctly: both rankings **and qrels were
-filtered to the named candidate group before nDCG@10, MRR, and zero counts were
-recalculated**. Each family partitions the 150 candidates as 38/37/38/37. Cells
-again show **nDCG@10 / MRR / zero-nDCG count**.
+Candidate quartiles were recomputed correctly: both rankings **and qrels were filtered to the named candidate group before nDCG@10, MRR, and zero counts were recalculated**. Each family partitions the 150 candidates as 38/37/38/37. Cells again show **nDCG@10 / MRR / zero-nDCG count**.
 
 | Family | Quartile | Candidates | Control | Prior | Routing | Pointwise | Combined | Combined Δ nDCG |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -163,31 +79,15 @@ again show **nDCG@10 / MRR / zero-nDCG count**.
 | Smoothed prior | Q3 | 38 | .203563 / .236628 / 220 | .132260 / .178617 / 247 | .162802 / .181602 / 224 | .162260 / .178174 / 225 | .191174 / .210134 / 220 | −.012389 |
 | Smoothed prior | Q4 | 37 | .132735 / .160753 / 238 | .114713 / .145330 / 246 | .127225 / .146177 / 237 | .126826 / .153510 / 241 | .132044 / .159410 / 237 | −.000691 |
 
-The lone positive candidate slice is smoothed-prior Q2: combined gains only
-0.002895 nDCG@10 while its MRR remains below control (0.211225 versus 0.217558).
-It is one of eight prespecified candidate slices, is not paired uncertainty for
-the primary query-level endpoint, and does not offset the negative full-set
-result or the seven other negative candidate slices.
+The lone positive candidate slice is smoothed-prior Q2: combined gains only 0.002895 nDCG@10 while its MRR remains below control (0.211225 versus 0.217558). It is one of eight prespecified candidate slices, is not paired uncertainty for the primary query-level endpoint, and does not offset the negative full-set result or the seven other negative candidate slices.
 
-Compact lookup tables are used instead of decorative charts because the result
-has two metrics, zero counts, five systems, and categorical partitions; exact
-cell lookup makes the isolated positive slice and recomputation boundary easier
-to audit without implying a continuous trend.
+Compact lookup tables are used instead of decorative charts because the result has two metrics, zero counts, five systems, and categorical partitions; exact cell lookup makes the isolated positive slice and recomputation boundary easier to audit without implying a continuous trend.
 
 ## Independent validation and robustness
 
-An independent standard-library validator read the qrels and five emitted TREC
-runs without importing the project evaluator or metric functions. It
-recomputed 3,220 per-query metric cells, all five aggregates, both paired
-comparisons, nine query slices, 40 candidate-slice metric rows, the gate, and
-the selector receipt. Every run contained 48,300 rows (322×150), and every
-dense per-query value matched both earlier receipts within `5e-12`.
+An independent standard-library validator read the qrels and five emitted TREC runs without importing the project evaluator or metric functions. It recomputed 3,220 per-query metric cells, all five aggregates, both paired comparisons, all nine query slices, 40 candidate-slice metric rows, the gate, and the selector receipt. Every run contained 48,300 rows (322×150), and every dense per-query value matched both earlier receipts within `5e-12`.
 
-The evaluator was repeated and produced byte-identical sanitized outputs.
-Independent validation also confirmed zero normalized-text and ID overlap
-between all 322 development queries and 6,816 pointwise source questions. No
-judge, pointwise-regeneration, embedding, pairwise, inference, or API call was
-made in Phase 0.
+Independent validation confirmed zero normalized-text and ID overlap between all 322 development queries and 6,816 pointwise source questions. No judge, pointwise-regeneration, embedding, pairwise, inference, or API call was made in Phase 0.
 
 ## Gate and decision
 
@@ -199,48 +99,7 @@ made in Phase 0.
 | Combined zero-nDCG queries | < 116 | 172 | No |
 | Routing-only nDCG above prior-only | > | .159729 > .102170 | **Yes** |
 
-**Gate: 1/5 passed. Decision: fail. Recommendation:
-`stop_pairwise_work`.** The zero-call selector did find 500 eligible pairs
-across 500 source questions at candidate-use cap 20, but selector availability
-cannot override the failed effectiveness gate.
-
-## Limitations and caveats
-
-- These 322 organizer development queries were previously seen. The result is
-  a valid negative for this frozen development protocol, not a hidden-test
-  effectiveness estimate.
-- `supported` measures conditional audited response quality against supplied
-  Gemini evidence. It is neither organizer gold nor candidate coverage or
-  routing relevance.
-- Audited exposure is uneven across candidates. Counts and question coverage
-  vary, so candidate priors and transfers have unequal evidence depth.
-- The candidate-local E5 representation is frozen and uses a pretrained
-  encoder; a different representation would be a new study, not a robustness
-  result for this one.
-- Private questions, responses, references, labels, and tensors remain outside
-  the repository and rendered Hub. Tracked evidence contains IDs and metrics,
-  not private text.
-
-## Next action
-
-Do not assemble or submit pairwise jobs. Keep the two Phase 0 systems as
-registered valid negatives, retain `dense_nested` as the referenced control,
-and use only existing sanitized evidence to diagnose why local support residuals
-diverge from organizer relevance. Any later response-evidence proposal needs a
-new, outcome-independent frozen protocol; this failed gate does not authorize
-one automatically.
-
-## Further questions
-
-- Does the mismatch come mainly from supplied-reference error, from response
-  support being different from routing relevance, or from candidate-local E5
-  neighbor transfer?
-- Why does routing-only beat the global prior while their equal RRF performs
-  worse than routing-only?
-- What distinguishes the 16 control-zero rescues from the 72 control-nonzero
-  regressions without using target qrels to tune a router?
-- Is the tiny smoothed-prior Q2 gain repeatable under an unseen evaluation, or
-  is it ordinary slice variation?
+**Gate: 1/5 passed. Decision: fail. Recommendation: `stop_pairwise_work`.** The zero-call selector did find 500 eligible pairs across 500 source questions at candidate-use cap 20, but selector availability cannot override the failed effectiveness gate.
 
 ## Tracked evidence
 
@@ -248,9 +107,115 @@ one automatically.
 - [Validated structured result](https://github.com/npatta01/trec_mlm_2026/blob/51c0d25e1e85881883b105b85470a2088d4ee9d2/reports/trec_2026_pointwise_ranking_phase0_results.json)
 - [Complete per-query TSV](https://github.com/npatta01/trec_mlm_2026/blob/51c0d25e1e85881883b105b85470a2088d4ee9d2/reports/trec_2026_pointwise_ranking_phase0_per_query.tsv)
 - [Candidate-filtered slice TSV](https://github.com/npatta01/trec_mlm_2026/blob/51c0d25e1e85881883b105b85470a2088d4ee9d2/reports/trec_2026_pointwise_ranking_phase0_candidate_slices.tsv)
-- Hub run records: [pointwise-only](../generated/runs/pointwise_phase0_pointwise_only.qmd),
-  [combined](../generated/runs/pointwise_phase0_combined.qmd), and the existing
-  [dense control](../generated/runs/dense_nested.qmd).
+- Hub run records: [pointwise-only](../generated/runs/pointwise_phase0_pointwise_only.qmd), [combined](../generated/runs/pointwise_phase0_combined.qmd), and the existing [dense control](../generated/runs/dense_nested.qmd).
+
+<details class="hub-details">
+<summary>Evidence and current knowledge</summary>
+## Why does it matter?
+
+**Rationale:** A completed audit made 182,764 support labels available, and the frozen candidate-local E5 tensor enabled a zero-call query-specific transfer test.
+
+**Research question:** [Can model responses provide useful ranking evidence?](../questions/response-evidence.qmd)
+
+## How does it work?
+
+**Hypothesis:** A query-local pointwise ranking, and its fixed fusion with dense_nested, improve candidate ranking on the complete development set.
+
+Join labels by record ID, separate a smoothed candidate prior from the query-local residual, rank with fixed reciprocal-rank fusion, and evaluate the frozen control, pointwise-only, and combined systems once on the complete development set.
+
+Any run comparison below is partitioned by ledger evaluation scope.
+
+## What do we know?
+
+**Outcome:** `negative`
+
+Audited pointwise judgments did not produce rankings that agreed well enough with organizer qrels and did not improve the frozen dense control.
+
+**Decision:** `stop`
+
+Stop pairwise work because the frozen effectiveness gate failed despite sufficient zero-call selector capacity.
+
+Rationale provenance: `contemporaneous`.
+</details>
+
+<details class="hub-details">
+<summary>Limits and readiness</summary>
+Previously seen development evidence only; pointwise support is conditional agreement with supplied evidence rather than organizer gold, audited exposure is uneven, and private responses and tensors are not published.
+
+Development results do not establish hidden-test effectiveness.
+</details>
+
+<details class="hub-details">
+<summary>Relationships and technical details</summary>
+## Authored decision notes
+
+## What the signals mean
+
+- **Supported label:** `supported = verdict in {correct, partial}`. It records
+  agreement with the supplied grounded evidence, not organizer relevance gold.
+- **Candidate prior:** for candidate (c),
+  ((supported_c + 1)/(audited_c + 2)), a Beta(1,1)-smoothed overall support
+  rate. It is global, not query-specific.
+- **Local score:** for query (q) and candidate (c), the arithmetic mean of the
+  ten support labels selected by the frozen candidate-local E5 tensor.
+- **Routing residual:** `local score − candidate prior`. It asks whether the
+  local evidence is better or worse than that candidate's usual audited rate.
+- **RRF:** reciprocal-rank fusion. Each ranked list contributes
+  (1/(60 + rank)); larger summed values rank first. Pointwise-only fuses prior
+  and residual ranks; combined fuses pointwise-only and dense ranks.
+- **nDCG@10:** normalized discounted cumulative gain in the first ten ranks,
+  using raw positive qrel grades. Higher is better; zero means no graded gain in
+  the top ten.
+- **MRR:** mean reciprocal rank of the first candidate with qrel grade greater
+  than zero. Higher is better.
+
+## Frozen method and leakage boundary
+
+The main comparison is the existing dense control, the pointwise-only ranking,
+and their fixed combined fusion. Prior-only and routing-only remain
+prespecified diagnostics and cannot replace the main result or override the
+gate.
+
+Construction was qrel-free. Labels and frozen representation records were
+joined by exact record ID, the pointwise source set was required to have no ID
+or normalized-text overlap with development queries, and qrels were opened
+only after rankings existed. Candidate-slice evaluation filters both rankings
+and qrels to the named candidate group before recomputing metrics.
+
+## Limitations and caveats
+
+- The organizer development queries were previously seen. This result is a
+  valid negative for the frozen development protocol, not a hidden-test
+  effectiveness estimate.
+- Supported response quality is conditional on supplied Gemini grounding
+  evidence. It is neither organizer gold nor candidate coverage or routing
+  relevance.
+- Audited exposure is uneven across candidates, so priors and transfers have
+  unequal evidence depth.
+- The candidate-local representation is frozen and uses a pretrained encoder;
+  another representation would be a new study, not a robustness result here.
+- Private questions, responses, references, labels, and tensors remain outside
+  the repository and rendered Hub. Tracked evidence contains IDs and metrics,
+  not private text.
+
+## Next action
+
+Do not assemble or submit pairwise jobs. Keep the Phase 0 systems as registered
+valid negatives, retain the dense run as the referenced control, and use only
+existing sanitized evidence to diagnose why local support residuals diverge
+from organizer relevance. Any later response-evidence proposal needs a new,
+outcome-independent frozen protocol; this failed gate does not authorize one.
+
+## Further questions
+
+- Does the mismatch come mainly from supplied-reference error, response support
+  differing from routing relevance, or candidate-local neighbor transfer?
+- Why does routing-only beat the global prior while their equal fusion performs
+  worse than routing-only?
+- What distinguishes control-zero rescues from control-nonzero regressions
+  without using target qrels to tune a router?
+- Is the isolated positive candidate slice repeatable under unseen evaluation,
+  or is it ordinary slice variation?
 
 ## Next tests
 

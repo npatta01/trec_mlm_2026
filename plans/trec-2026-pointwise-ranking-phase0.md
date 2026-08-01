@@ -99,14 +99,14 @@
 **Files:**
 - Modify: this plan and `plans/README.md` with final status/evidence.
 
-- [ ] Obtain independent task and whole-branch reviews; fix and re-review critical/important findings.
-- [ ] Run generated-output checks, Hub render/audit, Ruff, full pytest, `git diff --check`, and tracked-file secret/private-path scans.
-- [ ] Produce sanitized derived HTML in the host-configured private rendered-artifact directory, update the private portal index, verify live tailnet-only HTTPS, and confirm no private data exposure.
+- [x] Obtain independent task and whole-branch reviews; fix and re-review critical/important findings.
+- [x] Run generated-output checks, Hub render/audit, Ruff, full pytest, `git diff --check`, and tracked-file secret/private-path scans.
+- [x] Produce sanitized derived HTML in the host-configured private rendered-artifact directory, update the private portal index, verify live tailnet-only HTTPS, and confirm no private data exposure.
 - [ ] Commit intended files, push `codex/issue-31-phase0`, and open a reviewable draft PR to `main` with the leakage boundary, results, checks, and issue linkage.
 
 ## Current status
 
-- Phase: Task 6 whole-branch fix/re-review and final handoff.
+- Phase: Task 6 verified and ready for draft-PR handoff.
 - Base: `eeea2d5cc69c0205f56806e13bb1ccf0bfa9096a` from current `origin/main`.
 - Baseline verification: 1,035 tests passed and 3 skipped before implementation;
   the first whole-branch run passed 1,069 tests with 3 skipped before final
@@ -130,9 +130,17 @@
   the committed stdlib-only finalizer recreates the validated result bytes and
   exact SHA-256 from the evaluator bundle.
 - Whole-branch review: all important Standards/Spec findings have fixes
-  committed; the remaining minor module-structure observations are deferred
-  because splitting the frozen, fully tested evaluation path would add risk
-  without changing Phase 0 evidence.
-- Next action: obtain independent re-review of the important fixes, rerun the
-  full verification matrix, restore and verify the private rendered portal,
-  then push and open the draft PR.
+  committed and independently re-reviewed with both axes approved. The
+  remaining minor module-structure observations are deferred because splitting
+  the frozen, fully tested evaluation path would add risk without changing
+  Phase 0 evidence.
+- Final verification: 1,089 tests passed and 3 skipped; Ruff, ledger and Hub
+  generated-output checks, the independent validated-result `--check`,
+  `git diff --check`, tracked privacy/API scans, a clean 175-page Hub render,
+  and the static-site audit all passed.
+- Private handoff: the sanitized Research Hub copy and portal index are live at
+  the authorized tailnet-only Tailscale Serve mapping; the report returned HTTP
+  200, contained the final evidence/provenance wording, and exposed neither
+  QMD/Markdown sources nor local private paths. No Funnel handler is configured.
+- Next action: commit this handoff status, push `codex/issue-31-phase0`, and
+  open the reviewable draft PR to `main` with issue #31 linkage.

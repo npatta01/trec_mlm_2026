@@ -87,7 +87,7 @@ Compact lookup tables are used instead of decorative charts because the result h
 
 An independent standard-library validator read the qrels and five emitted TREC runs without importing the project evaluator or metric functions. It recomputed 3,220 per-query metric cells, all five aggregates, both paired comparisons, all nine query slices, 40 candidate-slice metric rows, the gate, and the selector receipt. Every run contained 48,300 rows (322×150), and every dense per-query value matched both earlier receipts within `5e-12`.
 
-Independent validation confirmed zero normalized-text and ID overlap between all 322 development queries and 6,816 pointwise source questions. No judge, pointwise-regeneration, embedding, pairwise, inference, or API call was made in Phase 0.
+The qrel-free construction preflight enforced and confirmed zero normalized-text and ID overlap between all 322 development queries and 6,816 pointwise source questions. Independent validation reconciled the sanitized construction and selector receipts. No judge, pointwise-regeneration, embedding, pairwise, inference, or API call was made in Phase 0.
 
 ## Gate and decision
 

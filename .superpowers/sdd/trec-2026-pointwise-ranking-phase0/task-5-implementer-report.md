@@ -136,6 +136,15 @@ inspection confirmed one Answer-first copy, eight tables, the corrected
 `.114713` value, and three of three internal run links resolving. The portal was
 not modified.
 
+Spec re-review clarified one provenance sentence without changing any number or
+scientific conclusion. The generated study now attributes the full development
+query/source-question ID and normalized-text overlap invariant to the qrel-free
+construction preflight. It separately states that independent validation
+reconciled the sanitized construction and selector receipts. The exact rendered
+wording assertion failed before the change and passed afterward. The 9 focused
+Phase 0 tests, Hub build check, Ruff, whitespace/privacy checks, clean-cache
+study render, rendered-wording check, and static audit all passed.
+
 ## Commit and concerns
 
 Implementation and generated outputs are committed in

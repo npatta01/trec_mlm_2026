@@ -99,6 +99,16 @@ def test_pointwise_phase0_structured_evidence_drives_generated_study() -> None:
     assert ".114713 / .145330 / 246" in detail
     assert "**Gate: 1/5 passed." in detail
     assert "`stop_pairwise_work`" in detail
+    assert (
+        "The qrel-free construction preflight enforced and confirmed zero "
+        "normalized-text and ID overlap between all 322 development queries "
+        "and 6,816 pointwise source questions." in detail
+    )
+    assert (
+        "Independent validation reconciled the sanitized construction and "
+        "selector receipts." in detail
+    )
+    assert "Independent validation confirmed zero normalized-text" not in detail
 
 
 def test_pointwise_phase0_rejects_candidate_membership_drift(

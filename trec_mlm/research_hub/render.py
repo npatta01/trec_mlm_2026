@@ -3512,9 +3512,12 @@ def _render_pointwise_phase0_report(
             "and every dense per-query value matched both earlier receipts within "
             "`5e-12`.",
             "",
-            "Independent validation confirmed zero normalized-text and ID overlap "
-            f"between all {systems['control'].query_count} development queries and "
+            "The qrel-free construction preflight enforced and confirmed zero "
+            "normalized-text and ID overlap between all "
+            f"{systems['control'].query_count} development queries and "
             f"{evidence.validation_source_questions:,} pointwise source questions. "
+            "Independent validation reconciled the sanitized construction and "
+            "selector receipts. "
             "No judge, pointwise-regeneration, embedding, pairwise, inference, or "
             "API call was made in Phase 0.",
             "",

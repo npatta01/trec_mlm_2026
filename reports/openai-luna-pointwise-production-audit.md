@@ -41,13 +41,13 @@
 - Non-deterministic duplicate groups/rows: 1,494/7,280.
 - Supported/unsupported-inconsistent groups, raw → curated: 25 → 5.
 - Pairwise supported/unsupported disagreements, raw → curated: 303 → 171 of 58,909 duplicate pairs.
-- Twenty clearly adjudicated groups were canonicalized. Five ambiguous or broken-question groups remain explicitly unchanged.
+- 20 clearly adjudicated groups were canonicalized; 5 ambiguous or broken-question groups remain explicitly unchanged.
 
 ## Semantic spot check
 
-- 103 records were reviewed from a deterministic, verdict-stratified sample (20 per raw verdict plus explanation-integrity controls).
-- Two clear supported/unsupported errors outside duplicate groups were corrected in the curated artifact.
-- Other clear reviewer disagreements concerned the five-way debugging subtype while remaining in the same supported/unsupported bucket.
+- The deterministic verdict-stratified review packet contains 103 records (20 per raw verdict plus explanation-integrity controls).
+- 2 supported/unsupported corrections from the semantic sample were applied.
+- Five-way subtype disagreements inside the same supported/unsupported bucket do not affect the primary automated label.
 
 ## Explanation quality
 

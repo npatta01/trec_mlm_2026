@@ -86,6 +86,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--sample", type=Path, required=True)
     parser.add_argument("--repairs", type=Path)
     parser.add_argument("--verdict-overrides", type=Path)
+    parser.add_argument("--adjudication", type=Path)
     parser.add_argument("--curated-output", type=Path)
     parser.add_argument("--labels-output", type=Path)
     parser.add_argument("--sample-per-verdict", type=int, default=20)
@@ -283,12 +284,141 @@ def _verdict_overrides(path: Path | None) -> dict[str, VerdictOverride]:
     return overrides
 
 
+def _change_key(value: object) -> tuple[str, int, str, str]:
+    if type(value) is not dict:
+        raise ValueError("an adjudication change is not an object")
+    record_id = value.get("record_id")
+    source_ordinal = value.get("source_ordinal")
+    original_verdict = value.get("original_verdict")
+    new_verdict = value.get("new_verdict")
+    if (
+        type(record_id) is not str
+        or type(source_ordinal) is not int
+        or original_verdict
+        not in {"correct", "incorrect", "nonanswer", "not_established", "partial"}
+        or new_verdict
+        not in {"correct", "incorrect", "nonanswer", "not_established", "partial"}
+    ):
+        raise ValueError("an adjudication change has an invalid identity")
+    return record_id, source_ordinal, original_verdict, new_verdict
+
+
+def _adjudication(
+    path: Path | None,
+    *,
+    raw_sha256: str,
+    overrides: dict[str, VerdictOverride],
+    raw_metrics: dict[str, int],
+    curated_metrics: dict[str, int],
+) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    value = _read_object(path, "adjudication manifest")
+    if value.get("source_final_results_sha256") != raw_sha256:
+        raise ValueError("adjudication manifest is bound to different raw results")
+    recommended = value.get("recommended_applied_changes")
+    if type(recommended) is not list:
+        raise ValueError("adjudication recommended changes are invalid")
+    expected_changes = {
+        (
+            override.record_id,
+            override.source_ordinal,
+            override.original_verdict,
+            override.verdict,
+        )
+        for override in overrides.values()
+    }
+    actual_changes = {_change_key(change) for change in recommended}
+    if len(actual_changes) != len(recommended) or actual_changes != expected_changes:
+        raise ValueError("adjudication changes differ from the applied overrides")
+    adjudication = value.get("adjudication")
+    baseline = value.get("baseline")
+    post = value.get("post_recommended_clear_repairs")
+    sample_changes = value.get("sample_boundary_overrides_outside_duplicate_groups")
+    if (
+        not all(type(item) is dict for item in (adjudication, baseline, post))
+        or type(sample_changes) is not list
+    ):
+        raise ValueError("adjudication metrics are invalid")
+    groups = adjudication.get("groups")
+    if type(groups) is not list or not groups:
+        raise ValueError("adjudication groups are missing")
+    clear_groups = [group for group in groups if group.get("confidence") == "clear"]
+    debatable_groups = [
+        group for group in groups if group.get("confidence") == "debatable"
+    ]
+    if (
+        len(clear_groups) != adjudication.get("clear_groups")
+        or len(debatable_groups) != adjudication.get("debatable_groups")
+        or len(clear_groups) + len(debatable_groups) != len(groups)
+    ):
+        raise ValueError("adjudication group counts are inconsistent")
+    group_changes = [
+        change
+        for group in groups
+        if group.get("apply_override") is True
+        for change in group.get("changes", [])
+    ]
+    if len(group_changes) != sum(
+        override.reason == "duplicate_prompt_consistency"
+        for override in overrides.values()
+    ) or len(sample_changes) != sum(
+        override.reason == "semantic_sample" for override in overrides.values()
+    ):
+        raise ValueError("adjudication reason counts differ from applied overrides")
+    if {
+        _change_key(change) for change in [*group_changes, *sample_changes]
+    } != actual_changes:
+        raise ValueError("adjudication group changes do not cover every override")
+    expected_baseline = {
+        "duplicate_groups_non_deterministic": raw_metrics["groups"],
+        "duplicate_rows_non_deterministic": raw_metrics["records"],
+        "five_way_inconsistent_groups": raw_metrics["five_way_inconsistent_groups"],
+        "boundary_inconsistent_groups": raw_metrics["boundary_inconsistent_groups"],
+        "boundary_pair_disagreement": (
+            f"{raw_metrics['pairwise_boundary_disagreements']}/"
+            f"{raw_metrics['pairwise_comparisons']}"
+        ),
+    }
+    if any(
+        baseline.get(key) != expected for key, expected in expected_baseline.items()
+    ):
+        raise ValueError("adjudication baseline differs from recomputed metrics")
+    expected_post = {
+        "five_way_inconsistent_duplicate_groups": curated_metrics[
+            "five_way_inconsistent_groups"
+        ],
+        "boundary_inconsistent_duplicate_groups": curated_metrics[
+            "boundary_inconsistent_groups"
+        ],
+        "boundary_pair_disagreement": (
+            f"{curated_metrics['pairwise_boundary_disagreements']}/"
+            f"{curated_metrics['pairwise_comparisons']}"
+        ),
+    }
+    if any(post.get(key) != expected for key, expected in expected_post.items()):
+        raise ValueError("adjudication post-repair metrics differ from recomputation")
+    remaining = post.get("remaining_boundary_groups_are_debatable")
+    if type(remaining) is not list or len(remaining) != len(debatable_groups):
+        raise ValueError("adjudication unresolved-group accounting is invalid")
+    return {
+        "path": str(path),
+        "sha256": _sha256(path),
+        "clear_groups": len(clear_groups),
+        "debatable_groups": len(debatable_groups),
+        "applied_group_changes": len(group_changes),
+        "semantic_sample_overrides": len(sample_changes),
+        "remaining_group_indexes": remaining,
+    }
+
+
 def audit(
     *,
     run_dir: Path,
     inventory_path: Path,
     repairs_path: Path | None,
     verdict_overrides_path: Path | None,
+    adjudication_path: Path | None,
     sample_per_verdict: int,
     sample_seed: str,
 ) -> tuple[
@@ -518,15 +648,26 @@ def audit(
         and state.get("paused") is False
         and state_anomalies == []
     )
+    raw_consistency = _duplicate_metrics(rows, semantic_groups)
+    curated_consistency = _duplicate_metrics(curated, semantic_groups)
+    adjudication_summary = _adjudication(
+        adjudication_path,
+        raw_sha256=_sha256(final_path),
+        overrides=override_by_id,
+        raw_metrics=raw_consistency,
+        curated_metrics=curated_consistency,
+    )
     summary: dict[str, Any] = {
         "version": 1,
         "assessment": (
-            "ready"
-            if state_clean
-            and remaining_controls == 0
-            and not deterministic_errors
-            and not provider_errors
-            else "needs_repair"
+            "needs_repair"
+            if not state_clean
+            or remaining_controls > 0
+            or deterministic_errors
+            or provider_errors
+            else "ready"
+            if adjudication_summary is not None
+            else "needs_review"
         ),
         "artifacts": {
             "final_results": {
@@ -581,9 +722,10 @@ def audit(
             for verdict, count in sorted(curated_verdicts.items())
         },
         "exact_input_consistency": {
-            "raw": _duplicate_metrics(rows, semantic_groups),
-            "curated": _duplicate_metrics(curated, semantic_groups),
+            "raw": raw_consistency,
+            "curated": curated_consistency,
         },
+        "adjudication": adjudication_summary,
         "explanations": {
             "length_min": min(explanation_lengths),
             "length_median": _percentile(explanation_lengths, 0.5),
@@ -628,6 +770,7 @@ def _render_report(summary: dict[str, Any]) -> str:
     repairs = summary["repairs"]
     artifacts = summary["artifacts"]
     consistency = summary["exact_input_consistency"]
+    adjudication = summary["adjudication"]
     verdict_lines = [
         f"| {label} | {details['count']:,} | {details['rate']:.2%} |"
         for label, details in summary["verdicts"].items()
@@ -673,13 +816,21 @@ def _render_report(summary: dict[str, Any]) -> str:
             f"- Non-deterministic duplicate groups/rows: {consistency['raw']['groups']:,}/{consistency['raw']['records']:,}.",
             f"- Supported/unsupported-inconsistent groups, raw → curated: {consistency['raw']['boundary_inconsistent_groups']} → {consistency['curated']['boundary_inconsistent_groups']}.",
             f"- Pairwise supported/unsupported disagreements, raw → curated: {consistency['raw']['pairwise_boundary_disagreements']:,} → {consistency['curated']['pairwise_boundary_disagreements']:,} of {consistency['raw']['pairwise_comparisons']:,} duplicate pairs.",
-            "- Twenty clearly adjudicated groups were canonicalized. Five ambiguous or broken-question groups remain explicitly unchanged.",
+            (
+                f"- {adjudication['clear_groups']} clearly adjudicated groups were canonicalized; {adjudication['debatable_groups']} ambiguous or broken-question groups remain explicitly unchanged."
+                if adjudication is not None
+                else "- No raw-hash-bound adjudication manifest was supplied; semantic readiness is not established."
+            ),
             "",
             "## Semantic spot check",
             "",
-            f"- {summary['sample']['records']} records were reviewed from a deterministic, verdict-stratified sample (20 per raw verdict plus explanation-integrity controls).",
-            "- Two clear supported/unsupported errors outside duplicate groups were corrected in the curated artifact.",
-            "- Other clear reviewer disagreements concerned the five-way debugging subtype while remaining in the same supported/unsupported bucket.",
+            f"- The deterministic verdict-stratified review packet contains {summary['sample']['records']} records (20 per raw verdict plus explanation-integrity controls).",
+            (
+                f"- {adjudication['semantic_sample_overrides']} supported/unsupported corrections from the semantic sample were applied."
+                if adjudication is not None
+                else "- No semantic-sample corrections were attested by an adjudication manifest."
+            ),
+            "- Five-way subtype disagreements inside the same supported/unsupported bucket do not affect the primary automated label.",
             "",
             "## Explanation quality",
             "",
@@ -703,6 +854,7 @@ def main(argv: list[str] | None = None) -> int:
         inventory_path=args.inventory,
         repairs_path=args.repairs,
         verdict_overrides_path=args.verdict_overrides,
+        adjudication_path=args.adjudication,
         sample_per_verdict=args.sample_per_verdict,
         sample_seed=args.sample_seed,
     )

@@ -357,6 +357,101 @@ def test_decision_rejects_control_characters_in_explanation() -> None:
         )
 
 
+def test_bootstrap_allows_only_one_active_batch_across_supervisor_passes(
+    tmp_path: Path,
+) -> None:
+    paths = _sources(tmp_path, idk_index=None)
+    state = runner.prepare_run(
+        **paths,
+        run_dir=tmp_path / "run",
+        shard_request_limit=500,
+        shard_byte_limit=20_000_000,
+    )
+    pending = ["record-0000", "record-0001"]
+    state["results"] = {
+        key: value for key, value in state["results"].items() if key not in pending
+    }
+    state["counts"] = {
+        "records": 500,
+        "cached": 498,
+        "deterministic": 0,
+        "pending": 2,
+    }
+    state["shards"] = []
+    for record_id in pending:
+        state["shards"].append(runner._make_shard(state, [record_id], attempt=1))
+    for shard in state["shards"]:
+        runner._write_shard(tmp_path / "run", state, shard)
+    runner._write_state(tmp_path / "run", state)
+    transport = _MultiBatchTransport()
+
+    first = runner.run_supervisor(tmp_path / "run", transport=transport)
+    second = runner.run_supervisor(tmp_path / "run", transport=transport)
+
+    persisted = runner._read_state(tmp_path / "run")
+    assert first["active"] == second["active"] == 1
+    assert transport.created == 1
+    assert persisted["bootstrap_complete"] is False
+    assert persisted["shards"][0]["batch_id"] == "batch-1"
+    assert persisted["shards"][1]["batch_id"] is None
+
+
+def test_terminal_download_preserves_exact_provider_bytes(tmp_path: Path) -> None:
+    paths = _sources(tmp_path, idk_index=None)
+    state = runner.prepare_run(
+        **paths,
+        run_dir=tmp_path / "run",
+        shard_request_limit=500,
+        shard_byte_limit=20_000_000,
+    )
+    state["results"] = {
+        key: value for key, value in state["results"].items() if key != "record-0000"
+    }
+    state["counts"] = {
+        "records": 500,
+        "cached": 499,
+        "deterministic": 0,
+        "pending": 1,
+    }
+    shard = runner._make_shard(state, ["record-0000"], attempt=1)
+    shard["input_file_id"] = "file-input"
+    shard["batch_id"] = "batch-terminal"
+    shard["status"] = "in_progress"
+    state["shards"] = [shard]
+    runner._write_shard(tmp_path / "run", state, shard)
+    runner._write_state(tmp_path / "run", state)
+    raw = (
+        json.dumps(runner._response_line("p1-000000"), separators=(", ", ": ")).encode(
+            "utf-8"
+        )
+        + b"\r\n"
+    )
+    transport = _TerminalTransport(
+        raw=raw,
+        remote={
+            "id": "batch-terminal",
+            "status": "completed",
+            "metadata": runner._metadata(state, shard),
+            "input_file_id": "file-input",
+            "endpoint": runner.ENDPOINT,
+            "request_counts": {"total": 1, "completed": 1, "failed": 0},
+            "output_file_id": "file-output",
+            "error_file_id": None,
+        },
+    )
+
+    runner.run_supervisor(tmp_path / "run", transport=transport)
+
+    raw_path = tmp_path / "run" / "outputs" / "primary-00000.provider-output.jsonl"
+    persisted = runner._read_state(tmp_path / "run")
+    assert raw_path.read_bytes() == raw
+    assert (
+        persisted["shards"][0]["output_download_sha256"]
+        == hashlib.sha256(raw).hexdigest()
+    )
+    assert persisted["results"]["record-0000"]["verdict"] == "correct"
+
+
 def _raise_or_return(value: object) -> object:
     if isinstance(value, BaseException):
         raise value
@@ -395,7 +490,7 @@ class _DiscoveringTransport:
         self.created += 1
         raise AssertionError("discovery must happen before create")
 
-    def download_file(self, file_id: str) -> list[dict[str, object]]:
+    def download_file(self, file_id: str) -> bytes:
         raise AssertionError("not terminal")
 
 
@@ -427,5 +522,60 @@ class _CapacityTransport:
             "endpoint": runner.ENDPOINT,
         }
 
-    def download_file(self, file_id: str) -> list[dict[str, object]]:
+    def download_file(self, file_id: str) -> bytes:
         raise AssertionError("not terminal")
+
+
+class _MultiBatchTransport:
+    def __init__(self) -> None:
+        self.created = 0
+        self.batches: dict[str, dict[str, object]] = {}
+
+    def find_batches(self, metadata: dict[str, str]) -> list[dict[str, object]]:
+        return [
+            batch for batch in self.batches.values() if batch["metadata"] == metadata
+        ]
+
+    def retrieve_batch(self, batch_id: str) -> dict[str, object]:
+        return self.batches[batch_id]
+
+    def upload_file(self, path: Path) -> str:
+        return f"file-{self.created + 1}"
+
+    def create_batch(self, file_id: str, metadata: dict[str, str]) -> dict[str, object]:
+        self.created += 1
+        batch = {
+            "id": f"batch-{self.created}",
+            "status": "in_progress",
+            "metadata": metadata,
+            "input_file_id": file_id,
+            "endpoint": runner.ENDPOINT,
+        }
+        self.batches[str(batch["id"])] = batch
+        return batch
+
+    def download_file(self, file_id: str) -> bytes:
+        raise AssertionError("not terminal")
+
+
+class _TerminalTransport:
+    def __init__(self, *, raw: bytes, remote: dict[str, object]) -> None:
+        self.raw = raw
+        self.remote = remote
+
+    def find_batches(self, metadata: dict[str, str]) -> list[dict[str, object]]:
+        raise AssertionError("terminal batch already has an ID")
+
+    def retrieve_batch(self, batch_id: str) -> dict[str, object]:
+        assert batch_id == self.remote["id"]
+        return self.remote
+
+    def upload_file(self, path: Path) -> str:
+        raise AssertionError("terminal batch must not upload")
+
+    def create_batch(self, file_id: str, metadata: dict[str, str]) -> dict[str, object]:
+        raise AssertionError("terminal batch must not create")
+
+    def download_file(self, file_id: str) -> bytes:
+        assert file_id == "file-output"
+        return self.raw

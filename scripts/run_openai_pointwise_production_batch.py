@@ -126,7 +126,7 @@ class BatchTransport(Protocol):
     def create_batch(
         self, file_id: str, metadata: dict[str, str]
     ) -> dict[str, object]: ...
-    def download_file(self, file_id: str) -> list[dict[str, object]]: ...
+    def download_file(self, file_id: str) -> bytes: ...
 
 
 class OpenAIBatchTransport:
@@ -199,20 +199,16 @@ class OpenAIBatchTransport:
             raise
         return self._plain(created)
 
-    def download_file(self, file_id: str) -> list[dict[str, object]]:
+    def download_file(self, file_id: str) -> bytes:
         content = self._client.files.content(file_id)
-        text = getattr(content, "text", None)
-        if not isinstance(text, str):
-            raise ValueError("OpenAI output download is not UTF-8 text")
-        rows: list[dict[str, object]] = []
-        for line in text.splitlines():
-            if not line:
-                continue
-            value = json.loads(line)
-            if type(value) is not dict:
-                raise ValueError("OpenAI output line is not an object")
-            rows.append(value)
-        return rows
+        raw = getattr(content, "content", None)
+        if isinstance(raw, bytes):
+            return raw
+        read = getattr(content, "read", None)
+        raw = read() if callable(read) else None
+        if not isinstance(raw, bytes):
+            raise ValueError("OpenAI output download did not expose exact bytes")
+        return raw
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -259,6 +255,29 @@ def _write_private(path: Path, value: object, *, text: bool = False) -> None:
                     allow_nan=False,
                 )
                 handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
+
+
+def _write_private_bytes(path: Path, value: bytes) -> None:
+    _private_dir(path.parent)
+    descriptor, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor = -1
+            handle.write(value)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
@@ -472,6 +491,12 @@ def _validate_hydrated_state(state: dict[str, Any]) -> None:
         for field in ("input_file_id", "batch_id", "output_file_id", "error_file_id"):
             if shard.get(field) is not None and type(shard[field]) is not str:
                 raise RunHalted("run state provider identity field is invalid")
+        for field in ("output_download_sha256", "error_download_sha256"):
+            value = shard.get(field)
+            if value is not None and (
+                type(value) is not str or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            ):
+                raise RunHalted("run state provider download hash is invalid")
         if shard.get("attempt") == 1:
             if seen_records.intersection(record_ids):
                 raise RunHalted("primary shard records overlap")
@@ -964,6 +989,8 @@ def _make_shard(
         "batch_id": None,
         "output_file_id": None,
         "error_file_id": None,
+        "output_download_sha256": None,
+        "error_download_sha256": None,
         "reconciled": {"valid": 0, "retry": 0},
     }
 
@@ -1389,14 +1416,50 @@ def _reconcile_terminal_remote(
     _write_state(run_dir, state)
     lines: list[dict[str, object]] = []
     if isinstance(output, str):
-        lines.extend(transport.download_file(output))
+        raw_output = transport.download_file(output)
+        _write_private_bytes(
+            run_dir / "outputs" / f"{shard['name']}.provider-output.jsonl",
+            raw_output,
+        )
+        shard["output_download_sha256"] = _sha256_bytes(raw_output)
+        lines.extend(_parse_provider_jsonl(raw_output, "output"))
     if isinstance(errors, str):
-        lines.extend(transport.download_file(errors))
+        raw_errors = transport.download_file(errors)
+        _write_private_bytes(
+            run_dir / "outputs" / f"{shard['name']}.provider-error.jsonl",
+            raw_errors,
+        )
+        shard["error_download_sha256"] = _sha256_bytes(raw_errors)
+        lines.extend(_parse_provider_jsonl(raw_errors, "error"))
+    _write_state(run_dir, state)
     if len(lines) != values[1] + values[2]:
         raise RunHalted(
             "terminal Batch file cardinality differs from provider request counts"
         )
     reconcile_shard(run_dir, shard["name"], lines)
+
+
+def _parse_provider_jsonl(raw: bytes, label: str) -> list[dict[str, object]]:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RunHalted(f"terminal Batch {label} file is not UTF-8") from error
+    rows: list[dict[str, object]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise RunHalted(
+                f"terminal Batch {label} line {line_number} is invalid JSON"
+            ) from error
+        if type(value) is not dict:
+            raise RunHalted(
+                f"terminal Batch {label} line {line_number} is not an object"
+            )
+        rows.append(value)
+    return rows
 
 
 def run_supervisor(run_dir: Path, *, transport: BatchTransport) -> dict[str, Any]:
@@ -1453,8 +1516,9 @@ def _run_supervisor_locked(
     except RunHalted:
         _write_state(run_dir, state)
         raise
+    active_limit = ACTIVE_BATCH_LIMIT if state.get("bootstrap_complete") else 1
     for shard in state["shards"]:
-        if active >= ACTIVE_BATCH_LIMIT or shard["status"] not in {
+        if active >= active_limit or shard["status"] not in {
             "prepared",
             "upload-intent",
             "uploaded",

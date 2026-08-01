@@ -28,10 +28,10 @@ Python and test file, and `git diff --check` passed.
 ## Publication and ledger changes
 
 - Added canonical study
-  `research/hub/studies/pointwise-ranking-phase0.qmd`, with answer-first
-  conclusion, terminology, exact aggregate and paired results, all required
-  query and candidate slices, robustness evidence, gate, limitations, next
-  action, open questions, and tracked evidence links.
+  `research/hub/studies/pointwise-ranking-phase0.qmd`, with condition-bound
+  terminology, method/leakage boundary, limitations, next action, and open
+  questions. Exact quantitative evidence is generated from validated
+  structured sources rather than copied into authored prose.
 - Marked `local-response-quality-judging` completed and linked the question,
   approach, pointwise-judgment data record, run-artifact data record, and study
   reciprocally. The current-state answer now identifies this study as the
@@ -99,13 +99,51 @@ static site audit, rendered-value and three-run-link checks, whitespace check,
 old-value absence check, and sanitization scan all passed. No Python changed,
 so no additional Ruff run was applicable.
 
+## Standards review follow-up
+
+Whole-branch review found that the original source-only HTML comment duplicated
+run metrics, slices, and gate facts that belong to structured evidence under
+`research/hub/CONTRIBUTING.md`. Commit
+`f648a794a5181c5d5aca56a3faaf257b26aa4b85` removes that duplication and adds a
+typed, fail-closed Phase 0 evidence path to the Hub build.
+
+- The canonical QMD now contains only definitions, frozen method and leakage
+  boundary, limitations, next action, and further questions. It contains no
+  copied metric literals, evidence hashes, or Markdown tables.
+- The loader activates only when `pointwise-ranking-phase0` exists. It validates
+  exact study/system/evidence identities; ledger aggregates, scope, status,
+  promotion, qrel use, and custody; tracked report hashes; validated provenance;
+  all unique per-query rows; aggregate and baseline reconciliation; every query
+  and candidate partition; candidate membership; paired differences, W/T/L and
+  transitions; selector state; and the binding gate.
+- The generated study deterministically renders all five systems, four paired
+  rows, two transition rows, nine query strata, eight candidate strata, the
+  lone-positive context, independent validation, the one-of-five gate, and
+  evidence links. Comparing old and new generated reports found no removed or
+  added displayed numeric value.
+
+TDD recorded RED for authored-QMD table duplication, the missing typed evidence
+on `HubBuild`, candidate-membership drift that initially escaped validation, and
+baseline-reproduction numeric drift that initially escaped reconciliation. The
+final focused Phase 0 suite passed 9 tests; the full non-browser Hub
+build/render/current-state/validation selection passed 195 tests. Hub build
+`--check`, Ruff, whitespace and privacy scans, and the static audit passed.
+
+For final rendering, only the ignored `research/hub/.quarto` cache was moved to
+a recoverable temporary directory. A clean-cache render completed all 175 Hub
+pages from the Hub project root, followed by a final study render. HTML
+inspection confirmed one Answer-first copy, eight tables, the corrected
+`.114713` value, and three of three internal run links resolving. The portal was
+not modified.
+
 ## Commit and concerns
 
 Implementation and generated outputs are committed in
 `7793fcc8c6530271b355951dfc401d0a7cf10ab4` (`docs: publish pointwise Phase 0
-result`), followed by the correction commit above. This report is intentionally
-a follow-up commit; resolve its latest commit with `git log -1 --format=%H --`
-on this file to avoid a self-referential hash.
+result`), followed by the display-rounding and structured-evidence correction
+commits above. This report update is intentionally a follow-up commit; resolve
+its latest commit with `git log -1 --format=%H --` on this file to avoid a
+self-referential hash.
 
 No load-bearing concern remains. The result is deliberately development-only,
 pointwise support is not organizer relevance gold, and the failed gate is

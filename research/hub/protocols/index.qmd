@@ -11,6 +11,7 @@ remain canonical:
 - `protocols/trec_2026_response_retrieval.md`
 - `protocols/trec_2026_response_volume_normalization.md`
 - `protocols/trec_2026_source_query_first.md`
+- `protocols/trec_2026_pointwise_ranking_phase0.md`
 
 JSON amendments remain source receipts and are indexed through the evidence
 referenced by the relevant study.

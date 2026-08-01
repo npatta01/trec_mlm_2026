@@ -6,8 +6,9 @@ complete, approved, or promoted into the experiment ledger.
 
 ## Active working records
 
-There is no active repository-clarity implementation plan. The next executable
-work is tracked in GitHub issues #39 and #40.
+- [Pointwise ranking Phase 0](trec-2026-pointwise-ranking-phase0.md) — active
+  zero-call evaluation of audited pointwise judgments against the frozen dense
+  control under GitHub issue #31.
 
 ## Completed or superseded
 

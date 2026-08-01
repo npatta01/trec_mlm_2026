@@ -1,0 +1,40 @@
+{
+  "archive_id": "openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0",
+  "artifact_type": "openai_pointwise_judgments",
+  "audit_assessment": "ready",
+  "audited_at": "2026-08-01",
+  "cost_estimated_usd": 31.8202577,
+  "coverage": {
+    "candidates": 150,
+    "questions": 6816,
+    "records": 182764
+  },
+  "execution": {
+    "cached": 492,
+    "deterministic": 734,
+    "provider": 181538
+  },
+  "hf": {
+    "bytes": 2121195834,
+    "files": 1128,
+    "private": true,
+    "restore_verified": true,
+    "uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_mlm_2026/experiments/openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0"
+  },
+  "integrity": {
+    "audited_results_sha256": "8b6ae7d2d8b0a9e3ed9e92de43006aa9f4d4f5ca90af72905f153d19383462e2",
+    "checksums_manifest_sha256": "c6acf2615e12788d37e2c7dd83f06f4c615cda0b7b8a0b808e4deb3162598edb",
+    "compact_labels_sha256": "7cde37d0d913b97ede43c4791b2f808e6d1b0c863bdcac729efde78480113c48",
+    "inventory_sha256": "16ca3ec4743c333015fe3c86dcf977f5447183be9e4bbcfdb075ee4f31d72ab2",
+    "raw_results_sha256": "033edf940d31299340ebb3283774fbf0f77e4fe75d834f67e7d36f9caca65436"
+  },
+  "local_archive": "/home/npatta01/data/artifacts/trec_mlm_2026/openai_pointwise_judgments/openai-luna-medium-v1-500-20260731-8b6ae7d2d8b0",
+  "model": "gpt-5.6-luna",
+  "primary_label": "supported = verdict in {correct, partial}",
+  "privacy": "private",
+  "repairs": {
+    "explanation_only": 4,
+    "verdict_overrides": 55
+  },
+  "version": 1
+}

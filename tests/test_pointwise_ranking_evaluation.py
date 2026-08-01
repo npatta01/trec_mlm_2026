@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import replace
 import hashlib
+import inspect
 import json
 from pathlib import Path
 
@@ -15,10 +18,12 @@ from trec_mlm.pointwise_ranking import (
 )
 from trec_mlm.pointwise_ranking_evaluation import (
     BASELINE_TOLERANCE,
+    _evaluate_frozen_rankings,
     comparison_receipt,
     evaluate_frozen_rankings,
     phase0_decision,
     reproduce_dense_control,
+    run_pointwise_phase0_evaluation,
     validate_qrel_matrix,
     write_evaluation_outputs,
 )
@@ -221,7 +226,7 @@ def test_evaluate_emits_frozen_rrf_query_slices_and_empty_candidate_bins() -> No
         "q5": ["A", "B", "C", "D"],
     }
 
-    result = evaluate_frozen_rankings(
+    result = _evaluate_frozen_rankings(
         _evidence(),
         predictions,
         dense,
@@ -331,7 +336,7 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
     dense = {
         query_id: ["A", "B", "C", "D"] for query_id in predictions.query_ids
     }
-    evaluation = evaluate_frozen_rankings(
+    evaluation = _evaluate_frozen_rankings(
         evidence,
         predictions,
         dense,
@@ -389,6 +394,161 @@ def test_writer_emits_atomic_complete_bundle_and_byte_identical_exports(
     tracked_text = "\n".join(path.read_text() for path in first_exports.iterdir())
     assert "/home/" not in tracked_text
     assert "raw private question" not in tracked_text
+
+    result_payload = json.loads((first_exports / "results.json").read_text())
+    assert evaluation.bootstrap_resamples == 100
+    assert evaluation.bootstrap_seed == 31
+    assert result_payload["protocol"]["bootstrap_resamples"] == 100
+    assert result_payload["protocol"]["bootstrap_seed"] == 31
+    export_hashes = first["export_sha256"].copy()
+    with pytest.raises(FileExistsError, match="already exists"):
+        write_evaluation_outputs(
+            evaluation,
+            evidence,
+            predictions,
+            _selector(),
+            artifact_dir=first_artifact,
+            result_export_path=first_exports / "results.json",
+            per_query_export_path=first_exports / "per-query.tsv",
+            candidate_slice_export_path=first_exports / "candidate.tsv",
+            input_receipt=input_receipt,
+            baseline_reproduction=baseline_receipt,
+        )
+    assert {
+        name: _sha256(first_exports / filename)
+        for name, filename in (
+            ("results", "results.json"),
+            ("per_query", "per-query.tsv"),
+            ("candidate_slices", "candidate.tsv"),
+        )
+    } == export_hashes
+
+
+def test_writer_rejects_bootstrap_metadata_that_disagrees_with_computation(
+    tmp_path: Path,
+) -> None:
+    predictions = _predictions()
+    evidence = _evidence()
+    dense = {
+        query_id: ["A", "B", "C", "D"] for query_id in predictions.query_ids
+    }
+    evaluation = _evaluate_frozen_rankings(
+        evidence,
+        predictions,
+        dense,
+        _qrels(),
+        _selector(),
+        n_resamples=100,
+    )
+    comparisons = deepcopy(evaluation.comparisons)
+    comparisons["combined"]["ndcg_at_10_delta"]["n_resamples"] = 10_000
+    inconsistent = replace(evaluation, comparisons=comparisons)
+
+    with pytest.raises(ValueError, match="bootstrap metadata"):
+        write_evaluation_outputs(
+            inconsistent,
+            evidence,
+            predictions,
+            _selector(),
+            artifact_dir=tmp_path / "artifact",
+            result_export_path=tmp_path / "results.json",
+            per_query_export_path=tmp_path / "per-query.tsv",
+            candidate_slice_export_path=tmp_path / "candidate.tsv",
+            input_receipt={},
+            baseline_reproduction={"status": "passed"},
+        )
+
+
+def test_public_production_entrypoint_has_no_frozen_integrity_overrides() -> None:
+    parameters = inspect.signature(run_pointwise_phase0_evaluation).parameters
+    forbidden = {
+        "expected_qrels_sha256",
+        "expected_dense_rankings_sha256",
+        "expected_dense_run_sha256",
+        "expected_dense_results_sha256",
+        "expected_dense_per_query_sha256",
+        "expected_query_count",
+        "expected_candidate_count",
+        "bootstrap_seed",
+        "bootstrap_resamples",
+        "n_resamples",
+        "expected_ndcg",
+        "expected_mrr",
+        "expected_zero_ndcg",
+        "baseline_tolerance",
+    }
+
+    assert forbidden.isdisjoint(parameters)
+    assert forbidden.isdisjoint(inspect.signature(evaluate_frozen_rankings).parameters)
+
+
+def test_publication_rolls_back_second_export_failure_and_retry_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    predictions = _predictions()
+    evidence = _evidence()
+    dense = {
+        query_id: ["A", "B", "C", "D"] for query_id in predictions.query_ids
+    }
+    evaluation = _evaluate_frozen_rankings(
+        evidence,
+        predictions,
+        dense,
+        _qrels(),
+        _selector(),
+        n_resamples=100,
+    )
+    artifact = tmp_path / "artifact"
+    exports = [tmp_path / "results.json", tmp_path / "per-query.tsv", tmp_path / "candidate.tsv"]
+    old_payloads = {}
+    for index, path in enumerate(exports):
+        payload = f"old-{index}\n".encode()
+        path.write_bytes(payload)
+        old_payloads[path] = payload
+    original_replace = Path.replace
+    calls = 0
+
+    def fail_second_export(source: Path, target: Path) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected second-export failure")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(Path, "replace", fail_second_export)
+
+    with pytest.raises(OSError, match="second-export"):
+        write_evaluation_outputs(
+            evaluation,
+            evidence,
+            predictions,
+            _selector(),
+            artifact_dir=artifact,
+            result_export_path=exports[0],
+            per_query_export_path=exports[1],
+            candidate_slice_export_path=exports[2],
+            input_receipt={},
+            baseline_reproduction={"status": "passed"},
+        )
+
+    assert not artifact.exists()
+    assert {path: path.read_bytes() for path in exports} == old_payloads
+    assert not any(path.name.startswith(".") for path in tmp_path.rglob("*"))
+
+    receipt = write_evaluation_outputs(
+        evaluation,
+        evidence,
+        predictions,
+        _selector(),
+        artifact_dir=artifact,
+        result_export_path=exports[0],
+        per_query_export_path=exports[1],
+        candidate_slice_export_path=exports[2],
+        input_receipt={},
+        baseline_reproduction={"status": "passed"},
+    )
+    assert artifact.is_dir()
+    assert set(receipt["export_sha256"]) == {"results", "per_query", "candidate_slices"}
 
 
 def test_qrel_matrix_requires_exact_dimensions_and_identities() -> None:

@@ -76,6 +76,8 @@ OFFICIAL_CANDIDATE_COUNT = 150
 class FrozenEvaluation:
     """Complete in-memory result prior to deterministic serialization."""
 
+    bootstrap_resamples: int
+    bootstrap_seed: int
     rankings: dict[str, dict[str, list[str]]]
     evaluations: dict[str, EvaluationResult]
     comparisons: dict[str, dict[str, Any]]
@@ -161,6 +163,7 @@ def comparison_receipt(
     candidate: EvaluationResult,
     *,
     n_resamples: int = BOOTSTRAP_RESAMPLES,
+    seed: int = BOOTSTRAP_SEED,
 ) -> dict[str, Any]:
     """Return paired query-grain deltas, intervals, outcomes, and transitions."""
 
@@ -174,10 +177,10 @@ def comparison_receipt(
                 right,
                 confidence_level=0.95,
                 n_resamples=n_resamples,
-                seed=BOOTSTRAP_SEED,
+                seed=seed,
             )
         )
-        payload.update({"seed": BOOTSTRAP_SEED, "generator": "python_random_mt19937"})
+        payload.update({"seed": seed, "generator": "python_random_mt19937"})
         return payload
 
     return {
@@ -553,7 +556,7 @@ def phase0_decision(
     }
 
 
-def evaluate_frozen_rankings(
+def _evaluate_frozen_rankings(
     evidence: PointwiseEvidence,
     predictions: PointwisePredictions,
     dense_rankings: Mapping[str, Sequence[str]],
@@ -561,8 +564,18 @@ def evaluate_frozen_rankings(
     selector_receipt: PairSelectionReceipt,
     *,
     n_resamples: int = BOOTSTRAP_RESAMPLES,
+    bootstrap_seed: int = BOOTSTRAP_SEED,
 ) -> FrozenEvaluation:
-    """Evaluate the five frozen systems and all prespecified slices."""
+    """Lower-level pure evaluator with explicit synthetic-test bootstrap controls."""
+
+    if (
+        isinstance(n_resamples, bool)
+        or not isinstance(n_resamples, int)
+        or n_resamples < 1
+    ):
+        raise ValueError("bootstrap resamples must be a positive integer")
+    if isinstance(bootstrap_seed, bool) or not isinstance(bootstrap_seed, int):
+        raise ValueError("bootstrap seed must be an integer")
 
     if tuple(evidence.candidate_ids) != tuple(predictions.candidate_ids):
         raise ValueError("pointwise evidence and prediction candidates differ")
@@ -610,7 +623,10 @@ def evaluate_frozen_rankings(
     }
     comparisons = {
         system: comparison_receipt(
-            evaluations["control"], evaluations[system], n_resamples=n_resamples
+            evaluations["control"],
+            evaluations[system],
+            n_resamples=n_resamples,
+            seed=bootstrap_seed,
         )
         for system in ("pointwise_only", "combined")
     }
@@ -647,6 +663,8 @@ def evaluate_frozen_rankings(
         for query_id in predictions.query_ids
     ]
     return FrozenEvaluation(
+        bootstrap_resamples=n_resamples,
+        bootstrap_seed=bootstrap_seed,
         rankings=rankings,
         evaluations=evaluations,
         comparisons=comparisons,
@@ -657,6 +675,47 @@ def evaluate_frozen_rankings(
     )
 
 
+def evaluate_frozen_rankings(
+    evidence: PointwiseEvidence,
+    predictions: PointwisePredictions,
+    dense_rankings: Mapping[str, Sequence[str]],
+    qrels: Mapping[str, Mapping[str, int | float]],
+    selector_receipt: PairSelectionReceipt,
+) -> FrozenEvaluation:
+    """Evaluate with the immutable protocol bootstrap of 10,000 samples, seed 31."""
+
+    return _evaluate_frozen_rankings(
+        evidence,
+        predictions,
+        dense_rankings,
+        qrels,
+        selector_receipt,
+        n_resamples=BOOTSTRAP_RESAMPLES,
+        bootstrap_seed=BOOTSTRAP_SEED,
+    )
+
+
+def _validate_bootstrap_metadata(evaluation: FrozenEvaluation) -> None:
+    if (
+        isinstance(evaluation.bootstrap_resamples, bool)
+        or not isinstance(evaluation.bootstrap_resamples, int)
+        or evaluation.bootstrap_resamples < 1
+        or isinstance(evaluation.bootstrap_seed, bool)
+        or not isinstance(evaluation.bootstrap_seed, int)
+    ):
+        raise ValueError("evaluation bootstrap metadata is invalid")
+    for comparison in evaluation.comparisons.values():
+        for metric in ("ndcg_at_10_delta", "mrr_delta"):
+            interval = comparison.get(metric)
+            if (
+                not isinstance(interval, dict)
+                or interval.get("n_resamples") != evaluation.bootstrap_resamples
+                or interval.get("seed") != evaluation.bootstrap_seed
+                or interval.get("generator") != "python_random_mt19937"
+            ):
+                raise ValueError("comparison bootstrap metadata disagrees with computation")
+
+
 def _result_payload(
     evaluation: FrozenEvaluation,
     evidence: PointwiseEvidence,
@@ -665,6 +724,7 @@ def _result_payload(
     input_receipt: Mapping[str, Any],
     baseline_reproduction: Mapping[str, Any],
 ) -> dict[str, Any]:
+    _validate_bootstrap_metadata(evaluation)
     return {
         "artifact_type": "trec_2026_pointwise_ranking_phase0_evaluation",
         "version": 1,
@@ -679,8 +739,9 @@ def _result_payload(
             "ndcg_cutoff": 10,
             "mrr_relevance": "qrel_grade_greater_than_zero",
             "rrf_k": RRF_K,
-            "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
-            "bootstrap_seed": BOOTSTRAP_SEED,
+            "bootstrap_resamples": evaluation.bootstrap_resamples,
+            "bootstrap_seed": evaluation.bootstrap_seed,
+            "bootstrap_generator": "python_random_mt19937",
             "baseline_absolute_tolerance": BASELINE_TOLERANCE,
         },
         "systems": {
@@ -802,7 +863,7 @@ def _candidate_slice_tsv(rows: Sequence[Mapping[str, Any]]) -> str:
     return handle.getvalue()
 
 
-def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+def _stage_bytes(path: Path, payload: bytes) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)
@@ -811,10 +872,22 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        return temporary
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+
+
+def _validate_publication_paths(destination: Path, export_paths: Sequence[Path]) -> None:
+    absolute_exports = [path.absolute() for path in export_paths]
+    if len(set(absolute_exports)) != len(absolute_exports):
+        raise ValueError("sanitized export destinations must be distinct")
+    absolute_destination = destination.absolute()
+    if any(
+        path == absolute_destination or absolute_destination in path.parents
+        for path in absolute_exports
+    ):
+        raise ValueError("sanitized exports must live outside the artifact destination")
 
 
 def write_evaluation_outputs(
@@ -835,8 +908,6 @@ def write_evaluation_outputs(
     destination = Path(artifact_dir)
     if destination.exists():
         raise FileExistsError(f"artifact destination already exists: {destination}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
     result_payload = _result_payload(
         evaluation,
         evidence,
@@ -846,6 +917,36 @@ def write_evaluation_outputs(
     )
     per_query_payload = _per_query_tsv(evaluation.per_query)
     candidate_slice_payload = _candidate_slice_tsv(evaluation.candidate_slices)
+    exports = {
+        "results": (
+            Path(result_export_path),
+            (
+                json.dumps(
+                    result_payload,
+                    indent=2,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                    allow_nan=False,
+                )
+                + "\n"
+            ).encode("utf-8"),
+        ),
+        "per_query": (Path(per_query_export_path), per_query_payload.encode("utf-8")),
+        "candidate_slices": (
+            Path(candidate_slice_export_path),
+            candidate_slice_payload.encode("utf-8"),
+        ),
+    }
+    _validate_publication_paths(
+        destination, [path for path, _ in exports.values()]
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent)
+    )
+    staged_exports: dict[str, Path] = {}
+    backups: dict[Path, Path] = {}
+    published_exports: list[Path] = []
     try:
         rankings_dir = staging / "rankings"
         runs_dir = staging / "runs"
@@ -890,23 +991,37 @@ def write_evaluation_outputs(
                 "aggregate_sha256": manifest_aggregate_sha256(entries),
             },
         )
+        for name, (path, payload) in exports.items():
+            staged_exports[name] = _stage_bytes(path, payload)
+            if path.exists():
+                if not path.is_file():
+                    raise ValueError(f"sanitized export is not a regular file: {path}")
+                backups[path] = _stage_bytes(path, path.read_bytes())
+        for name, (path, _) in exports.items():
+            staged_exports[name].replace(path)
+            published_exports.append(path)
+        if destination.exists():
+            raise FileExistsError(f"artifact destination already exists: {destination}")
         os.rename(staging, destination)
     except BaseException:
+        rollback_errors: list[OSError] = []
+        for path in reversed(published_exports):
+            try:
+                backup = backups.pop(path, None)
+                if backup is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(backup, path)
+            except OSError as error:
+                rollback_errors.append(error)
+        for temporary in (*staged_exports.values(), *backups.values()):
+            temporary.unlink(missing_ok=True)
         shutil.rmtree(staging, ignore_errors=True)
+        if rollback_errors:
+            raise RuntimeError("evaluation publication rollback failed") from rollback_errors[0]
         raise
-
-    exports = {
-        "results": (Path(result_export_path), (json.dumps(
-            result_payload, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False
-        ) + "\n").encode("utf-8")),
-        "per_query": (Path(per_query_export_path), per_query_payload.encode("utf-8")),
-        "candidate_slices": (
-            Path(candidate_slice_export_path),
-            candidate_slice_payload.encode("utf-8"),
-        ),
-    }
-    for path, payload in exports.values():
-        _atomic_write_bytes(path, payload)
+    for temporary in backups.values():
+        temporary.unlink(missing_ok=True)
     return {
         "artifact_manifest_sha256": sha256_file(destination / "manifest.json"),
         "artifact_aggregate_sha256": json.loads(
@@ -957,13 +1072,6 @@ def run_pointwise_phase0_evaluation(
     result_export_path: str | Path,
     per_query_export_path: str | Path,
     candidate_slice_export_path: str | Path,
-    expected_qrels_sha256: str = FROZEN_QRELS_SHA256,
-    expected_dense_rankings_sha256: str = FROZEN_DENSE_RANKINGS_SHA256,
-    expected_dense_run_sha256: str = FROZEN_DENSE_RUN_SHA256,
-    expected_dense_results_sha256: str = FROZEN_DENSE_RESULTS_SHA256,
-    expected_dense_per_query_sha256: str = FROZEN_DENSE_PER_QUERY_SHA256,
-    expected_query_count: int = OFFICIAL_QUERY_COUNT,
-    expected_candidate_count: int = OFFICIAL_CANDIDATE_COUNT,
 ) -> dict[str, Any]:
     """Run the frozen zero-call construction, verify control, then open qrels."""
 
@@ -978,9 +1086,9 @@ def run_pointwise_phase0_evaluation(
     # Every ranking input and qrel-free derived signal is closed before qrels
     # are hashed or opened.
     dense_rankings = _load_dense_rankings(
-        dense_rankings_file, expected_dense_rankings_sha256
+        dense_rankings_file, FROZEN_DENSE_RANKINGS_SHA256
     )
-    if sha256_file(dense_run_file) != expected_dense_run_sha256:
+    if sha256_file(dense_run_file) != FROZEN_DENSE_RUN_SHA256:
         raise ValueError("frozen dense TREC run SHA-256 differs")
     if rankings_from_run(dense_run_file) != dense_rankings:
         raise ValueError("frozen dense JSON and TREC run rankings differ")
@@ -998,7 +1106,7 @@ def run_pointwise_phase0_evaluation(
     )
 
     qrels_sha256 = sha256_file(qrels_file)
-    if qrels_sha256 != expected_qrels_sha256:
+    if qrels_sha256 != FROZEN_QRELS_SHA256:
         raise ValueError("development qrels SHA-256 differs")
     qrels = load_complete_qrels(qrels_file, expected_query_ids=predictions.query_ids)
     if sha256_file(qrels_file) != qrels_sha256:
@@ -1007,16 +1115,14 @@ def run_pointwise_phase0_evaluation(
         qrels,
         query_ids=predictions.query_ids,
         candidate_ids=predictions.candidate_ids,
-        expected_query_count=expected_query_count,
-        expected_candidate_count=expected_candidate_count,
     )
     baseline_reproduction = reproduce_dense_control(
         dense_rankings,
         qrels,
         result_receipt_path=dense_result_receipt_path,
         per_query_receipt_path=dense_per_query_receipt_path,
-        expected_result_sha256=expected_dense_results_sha256,
-        expected_per_query_sha256=expected_dense_per_query_sha256,
+        expected_result_sha256=FROZEN_DENSE_RESULTS_SHA256,
+        expected_per_query_sha256=FROZEN_DENSE_PER_QUERY_SHA256,
         expected_ndcg=FROZEN_DENSE_NDCG_AT_10,
         expected_mrr=FROZEN_DENSE_MRR,
         expected_zero_ndcg=FROZEN_DENSE_ZERO_NDCG,
@@ -1037,10 +1143,10 @@ def run_pointwise_phase0_evaluation(
         "selected_record_ids_sha256": FROZEN_SELECTED_RECORD_IDS_SHA256,
         "top_record_indices_sha256": FROZEN_TOP_RECORD_INDICES_SHA256,
         "top_record_similarities_sha256": FROZEN_TOP_RECORD_SIMILARITIES_SHA256,
-        "dense_rankings_sha256": expected_dense_rankings_sha256,
-        "dense_run_sha256": expected_dense_run_sha256,
-        "dense_result_receipt_sha256": expected_dense_results_sha256,
-        "dense_per_query_receipt_sha256": expected_dense_per_query_sha256,
+        "dense_rankings_sha256": FROZEN_DENSE_RANKINGS_SHA256,
+        "dense_run_sha256": FROZEN_DENSE_RUN_SHA256,
+        "dense_result_receipt_sha256": FROZEN_DENSE_RESULTS_SHA256,
+        "dense_per_query_receipt_sha256": FROZEN_DENSE_PER_QUERY_SHA256,
         "query_count": len(predictions.query_ids),
         "candidate_count": len(predictions.candidate_ids),
         "qrel_count": sum(len(values) for values in qrels.values()),

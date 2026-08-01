@@ -106,10 +106,23 @@
 
 ## Current status
 
-- Phase: qrel-free construction implementation.
+- Phase: Task 3 leakage-safe evaluation completed; pending independent review
+  and Task 4 validation.
 - Base: `eeea2d5cc69c0205f56806e13bb1ccf0bfa9096a` from current `origin/main`.
 - Baseline verification: 1,035 tests passed and 3 skipped after supplying optional test dependencies in the isolated environment.
-- Latest result: frozen records passed the 25-test protocol/index check and the
-  Research Hub generated-output check; no pointwise effectiveness evaluation
-  has run.
-- Next action: start Task 2 test-first implementation.
+- Latest result: the frozen dense control reproduced at nDCG@10
+  `0.35985474409504775`, MRR `0.40406330811168817`, 116 zero queries, and all
+  322 per-query receipt values within `5e-12`. The combined system reached
+  nDCG@10 `0.2113240933733129`, MRR `0.2691192482181426`, and 172 zero queries.
+  Its nDCG delta was `-0.14853065072173485` with paired 95% interval
+  `[-0.18381098850790814, -0.1142669617790963]`; the gate failed and the frozen
+  recommendation is to stop pairwise work despite selector availability.
+- Determinism: the post-fix evaluation and independent repeat were
+  byte-identical. The ignored artifact aggregate is
+  `f5e7575e1ca83391c852555441a1ba0488e7eacd4b493da1cf0a8fd6aa4a5e4b`;
+  sanitized results, per-query, and candidate-slice hashes are respectively
+  `449e325582b29dff37d917a55f48837a4167e0845c1da4f42a672955ea1d0be2`,
+  `e2193404d8f1052199b6b6a396d78556e48bb84b145a6e7adda125634218d889`,
+  and `4d56304bf73f6d0e6bfd3c5612b922c3c3ce6e43f349857fc180aab9d83f3329`.
+- Next action: Task 4 independently recomputes metrics from emitted runs,
+  reconciles all slices and receipts, and owns the result-export commit.

@@ -85,12 +85,27 @@ inspection all passed. The browser-backed full integration command did not
 emit a capturable terminal summary in its PTY, so this report does not claim
 that command as an additional pass.
 
+## Minor correction follow-up
+
+Review found one display-rounding error in the candidate-slice table:
+smoothed-prior Q4 prior-only nDCG receipt `0.11471287098429887` rounds to
+`.114713`, not `.114712`. Commit
+`895b482c1e66d29f584230da78dbc051b3020cd1` corrects only that value in the
+canonical study and regenerated study copy; no other scientific value changed.
+
+After the correction, the study-only render and full 175-page Hub render both
+completed. The Hub build check, 23 focused current-state/study-link tests,
+static site audit, rendered-value and three-run-link checks, whitespace check,
+old-value absence check, and sanitization scan all passed. No Python changed,
+so no additional Ruff run was applicable.
+
 ## Commit and concerns
 
 Implementation and generated outputs are committed in
 `7793fcc8c6530271b355951dfc401d0a7cf10ab4` (`docs: publish pointwise Phase 0
-result`). This report is intentionally a follow-up commit; resolve its commit
-with `git log -1 --format=%H --` on this file to avoid a self-referential hash.
+result`), followed by the correction commit above. This report is intentionally
+a follow-up commit; resolve its latest commit with `git log -1 --format=%H --`
+on this file to avoid a self-referential hash.
 
 No load-bearing concern remains. The result is deliberately development-only,
 pointwise support is not organizer relevance gold, and the failed gate is

@@ -25,19 +25,33 @@ judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
   `validate_qrel_matrix` did not exist.
 - Matrix green: 12 tests passed after exact query/candidate dimension and
   identity checks plus frozen orchestration were implemented.
+- Integrity review red: 4 tests failed while 11 passed, exposing caller-
+  overrideable production constants, missing actual bootstrap fields, writer
+  acceptance of inconsistent interval metadata, and publication that left a
+  finalized artifact when an injected second export failed.
+- Integrity review green: 15 tests passed after sealing every production hash,
+  receipt, dimension, dense metric, zero count, tolerance, bootstrap count, and
+  seed behind the no-override orchestration signature. The lower-level private
+  evaluator now carries explicit synthetic bootstrap settings. The writer
+  validates those values, serializes the actual computation metadata, stages
+  every output, restores all prior exports on failure, removes incomplete
+  state, and permits immediate retry. The injected second-export failure test
+  proves the full rollback and retry behavior.
 
 ## Verification commands
 
 - `uv run pytest -q tests/test_pointwise_ranking_evaluation.py
   tests/test_pointwise_ranking.py tests/test_metrics.py tests/test_runio.py
-  tests/test_artifact_io.py` — 55 passed.
+  tests/test_artifact_io.py` — 58 passed after integrity fixes.
 - `uv run ruff check trec_mlm/pointwise_ranking_evaluation.py
   scripts/evaluate_pointwise_ranking_phase0.py
   tests/test_pointwise_ranking_evaluation.py` — passed.
 - `uv run python -m py_compile ...` and CLI `--help` — passed.
-- Frozen CLI run with the protocol paths — passed; exact repeat used separate
-  ignored artifact and export destinations.
+- Post-fix frozen CLI run with the protocol paths — passed; a second post-fix
+  execution used separate ignored artifact and export destinations.
 - `cmp` on the three sanitized exports and both manifests — all byte-identical.
+- The production result records the actual paired computation as 10,000
+  resamples, seed 31, Python MT19937; each comparison receipt matches it.
 - All five emitted TREC runs validated at 322 queries, 150 candidates, and
   48,300 rows. `git diff --check` and sanitized path/text/credential scans
   passed.
@@ -66,9 +80,9 @@ judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
 ## Deterministic hashes and result status
 
 - Ignored artifact aggregate:
-  `f79246acfef8c5c043898680b68b3def38dddf895aa7df5040421dc24b0c4530`.
+  `f5e7575e1ca83391c852555441a1ba0488e7eacd4b493da1cf0a8fd6aa4a5e4b`.
 - Sanitized results JSON:
-  `f8a5ad36871592135935b68e3bc7e2fefbfe3eb0c9a41544f3b8815b302c5a0a`.
+  `449e325582b29dff37d917a55f48837a4167e0845c1da4f42a672955ea1d0be2`.
 - Sanitized per-query TSV:
   `e2193404d8f1052199b6b6a396d78556e48bb84b145a6e7adda125634218d889`.
 - Sanitized candidate-slice TSV:
@@ -79,6 +93,9 @@ judge, pairwise, pointwise-regeneration, or embedding-inference call occurred.
 ## Commit and concerns
 
 - Implementation commit: `6eb7c1e` (`feat: evaluate pointwise ranking phase 0`).
+- Production-integrity fix commit: `65c5676` (`fix: seal pointwise evaluation
+  publication`). This commit also updates the canonical plan to Task 3
+  completed pending independent review and Task 4.
 - No correctness or leakage concern is known. The paired percentile interval
   uses the repository metric primitive with Python's seeded MT19937 and records
   that generator explicitly because the protocol freezes seed 31 but does not

@@ -102,11 +102,11 @@
 - [x] Obtain independent task and whole-branch reviews; fix and re-review critical/important findings.
 - [x] Run generated-output checks, Hub render/audit, Ruff, full pytest, `git diff --check`, and tracked-file secret/private-path scans.
 - [x] Produce sanitized derived HTML in the host-configured private rendered-artifact directory, update the private portal index, verify live tailnet-only HTTPS, and confirm no private data exposure.
-- [ ] Commit intended files, push `codex/issue-31-phase0`, and open a reviewable draft PR to `main` with the leakage boundary, results, checks, and issue linkage.
+- [x] Commit intended files, push `codex/issue-31-phase0`, and open a reviewable draft PR to `main` with the leakage boundary, results, checks, and issue linkage.
 
 ## Current status
 
-- Phase: Task 6 verified and ready for draft-PR handoff.
+- Phase: complete; draft PR #55 is open for review.
 - Base: `eeea2d5cc69c0205f56806e13bb1ccf0bfa9096a` from current `origin/main`.
 - Baseline verification: 1,035 tests passed and 3 skipped before implementation;
   the first whole-branch run passed 1,069 tests with 3 skipped before final
@@ -142,5 +142,9 @@
   the authorized tailnet-only Tailscale Serve mapping; the report returned HTTP
   200, contained the final evidence/provenance wording, and exposed neither
   QMD/Markdown sources nor local private paths. No Funnel handler is configured.
-- Next action: commit this handoff status, push `codex/issue-31-phase0`, and
-  open the reviewable draft PR to `main` with issue #31 linkage.
+- Pull request: [#55](https://github.com/npatta01/trec_mlm_2026/pull/55)
+  targets `main`, closes issue #31 when merged, and preserves the worktree for
+  review follow-ups.
+- Next action: review draft PR #55. Do not run Phase 1 or any pairwise/API work;
+  the negative Phase 0 gate is terminal unless a new outcome-independent study
+  is separately authorized.

@@ -34,6 +34,51 @@ pairwise, judge, pointwise-regeneration, embedding, or API call.
   query IDs and normalized-text fingerprints against all 6,816 pointwise
   source-question IDs and fingerprints.
 
+## Committed reproducer
+
+The initial independent calculation was promoted from an ad hoc validator to a
+committed, rerunnable implementation in
+`trec_mlm/pointwise_ranking_validation.py`, with the zero-call CLI
+`scripts/validate_pointwise_ranking_phase0.py` and synthetic plus real-input
+coverage in `tests/test_pointwise_ranking_validation.py`. The module is
+stdlib-only and a subprocess import blocker proves that neither
+`trec_mlm.metrics` nor `trec_mlm.pointwise_ranking_evaluation` loads.
+
+The canonical read-only reproduction command is:
+
+```bash
+uv run python scripts/validate_pointwise_ranking_phase0.py \
+  --check reports/trec_2026_pointwise_ranking_phase0_results.json
+```
+
+It validates the complete artifact manifest and aggregate, evaluator and TSV
+hashes, all scientific and publication checks above, rebuilds only the exact
+`independent_validation` replacement for the evaluator's `false` sentinel,
+serializes repository pretty JSON, and requires byte identity with the tracked
+result. It neither rewrites the per-query and candidate-slice TSVs nor reads
+their tracked copies as an oracle.
+
+Test-first evidence:
+
+- First red: focused tests failed at collection because the independent module
+  did not exist. First green: six synthetic tests passed for literal metrics,
+  strict dimensions/ranks, deterministic finalization, validation-state
+  rejection, publication scanning, and import independence.
+- Second red: focused tests failed because the full frozen-bundle entry point
+  did not exist. Second green: eight tests passed, including exact real-input
+  finalization and CLI write/check modes.
+- Credential-scan red: a synthetic assignment-form credential payload was not
+  rejected. Green added assignment-form detection without changing the
+  validated output bytes.
+- Copy-boundary red: the bundle entry point did not accept tracked TSV copies,
+  so it could not fail a changed publication copy. Green brings the focused
+  suite to nine tests and requires both tracked TSV hashes and bytes to match
+  their evaluator outputs without rewriting either file.
+- Final focused-plus-adjacent verification passed 69 tests. Ruff, bytecode
+  compilation, CLI help, direct `--output` plus `cmp`, and direct `--check`
+  passed. Both CLI modes produced the ledger-pinned SHA-256
+  `48ffaa81c77fde9dafb67ff9bbc29de98e51b8735a9320b2117f5662e31a7e6d`.
+
 ## Exact aggregate and paired results
 
 | System | nDCG@10 | MRR | Zero nDCG |
@@ -100,7 +145,8 @@ negative gate is binding and pairwise work stops.
   `4d56304bf73f6d0e6bfd3c5612b922c3c3ce6e43f349857fc180aab9d83f3329`.
 - Validated results JSON:
   `48ffaa81c77fde9dafb67ff9bbc29de98e51b8735a9320b2117f5662e31a7e6d`.
-- Task 3 parent: `8bfb80b53c061deb787802e2d6524585ee6e7929`. Task 4 is one commit containing
-  exactly this report and the three report exports; resolve its hash with
+- Task 3 parent: `8bfb80b53c061deb787802e2d6524585ee6e7929`. The original four-file Task 4
+  evidence commit is `51c0d25`. The reproducibility fix commit adds only the
+  independent module, CLI, tests, and this report update; resolve its hash with
   `git log -1 --format=%H --` on this file, avoiding a self-referential hash in
   committed content.

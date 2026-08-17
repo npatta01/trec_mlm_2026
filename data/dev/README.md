@@ -22,7 +22,7 @@ test queries.
 | `llm_discovery_metadata.json` | Discovery | Same core discovery data, with logprobs and response metadata. Use this for confidence, uncertainty, answer-length, and token-probability features. |
 | `llm_dev_data.tsv` | Development | Development query IDs and query text. Rank the candidate LLM IDs for each query. |
 | `llm_dev_qrels.txt` | Development | Expertise labels for development query-LLM pairs. Use for validation, model selection, and metric checks. |
-| Test query file | Test | Not released on the official page as of capture date. The page lists 2026-09-05 as the test query release date. |
+| [`2026-mllm-topics-final.jsonl`](../test/2026-mllm-topics-final.jsonl) | Test | Final test topics. See the [test-data notes](../test/README.md) for the official authenticated source, checksum, and submission deadline. |
 
 The exact official links, Google Drive file IDs, and byte sizes are in
 `file_manifest.tsv`.
@@ -39,7 +39,10 @@ data/dev/
   llm_discovery_metadata.json
   llm_dev_data.tsv
   llm_dev_qrels.txt
-  llm_test_data.tsv      # add when released
+
+data/test/
+  README.md
+  2026-mllm-topics-final.jsonl
 ```
 
 The development query file and qrels are tracked because they are about 40 KB and
@@ -132,10 +135,10 @@ query category.
 | Date | Event |
 |---|---|
 | 2026-07-07 | Expertise discovery and development data released |
-| 2026-09-05 | Test queries released |
-| 2026-09-21 | Submission deadline |
+| 2026-08-17 | Final test topics captured from the participant download |
+| 2026-09-06 | Run submission deadline (Anywhere on Earth) |
 | 2026-10 | Evaluation and results shared |
 | 2026-11 | TREC conference |
 
-The page also lists "September 2026" as the submission deadline in the submission
-section, while the timeline gives the specific date 2026-09-21.
+The final topic announcement supersedes the earlier provisional September dates
+recorded when the development data was captured.

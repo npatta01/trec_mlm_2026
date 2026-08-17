@@ -133,6 +133,7 @@ live in [`data/dev/README.md`](data/dev/README.md).
 | `protocols/` | Frozen experiment and leakage-boundary contracts |
 | `plans/` | Active and historical working records |
 | `data/dev/` | Official file manifest, tracked development data, and download notes |
+| `data/test/` | Final test topics, official source, checksum, and deadline notes |
 | `trec_mlm/` | Ranking, evaluation, validation, and reporting code |
 | `scripts/` | Reproducible command-line entry points |
 | `tests/` | Unit, integration, ledger, and Hub checks |

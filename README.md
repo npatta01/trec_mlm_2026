@@ -63,6 +63,12 @@ uv run trec-mlm score-run \
   --run artifacts/query_knn_baseline/run.trec
 ```
 
+For the hidden-test release, `trec-mlm submit-run` is the single qrel-free,
+receipted entry point that turns the unseen-query file into a validated TREC
+run; the frozen configuration, freeze-day invocation, and fail-closed rules are
+documented in
+[`docs/trec_2026_submission_pipeline.md`](docs/trec_2026_submission_pipeline.md).
+
 The [executed notebook](notebooks/trec_2026_query_knn_baseline.ipynb) and
 [read-only report](reports/trec_2026_query_knn_baseline.html) explain the
 baseline in detail. To inspect any completed run query by query, follow the

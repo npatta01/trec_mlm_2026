@@ -290,6 +290,33 @@ def build_parser() -> argparse.ArgumentParser:
     profile_report.add_argument("--markdown", required=True)
     profile_report.add_argument("--html", required=True)
 
+    submit = commands.add_parser(
+        "submit-run",
+        help=(
+            "produce one qrel-free, receipted TREC run for an unseen-query "
+            "release from a frozen system configuration"
+        ),
+    )
+    submit.add_argument(
+        "--queries",
+        required=True,
+        help="organizer release: query_id<TAB>text .tsv or topic_id/question .jsonl",
+    )
+    submit.add_argument(
+        "--config",
+        required=True,
+        help="frozen system configuration JSON checked into configs/",
+    )
+    submit.add_argument(
+        "--artifact",
+        default=None,
+        help=(
+            "backend-specific artifact directory; for profile_scoring this is "
+            "the unseen-query profile inference artifact"
+        ),
+    )
+    submit.add_argument("--output-dir", required=True)
+
     validate = commands.add_parser("validate-run", help="validate a TREC run")
     validate.add_argument("run")
     validate.add_argument("--queries", default="data/dev/llm_dev_data.tsv")
@@ -569,6 +596,18 @@ def main(argv: list[str] | None = None) -> int:
 
         build_report(args.evaluation, args.markdown, args.html)
         print(json.dumps({"markdown": args.markdown, "html": args.html}, indent=2))
+        return 0
+
+    if args.command == "submit-run":
+        from trec_mlm.submission import run_submission
+
+        receipt = run_submission(
+            config_path=args.config,
+            queries_path=args.queries,
+            output_dir=args.output_dir,
+            artifact_path=args.artifact,
+        )
+        print(json.dumps(receipt, indent=2))
         return 0
 
     if args.command == "validate-run":

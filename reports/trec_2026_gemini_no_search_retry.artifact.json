@@ -1,0 +1,41 @@
+{
+  "artifact_type": "grounded-reference-retry-custody-receipt",
+  "schema_version": 1,
+  "status": "local_private_artifacts_preserved",
+  "question_count": 1485,
+  "model": "gemini-3.6-flash",
+  "provider": "gemini-grounded",
+  "prompt_sha256": "b09dba18a3fb07e949d63bbd31ab826bbfd32ea4ae96c52478797076e3adfbe5",
+  "files": [
+    {
+      "path": "artifacts/reference_answer_validation/gemini_grounding_retry/gemini36_no_search_all_1485_sample.json",
+      "bytes": 245043,
+      "sha256": "c063c5c80f79101409a356bd17aafecf7e663be01f3eed80feb3a62b3f200ecc",
+      "contains_raw_provider_output": false,
+      "committed": false
+    },
+    {
+      "path": "artifacts/reference_answer_validation/gemini_grounding_retry/gemini36_no_search_retry_all_1485.json",
+      "bytes": 3397419,
+      "sha256": "a92a16978edc33aad253014795d5ca359108f767ed0e3267d4c764451d7122f1",
+      "contains_raw_provider_output": true,
+      "committed": false
+    },
+    {
+      "path": "artifacts/reference_answer_validation/private/gemini36_no_search_retry_all_1485_evidence.json",
+      "bytes": 7059240,
+      "sha256": "a3cd9413a7b81925d8bd409959586883e77fa4cac03f9dadcba9daba71d634bc",
+      "mode": "0600",
+      "contains_raw_provider_output": true,
+      "committed": false
+    },
+    {
+      "path": "artifacts/reference_answer_validation/gemini_grounding_retry/gemini36_no_search_retry_all_1485_audit.json",
+      "bytes": 13956,
+      "sha256": "97333e38b8ec1170e1105b6c161b78a5f0f1df712065c4b935fd85444c3767fa",
+      "contains_raw_provider_output": false,
+      "committed": false
+    }
+  ],
+  "policy": "Raw provider responses and private evidence remain under ignored artifacts/. This tracked receipt records identity and local custody without publishing those outputs."
+}

@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 import hashlib
 import ipaddress
 import json
+import os
 from pathlib import Path
+import tempfile
 import threading
 import time
 from typing import Any, Callable, Mapping
@@ -34,6 +36,18 @@ SYSTEM_PROMPT = (
     "silently choose one. If authoritative sources conflict, describe the conflict. "
     "Do not mark ANSWERED unless the central claims are supported by the retrieved "
     "evidence. For time-sensitive claims, state the relevant date."
+)
+
+GROUNDED_SYSTEM_PROMPT = (
+    SYSTEM_PROMPT
+    + "\n\nUse Google Search before answering every question, even when the answer "
+    "seems familiar. Search again when needed to verify the question's exact "
+    "wording and every central factual claim. Prefer primary or authoritative "
+    "sources when practical, but use reliable secondary sources when they are "
+    "adequate. Do not use a fixed number of searches or an arbitrary answer-length "
+    "limit; stop searching when the central claims are adequately supported. Base "
+    "the answer on the retrieved evidence. If Search is unavailable or produces no "
+    "usable evidence, use INSUFFICIENT_EVIDENCE instead of relying on memory."
 )
 
 UNCERTAINTY_STATUSES = {
@@ -137,8 +151,9 @@ def build_gemini_request(
         raise ValueError(f"model is not an approved Google challenger: {model}")
     thinking_level = "high" if model == GEMMA_MODEL else "low"
 
+    system_prompt = GROUNDED_SYSTEM_PROMPT if grounding else SYSTEM_PROMPT
     body: dict[str, Any] = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": question}]}],
         "generationConfig": {
             "temperature": 1.0,
@@ -640,14 +655,23 @@ def _write_cache(
     path: Path, payload: Mapping[str, Any], *, private: bool = False
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
+    serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     if private:
-        path.chmod(0o600)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+        )
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(serialized)
+            temporary.replace(path)
+            path.chmod(0o600)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(serialized, encoding="utf-8")
+    temporary.replace(path)
 
 
 class GenerationRunner:
@@ -724,11 +748,20 @@ class GenerationRunner:
             if evidence_cache is None:
                 return True
             evidence = evidence_records.get(question_id)
-            return (
+            is_current = (
                 isinstance(evidence, Mapping)
                 and evidence.get("provider") == self.provider
                 and evidence.get("model") == self.model
                 and evidence.get("prompt_sha256") == self.prompt_sha256
+            )
+            if not is_current:
+                return False
+            record = records.get(question_id)
+            return not (
+                self.provider == "gemini-grounded"
+                and isinstance(record, Mapping)
+                and record.get("uncertainty_status") == "answered"
+                and evidence.get("search_invoked") is not True
             )
 
         def write_all() -> None:
@@ -765,8 +798,28 @@ class GenerationRunner:
 
         def invoke(question: str):
             started = time.monotonic()
-            result = self.call(question)
-            return result, time.monotonic() - started
+            for generation_attempt in range(2):
+                result = self.call(question)
+                metadata = result[3]
+                private_evidence = (
+                    metadata.get("_private_evidence")
+                    if isinstance(metadata, Mapping)
+                    else None
+                )
+                answered_without_search = (
+                    self.provider == "gemini-grounded"
+                    and isinstance(metadata, Mapping)
+                    and metadata.get("uncertainty_status") == "answered"
+                    and isinstance(private_evidence, Mapping)
+                    and private_evidence.get("search_invoked") is not True
+                )
+                if not answered_without_search:
+                    return result, time.monotonic() - started
+                if generation_attempt == 1:
+                    raise ValueError(
+                        "grounded ANSWERED response contains no Search evidence"
+                    )
+            raise AssertionError("unreachable")
 
         completed_since_checkpoint = 0
 
@@ -877,11 +930,14 @@ def generate_missing(
     checkpoint_every: int = 10,
     evidence_cache_path: Path | None = None,
 ) -> dict[str, Any]:
+    system_prompt = (
+        GROUNDED_SYSTEM_PROMPT if provider == "gemini-grounded" else SYSTEM_PROMPT
+    )
     runner = GenerationRunner(
         cache_path=cache_path,
         provider=provider,
         model=model,
-        prompt_sha256=hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        prompt_sha256=hashlib.sha256(system_prompt.encode("utf-8")).hexdigest(),
         call=call,
         workers=workers,
         checkpoint_every=checkpoint_every,

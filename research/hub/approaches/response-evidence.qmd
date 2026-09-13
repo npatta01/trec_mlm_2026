@@ -4,8 +4,8 @@ title: "Response evidence"
 summary: "Use model responses or response-derived features as evidence for ranking candidate LLMs."
 plain_english: "Read what candidates answered, not only their identifiers or profiles."
 question_ids: [response-evidence, failure-conditions]
-study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement, openai-luna-pointwise-production-audit]
-current_assessment: "An audited pointwise support-label artifact is ready for a frozen downstream ranking test; direct response retrieval underperformed."
+study_ids: [response-retrieval, response-volume-normalization, source-query-first, e5-raw-response-refinement, openai-luna-pointwise-production-audit, pointwise-ranking-phase0]
+current_assessment: "The audited pointwise artifact remains usable for analysis, but its frozen Phase 0 pointwise-only and dense-fused rankings underperformed the dense control; pairwise follow-up stopped."
 tags: [responses, retrieval]
 ---
 

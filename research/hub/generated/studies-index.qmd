@@ -115,6 +115,12 @@ A study is one decision-relevant experiment, audit, or review. Open a row for it
 
 ### Ranking experiment
 
+<a class="hub-study-row" data-study-id="pointwise-ranking-phase0" data-themes="responses-references evidence-reliability" href="pointwise-ranking-phase0.qmd">
+<span>Negative · Stop</span>
+<strong>Pointwise response-quality ranking Phase 0</strong>
+<span>Audited pointwise judgments did not produce rankings that agreed well enough with organizer qrels and did not improve the frozen dense control.</span>
+<span class="hub-next-action"><strong>Practical decision</strong> Stop pairwise work because the frozen effectiveness gate failed despite sufficient zero-call selector capacity.</span>
+</a>
 <a class="hub-study-row" data-study-id="response-retrieval" data-themes="responses-references" href="response-retrieval.qmd">
 <span>Negative · Reject</span>
 <strong>Lexical response retrieval</strong>

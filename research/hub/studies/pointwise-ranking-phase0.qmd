@@ -1,0 +1,102 @@
+---
+study_id: pointwise-ranking-phase0
+title: "Pointwise response-quality ranking Phase 0"
+primary_theme_id: responses-references
+theme_ids: [responses-references, evidence-reliability]
+study_type: ranking_experiment
+question_ids: [response-evidence]
+approach_ids: [response-evidence]
+status: concluded
+outcome: negative
+objective: "Test whether audited pointwise response judgments produce candidate rankings that agree with organizer qrels and improve the frozen dense control."
+hypothesis: "A query-local pointwise ranking, and its fixed fusion with dense_nested, improve candidate ranking on the complete development set."
+rationale: "A completed audit made support labels available, and a frozen candidate-local E5 tensor enabled a zero-call query-specific transfer test."
+rationale_provenance: contemporaneous
+protocol_summary: "Join labels by record ID, separate a smoothed candidate prior from the query-local residual, rank with fixed reciprocal-rank fusion, and evaluate the frozen control, pointwise-only, and combined systems once on the complete development set."
+conclusion: "Audited pointwise judgments did not produce rankings that agreed well enough with organizer qrels and did not improve the frozen dense control."
+decision: stop
+decision_summary: "Stop pairwise work because the frozen effectiveness gate failed despite sufficient zero-call selector capacity."
+system_ids: [dense_nested, pointwise_phase0_pointwise_only, pointwise_phase0_combined]
+representative_system_ids: [pointwise_phase0_pointwise_only, pointwise_phase0_combined]
+comparison_system_ids: [dense_nested, pointwise_phase0_pointwise_only, pointwise_phase0_combined]
+evidence_refs: [protocols/trec_2026_pointwise_ranking_phase0.md, reports/trec_2026_pointwise_ranking_phase0_results.json, reports/trec_2026_pointwise_ranking_phase0_per_query.tsv, reports/trec_2026_pointwise_ranking_phase0_candidate_slices.tsv]
+dataset_ids: [pointwise-judgments, run-artifacts]
+started_on: 2026-08-01
+concluded_on: 2026-08-01
+supersedes: []
+superseded_by: []
+limitations: "Previously seen development evidence only; pointwise support is conditional agreement with supplied evidence rather than organizer gold, audited exposure is uneven, and private responses and tensors are not published."
+tags: [pointwise-judging, response-evidence, ranking, negative-result]
+---
+
+<!--
+## What the signals mean
+
+- **Supported label:** `supported = verdict in {correct, partial}`. It records
+  agreement with the supplied grounded evidence, not organizer relevance gold.
+- **Candidate prior:** for candidate (c),
+  ((supported_c + 1)/(audited_c + 2)), a Beta(1,1)-smoothed overall support
+  rate. It is global, not query-specific.
+- **Local score:** for query (q) and candidate (c), the arithmetic mean of the
+  ten support labels selected by the frozen candidate-local E5 tensor.
+- **Routing residual:** `local score − candidate prior`. It asks whether the
+  local evidence is better or worse than that candidate's usual audited rate.
+- **RRF:** reciprocal-rank fusion. Each ranked list contributes
+  (1/(60 + rank)); larger summed values rank first. Pointwise-only fuses prior
+  and residual ranks; combined fuses pointwise-only and dense ranks.
+- **nDCG@10:** normalized discounted cumulative gain in the first ten ranks,
+  using raw positive qrel grades. Higher is better; zero means no graded gain in
+  the top ten.
+- **MRR:** mean reciprocal rank of the first candidate with qrel grade greater
+  than zero. Higher is better.
+
+## Frozen method and leakage boundary
+
+The main comparison is the existing dense control, the pointwise-only ranking,
+and their fixed combined fusion. Prior-only and routing-only remain
+prespecified diagnostics and cannot replace the main result or override the
+gate.
+
+Construction was qrel-free. Labels and frozen representation records were
+joined by exact record ID, the pointwise source set was required to have no ID
+or normalized-text overlap with development queries, and qrels were opened
+only after rankings existed. Candidate-slice evaluation filters both rankings
+and qrels to the named candidate group before recomputing metrics.
+
+## Limitations and caveats
+
+- The organizer development queries were previously seen. This result is a
+  valid negative for the frozen development protocol, not a hidden-test
+  effectiveness estimate.
+- Supported response quality is conditional on supplied Gemini grounding
+  evidence. It is neither organizer gold nor candidate coverage or routing
+  relevance.
+- Audited exposure is uneven across candidates, so priors and transfers have
+  unequal evidence depth.
+- The candidate-local representation is frozen and uses a pretrained encoder;
+  another representation would be a new study, not a robustness result here.
+- Private questions, responses, references, labels, and tensors remain outside
+  the repository and rendered Hub. Tracked evidence contains IDs and metrics,
+  not private text.
+
+## Next action
+
+Do not assemble or submit pairwise jobs. Keep the Phase 0 systems as registered
+valid negatives, retain the dense run as the referenced control, and use only
+existing sanitized evidence to diagnose why local support residuals diverge
+from organizer relevance. Any later response-evidence proposal needs a new,
+outcome-independent frozen protocol; this failed gate does not authorize one.
+
+## Further questions
+
+- Does the mismatch come mainly from supplied-reference error, response support
+  differing from routing relevance, or candidate-local neighbor transfer?
+- Why does routing-only beat the global prior while their equal fusion performs
+  worse than routing-only?
+- What distinguishes control-zero rescues from control-nonzero regressions
+  without using target qrels to tune a router?
+- Is the isolated positive candidate slice repeatable under unseen evaluation,
+  or is it ordinary slice variation?
+-->
+
+{{< include ../generated/studies/pointwise-ranking-phase0.md >}}

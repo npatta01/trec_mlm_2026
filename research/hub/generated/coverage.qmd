@@ -12,4 +12,4 @@ Development evidence only.
 | **Can candidate-side semantic evidence improve query-only retrieval?** (`candidate-evidence`) | mixed (6 studies): invalid, mixed, negative, unscored | mixed (3 studies): mixed, negative | uncovered | mixed (2 studies): invalid, mixed | uncovered |
 | **How far can query-only routing go?** (`query-only-routing`) | negative (1 study) | mixed (4 studies): mixed, negative, positive | uncovered | uncovered | uncovered |
 | **How reliable must a generated reference be?** (`reference-reliability`) | uncovered | uncovered | mixed (4 studies): mixed, positive | uncovered | positive (1 study) |
-| **Can model responses provide useful ranking evidence?** (`response-evidence`) | uncovered | uncovered | positive (2 studies) | mixed (2 studies): mixed, negative, unscored | mixed (5 studies): mixed, negative, positive, unscored |
+| **Can model responses provide useful ranking evidence?** (`response-evidence`) | uncovered | uncovered | positive (2 studies) | mixed (2 studies): mixed, negative, unscored | mixed (6 studies): mixed, negative, positive, unscored |

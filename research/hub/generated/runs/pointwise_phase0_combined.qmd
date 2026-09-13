@@ -1,0 +1,51 @@
+---
+title: "pointwise_phase0_combined"
+---
+
+# `pointwise_phase0_combined`
+
+Development evidence only. No held-out effectiveness claim is supported.
+
+## Evidence contract
+
+- **Method:** Equal reciprocal-rank fusion of the pointwise-only ranking and the frozen dense_nested control.
+- **source_system_id:** `combined`
+- **Experiment family:** `pointwise_ranking_phase0`
+- **Evaluation scope:** `dev_322x150`
+- **Evidence status:** `stored_per_query`
+- **Promotion status:** `valid_negative`
+- **Artifact state:** `tracked_complete`
+- **Qrel usage:** `evaluation_only`
+- **per_query_available:** `true`
+
+## Evaluation
+
+- **Queries:** 322
+- **Candidates per query:** 150
+- **nDCG@10:** 0.211324
+- **MRR:** 0.269119
+- **Zero-nDCG queries:** 172
+
+## Linked studies
+
+- `pointwise-ranking-phase0`
+
+## Evidence receipt
+
+- **Source:** `reports/trec_2026_pointwise_ranking_phase0_results.json`
+- **SHA-256:** `48ffaa81c77fde9dafb67ff9bbc29de98e51b8735a9320b2117f5662e31a7e6d`
+- **Ranking coverage:** `per_query_metrics_only`
+
+## Evidence indexes
+
+- **Per-query evidence:** `reports/trec_2026_experiment_per_query.tsv`
+- **Relevant-candidate slice evidence:** `reports/trec_2026_experiment_topic_slices.tsv`
+- **Positive-density slice evidence:** `reports/trec_2026_experiment_density_slices.tsv`
+
+## Caveats
+
+- `adaptive_program_overfit`
+- `development_only`
+- `external_encoder_taxonomy`
+- `pointwise_phase0_failed_gate`
+- `pointwise_support_not_gold`

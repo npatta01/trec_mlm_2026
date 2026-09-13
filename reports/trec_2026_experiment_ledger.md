@@ -3,7 +3,7 @@
 - Promoted development result: `dense_profile_equal` (nDCG@10 0.4202).
 - Best full-development diagnostic: `dense_profile_profile_heavy` (nDCG@10 0.4376) — `diagnostic_only`, not promoted.
 - Best stable qrel-free control: `profile_only` (nDCG@10 0.4149).
-- Systems with complete per-query evidence: 11.
+- Systems with complete per-query evidence: 13.
 - aggregate-only systems: 73.
 - Unresolved artifact blockers: 43 systems.
 - Artifact blocker count includes only `local_artifact_missing` and `construction_artifact_missing` states.
@@ -94,11 +94,13 @@ Only `dev_322x150` systems appear here. `diagnostic_only` and `aggregate_only` r
 | `e5_small_v2@3` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.2264 | 0.2892 | no | `tracked_receipt_only` |
 | `mpnet_base_v2@1` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.2246 | 0.2929 | no | `tracked_receipt_only` |
 | `tfidf_fixed_k10` | `dev_322x150` | 322 | 150 | query_controls | `stable_control` | `aggregate_only` | 0.2177 | 0.2777 | no | `tracked_receipt_only` |
+| `pointwise_phase0_combined` | `dev_322x150` | 322 | 150 | pointwise_ranking_phase0 | `valid_negative` | `stored_per_query` | 0.2113 | 0.2691 | yes | `tracked_complete` |
 | `source_alignment_nested` | `dev_322x150` | 322 | 150 | source_query_first | `valid_negative` | `aggregate_only` | 0.2033 | 0.2482 | no | `local_artifact_missing` |
 | `e5_small_v2@1` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.2028 | 0.2656 | no | `tracked_receipt_only` |
 | `target_response_same_k` | `dev_322x150` | 322 | 150 | source_query_first | `diagnostic_only` | `aggregate_only` | 0.2023 | 0.2510 | no | `local_artifact_missing` |
 | `bge_small_en_v1_5@1` | `dev_322x150` | 322 | 150 | dense_query_knn | `diagnostic_only` | `aggregate_only` | 0.1976 | 0.2683 | no | `tracked_receipt_only` |
 | `global_prior` | `dev_322x150` | 322 | 150 | query_controls | `stable_control` | `aggregate_only` | 0.1385 | 0.2067 | no | `tracked_receipt_only` |
+| `pointwise_phase0_pointwise_only` | `dev_322x150` | 322 | 150 | pointwise_ranking_phase0 | `valid_negative` | `stored_per_query` | 0.1188 | 0.1709 | yes | `tracked_complete` |
 
 ## Restricted pilots and invalid/unscored work
 
@@ -198,6 +200,8 @@ A representation or profile exists without a complete ranking evaluation.
 | `r1_multires_max_dense_equal` | `stored_per_query` | yes | Artifact custody: construction_artifact_missing. |
 | `x1_multires_top2` | `stored_per_query` | yes | Artifact custody: construction_artifact_missing. |
 | `x1_multires_top2_dense_equal` | `stored_per_query` | yes | Artifact custody: construction_artifact_missing. |
+| `pointwise_phase0_combined` | `stored_per_query` | yes | — |
+| `pointwise_phase0_pointwise_only` | `stored_per_query` | yes | — |
 | `hard_cluster_k20_preflight` | `aggregate_only` | no | The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector. |
 | `hard_cluster_k40_preflight` | `aggregate_only` | no | The tracked preflight receipt preserves only aggregate metrics and mechanism diagnostics, not query IDs, rankings, raw score arrays, or a complete per-query metric vector. |
 | `local_domain_prior` | `aggregate_only` | no | The tracked report and aggregate receipt omit query IDs, rankings, raw arrays, and per-query metrics; rejected experiment artifacts were intentionally not retained. |
@@ -254,7 +258,7 @@ A representation or profile exists without a complete ranking evaluation.
 
 Relevant-candidate slices use `qrel_grade_gt_zero`. They overlap, and candidate labels are analysis handles, not official topics. Do not sum or average the slice means as if they were disjoint.
 
-The topic TSV contains 1650 system/slice rows; the density TSV contains 33 rows.
+The topic TSV contains 1950 system/slice rows; the density TSV contains 39 rows.
 
 Disjoint density support: `6_to_20_positives`=30, `at_most_5_positives`=248, `more_than_20_positives`=44.
 
@@ -289,6 +293,8 @@ Disjoint density support: `6_to_20_positives`=30, `at_most_5_positives`=248, `mo
 | `issue18_artifact_custody` | [reports/trec_2026_issue18_pr17head_artifact_custody.json](../reports/trec_2026_issue18_pr17head_artifact_custody.json) | `1157a80231f7ec17718800d47cb56644014cf90550d9c888ad1f6a943d2ec6bd` |
 | `issue18_evaluation` | [reports/trec_2026_issue18_pr17head_evaluation.json](../reports/trec_2026_issue18_pr17head_evaluation.json) | `60a45dc4317bd2b886b9b2fb993e912bbd2edbe69acca75e5bbcb53fd293e4d2` |
 | `issue18_results` | [reports/trec_2026_issue18_pr17head_results.json](../reports/trec_2026_issue18_pr17head_results.json) | `f64d15bbb93d771abef0b9e51e9617ecc4f41439422767faf5839862f553b1a0` |
+| `pointwise_phase0_per_query` | [reports/trec_2026_pointwise_ranking_phase0_per_query.tsv](../reports/trec_2026_pointwise_ranking_phase0_per_query.tsv) | `e2193404d8f1052199b6b6a396d78556e48bb84b145a6e7adda125634218d889` |
+| `pointwise_phase0_results` | [reports/trec_2026_pointwise_ranking_phase0_results.json](../reports/trec_2026_pointwise_ranking_phase0_results.json) | `48ffaa81c77fde9dafb67ff9bbc29de98e51b8735a9320b2117f5662e31a7e6d` |
 | `response_retrieval_results` | [reports/trec_2026_response_retrieval_results.json](../reports/trec_2026_response_retrieval_results.json) | `0d922c3b78137f0478cd2a70cda2bd89ec1621821a1f536aca665e359aea04bd` |
 | `response_volume_results` | [reports/trec_2026_response_volume_normalization_results.json](../reports/trec_2026_response_volume_normalization_results.json) | `052a3972f877a119785640adfc06d21a3afc04d99eac5cae48063e3d83bf4f46` |
 | `semantic_profile_results` | [reports/trec_2026_candidate_semantic_profiles_results.json](../reports/trec_2026_candidate_semantic_profiles_results.json) | `21cfe833c2d48658c6c8ecceffa5a2d9e5a27646e11bfc2a58769f80074ff31a` |

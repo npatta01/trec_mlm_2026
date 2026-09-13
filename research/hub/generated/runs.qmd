@@ -544,6 +544,18 @@ Development evidence only. Compare metrics only within the same evaluation scope
 <p>Profile-heavy fixed fusion reproduced as issue-18 Track A.</p>
 <p>nDCG@10 0.437630 · MRR 0.469991</p>
 </article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="pointwise_phase0_combined pointwise_ranking_phase0 equal reciprocal-rank fusion of the pointwise-only ranking and the frozen dense_nested control.">
+<h4><a href="../generated/runs/pointwise_phase0_combined.html"><code>pointwise_phase0_combined</code></a></h4>
+<p>valid_negative · dev_322x150 · stored_per_query</p>
+<p>Equal reciprocal-rank fusion of the pointwise-only ranking and the frozen dense_nested control.</p>
+<p>nDCG@10 0.211324 · MRR 0.269119</p>
+</article>
+<article class="hub-card hub-filter-row" data-hub-filter-row data-status="valid_negative" data-scope="dev_322x150" data-search="pointwise_phase0_pointwise_only pointwise_ranking_phase0 equal reciprocal-rank fusion of the audited pointwise candidate prior and query-local routing-residual ranks.">
+<h4><a href="../generated/runs/pointwise_phase0_pointwise_only.html"><code>pointwise_phase0_pointwise_only</code></a></h4>
+<p>valid_negative · dev_322x150 · stored_per_query</p>
+<p>Equal reciprocal-rank fusion of the audited pointwise candidate prior and query-local routing-residual ranks.</p>
+<p>nDCG@10 0.118825 · MRR 0.170864</p>
+</article>
 <article class="hub-card hub-filter-row" data-hub-filter-row data-status="stable_control" data-scope="dev_322x150" data-search="profile_only semantic_profiles frozen candidate semantic-response profile ranking.">
 <h4><a href="../generated/runs/profile_only.html"><code>profile_only</code></a></h4>
 <p>stable_control · dev_322x150 · stored_per_query</p>

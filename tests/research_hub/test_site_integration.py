@@ -853,6 +853,47 @@ def test_quarto_renders_generated_idea_library() -> None:
     assert "ideas/*.qmd" not in config["project"]["render"]
 
 
+def test_pointwise_phase0_study_and_completed_idea_are_reciprocally_linked() -> None:
+    build = build_research_hub(ROOT)
+    studies = {record.record_id: record for record in build.sources.studies}
+    questions = {record.record_id: record for record in build.sources.questions}
+    approaches = {record.record_id: record for record in build.sources.approaches}
+    datasets = {record.record_id: record for record in build.sources.datasets}
+    ideas = {record.record_id: record for record in build.sources.tests}
+
+    study = studies["pointwise-ranking-phase0"]
+    assert study.metadata["system_ids"] == [
+        "dense_nested",
+        "pointwise_phase0_pointwise_only",
+        "pointwise_phase0_combined",
+    ]
+    assert study.metadata["representative_system_ids"] == [
+        "pointwise_phase0_pointwise_only",
+        "pointwise_phase0_combined",
+    ]
+    assert study.metadata["comparison_system_ids"] == [
+        "dense_nested",
+        "pointwise_phase0_pointwise_only",
+        "pointwise_phase0_combined",
+    ]
+    assert study.metadata["decision"] == "stop"
+    assert study.metadata["outcome"] == "negative"
+
+    assert "pointwise-ranking-phase0" in questions["response-evidence"].metadata[
+        "study_ids"
+    ]
+    assert "pointwise-ranking-phase0" in approaches["response-evidence"].metadata[
+        "study_ids"
+    ]
+    for dataset_id in ("pointwise-judgments", "run-artifacts"):
+        assert "pointwise-ranking-phase0" in datasets[dataset_id].metadata["study_ids"]
+
+    idea = ideas["local-response-quality-judging"]
+    assert idea.metadata["stage"] == "completed"
+    assert idea.metadata["resulting_study_id"] == "pointwise-ranking-phase0"
+    assert idea.metadata["missing_readiness_fields"] == []
+
+
 def test_failure_aware_fusion_uses_the_reviewed_explainer_copy() -> None:
     source = (ROOT / "research/hub/ideas/failure-aware-fusion.qmd").read_text()
     metadata = yaml.safe_load(source.split("---", maxsplit=2)[1])
@@ -938,13 +979,13 @@ def test_complete_research_hub_content_and_static_shell() -> None:
     assert build.validation.record_counts == {
         "theme": 4,
         "question": 5,
-        "study": 17,
+        "study": 18,
         "test": 5,
         "approach": 5,
         "dataset": 7,
             "background": 9,
     }
-    assert build.validation.linked_system_count == len(build.ledger.systems) == 98
+    assert build.validation.linked_system_count == len(build.ledger.systems) == 100
 
     problem = (ROOT / "research/hub/start-here/problem.qmd").read_text()
     assert "## What are we building?" in problem

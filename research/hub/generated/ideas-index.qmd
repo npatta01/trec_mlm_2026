@@ -48,14 +48,14 @@ Ideas are prospective work, not results. Open a row for the full explanation, ev
 
 ## Responses and references
 
-### Idea
+### Completed
 
 <div class="hub-idea-list">
 <a class="hub-idea-row" data-test-id="local-response-quality-judging" data-themes="responses-references evidence-reliability" href="../generated/ideas/local-response-quality-judging.qmd">
-<span>Idea · High priority · 2/9 readiness fields complete</span>
-<strong>Pilot local LLM response-quality judging with selective pairwise ranking</strong>
-<span>Use a local judge to estimate which candidate responses are correct and useful, then compare only close or uncertain candidates.</span>
-<span class="hub-next-action"><strong>Next action:</strong> Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.</span>
+<span>Completed · High priority · 9/9 readiness fields complete</span>
+<strong>Test pointwise response-quality ranking before pairwise work</strong>
+<span>Transfer audited response-quality labels to development requests, compare the resulting rankings with the frozen dense control, and stop before pairwise judging when the gate fails.</span>
+<span class="hub-next-action"><strong>Next action:</strong> Keep pairwise work stopped and investigate the observed pointwise-to-qrel mismatch using only existing artifacts before proposing any new frozen study.</span>
 </a>
 <p class="hub-github-issue"><a href="https://github.com/npatta01/trec_mlm_2026/issues/31">Track in GitHub #31</a></p>
 </div>

@@ -139,7 +139,7 @@ organizer ground truth.
 ## Next tests
 
 - [Failure-aware evidence fusion](../generated/ideas/failure-aware-fusion.qmd): Define and freeze the reliability signal, fallback, and artifact plan.
-- [Pilot local LLM response-quality judging with selective pairwise ranking](../generated/ideas/local-response-quality-judging.qmd): Freeze the pilot sample, judge schemas, acceptance thresholds, leakage boundary, and scale decision rule.
+- [Test pointwise response-quality ranking before pairwise work](../generated/ideas/local-response-quality-judging.qmd): Keep pairwise work stopped and investigate the observed pointwise-to-qrel mismatch using only existing artifacts before proposing any new frozen study.
 - [Reference review trigger](../generated/ideas/reference-review-trigger.qmd): Define the local trigger features and acceptance rule.
 
 
@@ -154,6 +154,7 @@ organizer ground truth.
 - [Four-model reference-answer review](four-model-reference-review.qmd)
 - [Gemini grounding failure review](gemini-grounding-failure-review.qmd)
 - [Grounded reference data-quality audit](grounded-data-quality-audit.qmd)
+- [Pointwise response-quality ranking Phase 0](pointwise-ranking-phase0.qmd)
 - [Lexical response retrieval](response-retrieval.qmd)
 - [Response-volume normalization](response-volume-normalization.qmd)
 - [Source-query-first response evidence](source-query-first.qmd)

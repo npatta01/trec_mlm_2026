@@ -700,14 +700,15 @@ _CURRENT_STATE_METHOD_FAMILY_SPECS = (
         "direct-response-evidence",
         "Direct response evidence",
         "Compare bounded candidate-response evidence with the control without disclosing response content.",
-        "The tested lexical and source-alignment response routes did not displace the control in their tested forms.",
-        "response-retrieval",
+        "Lexical, source-alignment, and audited pointwise response routes did not displace the control in their tested forms.",
+        "pointwise-ranking-phase0",
         "What privacy-safe response signal can add evidence where both promoted components have no top-ten signal?",
         "failure-aware-fusion",
         (
             "response-retrieval",
             "response-volume-normalization",
             "source-query-first",
+            "pointwise-ranking-phase0",
         ),
     ),
     (
@@ -3212,6 +3213,350 @@ def _render_study_relationships(
     return lines
 
 
+_POINTWISE_PHASE0_EVIDENCE_BASE = (
+    "https://github.com/npatta01/trec_mlm_2026/blob/"
+    "51c0d25e1e85881883b105b85470a2088d4ee9d2/"
+)
+_POINTWISE_PHASE0_SYSTEM_LABELS = {
+    "control": "Dense control",
+    "prior_only": "Prior-only",
+    "routing_only": "Routing-only",
+    "pointwise_only": "Pointwise-only",
+    "combined": "Combined",
+}
+_POINTWISE_PHASE0_QUERY_LABELS = {
+    ("qrel_positive_density", "le_5"): ("Positive density", "≤5"),
+    ("qrel_positive_density", "6_20"): ("Positive density", "6–20"),
+    ("qrel_positive_density", "gt_20"): ("Positive density", ">20"),
+    ("dense_ndcg_status", "zero"): ("Dense status", "zero"),
+    ("dense_ndcg_status", "nonzero"): ("Dense status", "nonzero"),
+    ("query_similarity_quartile", "1"): ("Similarity quartile", "Q1"),
+    ("query_similarity_quartile", "2"): ("Similarity quartile", "Q2"),
+    ("query_similarity_quartile", "3"): ("Similarity quartile", "Q3"),
+    ("query_similarity_quartile", "4"): ("Similarity quartile", "Q4"),
+}
+_POINTWISE_PHASE0_CANDIDATE_LABELS = {
+    "audited_count_quartile": "Audited rows",
+    "smoothed_prior_quartile": "Smoothed prior",
+}
+
+
+def _phase0_signed(value: float, *, compact: bool = False) -> str:
+    sign = "+" if value > 0.0 else "−" if value < 0.0 else ""
+    magnitude = f"{abs(value):.6f}"
+    if compact and magnitude.startswith("0"):
+        magnitude = magnitude[1:]
+    return f"{sign}{magnitude}"
+
+
+def _phase0_slice_cell(metrics: object) -> str:
+    return (
+        f"{getattr(metrics, 'ndcg_at_10'):.6f}".removeprefix("0")
+        + " / "
+        + f"{getattr(metrics, 'mrr'):.6f}".removeprefix("0")
+        + f" / {getattr(metrics, 'zero_ndcg_queries')}"
+    )
+
+
+def _render_pointwise_phase0_report(
+    build: HubBuild, study: HubRecord
+) -> list[str]:
+    evidence = build.pointwise_phase0
+    if study.record_id != "pointwise-ranking-phase0":
+        return []
+    if evidence is None or evidence.study_id != study.record_id:
+        raise ValueError("pointwise-ranking-phase0 requires validated typed evidence")
+    systems = {row.source_system_id: row for row in evidence.systems}
+    paired = {
+        (row.source_system_id, row.metric): row for row in evidence.paired_rows
+    }
+    transitions = {
+        row.source_system_id: row for row in evidence.zero_transitions
+    }
+    pointwise = systems["pointwise_only"].metrics
+    control = systems["control"].metrics
+    combined = systems["combined"].metrics
+    combined_ndcg = paired[("combined", "nDCG@10")]
+    lines = [
+        "",
+        "## Answer first",
+        "",
+        "**No. Audited pointwise judgments do not produce candidate rankings "
+        "that agree well enough with organizer qrels, and they do not improve "
+        "the frozen `dense_nested` control.** Pointwise-only nDCG@10 was "
+        f"**{pointwise.ndcg_at_10:.6f}**, versus **{control.ndcg_at_10:.6f}** "
+        "for the control. Equal fusion with the control recovered some quality "
+        f"but reached only **{combined.ndcg_at_10:.6f}**. Its control-relative "
+        f"nDCG@10 difference was **{_phase0_signed(combined_ndcg.difference)}**, "
+        "with paired 95% interval "
+        f"**[{_phase0_signed(combined_ndcg.ci_lower)}, "
+        f"{_phase0_signed(combined_ndcg.ci_upper)}]**.",
+        "",
+        f"Only {evidence.passed_gate_count} of {len(evidence.gate_rows)} frozen "
+        "gates passed. The binding recommendation is "
+        f"`{evidence.recommendation}`; no pairwise judging was run. The existing "
+        "promoted development system is unchanged, and neither new Phase 0 "
+        "system is promoted.",
+        "",
+        "## Frozen comparison",
+        "",
+        "The three main systems were the existing **control** (`dense_nested`), "
+        "**pointwise-only**, and their fixed **combined** RRF. Prior-only and "
+        "routing-only were prespecified diagnostics; they cannot replace the "
+        "main result or override the gate.",
+        "",
+        "| Role | System | nDCG@10 | MRR | Zero-nDCG queries |",
+        "|---|---|---:|---:|---:|",
+    ]
+    for system in evidence.systems:
+        lines.append(
+            f"| {system.role} | "
+            f"{_POINTWISE_PHASE0_SYSTEM_LABELS[system.source_system_id]} | "
+            f"{system.metrics.ndcg_at_10:.6f} | {system.metrics.mrr:.6f} | "
+            f"{system.metrics.zero_ndcg_queries} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"All rankings covered the same {systems['control'].query_count} queries "
+            f"and {systems['control'].candidate_count} candidates. Construction was "
+            "qrel-free: labels and representation records were joined by exact "
+            "record ID, the pointwise source set had zero ID or normalized-text "
+            "overlap with development queries, and qrels were opened only after "
+            "rankings existed.",
+            "",
+            "## Paired evidence against the control",
+            "",
+            "Differences are candidate minus control. Intervals are query-grain "
+            "paired percentile bootstrap intervals with 10,000 resamples and "
+            "seed 31. W/T/L uses a `1e-12` tie tolerance.",
+            "",
+            "| System | Metric | Difference | Paired 95% CI | W/T/L |",
+            "|---|---|---:|---:|---:|",
+        ]
+    )
+    for row in evidence.paired_rows:
+        lines.append(
+            f"| {_POINTWISE_PHASE0_SYSTEM_LABELS[row.source_system_id]} | "
+            f"{row.metric} | {_phase0_signed(row.difference)} | "
+            f"[{_phase0_signed(row.ci_lower)}, {_phase0_signed(row.ci_upper)}] | "
+            f"{row.wins} / {row.ties} / {row.losses} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Zero-nDCG transitions reinforce the aggregate result:",
+            "",
+            "| System | Zero in both | Dense zero rescued | Dense nonzero lost | Nonzero in both |",
+            "|---|---:|---:|---:|---:|",
+        ]
+    )
+    for system_id in ("pointwise_only", "combined"):
+        row = transitions[system_id]
+        lines.append(
+            f"| {_POINTWISE_PHASE0_SYSTEM_LABELS[system_id]} | {row.zero_both} | "
+            f"{row.dense_zero_candidate_nonzero} | "
+            f"{row.dense_nonzero_candidate_zero} | {row.nonzero_both} |"
+        )
+    query_partition_counts = {
+        family: [
+            row.member_count for row in evidence.query_slices if row.family == family
+        ]
+        for family in (
+            "qrel_positive_density",
+            "dense_ndcg_status",
+            "query_similarity_quartile",
+        )
+    }
+    query_partition_summary = (
+        "Each system cell is **nDCG@10 / MRR / zero-nDCG count**. Density "
+        "uses the organizer-qrel positive count; dense status uses control "
+        "nDCG; similarity quartiles run from low (Q1) to high (Q4) frozen "
+        "E5 mean similarity. The counts form complete partitions: "
+        + ", ".join(
+            "+".join(str(count) for count in query_partition_counts[family])
+            for family in (
+                "qrel_positive_density",
+                "dense_ndcg_status",
+                "query_similarity_quartile",
+            )
+        )
+        + f" all equal {systems['control'].query_count}."
+    )
+    lines.extend(
+        [
+            "",
+            "## Query slices",
+            "",
+            query_partition_summary,
+            "",
+            "| Family | Stratum | Queries | Control | Prior | Routing | Pointwise | Combined | Combined Δ nDCG |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in evidence.query_slices:
+        row_systems = dict(row.systems)
+        family_label, slice_label = _POINTWISE_PHASE0_QUERY_LABELS[
+            (row.family, row.label)
+        ]
+        delta = (
+            row_systems["combined"].ndcg_at_10
+            - row_systems["control"].ndcg_at_10
+        )
+        lines.append(
+            f"| {family_label} | {slice_label} | {row.member_count} | "
+            + " | ".join(
+                _phase0_slice_cell(row_systems[system_id])
+                for system_id in ("control", "prior_only", "routing_only", "pointwise_only", "combined")
+            )
+            + f" | {_phase0_signed(delta, compact=True)} |"
+        )
+    dense_zero = next(
+        row
+        for row in evidence.query_slices
+        if (row.family, row.label) == ("dense_ndcg_status", "zero")
+    )
+    dense_nonzero = next(
+        row
+        for row in evidence.query_slices
+        if (row.family, row.label) == ("dense_ndcg_status", "nonzero")
+    )
+    dz = dict(dense_zero.systems)
+    dn = dict(dense_nonzero.systems)
+    candidate_partition = "/".join(
+        str(row.member_count)
+        for row in evidence.candidate_slices
+        if row.family == "audited_count_quartile"
+    )
+    candidate_partition_summary = (
+        "Candidate quartiles were recomputed correctly: both rankings **and "
+        "qrels were filtered to the named candidate group before nDCG@10, "
+        "MRR, and zero counts were recalculated**. Each family partitions the "
+        f"{systems['control'].candidate_count} candidates as "
+        f"{candidate_partition}. Cells again show **nDCG@10 / MRR / "
+        "zero-nDCG count**."
+    )
+    lines.extend(
+        [
+            "",
+            "Combined trails control in every density and similarity stratum. "
+            f"It rescues some control-zero queries, but the {dense_nonzero.member_count} "
+            "control-nonzero queries fall from "
+            f"{dn['control'].ndcg_at_10:.6f} to {dn['combined'].ndcg_at_10:.6f} "
+            f"nDCG@10. That loss dominates the {dz['combined'].ndcg_at_10:.6f} "
+            f"gain on the {dense_zero.member_count} control-zero queries.",
+            "",
+            "## Candidate slices",
+            "",
+            candidate_partition_summary,
+            "",
+            "| Family | Quartile | Candidates | Control | Prior | Routing | Pointwise | Combined | Combined Δ nDCG |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    positive_delta = 0.0
+    positive_control = None
+    positive_combined = None
+    for row in evidence.candidate_slices:
+        row_systems = dict(row.systems)
+        delta = (
+            row_systems["combined"].ndcg_at_10
+            - row_systems["control"].ndcg_at_10
+        )
+        if delta > 0.0:
+            positive_delta = delta
+            positive_control = row_systems["control"]
+            positive_combined = row_systems["combined"]
+        rendered_delta = _phase0_signed(delta, compact=True)
+        if delta > 0.0:
+            rendered_delta = f"**{rendered_delta}**"
+        lines.append(
+            f"| {_POINTWISE_PHASE0_CANDIDATE_LABELS[row.family]} | Q{row.label} | "
+            f"{row.member_count} | "
+            + " | ".join(
+                _phase0_slice_cell(row_systems[system_id])
+                for system_id in ("control", "prior_only", "routing_only", "pointwise_only", "combined")
+            )
+            + f" | {rendered_delta} |"
+        )
+    if positive_control is None or positive_combined is None:
+        raise ValueError("pointwise Phase 0 positive candidate slice is missing")
+    lines.extend(
+        [
+            "",
+            "The lone positive candidate slice is smoothed-prior Q2: combined "
+            f"gains only {positive_delta:.6f} nDCG@10 while its MRR remains below "
+            f"control ({positive_combined.mrr:.6f} versus {positive_control.mrr:.6f}). "
+            "It is one of eight prespecified candidate slices, is not paired "
+            "uncertainty for the primary query-level endpoint, and does not "
+            "offset the negative full-set result or the seven other negative "
+            "candidate slices.",
+            "",
+            "Compact lookup tables are used instead of decorative charts because "
+            "the result has two metrics, zero counts, five systems, and categorical "
+            "partitions; exact cell lookup makes the isolated positive slice and "
+            "recomputation boundary easier to audit without implying a continuous "
+            "trend.",
+            "",
+            "## Independent validation and robustness",
+            "",
+            "An independent standard-library validator read the qrels and five "
+            "emitted TREC runs without importing the project evaluator or metric "
+            f"functions. It recomputed {evidence.validation_metric_cells:,} "
+            "per-query metric cells, all five aggregates, both paired comparisons, "
+            "all nine query slices, "
+            f"{evidence.validation_candidate_rows} candidate-slice metric rows, "
+            "the gate, and the selector receipt. Every run contained "
+            f"{evidence.validation_run_rows:,} rows "
+            f"({systems['control'].query_count}×{systems['control'].candidate_count}), "
+            "and every dense per-query value matched both earlier receipts within "
+            "`5e-12`.",
+            "",
+            "The qrel-free construction preflight enforced and confirmed zero "
+            "normalized-text and ID overlap between all "
+            f"{systems['control'].query_count} development queries and "
+            f"{evidence.validation_source_questions:,} pointwise source questions. "
+            "Independent validation reconciled the sanitized construction and "
+            "selector receipts. "
+            "No judge, pointwise-regeneration, embedding, pairwise, inference, or "
+            "API call was made in Phase 0.",
+            "",
+            "## Gate and decision",
+            "",
+            "| Frozen check | Required | Observed | Pass? |",
+            "|---|---:|---:|:---:|",
+        ]
+    )
+    for row in evidence.gate_rows:
+        observed = row.observed.replace("-", "−")
+        result = "**Yes**" if row.passed else "No"
+        lines.append(f"| {row.label} | {row.required} | {observed} | {result} |")
+    lines.extend(
+        [
+            "",
+            f"**Gate: {evidence.passed_gate_count}/{len(evidence.gate_rows)} passed. "
+            f"Decision: {evidence.decision}. Recommendation: "
+            f"`{evidence.recommendation}`.** The zero-call selector did find "
+            f"{evidence.selector_selected_pairs} eligible pairs across "
+            f"{evidence.selector_source_questions} source questions at "
+            f"candidate-use cap {evidence.selector_candidate_use_cap}, but selector "
+            "availability cannot override the failed effectiveness gate.",
+            "",
+            "## Tracked evidence",
+            "",
+            f"- [Frozen protocol]({_POINTWISE_PHASE0_EVIDENCE_BASE}{evidence.protocol_path})",
+            f"- [Validated structured result]({_POINTWISE_PHASE0_EVIDENCE_BASE}{evidence.results_path})",
+            f"- [Complete per-query TSV]({_POINTWISE_PHASE0_EVIDENCE_BASE}{evidence.per_query_path})",
+            f"- [Candidate-filtered slice TSV]({_POINTWISE_PHASE0_EVIDENCE_BASE}{evidence.candidate_slices_path})",
+            "- Hub run records: "
+            "[pointwise-only](../generated/runs/pointwise_phase0_pointwise_only.qmd), "
+            "[combined](../generated/runs/pointwise_phase0_combined.qmd), and the "
+            "existing [dense control](../generated/runs/dense_nested.qmd).",
+        ]
+    )
+    return lines
+
+
 def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
     question_ids = _metadata_list(study, "question_ids")
     questions = [
@@ -3252,11 +3597,23 @@ def _render_study_detail(build: HubBuild, study: HubRecord) -> str:
             "</section>",
         ]
     )
+    lines.extend(_render_pointwise_phase0_report(build, study))
     hypothesis = study.metadata.get("hypothesis")
+    rationale = str(study.metadata.get("rationale", ""))
+    if (
+        study.record_id == "pointwise-ranking-phase0"
+        and build.pointwise_phase0 is not None
+    ):
+        rationale = (
+            "A completed audit made "
+            f"{build.pointwise_phase0.audited_label_count:,} support labels "
+            "available, and the frozen candidate-local E5 tensor enabled a "
+            "zero-call query-specific transfer test."
+        )
     evidence_lines = [
         "## Why does it matter?",
         "",
-        f"**Rationale:** {study.metadata.get('rationale', '')}",
+        f"**Rationale:** {rationale}",
         "",
         f"**Research question:** {question_links or 'No linked question.'}",
         "",

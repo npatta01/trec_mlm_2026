@@ -29,6 +29,7 @@ Development evidence only. No held-out effectiveness claim is supported.
 ## Linked studies
 
 - `dense-query-knn`
+- `pointwise-ranking-phase0`
 
 ## Evidence receipt
 

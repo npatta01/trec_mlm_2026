@@ -6,11 +6,14 @@ complete, approved, or promoted into the experiment ledger.
 
 ## Active working records
 
-There is no active repository-clarity implementation plan. The next executable
-work is tracked in GitHub issues #39 and #40.
+There is no active repository implementation plan in this worktree.
 
 ## Completed or superseded
 
+- [Pointwise ranking Phase 0](trec-2026-pointwise-ranking-phase0.md) — completed
+  zero-call negative evaluation under GitHub issue #31, with validated
+  query/candidate slices, a binding stop-pairwise decision, private rendered
+  handoff, and draft PR #55.
 - [Newcomer research map and GitHub backlog](trec-2026-newcomer-research-map.md)
   — completed repository-clarity implementation, GitHub reconciliation,
   verification evidence, and dependency-aware next action.

@@ -47,6 +47,7 @@ EXPECTED_READING_THEMES = (
             "response-retrieval",
             "response-volume-normalization",
             "source-query-first",
+            "pointwise-ranking-phase0",
         ),
     ),
     (
@@ -82,7 +83,7 @@ EXPECTED_METHOD_FAMILY_ANSWERS = (
     ),
     (
         "direct-response-evidence",
-        "response-retrieval",
+        "pointwise-ranking-phase0",
         "failure-aware-fusion",
     ),
     (

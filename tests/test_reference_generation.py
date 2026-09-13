@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import threading
 import urllib.error
@@ -19,6 +20,7 @@ from trec_mlm.reference_generation import (
     GEMINI_MODEL,
     GOOGLE_MAX_OUTPUT_TOKENS,
     SYSTEM_PROMPT,
+    _write_cache,
     build_gemini_request,
     build_openai_request,
     call_deepinfra,
@@ -506,6 +508,40 @@ def test_grounded_gemini_request_enables_google_search_only_when_requested() -> 
     assert "tools" not in ungrounded
 
 
+def test_grounded_gemini_request_requires_search_before_answering() -> None:
+    body = build_gemini_request("Who wrote Hamlet?", grounding=True)
+
+    prompt = body["system_instruction"]["parts"][0]["text"]
+    assert "Use Google Search before answering every question" in prompt
+    assert "Do not use a fixed number of searches" in prompt
+
+
+def test_grounded_generation_uses_a_distinct_prompt_cache_identity(
+    tmp_path: Path,
+) -> None:
+    def call(_: str):
+        return "answer", {}, "STOP", {}
+
+    ungrounded = generate_missing(
+        [("q1", "question")],
+        cache_path=tmp_path / "ungrounded.json",
+        provider="gemini",
+        model=GEMINI_MODEL,
+        call=call,
+        workers=1,
+    )
+    grounded = generate_missing(
+        [("q1", "question")],
+        cache_path=tmp_path / "grounded.json",
+        provider="gemini-grounded",
+        model=GEMINI_MODEL,
+        call=call,
+        workers=1,
+    )
+
+    assert grounded["prompt_sha256"] != ungrounded["prompt_sha256"]
+
+
 def test_gemma_request_uses_high_thinking_and_large_default_ceiling() -> None:
     body = build_gemini_request("Who wrote Hamlet?", model=GEMMA_MODEL)
     assert body["generationConfig"]["maxOutputTokens"] == 16_384
@@ -863,6 +899,66 @@ def test_grounded_generation_writes_private_evidence_ledger_only(
     assert private_record["finish_reason"] == "stop"
     assert private_record["sources"][0]["url"] == "https://example.com/private"
     assert evidence_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_private_generation_cache_is_private_before_content_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed_modes: list[int] = []
+    real_fdopen = os.fdopen
+
+    def checked_fdopen(fd: int, *args, **kwargs):
+        observed_modes.append(os.fstat(fd).st_mode & 0o777)
+        return real_fdopen(fd, *args, **kwargs)
+
+    monkeypatch.setattr(os, "fdopen", checked_fdopen)
+    _write_cache(tmp_path / "evidence.json", {"records": {}}, private=True)
+
+    assert observed_modes == [0o600]
+
+
+def test_grounded_generation_regenerates_answered_record_without_search_before_success(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "grounded.json"
+    evidence_path = tmp_path / "grounded.evidence.json"
+    calls = 0
+
+    def call(_: str):
+        nonlocal calls
+        calls += 1
+        search_invoked = calls > 1
+        return (
+            "answer",
+            {},
+            "STOP",
+            {
+                "uncertainty_status": "answered",
+                "uncertainty_reason": "none",
+                "_private_evidence": {
+                    "search_invoked": search_invoked,
+                    "web_search_queries": ["query"] if search_invoked else [],
+                    "sources": [],
+                    "supports": [],
+                    "generated_at": "2026-08-23T00:00:00Z",
+                },
+            },
+        )
+
+    arguments = {
+        "questions": [("q1", "question")],
+        "cache_path": cache_path,
+        "evidence_cache_path": evidence_path,
+        "provider": "gemini-grounded",
+        "model": GEMINI_MODEL,
+        "call": call,
+        "workers": 1,
+    }
+    generate_missing(**arguments)
+
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert calls == 2
+    assert evidence["records"]["q1"]["search_invoked"] is True
 
 
 @pytest.mark.parametrize(
